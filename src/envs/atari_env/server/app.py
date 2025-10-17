@@ -34,7 +34,7 @@ import os
 
 from core.env_server import create_fastapi_app
 
-from ..models import AtariAction, AtariObservation
+from ..types import AtariAction, AtariObservation
 from .atari_environment import AtariEnvironment
 
 # Get configuration from environment variables

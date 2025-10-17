@@ -23,7 +23,7 @@ Usage:
 
 from core.env_server import create_fastapi_app
 
-from ..models import EchoAction, EchoObservation
+from ..types import EchoAction, EchoObservation
 from .echo_environment import EchoEnvironment
 
 # Create the environment instance

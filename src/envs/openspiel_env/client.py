@@ -18,7 +18,7 @@ from typing import Any, Dict, Optional, TYPE_CHECKING
 from core.http_env_client import HTTPEnvClient
 from core.types import StepResult
 
-from .models import OpenSpielAction, OpenSpielObservation, OpenSpielState
+from .types import OpenSpielAction, OpenSpielObservation, OpenSpielState
 
 if TYPE_CHECKING:
     from core.containers.runtime import ContainerProvider

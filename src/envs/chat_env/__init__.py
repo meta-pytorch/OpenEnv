@@ -7,6 +7,6 @@
 """Chat Environment - A chat-based environment for LLMs with tokenization support."""
 
 from .client import ChatEnv
-from .models import ChatAction, ChatObservation, ChatState
+from .types import ChatAction, ChatObservation, ChatState
 
 __all__ = ["ChatAction", "ChatObservation", "ChatState", "ChatEnv"]
