@@ -5,7 +5,7 @@
 # LICENSE file in the root directory of this source tree.
 
 """
-Data models for OpenSpiel Environment.
+Data types for OpenSpiel Environment.
 
 This module defines the Action, Observation, and State types for OpenSpiel games.
 """
