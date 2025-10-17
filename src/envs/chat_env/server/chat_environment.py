@@ -14,7 +14,7 @@ import torch
 
 from core.env_server.interfaces import Environment, Message, ModelTokenizer, Transform
 
-from ..models import ChatAction, ChatObservation, ChatState
+from ..types import ChatAction, ChatObservation, ChatState
 
 
 class ChatEnvironment(Environment):

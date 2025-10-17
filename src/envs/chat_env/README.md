@@ -245,7 +245,7 @@ chat_env/
 ├── __init__.py              # Module exports (ChatEnv, ChatAction, etc.)
 ├── README.md                # This file
 ├── client.py                # ChatEnv HTTP client
-├── models.py                # ChatAction, ChatObservation, ChatState
+├── types.py                 # ChatAction, ChatObservation, ChatState
 └── server/
     ├── __init__.py          # Server module exports
     ├── chat_environment.py  # Core ChatEnvironment implementation

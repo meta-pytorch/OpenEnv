@@ -18,7 +18,7 @@ Creating an environment involves five main steps:
 Create your action, observation, and state models using Python dataclasses:
 
 ```python
-# models.py
+# types.py
 from dataclasses import dataclass
 from core.env_server import Action, Observation, State
 
@@ -48,7 +48,7 @@ Implement the three core methods: `reset()`, `step()`, and `state`:
 # server/my_environment.py
 import uuid
 from core.env_server import Environment
-from ..models import MyAction, MyObservation, MyState
+from ..types import MyAction, MyObservation, MyState
 
 class MyEnvironment(Environment):
     def __init__(self):
@@ -77,7 +77,7 @@ Use the `create_fastapi_app` helper to create your HTTP server:
 ```python
 # server/app.py
 from core.env_server import create_fastapi_app
-from ..models import MyAction, MyObservation
+from ..types import MyAction, MyObservation
 from .my_environment import MyEnvironment
 
 env = MyEnvironment()
@@ -140,7 +140,7 @@ Create a client that extends `HTTPEnvClient`:
 # client.py
 from core.http_env_client import HTTPEnvClient
 from core.types import StepResult
-from .models import MyAction, MyObservation, MyState
+from .types import MyAction, MyObservation, MyState
 
 class MyEnv(HTTPEnvClient[MyAction, MyObservation]):
     def _step_payload(self, action: MyAction) -> dict:
@@ -203,7 +203,7 @@ Organize your environment following this structure:
 ```
 src/envs/my_env/
 ├── __init__.py           # Export MyAction, MyObservation, MyState, MyEnv
-├── models.py             # Action, Observation, State definitions
+├── types.py              # Action, Observation, State definitions
 ├── client.py             # MyEnv client implementation
 ├── README.md             # Environment documentation
 └── server/
@@ -282,7 +282,7 @@ Test your environment before containerization:
 ```python
 # test_my_environment.py
 from envs.my_env.server.my_environment import MyEnvironment
-from envs.my_env.models import MyAction
+from envs.my_env.types import MyAction
 
 def test_environment():
     env = MyEnvironment()
