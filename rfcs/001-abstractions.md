@@ -159,7 +159,7 @@ class Environment(ABC):
     - Tools (exposed via MCP or similar)
     - Sandbox/execution context (e.g., Docker container)
     - Code execution capabilities
-    - Reward computation pipeline (see RFC for reward abstractions)
+    - Reward computation pipeline (mechanism TBD in Phase 2 RFC)
     - External state (e.g., interpreter variables, file system)
     """
 
@@ -210,7 +210,7 @@ class Environment(ABC):
 ### Agent Interface (Thin Wrapper)
 
 ```python
-from typing import Protocol
+from typing import Protocol, TypedDict
 
 
 class Message(TypedDict):
@@ -444,7 +444,7 @@ for batch_of_tasks in dataloader:
 
 3. **PyTorch DataLoader compatibility**: `TaskDataset` follows the PyTorch `IterableDataset` interface (implements `__iter__`), making it seamlessly compatible with PyTorch's `DataLoader` for streaming data, multi-process loading, etc. This is ideal for sequential data access and large datasets.
 
-4. **Flexibility**: Environments can support both traditional tool calling (where each tool call is a separate action) and CodeAct (where an action contains code that may call multiple tools). See RFC 003 for details.
+4. **Flexibility**: Environments can support both traditional tool calling (where each tool call is a separate action) and CodeAct (where an action contains code that may call multiple tools). See RFC 004 for details on unified action interface and RFC 003 for MCP integration.
 
 5. **State ownership**: The Environment owns all external state (file system, interpreter state, tool outputs). The Agent owns internal state (conversation history, model hidden states, etc.).
 

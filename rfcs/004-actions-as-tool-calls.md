@@ -5,6 +5,8 @@
 **Authors**: @Darktex, @pankit-eng
 **RFC ID**: 004
 
+**Note**: This RFC defines the unified action interface that applies to all environment types. RFC 003 describes how MCP tools integrate with this action system to enable tool calling in both traditional and CodeAct paradigms.
+
 ## Summary
 
 This RFC proposes treating environment actions using a standardized pattern inspired by MCP (Model Context Protocol), where each action represents a discrete, named operation with typed parameters. This approach aligns OpenEnv with modern LLM agent frameworks while maintaining type safety and providing better introspection capabilities for agent training and debugging.
@@ -471,6 +473,7 @@ env.close()
 - [Model Context Protocol (MCP) Specification](https://spec.modelcontextprotocol.io/) - Primary inspiration for this RFC
 - [Anthropic Tool Use Documentation](https://docs.anthropic.com/claude/docs/tool-use)
 - [OpenAI Function Calling](https://platform.openai.com/docs/guides/function-calling)
+- RFC 000: OpenEnv Project Phases
 - RFC 001: OpenEnv Basic Abstractions
 - RFC 002: OpenEnv Framework Spec
 - RFC 003: MCP Support

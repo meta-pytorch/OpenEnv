@@ -149,7 +149,7 @@ In this RFC, we want to align on four decisions that will shape the overall desi
 
 These three APIs establish the minimum viable interface for environment interaction and are sufficient for basic RL training workflows. They align with established patterns from Gymnasium and similar frameworks, making them immediately familiar to practitioners.
 
-**Scope**: This RFC focuses exclusively on these baseline APIs. Additional APIs (e.g., `render()`, `seed()`, `close()`, `tools()` and  environment-specific utilities) will be explored in follow-up RFCs.
+**Scope**: This RFC focuses exclusively on these baseline APIs. Additional APIs (e.g., `render()`, `seed()`) will be explored in follow-up RFCs. The `actions()` method for action discovery is defined in RFC 004.
 
 #### Decision 2: Environment-Computed Rewards
 

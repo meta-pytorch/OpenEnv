@@ -59,17 +59,53 @@ MCP (Model Context Protocol) is a protocol for exposing tools to AI models. It u
 
 ### Why MCP Works for Traditional Tool Calling
 
-In RFC 003, we defined `ToolCallAction` with a `tool_name` and `parameters` structure. This maps naturally to MCP:
+In RFC 004, we defined `ToolCallAction` with a `tool_name` and `parameters` structure. This maps naturally to MCP:
 
 ```python
-# RFC 003 style
+# RFC 004 style
 action = ToolCallAction(
     tool_name="search_web",
     parameters={"query": "python patterns", "max_results": 5}
 )
-observation = env.step(action) # Maps to MCP call_tool RPC
+observation = env.step(action)
+
+# Maps to MCP call_tool RPC
+mcp_client.call_tool(
+    name="search_web",
+    arguments={"query": "python patterns", "max_results": 5}
+)
 ```
 
+The environment can act as an MCP client, forwarding tool calls to the MCP server and returning results in observations.
+
+### Why MCP Needs Adaptation for CodeAct
+
+In CodeAct, agents write Python code that executes directly. **Best Practice**: Tools should be pre-imported in the execution environment, and the model should be informed of available tools via a system prompt. Any import statements written by the model should be ignored.
+
+```python
+# Agent generates this code (no imports!)
+# Tools are already available: search_web, read_file
+
+results = search_web(query="python patterns", max_results=5)
+config = read_file(path="/workspace/config.json")
+print(f"Found {len(results)} results")
+```
+
+**Pros**:
+- **Security**: Prevents arbitrary module imports
+- **Determinism**: Environment controls exactly what's available
+- **Simplicity**: Model doesn't need to guess import syntax or module names
+- **Reliability**: Avoids import errors and version conflicts
+
+This requires:
+1. **Pre-import tools**: Inject tool functions into the execution namespace before running agent code
+2. **Function call translation**: Converting Python function calls to MCP RPC calls
+3. **Type marshaling**: Converting between Python types and JSON for MCP communication
+4. **Import filtering**: Strip or ignore import statements from agent-generated code
+
+## Design
+
+### Architecture Overview
 
 #### 3. System Prompt for Tool Availability
 
@@ -698,6 +734,7 @@ CMD ["python", "my_tools_server.py"]
 - [Model Context Protocol Specification](https://spec.modelcontextprotocol.io/)
 - [FastMCP Python Library](https://github.com/jlowin/fastmcp)
 - [mcp-use Python Library](https://github.com/ziplokk1/python-mcp)
+- RFC 000: OpenEnv Project Phases
 - RFC 001: OpenEnv Basic Abstractions
 - RFC 002: OpenEnv Framework Spec
-- RFC 003: Support multiple tool calls via Action wrapper abstraction
+- RFC 004: Support multiple tool calls via Action wrapper abstraction
