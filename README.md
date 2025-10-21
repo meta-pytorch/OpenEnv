@@ -105,7 +105,7 @@ Type-safe data structures:
 When building a new environment, create the following structure:
 
 ```
-src/envs/your_env/
+open_env/envs/your_env/
 ├── __init__.py           # Export YourAction, YourObservation, YourEnv
 ├── models.py             # Define Action, Observation, State dataclasses
 ├── client.py             # Implement YourEnv(HTTPEnvClient)
@@ -116,12 +116,12 @@ src/envs/your_env/
     └── Dockerfile           # Define container image
 ```
 
-See [`src/envs/README.md`](src/envs/README.md) for a complete guide on building environments.
+See [`open_env/envs/README.md`](open_env/envs/README.md) for a complete guide on building environments.
 
 ### For Environment Users
 
 To use an environment:
-1. Import from `envs.your_env`: `from envs.echo_env import EchoAction, EchoEnv`
+1. Import from `open_env.envs.your_env`: `from open_env.envs.echo_env import EchoAction, EchoEnv`
 2. Create client: `client = EchoEnv.from_docker_image("echo-env:latest")`
 3. Interact: `client.reset()`, `client.step(action)`, `client.state()`
 4. Cleanup: `client.close()`
@@ -140,7 +140,7 @@ See example scripts in `examples/` directory.
 ### Using the Echo Environment(Example)
 
 ```python
-from envs.echo_env import EchoAction, EchoEnv
+from open_env.envs.echo_env import EchoAction, EchoEnv
 
 # Automatically start container and connect
 client = EchoEnv.from_docker_image("echo-env:latest")
@@ -190,7 +190,7 @@ A simple environment that echoes back messages with metadata. Perfect for:
 - Learning the framework basics
 - Verifying container deployment
 
-See: [`src/envs/echo_env/README.md`](src/envs/echo_env/README.md)
+See: [`open_env/envs/echo_env/README.md`](open_env/envs/echo_env/README.md)
 
 ### Coding Environment
 Executes arbitrary Python code in a sandboxed environment. Features:
@@ -199,7 +199,7 @@ Executes arbitrary Python code in a sandboxed environment. Features:
 - Persistent execution context within episodes
 - Error handling with detailed messages
 
-See: [`src/envs/coding_env/README.md`](src/envs/coding_env/README.md)
+See: [`open_env/envs/coding_env/README.md`](open_env/envs/coding_env/README.md)
 
 ## Community support & Acknowledgments
 This is an open and community centric project. If you would like to add your name here, please put up a pull request and tag @jspisak for review. Ty!!

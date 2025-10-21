@@ -35,7 +35,7 @@ from pathlib import Path
 # Add src to path
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
-from envs.openspiel_env import OpenSpielEnv, OpenSpielAction
+from open_env.envs.openspiel_env import OpenSpielAction, OpenSpielEnv
 
 
 def run_catch_game(env: OpenSpielEnv, num_episodes: int = 3):
@@ -83,14 +83,16 @@ def run_tictactoe_game(env: OpenSpielEnv, num_episodes: int = 3):
         while not result.done:
             # Choose random action from legal moves
             action_id = random.choice(result.observation.legal_actions)
-            result = env.step(OpenSpielAction(action_id=action_id, game_name="tic_tac_toe"))
+            result = env.step(
+                OpenSpielAction(action_id=action_id, game_name="tic_tac_toe")
+            )
             step += 1
 
         # Determine outcome
-        if result.reward > 0:
+        if result.reward and result.reward > 0:
             wins += 1
             outcome = "WIN! 🏆"
-        elif result.reward < 0:
+        elif result.reward and result.reward < 0:
             losses += 1
             outcome = "LOSS 😞"
         else:
@@ -123,14 +125,18 @@ def run_kuhn_poker_game(env: OpenSpielEnv, num_episodes: int = 5):
             action_name = "PASS/FOLD" if action_id == 0 else "BET/CALL"
             actions_taken.append(action_name)
 
-            result = env.step(OpenSpielAction(action_id=action_id, game_name="kuhn_poker"))
+            result = env.step(
+                OpenSpielAction(action_id=action_id, game_name="kuhn_poker")
+            )
             step += 1
 
         total_winnings += result.reward or 0
         print(f"Actions: {' → '.join(actions_taken)}")
         print(f"Result: {result.reward:+.1f} chips")
 
-    print(f"\n💰 Total winnings across {num_episodes} games: {total_winnings:+.1f} chips")
+    print(
+        f"\n💰 Total winnings across {num_episodes} games: {total_winnings:+.1f} chips"
+    )
 
 
 def run_cliff_walking_game(env: OpenSpielEnv, num_episodes: int = 3):
@@ -150,7 +156,9 @@ def run_cliff_walking_game(env: OpenSpielEnv, num_episodes: int = 3):
         while not result.done and step < 100:
             # 0=up, 1=right, 2=down, 3=left
             action_id = random.choice(result.observation.legal_actions)
-            result = env.step(OpenSpielAction(action_id=action_id, game_name="cliff_walking"))
+            result = env.step(
+                OpenSpielAction(action_id=action_id, game_name="cliff_walking")
+            )
 
             total_reward += result.reward or 0
             if result.reward and result.reward < -50:  # Fell off cliff
@@ -159,7 +167,9 @@ def run_cliff_walking_game(env: OpenSpielEnv, num_episodes: int = 3):
 
         print(f"Episode finished in {step} steps")
         print(f"Total reward: {total_reward}")
-        print(f"Result: {'FELL OFF CLIFF! 💥' if fell_off_cliff else 'REACHED GOAL! 🎯' if result.done else 'TIMEOUT'}")
+        print(
+            f"Result: {'FELL OFF CLIFF! 💥' if fell_off_cliff else 'REACHED GOAL! 🎯' if result.done else 'TIMEOUT'}"
+        )
 
 
 def run_2048_game(env: OpenSpielEnv, num_episodes: int = 2):
@@ -180,7 +190,9 @@ def run_2048_game(env: OpenSpielEnv, num_episodes: int = 2):
             # Choose random direction (0=up, 1=right, 2=down, 3=left)
             if result.observation.legal_actions:
                 action_id = random.choice(result.observation.legal_actions)
-                result = env.step(OpenSpielAction(action_id=action_id, game_name="2048"))
+                result = env.step(
+                    OpenSpielAction(action_id=action_id, game_name="2048")
+                )
 
                 total_reward += result.reward or 0
                 step += 1
@@ -214,7 +226,9 @@ def run_blackjack_game(env: OpenSpielEnv, num_episodes: int = 5):
                 action_name = "HIT" if action_id == 0 else "STAND"
                 actions_taken.append(action_name)
 
-                result = env.step(OpenSpielAction(action_id=action_id, game_name="blackjack"))
+                result = env.step(
+                    OpenSpielAction(action_id=action_id, game_name="blackjack")
+                )
             else:
                 break
 
@@ -277,7 +291,9 @@ def main():
                 # Note: This would need proper Docker provider with game-specific config
                 # For now, user needs to start container manually
                 print("⚠️  Please start Docker container manually with:")
-                print(f"    docker run -p 8000:8000 -e OPENSPIEL_GAME={game_name} openspiel-env:latest")
+                print(
+                    f"    docker run -p 8000:8000 -e OPENSPIEL_GAME={game_name} openspiel-env:latest"
+                )
                 input("Press Enter when container is ready...")
 
             # Connect to environment

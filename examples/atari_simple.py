@@ -10,14 +10,14 @@ This example shows how to:
 
 Usage:
     # First, start the server:
-    python -m envs.atari_env.server.app
+    python -m open_env.envs.atari_env.server.app
 
     # Then run this script:
     python examples/atari_simple.py
 """
 
 import numpy as np
-from envs.atari_env import AtariEnv, AtariAction
+from open_env.envs.atari_env import AtariAction, AtariEnv
 
 
 def main():

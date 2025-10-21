@@ -25,7 +25,7 @@ from pathlib import Path
 # Add src to path
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
-from envs.openspiel_env import OpenSpielEnv, OpenSpielAction
+from open_env.envs.openspiel_env import OpenSpielAction, OpenSpielEnv
 
 
 def main():
@@ -61,14 +61,18 @@ def main():
             reward = result.reward or 0
             total_reward += reward
 
-            print(f"   Step {step + 1}: action={action_id}, reward={reward:.2f}, done={result.done}")
+            print(
+                f"   Step {step + 1}: action={action_id}, reward={reward:.2f}, done={result.done}"
+            )
             step += 1
 
         # Episode finished
         print(f"\n✅ Episode finished!")
         print(f"   Total steps: {step}")
         print(f"   Total reward: {total_reward}")
-        print(f"   Result: {'Ball caught! 🎉' if total_reward > 0 else 'Ball missed 😢'}")
+        print(
+            f"   Result: {'Ball caught! 🎉' if total_reward > 0 else 'Ball missed 😢'}"
+        )
 
         # Get environment state
         state = env.state()
