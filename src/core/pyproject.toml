@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "openenv-core"
-version = "0.1.0"
+dynamic = ["version"]
 description = "Core components for OpenEnv - HTTP-based agentic environments"
 readme = "README.md"
 requires-python = ">=3.8"
@@ -44,3 +44,6 @@ packages = [
     "openenv_core.tools"
 ]
 package-dir = {"openenv_core" = "."}
+
+[tool.setuptools.dynamic]
+version = {attr = "_version.__version__"}

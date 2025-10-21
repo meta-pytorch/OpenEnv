@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "openenv"
-version = "0.1.0"
+dynamic = ["version"]
 requires-python = ">=3.8"
 dependencies = [
     "torch>=1.9.0",
@@ -20,3 +20,6 @@ package-dir = {"" = "src"}
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.setuptools.dynamic]
+version = {attr = "_version.__version__"}
