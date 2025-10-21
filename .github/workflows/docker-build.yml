@@ -73,8 +73,6 @@ jobs:
             dockerfile: src/envs/chat_env/server/Dockerfile
           - name: coding-env
             dockerfile: src/envs/coding_env/server/Dockerfile
-          - name: atari-env
-            dockerfile: src/envs/atari_env/server/Dockerfile
 
     steps:
       - name: Checkout code

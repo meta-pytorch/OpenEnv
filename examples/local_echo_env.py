@@ -8,10 +8,10 @@ This is the simplest possible usage
 import sys
 from pathlib import Path
 
-# Add src to path
-sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
+# Add open_env to path
+sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from envs.echo_env import EchoAction, EchoEnv
+from open_env.envs.echo_env import EchoAction, EchoEnv
 
 
 def main():
@@ -76,6 +76,7 @@ def main():
     except Exception as e:
         print(f"\n❌ Test failed: {e}")
         import traceback
+
         traceback.print_exc()
         return False
 

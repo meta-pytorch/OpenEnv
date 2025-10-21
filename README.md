@@ -64,9 +64,9 @@ The web interface is **conditionally enabled** based on environment variables:
 To use the web interface:
 
 ```python
-from core.env_server import create_hf_web_interface_app
-from your_env.models import YourAction, YourObservation
-from your_env.server.your_environment import YourEnvironment
+from open_env.core.env_server import create_web_interface_app
+from open_env.envs.your_env.models import YourAction, YourObservation
+from open_env.envs.your_env.server.your_environment import YourEnvironment
 
 env = YourEnvironment()
 app = create_web_interface_app(env, YourAction, YourObservation)
@@ -168,13 +168,13 @@ client.close()  # Stops and removes container
 - smolagents (for coding environment)
 
 ## Supported RL Tools
-The goal of this project is to support a broad set of open and closed tools to help standardize the agentic RL community. If you have a project that supports OpenEnv environments, please put up a PR to add your tool name along with a link to your documentation. 
+The goal of this project is to support a broad set of open and closed tools to help standardize the agentic RL community. If you have a project that supports OpenEnv environments, please put up a PR to add your tool name along with a link to your documentation.
 
 ### torchforge
 (coming soon)
 
 ### TRL
-(coming soon} 
+(coming soon}
 
 ### Unsloth
 (coming soon)
@@ -201,7 +201,7 @@ Executes arbitrary Python code in a sandboxed environment. Features:
 
 See: [`src/envs/coding_env/README.md`](src/envs/coding_env/README.md)
 
-## Community support & Acknowledgments 
+## Community support & Acknowledgments
 This is an open and community centric project. If you would like to add your name here, please put up a pull request and tag @jspisak for review. Ty!!
 
 Supporters include: Meta-PyTorch, Hugging Face, [Surge AI](https://surgehq.ai), Unsloth AI, Reflection AI, vLLM, SkyRL (UC-Berkeley), LightningAI, ..
