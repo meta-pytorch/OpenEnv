@@ -3,11 +3,11 @@
 **Status**: In Review
 **Created**: 10/14/2025
 **Authors**: @Darktex, @pankit-eng, @jspisak, @zkwentz
-**RFC ID:** 001
+**RFC ID:** 002
 
 ## Summary
 
-An e2e framework for creating, deploying and using isolated execution environments for agentic RL training, built using Gymnasium style APIs.It provides a clean client-server architecture where environments run as FastAPI servers in Docker containers, and clients interact with them via type-safe HTTP APIs.
+An e2e framework for creating, deploying and using isolated execution environments for agentic RL training, built using Gymnasium style APIs. It provides a clean client-server architecture where environments run as FastAPI servers in Docker containers, and clients interact with them via type-safe HTTP APIs.
 
 ## Motivation
 
@@ -33,7 +33,6 @@ Building execution environments for AI agents, code execution, or computational 
 
 ```
 ┌─────────────────────────────────────────────────────────┐
-│             RL code(Client Application)                 │
 │             RL code(Client Application)                 │
 │  ┌────────────────┐              ┌──────────────────┐   │
 │  │  Environment   │              │  Environment     │   │
@@ -104,9 +103,7 @@ class HTTPEnvClient(Generic[ActT, ObsT]):
 The HTTPEnvClient serves as the primary interface for users to interact with environments, designed with several key principles:
 
 - This base class handles all HTTP communication(resp, req) with the environment
-- This base class handles all HTTP communication(resp, req) with the environment
 - Generic types (`Generic[ActT, ObsT]`) provide compile-time type safety
-- Each environment's concrete client class implements parsing step, observation, and state responses from the server into corresponding data models for the respective response.
 - Each environment's concrete client class implements parsing step, observation, and state responses from the server into corresponding data models for the respective response.
 - Example: `CodingEnv(HTTPEnvClient[CodeAction, CodeObservation])`
 - `state()` method provides visibility into episode metadata
@@ -134,9 +131,7 @@ class ContainerProvider(ABC):
 **Design Rationale**:
 - Pluggable architecture supports multiple platforms (local Docker, K8s, other orchestration providers)
 - Provider abstraction decouples client from deployment details and management with easy integration with existing orchestration solutions
-- Provider abstraction decouples client from deployment details and management with easy integration with existing orchestration solutions
 - Consistent interface across all providers
-- Higher level RL frameworks can implement their own container providers to integrate with their existing orchestration solutions.
 - Higher level RL frameworks can implement their own container providers to integrate with their existing orchestration solutions.
 
 ### Key Design Decisions
