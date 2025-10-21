@@ -6,7 +6,7 @@
 **RFC ID:** 001
 
 ## Summary
-This document defines what we call an "Environment", what its responsibilities are, and how we expect our customers to use our environments in their systems.
+This document defines what we call an "Environment", what its responsibilities are, and how we expect our community to use our environments in their systems.
 
 We will both explain *our* abstractions as well as what abstractions we expect *you* to have when working with us.
 
@@ -27,19 +27,22 @@ In general, the ingredients are at this point well established. What has not yet
 Let's then look at the ingredients that need to belong to an abstraction and then we will introduce how we propose to group them.
 
 1. **Tokenizer**. The model understands token IDs, not text. At some point you need to tokenize/detokenize. You _could_ have the inference server own this and simply communicate with text in/text out (e.g. like OpenAI API).
-2. **Data/task loading**. Environments contain the necessary machinery to compute responses to the policy, but the policy makes its move when given a _task_ (e.g. a question). This comes from somewhere else: when training/testing, it comes from a dataset. When in production, it comes from a user while the model waits behind an endpoint.
+2. **Data/task loading**. Environments contain the necessary machinery to compute responses to the policy, but the policy makes its move when given a _task_ (e.g. a question). This comes from somewhere else: during post-training (when replaying from a replay buffer) and during testing, it comes from a dataset. When in production, it comes from a user while the model waits behind an endpoint.
 3. **Reward pipelines/rubrics**. When training, you need this component to compute rewards. We will assume that these are data-independent, and are a property of the environment. For example, no matter the coding question, the agent always gets a reward of +1 when its code compiles. Please provide counterexamples to this if you feel that they shouldn't be.
 4. **Evals**. They are similar to rewards in that they compute some score based on what the policy did, but they differ in two key ways:
     a. They are **data-dependent**. Evals are always connected to their dataset, and they can assume a specific format for it.
     b. They are **aggregated**. Unlike rewards where you get a score per-sample, here the score that matters is after aggregation.
-5. **Tools**. External functions that the agent may or may not call while solving its task. They may be local or remote. These are often standardized using MCP. There are two schools of thought on whether a tool call should be a _whole_ action (traditional tool calling), or _part_ of an action (CodeAct paradigm). We will support both, *and* we will support converting from one to the other without requiring that users write their env twice.
+5. **Tools**. Functions that the agent may or may not call while solving its task. Tools can be:
+   - **Remote tools**: External services accessed via MCP (e.g., web search, databases)
+   - **Local tools**: Built-in environment capabilities (e.g., file system access, local code execution)
+   
+   Both remote and local tools can be exposed through MCP for consistency, though local tools like the code executor can also be accessed directly as first-class environment capabilities. There are two schools of thought on whether a tool call should be a _whole_ action (traditional tool calling), or _part_ of an action (CodeAct paradigm). We will support both, *and* we will support converting from one to the other without requiring that users write their env twice.
 6. **Sandbox**. Solves two issues: distribution of binaries and deps, and security. We propose a Docker-based solution (see RFC 002 for the spec).
 7. **Code Execution**. We propose to make this a first-class citizen since it runs in the container and it's the single most foundational tool (especially for CodeAct). We can consider optionally disabling it based on feedback.
 
 ### Environments vs Agents
 As mentioned before, an area of confusion is how to draw abstraction boundaries between Agents and Environments.
 
-<claude: draw me an ASCII with two boxes, one being the Agent and the other being the Environment. One arrow goes from Agent to Environment and it's labeled Action, and the other goes from the Environment to the Agent and it's labeled Observation>
 
 There are essentially two camps in OSS at the moment:
 
@@ -62,7 +65,7 @@ Our proposal takes elements from both and can easily convert into either.
 #### Proposed Abstractions
 This is the contract that we are proposing. We feel it strikes a good balance between supporting single-turn environments for LLM post-training (such as the GSM8K) while also extending to the more complex agentic tasks, such as [Tau-Bench](https://arxiv.org/abs/2406.12045). We are aiming for flexibility, so we know we may not get this right the first time. We encourage strong feedback to this RFC so that we can improve on it!
 
-These are the key abstractions that we expect. Note that in this project we only implement the "Environment" abstraction under the our meaning. You can map to other "agents" or "environment" abstractions by writing adapters to and from OpenEnvs.
+These are the key abstractions that we expect. Note that in this project we only implement the "Environment" abstraction under our meaning. You can map to other "agents" or "environment" abstractions by writing adapters to and from OpenEnvs.
 
 Key assumptions:
 1. We separate tasks from environments. While it is a good idea to package up a dataset with an environment and evals, we expect this wrapping to be done *outside* the env box. This allows for the reuse of environments across tasks.
