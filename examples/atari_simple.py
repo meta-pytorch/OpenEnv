@@ -17,6 +17,11 @@ Usage:
 """
 
 import numpy as np
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
+
 from envs.atari_env import AtariEnv, AtariAction
 
 
@@ -24,7 +29,7 @@ def main():
     """Run a simple Atari episode."""
     # Connect to the Atari environment server
     print("Connecting to Atari environment...")
-    env = AtariEnv(base_url="http://localhost:8000")
+    env = AtariEnv.from_docker_image("ghcr.io/meta-pytorch/openenv-atari-env:sha-c25298c")
 
     try:
         # Reset the environment

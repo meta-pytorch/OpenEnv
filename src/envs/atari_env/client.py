@@ -59,8 +59,16 @@ class AtariEnv(HTTPEnvClient[AtariAction, AtariObservation]):
         Returns:
             Dictionary representation suitable for JSON encoding.
         """
+        # Convert numpy types to native Python types for JSON serialization
+        action_id = action.action_id
+        # Handle numpy integers (int64, int32, etc.)
+        if hasattr(action_id, 'item'):  # numpy type has .item() method
+            action_id = int(action_id.item())  # type: ignore
+        else:
+            action_id = int(action_id)
+
         return {
-            "action_id": action.action_id,
+            "action_id": action_id,
             "game_name": action.game_name,
             "obs_type": action.obs_type,
             "full_action_space": action.full_action_space,
