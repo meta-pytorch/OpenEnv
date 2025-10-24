@@ -79,7 +79,11 @@ Each RFC should include the following sections:
 
 ## Current RFCs
 
-- [001-openenv-spec.md](./001-openenv-spec.md) - OpenEnv Framework Specification (baseline APIs, HTTP communication, Docker isolation)
+- [000-project-phases.md](./000-project-phases.md) - OpenEnv layering
+- [001-abstractions.md](./001-abstractions.md) - OpenEnv Basic Abstractions
+- [002-env-spec.md](./002-env-spec.md) - OpenEnv Framework Spec for agent execution environments
+- [003-mcp-support.md](./003-mcp-support.md) - MCP (Model Context Protocol) Support
+- [004-actions-as-tool-calls.md](./004-actions-as-tool-calls.md) - Support multiple tool calls via Action wrapper abstraction
 
 ## Questions?
 
