@@ -16,7 +16,7 @@ from uuid import uuid4
 from core.env_server.interfaces import Environment
 from core.env_server.types import State
 
-from ..models import EchoAction, EchoObservation
+from ..types import EchoAction, EchoObservation
 
 
 class EchoEnvironment(Environment):

@@ -5,7 +5,7 @@
 # LICENSE file in the root directory of this source tree.
 
 """
-Data models for the Chat Environment.
+Data types for the Chat Environment.
 
 The Chat environment provides a chat-based interface for LLMs with support
 for tokenization and message history management.

@@ -20,7 +20,7 @@ from core.env_server.interfaces import Message
 from core.env_server.types import State
 from core.http_env_client import HTTPEnvClient
 
-from .models import ChatAction, ChatObservation, ChatState
+from .types import ChatAction, ChatObservation, ChatState
 
 
 class ChatEnv(HTTPEnvClient[ChatAction, ChatObservation]):

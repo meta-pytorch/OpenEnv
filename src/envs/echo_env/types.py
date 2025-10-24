@@ -5,7 +5,7 @@
 # LICENSE file in the root directory of this source tree.
 
 """
-Data models for the Echo Environment.
+Data types for the Echo Environment.
 
 The Echo environment is a simple test environment that echoes back messages.
 """
