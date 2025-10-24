@@ -1,0 +1,8 @@
+numpy>=1.19.0
+requests>=2.25.0
+fastapi>=0.104.0
+uvicorn>=0.24.0
+Pillow>=9.0.0
+openai>=2.6.0
+gradio>=5.0.0
+git+https://github.com/meta-pytorch/OpenEnv.git@main
