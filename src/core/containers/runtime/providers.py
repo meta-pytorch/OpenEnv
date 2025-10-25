@@ -186,6 +186,9 @@ class LocalDockerProvider(ContainerProvider):
             return
 
         import subprocess
+        import logging
+
+        logger = logging.getLogger(__name__)
 
         try:
             # Stop container
@@ -203,16 +206,29 @@ class LocalDockerProvider(ContainerProvider):
                 check=True,
                 timeout=10,
             )
-        except subprocess.CalledProcessError:
-            # Container might already be stopped/removed
-            pass
-        finally:
+
+            # Only clear state on successful cleanup
             self._container_id = None
             self._container_name = None
+
+        except subprocess.CalledProcessError as e:
+            # Log error instead of silently swallowing
+            logger.warning(
+                f"Failed to stop/remove container {self._container_id}: {e.stderr if e.stderr else str(e)}. "
+                f"Container may still be running."
+            )
+            # Don't set _container_id to None - container might still be running
+        except subprocess.TimeoutExpired:
+            logger.warning(
+                f"Timeout while stopping container {self._container_id}. "
+                f"Container may still be running."
+            )
 
     def wait_for_ready(self, base_url: str, timeout_s: float = 30.0) -> None:
         """
         Wait for container to be ready by polling /health endpoint.
+
+        Uses retry logic to handle transient connection issues during container startup.
 
         Args:
             base_url: Base URL of the container
@@ -223,23 +239,41 @@ class LocalDockerProvider(ContainerProvider):
         """
         import time
         import requests
+        from requests.adapters import HTTPAdapter
+        from urllib3.util.retry import Retry
+
+        # Create session with retry logic (similar to HTTPEnvClient)
+        session = requests.Session()
+        retry_strategy = Retry(
+            total=3,  # Retry up to 3 times per request
+            backoff_factor=0.1,  # Short backoff for health checks
+            status_forcelist=[500, 502, 503, 504],
+        )
+        adapter = HTTPAdapter(max_retries=retry_strategy)
+        session.mount("http://", adapter)
+        session.mount("https://", adapter)
 
         start_time = time.time()
         health_url = f"{base_url}/health"
 
-        while time.time() - start_time < timeout_s:
-            try:
-                response = requests.get(health_url, timeout=2.0)
-                if response.status_code == 200:
-                    return
-            except requests.RequestException:
-                pass
+        try:
+            while time.time() - start_time < timeout_s:
+                try:
+                    response = session.get(health_url, timeout=2.0)
+                    if response.status_code == 200:
+                        return
+                except requests.RequestException:
+                    # Container not ready yet, keep trying
+                    pass
 
-            time.sleep(0.5)
+                time.sleep(0.5)
 
-        raise TimeoutError(
-            f"Container at {base_url} did not become ready within {timeout_s}s"
-        )
+            raise TimeoutError(
+                f"Container at {base_url} did not become ready within {timeout_s}s"
+            )
+        finally:
+            # Always close session
+            session.close()
 
     def _find_available_port(self) -> int:
         """

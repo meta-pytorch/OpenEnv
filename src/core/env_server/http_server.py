@@ -84,14 +84,50 @@ class HTTPEnvServer:
         @app.post("/step")
         async def step(request: Dict[str, Any]) -> Dict[str, Any]:
             """Step endpoint - executes action and returns observation."""
-            action_data = request.get("action", {})
+            from fastapi import HTTPException
+
+            # Validate input
+            if "action" not in request:
+                raise HTTPException(
+                    status_code=400,
+                    detail="Missing required field: 'action'"
+                )
+
+            action_data = request.get("action")
+            if action_data is None:
+                raise HTTPException(
+                    status_code=400,
+                    detail="Field 'action' cannot be null"
+                )
+
+            if not isinstance(action_data, dict):
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Field 'action' must be an object, got {type(action_data).__name__}"
+                )
+
             # TODO: Handle timeout_s, request_id, episode_id from request if provided
 
-            # Deserialize action
-            action = self._deserialize_action(action_data)
+            # Deserialize action with error handling
+            try:
+                action = self._deserialize_action(action_data)
+            except (TypeError, ValueError) as e:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Invalid action data for {self.action_cls.__name__}: {str(e)}"
+                )
 
             # Execute step
-            observation = self.env.step(action)
+            try:
+                observation = self.env.step(action)
+            except Exception as e:
+                # Log the error
+                import logging
+                logging.error(f"Error in environment step: {e}", exc_info=True)
+                raise HTTPException(
+                    status_code=500,
+                    detail=f"Environment error: {str(e)}"
+                )
 
             # Return serialized observation
             return self._serialize_observation(observation)

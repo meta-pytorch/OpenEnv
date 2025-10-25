@@ -15,6 +15,8 @@ from abc import ABC, abstractmethod
 from typing import Any, Dict, Generic, Optional, Type, TYPE_CHECKING, TypeVar
 
 import requests
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
 
 from .client_types import StepResult
 from .containers.runtime import LocalDockerProvider
@@ -37,9 +39,57 @@ class HTTPEnvClient(ABC, Generic[ActT, ObsT]):
     ):
         self._base = base_url.rstrip("/")
         self._timeout = float(request_timeout_s)
-        self._http = requests.Session()
         self._headers = default_headers or {}
         self._provider = provider
+
+        # Configure session with retry logic and connection pooling
+        self._http = self._create_session()
+
+    def _create_session(self) -> requests.Session:
+        """
+        Create a requests Session with proper retry logic and connection pooling.
+
+        This fixes timeout issues that occur after many sequential requests by:
+        1. Adding automatic retry logic for connection errors
+        2. Configuring connection pool with appropriate limits
+        3. Handling stale connections gracefully
+        4. Setting proper keep-alive behavior
+
+        Returns:
+            Configured requests.Session instance
+        """
+        session = requests.Session()
+
+        # Configure retry strategy
+        # Retry on connection errors and safe proxy/gateway errors
+        # Note: We exclude 500 (Internal Server Error) to avoid retrying POST requests
+        # that may have partially executed on the server, which could cause duplicate actions.
+        # We only retry 502/503/504 which typically indicate proxy/gateway issues where
+        # the request likely didn't reach the application server.
+        retry_strategy = Retry(
+            total=3,  # Maximum number of retries
+            backoff_factor=0.3,  # Wait 0.3s, 0.6s, 1.2s between retries
+            status_forcelist=[502, 503, 504],  # Retry on proxy/gateway errors (safer than 500)
+            allowed_methods=["GET", "POST"],  # Retry these HTTP methods
+            raise_on_status=False,  # Don't raise exception on failed retries (let caller handle)
+        )
+
+        # Configure HTTP adapter with connection pooling
+        adapter = HTTPAdapter(
+            max_retries=retry_strategy,
+            pool_connections=20,  # Number of connection pools to cache (increase from default 10)
+            pool_maxsize=20,  # Max connections per pool (increase from default 10)
+            pool_block=False,  # Don't block when pool is full, create new connection
+        )
+
+        # Mount adapter for both http and https
+        session.mount("http://", adapter)
+        session.mount("https://", adapter)
+
+        # Set keep-alive header to help with connection reuse
+        session.headers.update({"Connection": "keep-alive"})
+
+        return session
 
     @classmethod
     def from_docker_image(
@@ -99,11 +149,22 @@ class HTTPEnvClient(ABC, Generic[ActT, ObsT]):
         # 1. Start container with optional kwargs (e.g., env_vars, port)
         base_url = provider.start_container(image, **kwargs)
 
-        # 2. Wait for server to be ready
-        provider.wait_for_ready(base_url)
+        try:
+            # 2. Wait for server to be ready
+            provider.wait_for_ready(base_url)
 
-        # 3. Create and return client instance with provider reference
-        return cls(base_url=base_url, provider=provider)
+            # 3. Create and return client instance with provider reference
+            return cls(base_url=base_url, provider=provider)
+
+        except Exception:
+            # If wait_for_ready fails or client creation fails, cleanup the container
+            # to avoid leaving orphaned containers running
+            try:
+                provider.stop_container()
+            except Exception:
+                # If cleanup also fails, log but don't hide original error
+                pass
+            raise
 
     @abstractmethod
     def _step_payload(self, action: ActT) -> dict:
@@ -179,7 +240,13 @@ class HTTPEnvClient(ABC, Generic[ActT, ObsT]):
         Close the environment and clean up resources.
 
         If this client was created via from_docker_image(), this will stop
-        and remove the associated container.
+        and remove the associated container. Also closes the HTTP session
+        to release connection pool resources.
         """
+        # Close HTTP session to release connections
+        if hasattr(self, '_http') and self._http is not None:
+            self._http.close()
+
+        # Stop container if managed by provider
         if self._provider is not None:
             self._provider.stop_container()
