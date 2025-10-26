@@ -237,6 +237,13 @@ Executes Python code in a sandboxed environment. Demonstrates:
 
 See: [`coding_env/README.md`](coding_env/README.md)
 
+### Connect4 Environment
+Location: `src/envs/connect4_env/`
+
+Wraps the `gym-connect4` implementation to provide a turnkey board-game benchmark that follows the OpenEnv API, including typed models, HTTP client, and Docker image.
+
+See: [`connect4_env/README.md`](connect4_env/README.md)
+
 ## Best Practices
 
 ### 1. Type Safety
