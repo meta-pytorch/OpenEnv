@@ -117,6 +117,17 @@ class OpenSpielEnvironment(Environment):
         Returns:
             Initial observation for the agent.
         """
+        # Recreate OpenSpiel environment to avoid state accumulation
+        # This prevents memory leaks and slowdowns after many episodes
+        try:
+            self._ospiel_env = rl_environment.Environment(
+                self.game_name, **self.game_params
+            )
+        except Exception as e:
+            raise ValueError(
+                f"Failed to recreate OpenSpiel game '{self.game_name}': {e}"
+            ) from e
+
         # Reset OpenSpiel environment
         time_step = self._ospiel_env.reset()
 
