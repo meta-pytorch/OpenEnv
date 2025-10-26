@@ -15,7 +15,6 @@ from __future__ import annotations
 
 import asyncio
 import os
-import threading
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import asdict
 from typing import Any, Dict, Type
@@ -69,8 +68,6 @@ class HTTPEnvServer:
         self.env = env
         self.action_cls = action_cls
         self.observation_cls = observation_cls
-        # Lock to serialize access to the environment (not thread-safe)
-        self._env_lock = threading.Lock()
 
     def register_routes(self, app: Any) -> None:
         """
@@ -90,13 +87,10 @@ class HTTPEnvServer:
 
             # Run blocking env.reset() in thread pool to avoid blocking event loop
             # This is critical for performance when reset operations take >1s
-            # IMPORTANT: Use lock to serialize access to environment (not thread-safe)
-            def locked_reset():
-                with self._env_lock:
-                    return self.env.reset()
-
+            # NOTE: No lock needed - each reset() creates a fresh environment (see openspiel_environment.py)
+            # so concurrent requests don't interfere with each other
             loop = asyncio.get_event_loop()
-            observation = await loop.run_in_executor(_executor, locked_reset)
+            observation = await loop.run_in_executor(_executor, self.env.reset)
             return self._serialize_observation(observation)
 
         @app.post("/step")
@@ -137,14 +131,14 @@ class HTTPEnvServer:
 
             # Execute step in thread pool to avoid blocking event loop
             # This is critical for performance when step operations take >1s
-            # IMPORTANT: Use lock to serialize access to environment (not thread-safe)
-            def locked_step():
-                with self._env_lock:
-                    return self.env.step(action)
-
+            # NOTE: No lock needed - HTTP requests are sequential per client,
+            # and each client has its own episode context
             try:
                 loop = asyncio.get_event_loop()
-                observation = await loop.run_in_executor(_executor, locked_step)
+                observation = await loop.run_in_executor(
+                    _executor,
+                    lambda: self.env.step(action)
+                )
             except Exception as e:
                 # Log the error
                 import logging
