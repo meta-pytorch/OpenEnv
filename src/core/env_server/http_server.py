@@ -13,13 +13,19 @@ over HTTP endpoints that HTTPEnvClient can consume.
 
 from __future__ import annotations
 
+import asyncio
 import os
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import asdict
 from typing import Any, Dict, Type
 
 from .interfaces import Environment
 from .types import Action, Observation
 from fastapi import Body, FastAPI
+
+# Thread pool for running blocking environment operations
+# This prevents blocking the async event loop when env.reset() or env.step() takes time
+_executor = ThreadPoolExecutor(max_workers=4, thread_name_prefix="env-worker")
 
 class HTTPEnvServer:
     """
@@ -78,7 +84,11 @@ class HTTPEnvServer:
         async def reset(request: Dict[str, Any] = Body(default={})) -> Dict[str, Any]:
             """Reset endpoint - returns initial observation."""
             # TODO: Handle seed, episode_id from request if provided
-            observation = self.env.reset()
+
+            # Run blocking env.reset() in thread pool to avoid blocking event loop
+            # This is critical for performance when reset operations take >1s
+            loop = asyncio.get_event_loop()
+            observation = await loop.run_in_executor(_executor, self.env.reset)
             return self._serialize_observation(observation)
 
         @app.post("/step")
@@ -117,9 +127,14 @@ class HTTPEnvServer:
                     detail=f"Invalid action data for {self.action_cls.__name__}: {str(e)}"
                 )
 
-            # Execute step
+            # Execute step in thread pool to avoid blocking event loop
+            # This is critical for performance when step operations take >1s
             try:
-                observation = self.env.step(action)
+                loop = asyncio.get_event_loop()
+                observation = await loop.run_in_executor(
+                    _executor,
+                    lambda: self.env.step(action)
+                )
             except Exception as e:
                 # Log the error
                 import logging
