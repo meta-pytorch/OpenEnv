@@ -95,3 +95,6 @@ Desktop.ini
 *claude*
 *Claude*
 *CLAUDE*
+**/.ipynb_checkpoints/
+**/.DS_Store
+**/__pycache__/
