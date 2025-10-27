@@ -49,7 +49,7 @@ class Connect4Environment(Environment):
         self.next_player *= -1
       
         self._state = Connect4State(
-            board=self.board.tolist(),
+            board=self.board.copy().tolist(),
             next_player=self.next_player,
             episode_id=self._state.episode_id,
             step_count=self._state.step_count + 1
@@ -60,7 +60,7 @@ class Connect4Environment(Environment):
     def _make_observation(self, reward=0.0, done=False):
         legal_actions = [c for c in range(self.COLUMNS) if self.board[0, c] == 0]
         return Connect4Observation(
-            board=self.board.tolist(),
+            board=self.board.copy().tolist(),
             legal_actions=legal_actions,
             reward=reward,
             done=done,
