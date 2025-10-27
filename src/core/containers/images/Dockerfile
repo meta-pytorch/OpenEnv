@@ -28,10 +28,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 # Install Python dependencies that all environments need
 RUN pip install --no-cache-dir \
-    fastapi>=0.104.0 \
+    "fastapi>=0.104.0" \
     "uvicorn[standard]>=0.24.0" \
-    requests>=2.25.0 \
-    wsproto>=1.0.0
+    "requests>=2.25.0" \
+    "wsproto>=1.0.0" \
+    smolagents
 
 # Set working directory
 WORKDIR /app
