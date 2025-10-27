@@ -79,7 +79,8 @@ jobs:
             dockerfile: src/envs/atari_env/server/Dockerfile
           - name: git-env
             dockerfile: src/envs/git_env/server/Dockerfile
-
+          - name: maze-env
+            dockerfile: src/envs/maze_env/server/Dockerfile
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
