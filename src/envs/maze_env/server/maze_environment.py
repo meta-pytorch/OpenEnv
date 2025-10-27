@@ -46,7 +46,7 @@ class MazeEnvironment(Environment):
     ):
         # Create underlying Maze instance (matches your working code)
         self.env = Maze(maze=maze_array, start_cell=start_cell, exit_cell=exit_cell)
-
+        self.total_reward = 0
         # env.reset() will be called in reset(); state initialized to None until then
         self.state: Optional[MazeState] = None
 
@@ -65,8 +65,8 @@ class MazeEnvironment(Environment):
 
     def step(self, action: MazeAction) -> MazeObservation:
         """
-        Step function that directly manipulates the maze position grid
-        to ensure visible player movement.
+        Step function that manipulates the maze position grid
+        and applies rewards/penalties for movement outcomes.
         """
 
         # --- Get current position ---
@@ -88,16 +88,46 @@ class MazeEnvironment(Environment):
             3: (0, 1),
         }
 
+        # --- Reward settings ---
+        reward_exit = 10.0          # reward for reaching the exit cell
+        penalty_move = 0.05        # penalty for a move that didn't find the exit
+        penalty_visited = -0.25     # penalty for revisiting a cell
+        penalty_impossible = -0.75  # penalty for invalid move (wall/outside)
+
         dr, dc = move_map.get(action.action, (0, 0))
         new_r, new_c = row + dr, col + dc
 
-        # --- Check if move is within bounds and not a wall ---
-        if (
+        # Keep track of visited cells
+        if not hasattr(self, "_visited"):
+            self._visited = set()
+        self._visited.add((row, col))
+
+        # --- Check if move is valid ---
+        valid_move = (
             0 <= new_r < maze.shape[0]
             and 0 <= new_c < maze.shape[1]
-            and maze[new_r, new_c] != 1  # assuming 1 = wall, 0 = free space
-        ):
+            and maze[new_r, new_c] != 1
+        )
+
+        reward = 0.0
+        done = False
+
+        if valid_move:
+            # Update position
             row, col = new_r, new_c
+
+            exit_cell = getattr(self.env, "exit_cell", None)
+            if exit_cell and (row, col) == exit_cell:
+                reward += reward_exit
+                done = True
+                self._visited = set()
+            elif (row, col) in self._visited:
+                reward += penalty_visited
+            else:
+                reward += penalty_move
+        else:
+            # Invalid move
+            reward += penalty_impossible
 
         # --- Update environment position ---
         if hasattr(self.env, "agent_position"):
@@ -105,13 +135,12 @@ class MazeEnvironment(Environment):
         elif hasattr(self.env, "_Maze__current_cell"):
             self.env._Maze__current_cell = (row, col)
 
-        # --- Reward and done ---
-        total_reward = getattr(self.env, "_Maze__total_reward", 0.0)
-        if hasattr(self.env, "_Maze__total_reward"):
-            self.env._Maze__total_reward = total_reward + 0.0  # change as needed
-
-        exit_cell = getattr(self.env, "exit_cell", None)
-        done = exit_cell is not None and (row, col) == exit_cell
+        # --- Total reward update ---
+        self.total_reward += reward
+        print("Total reward:",self.total_reward)
+        print("Reward:",reward)
+        # if hasattr(self.env, "_Maze__total_reward"):
+        #     self.env._Maze__total_reward = total_reward
 
         # --- Update state ---
         if self.state is None:
@@ -119,14 +148,17 @@ class MazeEnvironment(Environment):
         self.state.step_count += 1
         self.state.done = done
 
+        # --- Observation ---
         pos_list = [row, col]
         legal_actions = self._compute_legal_actions(pos_list)
 
+        # --- Return observation ---
         return MazeObservation(
             position=pos_list,
-            total_reward=total_reward,
+            total_reward=self.total_reward,
             legal_actions=legal_actions,
         )
+
 
     def state(self) -> Optional[MazeState]:
         """Return the current MazeState object."""
