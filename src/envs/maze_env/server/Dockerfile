@@ -10,6 +10,11 @@
 ARG OPENENV_BASE_IMAGE=openenv-base:latest
 FROM ${OPENENV_BASE_IMAGE}
 
+# Install Python dependencies that all environments need
+RUN pip install --no-cache-dir \
+    numpy>=2.3.4 \
+    matplotlib>=3.10.7
+
 # Set working directory
 WORKDIR /app
 
