@@ -42,11 +42,13 @@ class MazeEnvironment(Environment):
         self,
         maze_array: np.ndarray,
         start_cell: Tuple[int, int] = (0, 0),
-        exit_cell: Optional[Tuple[int, int]] = None,
+        exit_cell: Optional[Tuple[int, int]] = (7,7),
     ):
         # Create underlying Maze instance (matches your working code)
         self.env = Maze(maze=maze_array, start_cell=start_cell, exit_cell=exit_cell)
         self.total_reward = 0
+        self.start_cell = start_cell
+        self.exit_cell = exit_cell
         # env.reset() will be called in reset(); state initialized to None until then
         self.state: Optional[MazeState] = None
 
@@ -58,7 +60,7 @@ class MazeEnvironment(Environment):
 
         # build MazeObservation; convert numpy to list for JSON-serializable dataclass fields
         pos_list = observation.tolist() if hasattr(observation, "tolist") else list(observation)
-        total_reward = getattr(self.env, "_Maze__total_reward", 0.0)
+        total_reward = 0
         legal_actions = self._compute_legal_actions(pos_list[0])
 
         return MazeObservation(position=pos_list, total_reward=total_reward, legal_actions=legal_actions)
@@ -116,8 +118,7 @@ class MazeEnvironment(Environment):
             # Update position
             row, col = new_r, new_c
 
-            exit_cell = getattr(self.env, "exit_cell", None)
-            if exit_cell and (row, col) == exit_cell:
+            if self.exit_cell and (row, col) == self.exit_cell:
                 reward += reward_exit
                 done = True
                 self._visited = set()
@@ -137,10 +138,6 @@ class MazeEnvironment(Environment):
 
         # --- Total reward update ---
         self.total_reward += reward
-        print("Total reward:",self.total_reward)
-        print("Reward:",reward)
-        # if hasattr(self.env, "_Maze__total_reward"):
-        #     self.env._Maze__total_reward = total_reward
 
         # --- Update state ---
         if self.state is None:
@@ -151,12 +148,12 @@ class MazeEnvironment(Environment):
         # --- Observation ---
         pos_list = [row, col]
         legal_actions = self._compute_legal_actions(pos_list)
-
         # --- Return observation ---
         return MazeObservation(
             position=pos_list,
             total_reward=self.total_reward,
             legal_actions=legal_actions,
+            done=done
         )
 
 

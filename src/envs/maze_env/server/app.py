@@ -32,7 +32,7 @@ from .mazearray import maze
 # Get game configuration from environment variables
 
 # Create the environment instance
-env = MazeEnvironment(maze_array=maze)
+env = MazeEnvironment(maze_array=maze,start_cell=(0,0),exit_cell=(7,7))
 
 # Create the FastAPI app with web interface and README integration
 app = create_app(env, MazeAction, MazeObservation, env_name="maze_env")
