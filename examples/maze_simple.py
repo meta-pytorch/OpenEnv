@@ -52,6 +52,8 @@ def main():
 
         print(f"   Initial position: {result.observation.position}")
         print(f"   Legal actions: {result.observation.legal_actions}")
+        # Note: Initial total reward is 0 however it is observed it doesn't resets if you run this example again during the same server app session
+        print(f"   Initial Total reward: {result.observation.total_reward}")
 
         # Run one episode
         print("\n🚶 Navigating through maze...")

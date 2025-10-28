@@ -92,7 +92,7 @@ class MazeEnvironment(Environment):
 
         # --- Reward settings ---
         reward_exit = 10.0          # reward for reaching the exit cell
-        penalty_move = 0.05        # penalty for a move that didn't find the exit
+        reward_move = 0.05        # reward for a move that didn't find the exit but is valid
         penalty_visited = -0.25     # penalty for revisiting a cell
         penalty_impossible = -0.75  # penalty for invalid move (wall/outside)
 
@@ -125,7 +125,7 @@ class MazeEnvironment(Environment):
             elif (row, col) in self._visited:
                 reward += penalty_visited
             else:
-                reward += penalty_move
+                reward += reward_move
         else:
             # Invalid move
             reward += penalty_impossible
