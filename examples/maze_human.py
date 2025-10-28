@@ -52,11 +52,11 @@ def main():
 
         print(f"   Initial position: {result.observation.position}")
         print(f"   Legal actions: {result.observation.legal_actions}")
-
+        # Note: Initial total reward is 0 however it is observed it doesn't resets if you run this example again during the same server app session
+        print(f"   Initial Total reward: {result.observation.total_reward}")
         # Run one episode
         print("\n🚶 Navigating through maze...")
         step = 0
-        total_reward = 0
 
         while not result.done and step < 25:
             # Choose random legal action
@@ -66,9 +66,7 @@ def main():
             action_id = int(input("Make any move from the legal actions"))
             # Take action
             result = env.step(MazeAction(action=action_id))
-            print(result)
             reward = result.observation.total_reward or 0
-            total_reward += reward
 
             print(f"   Step {step + 1}: action={action_id}, pos={result.observation.position}, reward={reward:.2f}, done={result.done}")
             step += 1
@@ -76,7 +74,7 @@ def main():
 
         print(f"\n✅ Episode finished!")
         print(f"   Total steps: {step}")
-        print(f"   Total reward: {total_reward}")
+        print(f"   Total reward: {reward}")
 
         # Get environment state
         state = env.state()
