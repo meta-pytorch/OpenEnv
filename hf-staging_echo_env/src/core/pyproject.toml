@@ -1,0 +1,46 @@
+[build-system]
+requires = ["setuptools>=45", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "openenv-core"
+version = "0.1.0"
+description = "Core components for OpenEnv - HTTP-based agentic environments"
+readme = "README.md"
+requires-python = ">=3.8"
+license = {text = "BSD-3-Clause"}
+authors = [
+    {name = "Meta Platforms, Inc.", email = "opensource@meta.com"}
+]
+keywords = ["environment", "agent", "http", "docker", "fastapi"]
+
+dependencies = [
+    "requests>=2.25.0",
+    "fastapi>=0.104.0",
+    "uvicorn>=0.24.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0.0",
+    "black>=23.0.0",
+    "ruff>=0.1.0",
+    "mypy>=1.0.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/facebookresearch/OpenEnv"
+Repository = "https://github.com/facebookresearch/OpenEnv"
+Documentation = "https://github.com/facebookresearch/OpenEnv/blob/main/README.md"
+"Bug Tracker" = "https://github.com/facebookresearch/OpenEnv/issues"
+
+[tool.setuptools]
+py-modules = ["openenv_core.__init__", "openenv_core.http_env_client", "openenv_core.client_types"]
+packages = [
+    "openenv_core",
+    "openenv_core.containers",
+    "openenv_core.containers.runtime",
+    "openenv_core.env_server",
+    "openenv_core.tools"
+]
+package-dir = {"openenv_core" = "."}

@@ -1,8 +1,8 @@
 ---
 title: Coding Environment Server
 emoji: 💻
-colorFrom: '#007ACC'
-colorTo: '#1E1E1E'
+colorFrom: blue
+colorTo: gray
 sdk: docker
 pinned: false
 app_port: 8000

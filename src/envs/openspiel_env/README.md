@@ -1,8 +1,8 @@
 ---
 title: OpenSpiel Environment Server
 emoji: 🎮
-colorFrom: '#9146FF'
-colorTo: '#00FFA3'
+colorFrom: purple
+colorTo: green
 sdk: docker
 pinned: false
 app_port: 8000

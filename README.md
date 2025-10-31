@@ -173,6 +173,78 @@ print(result.reward)  # 1.3 (based on message length)
 client.close()  # Stops and removes container
 ```
 
+## Publishing Environments to HuggingFace Spaces
+
+OpenEnv provides a CLI tool to publish environments to HuggingFace Spaces with automatic web interface deployment and collection integration.
+
+### Prerequisites
+
+1. **Install OpenEnv CLI**: The CLI is included when you install OpenEnv. If you're developing from source, install with:
+   ```bash
+   pip install -e .
+   ```
+
+2. **Authenticate with HuggingFace**: 
+   ```bash
+   # Option 1: Use environment variable (recommended)
+   export HUGGINGFACE_TOKEN=hf_xxxxx
+   
+   # Option 2: Use HuggingFace CLI
+   huggingface-cli login
+   ```
+
+### Publishing an Environment
+
+```bash
+# Basic usage: publish to your personal namespace
+openenv push --env echo_env
+
+# Publish to an organization
+openenv push --env echo_env --org my-org
+
+# With custom space name
+openenv push --env echo_env --org my-org --name my-custom-name
+
+# Wait for build to complete
+openenv push --env echo_env --org my-org --wait
+
+# Request specific hardware
+openenv push --env echo_env --org my-org --hardware t4-small --wait
+
+# Private space
+openenv push --env echo_env --org my-org --private
+```
+
+### CLI Options
+
+- `--env`: **Required**. Environment name (must exist in `src/envs/{name}`)
+- `--space`: Full Space ID (format: `owner/space_name`)
+- `--org`: Organization name for the Space
+- `--name`: Space name (defaults to environment name)
+- `--private`: Create a private Space
+- `--hardware`: Request specific hardware (`cpu-basic`, `cpu-upgrade`, `t4-small`, `t4-medium`, `a10g-small`, `a10g-large`)
+- `--base-image-sha`: Specific SHA/tag for base image (defaults to `latest`)
+- `--wait`: Wait for Space to finish building before exiting
+- `--timeout`: Timeout in seconds for `--wait` (default: 600)
+
+### What Happens When You Push
+
+1. **Validation**: Checks that the environment exists and has required files (Dockerfile, README with HF front matter)
+2. **Authentication**: Ensures you're logged in to HuggingFace
+3. **Build Staging**: Prepares files for deployment using the deployment script
+4. **Space Provisioning**: Creates the Space if it doesn't exist
+5. **Upload**: Uploads the environment files to the Space
+6. **Build**: The Space automatically builds (use `--wait` to monitor)
+7. **Collection Integration**: Automatically adds the Space to the OpenEnv Environment Hub collection for discoverability
+
+### Requirements for Environments
+
+Your environment must have:
+- `src/envs/{env_name}/server/Dockerfile`
+- `src/envs/{env_name}/README.md` with HuggingFace front matter (YAML between `---` markers)
+
+See the [Echo Environment](src/envs/echo_env/README.md) for an example.
+
 ## Requirements
 
 - Python 3.11+
@@ -181,6 +253,7 @@ client.close()  # Stops and removes container
 - Uvicorn >= 0.24.0
 - Requests >= 2.25.0
 - smolagents (for coding environment)
+- huggingface_hub >= 0.25.0 (for CLI)
 
 ## Supported RL Tools
 The goal of this project is to support a broad set of open and closed tools to help standardize the agentic RL community. If you have a project that supports OpenEnv environments, please put up a PR to add your tool name along with a link to your documentation.

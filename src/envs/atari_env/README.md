@@ -1,8 +1,8 @@
 ---
 title: Atari Environment Server
 emoji: 🕹️
-colorFrom: '#FF6200'
-colorTo: '#D4151B'
+colorFrom: red
+colorTo: red
 sdk: docker
 pinned: false
 app_port: 8000

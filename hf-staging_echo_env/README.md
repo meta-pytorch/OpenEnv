@@ -9,6 +9,30 @@ app_port: 8000
 base_path: /web
 ---
 
+## 🚀 Hugging Face Space Deployment
+
+This is a Hugging Face Space deployment of the OpenEnv environment. It includes:
+
+- **Web Interface** at `/web` - Interactive UI for exploring the environment
+- **API Documentation** at `/docs` - Full OpenAPI/Swagger interface
+- **Health Check** at `/health` - Container health monitoring
+
+### Connecting from Code
+
+```python
+from envs.echo_env import EchoEnv
+
+# Connect to this HF Space
+env = EchoEnv(base_url="https://huggingface.co/spaces/openenv/echo_env")
+
+# Use the environment
+result = env.reset()
+result = env.step(action)
+```
+
+For full documentation, see the [OpenEnv repository](https://github.com/meta-pytorch/OpenEnv).
+
+
 # Echo Environment
 
 A simple test environment that echoes back messages. Perfect for testing the env APIs as well as demonstrating environment usage patterns.
