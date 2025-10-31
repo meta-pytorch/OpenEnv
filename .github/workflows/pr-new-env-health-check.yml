@@ -102,7 +102,7 @@ jobs:
       matrix:
         environment: ${{ fromJSON(needs.detect-new-envs.outputs.new_envs_json) }}
     env:
-      HF_TOKEN: ${{ secrets.HF_TOKEN }}
+      HF_TOKEN: ${{ secrets.HF_PR_TOKEN }}
       HF_NAMESPACE: ${{ secrets.HF_PR_NAMESPACE }}
       SPACE_SUFFIX: -pr-${{ github.event.number }}
     steps:
