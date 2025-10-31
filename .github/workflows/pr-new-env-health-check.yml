@@ -103,7 +103,7 @@ jobs:
         environment: ${{ fromJSON(needs.detect-new-envs.outputs.new_envs_json) }}
     env:
       HF_TOKEN: ${{ secrets.HF_PR_TOKEN }}
-      HF_NAMESPACE: ${{ secrets.HF_PR_NAMESPACE }}
+      HF_NAMESPACE: ${{ vars.HF_PR_NAMESPACE }}
       SPACE_SUFFIX: -pr-${{ github.event.number }}
     steps:
       - name: Checkout PR code
@@ -117,7 +117,7 @@ jobs:
       - name: Default Hugging Face namespace
         if: env.HF_NAMESPACE == ''
         shell: bash
-        run: echo "HF_NAMESPACE=openenv" >> "$GITHUB_ENV"
+        run: echo "HF_NAMESPACE=openenv-testing" >> "$GITHUB_ENV"
 
       - name: Verify Hugging Face token
         shell: bash
