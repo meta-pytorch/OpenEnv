@@ -12,4 +12,4 @@ Server-side implementation of connect4 environment for OpenEnv.
 
 from .connect4_environment import Connect4Environment
 
-__all__ = ["connect4Environment"]
+__all__ = ["Connect4Environment"]

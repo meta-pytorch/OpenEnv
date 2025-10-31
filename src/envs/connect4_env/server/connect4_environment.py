@@ -1,6 +1,6 @@
 import uuid
 import numpy as np
-from core.env_server import Action, Environment, Observation
+from core.env_server import Environment
 
 from ..models import Connect4Action, Connect4Observation, Connect4State
 
@@ -28,7 +28,7 @@ class Connect4Environment(Environment):
 
     def step(self, action: Connect4Action):
         col = action.column
-        reward = 0.0
+        # reward = 0.0
         done = False
 
         # check action validity

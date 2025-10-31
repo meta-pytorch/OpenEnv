@@ -91,7 +91,7 @@ def main(render=True):
                 break
 
             action_id = int(np.random.choice(result.observation.legal_actions))
-            result = env.step(Connect4Action(action_id))
+            result = env.step(Connect4Action(column=action_id))
 
             board = np.array(result.observation.board).reshape(6, 7)
             frames.append(board.copy())

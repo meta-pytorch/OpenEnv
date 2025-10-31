@@ -1,5 +1,5 @@
 from core.env_server import create_fastapi_app
-from ..models import Connect4Action, Connect4Observation, Connect4State
+from ..models import Connect4Action, Connect4Observation
 from .connect4_environment import Connect4Environment
 
 env = Connect4Environment()

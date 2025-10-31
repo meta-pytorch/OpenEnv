@@ -7,8 +7,7 @@
 """
 Connect4 Environment for OpenEnv.
 
-This module provides OpenEnv integration for Connect4 2600 games via the
-Arcade Learning Environment (ALE).
+This module provides OpenEnv integration for the classic Connect4 board game.
 
 Example:
     >>> from envs.Connect4_env import Connect4Env, Connect4Action
@@ -18,7 +17,7 @@ Example:
     >>>
     >>> # Reset and interact
     >>> result = env.reset()
-    >>> result = env.step(Connect4Action(action_id=2)) 
+    >>> result = env.step(Connect4Action(column=2)) 
     >>> print(result.reward, result.done)
     >>>
     >>> # Cleanup

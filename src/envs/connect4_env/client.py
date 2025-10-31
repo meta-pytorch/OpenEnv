@@ -37,7 +37,7 @@ class Connect4Env(HTTPEnvClient[Connect4Action, Connect4Observation]):
         >>> print(result.observation.board)
         >>>
         >>> # Take an action
-        >>> result = client.step(Connect4Action(action_id=3))
+        >>> result = client.step(Connect4Action(column=3))
         >>> print(result.reward, result.done)
     """
 
