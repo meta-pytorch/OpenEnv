@@ -169,8 +169,12 @@ class LocalDockerProvider(ContainerProvider):
         cmd.append(image)
 
         # Run container
-        result = subprocess.run(cmd, capture_output=True, text=True, check=True)
-        self._container_id = result.stdout.strip()
+        try:
+            result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+            self._container_id = result.stdout.strip()
+        except subprocess.CalledProcessError as e:
+            error_msg = f"Failed to start Docker container.\nCommand: {' '.join(cmd)}\nExit code: {e.returncode}\nStderr: {e.stderr}\nStdout: {e.stdout}"
+            raise RuntimeError(error_msg) from e
 
         # Wait a moment for container to start
         time.sleep(1)

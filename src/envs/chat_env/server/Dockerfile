@@ -10,8 +10,20 @@
 ARG BASE_IMAGE=openenv-base:latest
 FROM ${BASE_IMAGE}
 
-# Install additional dependencies for ChatEnvironment
-RUN pip install torch transformers
+# Install dependencies and run setup
+COPY src/envs/chat_env/server/requirements.txt /tmp/requirements.txt
+COPY src/envs/chat_env/server/install_deps.sh /tmp/install_deps.sh
+RUN chmod +x /tmp/install_deps.sh && \
+    /tmp/install_deps.sh && \
+    rm /tmp/install_deps.sh /tmp/requirements.txt
+
+# Set environment variables
+ENV HF_HOME=/.cache
+ENV TRANSFORMERS_CACHE=/.cache
+
+# Environment variables that can be overridden at runtime
+ENV TOKENIZER_NAME=gpt2
+ENV SYSTEM_PROMPT="You are a helpful AI assistant."
 
 # Copy only what's needed for this environment
 COPY src/core/ /app/src/core/
@@ -19,10 +31,6 @@ COPY src/envs/chat_env/ /app/src/envs/chat_env/
 
 # Copy README for web interface documentation
 COPY src/envs/chat_env/README.md /app/README.md
-
-# Environment variables that can be overridden at runtime
-ENV TOKENIZER_NAME=gpt2
-ENV SYSTEM_PROMPT="You are a helpful AI assistant."
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
