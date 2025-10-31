@@ -81,6 +81,8 @@ jobs:
             dockerfile: src/envs/git_env/server/Dockerfile
           - name: my-env  # Add your environment here
             dockerfile: src/envs/connect4_env/server/Dockerfile
+          - name: textarena-env
+            dockerfile: src/envs/textarena_env/server/Dockerfile
 
     steps:
       - name: Checkout code
