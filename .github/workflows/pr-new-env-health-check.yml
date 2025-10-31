@@ -1,4 +1,4 @@
-name: PR New Environment Health Check
+name: PR Deploy New Environment 
 
 on:
   pull_request_target:
