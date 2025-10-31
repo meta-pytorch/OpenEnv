@@ -56,6 +56,7 @@ class WordleEnvironment(Environment):
         "EARTH", "HEART", "LEARN", "YEARN", "EARLY", "PEARL", "WEARY", "TEARY",
         "STONE", "PHONE", "ALONE", "ATONE", "STONE", "THONE", "SHONE", "PRONE"
     ]
+    WORD_LIST = [w for w in WORD_LIST if len(w) == 5]
 
     def __init__(self, max_attempts: int = 6):
         """
