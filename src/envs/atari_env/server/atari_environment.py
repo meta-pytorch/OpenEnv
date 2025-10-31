@@ -16,7 +16,7 @@ from typing import Any, Dict, Literal, Optional
 
 from core.env_server import Action, Environment, Observation
 
-from ..types import AtariAction, AtariObservation, AtariState
+from ..env_types import AtariAction, AtariObservation, AtariState
 
 # Import ALE
 try:

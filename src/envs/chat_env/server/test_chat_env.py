@@ -14,7 +14,7 @@ import torch
 
 from core.env_server.interfaces import Message
 
-from ..types import ChatAction
+from ..env_types import ChatAction
 from .chat_environment import ChatEnvironment
 
 

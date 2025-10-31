@@ -7,6 +7,6 @@
 """Coding Environment - A Python code execution environment."""
 
 from .coding_env_client import CodingEnv
-from .types import CodeAction, CodeObservation, CodeState
+from .env_types import CodeAction, CodeObservation, CodeState
 
 __all__ = ["CodeAction", "CodeObservation", "CodeState", "CodingEnv"]

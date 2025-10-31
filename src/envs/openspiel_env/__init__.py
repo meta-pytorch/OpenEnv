@@ -21,6 +21,6 @@ Supported games:
 """
 
 from .client import OpenSpielEnv
-from .types import OpenSpielAction, OpenSpielObservation, OpenSpielState
+from .env_types import OpenSpielAction, OpenSpielObservation, OpenSpielState
 
 __all__ = ["OpenSpielEnv", "OpenSpielAction", "OpenSpielObservation", "OpenSpielState"]

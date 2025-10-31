@@ -80,7 +80,7 @@ When building a new environment, create the following structure:
 ```
 src/envs/your_env/
 ├── __init__.py           # Export YourAction, YourObservation, YourEnv
-├── types.py              # Define Action, Observation, State dataclasses
+├── env_types.py          # Define Action, Observation, State dataclasses
 ├── client.py             # Implement YourEnv(HTTPEnvClient)
 ├── README.md             # Document your environment
 └── server/

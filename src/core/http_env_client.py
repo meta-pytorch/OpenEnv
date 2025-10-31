@@ -66,7 +66,7 @@ class HTTPEnvClient(ABC, Generic[ActT, ObsT]):
 
         Example:
             >>> from envs.coding_env.client import CodingEnv
-            >>> from envs.coding_env.types import CodeAction
+            >>> from envs.coding_env.env_types import CodeAction
             >>>
             >>> # Create environment from image
             >>> env = CodingEnv.from_docker_image("coding-env:latest")

@@ -13,7 +13,7 @@ from core.env_server.base_transforms import CompositeTransform
 from core.env_server.interfaces import Transform
 from core.env_server.types import Observation
 
-from ..types import CodeObservation
+from ..env_types import CodeObservation
 
 
 class CodeSafetyTransform(Transform):

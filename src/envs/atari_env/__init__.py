@@ -26,6 +26,6 @@ Example:
 """
 
 from .client import AtariEnv
-from .types import AtariAction, AtariObservation, AtariState
+from .env_types import AtariAction, AtariObservation, AtariState
 
 __all__ = ["AtariEnv", "AtariAction", "AtariObservation", "AtariState"]

@@ -16,7 +16,7 @@ import uuid
 from core.env_server import Action, Environment, Observation, Transform
 from core.tools import PyExecutor
 
-from ..types import CodeAction, CodeObservation, CodeState
+from ..env_types import CodeAction, CodeObservation, CodeState
 from .transforms import create_safe_coding_transform
 
 class PythonCodeActEnv(Environment):

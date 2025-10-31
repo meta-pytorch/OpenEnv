@@ -177,7 +177,7 @@ def create_fastapi_app(
 
     Example:
         >>> from envs.coding_env.server import CodeExecutionEnvironment
-        >>> from envs.coding_env.types import CodeAction, CodeObservation
+        >>> from envs.coding_env.env_types import CodeAction, CodeObservation
         >>>
         >>> env = CodeExecutionEnvironment()
         >>> app = create_fastapi_app(env, CodeAction, CodeObservation)

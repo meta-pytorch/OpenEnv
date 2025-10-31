@@ -107,7 +107,7 @@ This example shows:
 ```
 coding_env/
 ├── README.md              # This file
-├── types.py               # Action, Observation, and State types
+├── env_types.py           # Action, Observation, and State types
 ├── client/
 │   ├── coding_env_client.py  # CodingEnv client implementation
 │   └── example_usage.py      # Usage examples

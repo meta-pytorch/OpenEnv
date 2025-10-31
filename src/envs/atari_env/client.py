@@ -18,7 +18,7 @@ from typing import Any, Dict, TYPE_CHECKING
 from core.http_env_client import HTTPEnvClient
 from core.types import StepResult
 
-from .types import AtariAction, AtariObservation, AtariState
+from .env_types import AtariAction, AtariObservation, AtariState
 
 if TYPE_CHECKING:
     from core.containers.runtime import ContainerProvider

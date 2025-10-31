@@ -23,7 +23,7 @@ Usage:
 
 from core.env_server import create_fastapi_app
 
-from ..types import CodeAction, CodeObservation
+from ..env_types import CodeAction, CodeObservation
 from .python_codeact_env import PythonCodeActEnv
 
 # Create the environment instance

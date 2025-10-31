@@ -17,7 +17,7 @@ from core.env_server.types import State
 from core.http_env_client import HTTPEnvClient
 from core.types import StepResult
 
-from .types import EchoAction, EchoObservation
+from .env_types import EchoAction, EchoObservation
 
 
 class EchoEnv(HTTPEnvClient[EchoAction, EchoObservation]):

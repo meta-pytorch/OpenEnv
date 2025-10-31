@@ -7,6 +7,6 @@
 """Echo Environment - A simple test environment for HTTP server."""
 
 from .client import EchoEnv
-from .types import EchoAction, EchoObservation
+from .env_types import EchoAction, EchoObservation
 
 __all__ = ["EchoAction", "EchoObservation", "EchoEnv"]

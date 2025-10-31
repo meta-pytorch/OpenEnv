@@ -1,5 +1,5 @@
 """
-envs/coding_env/types.py
+envs/coding_env/env_types.py
 --------------------------------
 Action/Observation types for the Coding environment.
 """

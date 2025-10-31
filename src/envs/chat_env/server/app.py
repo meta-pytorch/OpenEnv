@@ -28,7 +28,7 @@ import os
 
 from core.env_server import create_fastapi_app
 
-from ..types import ChatAction, ChatObservation
+from ..env_types import ChatAction, ChatObservation
 from .chat_environment import ChatEnvironment
 
 

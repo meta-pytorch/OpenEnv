@@ -123,7 +123,7 @@ echo_env/
 ├── __init__.py            # Module exports
 ├── README.md              # This file
 ├── client.py              # EchoEnv client implementation
-├── types.py               # Action and Observation types
+├── env_types.py           # Action and Observation types
 └── server/
     ├── __init__.py        # Server module exports
     ├── echo_environment.py  # Core environment logic

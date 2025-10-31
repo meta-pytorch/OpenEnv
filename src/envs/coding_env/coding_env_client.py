@@ -18,7 +18,7 @@ from typing import TYPE_CHECKING, Optional
 from core.http_env_client import HTTPEnvClient
 from core.types import StepResult
 
-from .types import CodeAction, CodeObservation, CodeState
+from .env_types import CodeAction, CodeObservation, CodeState
 
 if TYPE_CHECKING:
     from core.containers.runtime import ContainerProvider

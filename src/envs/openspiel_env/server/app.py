@@ -30,7 +30,7 @@ import os
 
 from core.env_server import create_fastapi_app
 
-from ..types import OpenSpielAction, OpenSpielObservation
+from ..env_types import OpenSpielAction, OpenSpielObservation
 from .openspiel_environment import OpenSpielEnvironment
 
 # Get game configuration from environment variables
