@@ -1,3 +1,14 @@
+---
+title: OpenSpiel Environment Server
+emoji: 🎮
+colorFrom: '#9146FF'
+colorTo: '#00FFA3'
+sdk: docker
+pinned: false
+app_port: 8000
+base_path: /web
+---
+
 # OpenSpiel Environment
 
 Integration of OpenSpiel games with the OpenEnv framework. OpenSpiel (https://github.com/google-deepmind/open_spiel) is DeepMind's collection of 70+ game environments for RL research.
