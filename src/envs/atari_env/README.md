@@ -1,3 +1,14 @@
+---
+title: Atari Environment Server
+emoji: 🕹️
+colorFrom: '#FF6200'
+colorTo: '#D4151B'
+sdk: docker
+pinned: false
+app_port: 8000
+base_path: /web
+---
+
 # Atari Environment
 
 Integration of Atari 2600 games with the OpenEnv framework via the Arcade Learning Environment (ALE). ALE provides access to 100+ classic Atari games for RL research.

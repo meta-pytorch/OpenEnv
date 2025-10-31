@@ -1,3 +1,14 @@
+---
+title: Coding Environment Server
+emoji: 💻
+colorFrom: '#007ACC'
+colorTo: '#1E1E1E'
+sdk: docker
+pinned: false
+app_port: 8000
+base_path: /web
+---
+
 # Coding Environment
 
 A Python code execution environment that runs arbitrary Python code and returns results. Perfect for testing code execution infrastructure and demonstrating environment usage patterns.

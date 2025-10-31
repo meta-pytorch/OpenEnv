@@ -1,3 +1,14 @@
+---
+title: Chat Environment Server
+emoji: 💬
+colorFrom: '#0084FF'
+colorTo: '#25D366'
+sdk: docker
+pinned: false
+app_port: 8000
+base_path: /web
+---
+
 # Chat Environment
 
 A chat-based environment for LLMs with built-in tokenization and message history management. This environment is designed to work directly with language models and provides a minimal, flexible foundation for conversation-based RL training.

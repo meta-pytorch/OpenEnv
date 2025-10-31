@@ -12,12 +12,9 @@
 ARG BASE_IMAGE=openenv-base:latest
 FROM ${BASE_IMAGE}
 
-# Install ALE-specific dependencies
-# ale-py includes all Atari ROMs by default and requires gymnasium
-RUN pip install --no-cache-dir \
-    gymnasium>=0.29.0 \
-    ale-py>=0.8.0 \
-    numpy>=1.24.0
+# Install dependencies
+COPY src/envs/atari_env/server/requirements.txt /tmp/requirements.txt
+RUN pip install --no-cache-dir -r /tmp/requirements.txt && rm /tmp/requirements.txt
 
 # Copy OpenEnv core (base image already set WORKDIR=/app)
 COPY src/core/ /app/src/core/
