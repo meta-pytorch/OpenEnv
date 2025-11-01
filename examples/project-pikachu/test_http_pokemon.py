@@ -25,13 +25,12 @@ import argparse
 import time
 from pathlib import Path
 
-# Add both src and examples to path
+# Add src to path
 project_root = Path(__file__).parent.parent.parent
-sys.path.insert(0, str(project_root / "src"))  # For core
-sys.path.insert(0, str(project_root / "examples/project-pikachu"))  # For poke_env
+sys.path.insert(0, str(project_root / "src"))
 
-from poke_env.client import PokemonEnv
-from poke_env.models import PokemonAction
+from envs.pokemon_env.client import PokemonEnv
+from envs.pokemon_env.models import PokemonAction
 
 
 def test_health_check(base_url: str):
