@@ -13,9 +13,6 @@ RUN apt-get update && apt-get install -y \
     ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
-# Install smolagents (required by core.tools.PyExecutor, even though git_env doesn't use it directly)
-RUN pip install --no-cache-dir smolagents
-
 # Create workspace directory for git operations
 RUN mkdir -p /workspace && chmod 777 /workspace
 

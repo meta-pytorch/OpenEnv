@@ -10,10 +10,6 @@
 ARG BASE_IMAGE=openenv-base:latest
 FROM ${BASE_IMAGE}
 
-# Install dependencies
-COPY src/envs/coding_env/server/requirements.txt /tmp/requirements.txt
-RUN pip install --no-cache-dir -r /tmp/requirements.txt && rm /tmp/requirements.txt
-
 # Copy only what's needed for this environment
 COPY src/core/ /app/src/core/
 COPY src/envs/coding_env/ /app/src/envs/coding_env/
