@@ -33,14 +33,13 @@ import time
 import logging
 from pathlib import Path
 
-# Add both src and examples to path
+# Add src to path
 project_root = Path(__file__).parent.parent.parent
-sys.path.insert(0, str(project_root / "src"))  # For core
-sys.path.insert(0, str(project_root / "examples/project-pikachu"))  # For poke_env
+sys.path.insert(0, str(project_root / "src"))
 
 # Import models and environment
-from poke_env.models import PokemonAction, PokemonObservation, PokemonState
-from poke_env.server.pokemon_environment import PokemonEnvironment
+from envs.pokemon_env.models import PokemonAction, PokemonObservation, PokemonState
+from envs.pokemon_env.server.pokemon_environment import PokemonEnvironment
 
 # Configure logging
 logging.basicConfig(
