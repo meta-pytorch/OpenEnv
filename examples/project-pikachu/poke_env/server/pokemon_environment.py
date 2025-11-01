@@ -321,7 +321,7 @@ class PokemonEnvironment(Environment):
             current_hp=current_hp,
             level=pokemon.level if hasattr(pokemon, 'level') else 50,
             status=str(pokemon.status.name) if (hasattr(pokemon, 'status') and pokemon.status) else None,
-            types=[str(t.name) for t in (pokemon.types if hasattr(pokemon, 'types') else [])],
+            types=[str(t.name) if hasattr(t, 'name') else str(t) for t in (pokemon.types if hasattr(pokemon, 'types') and pokemon.types else [])],
             ability=pokemon.ability if hasattr(pokemon, 'ability') else None,
             item=pokemon.item if hasattr(pokemon, 'item') else None,
             attack=base_stats.get("atk", 0) if isinstance(base_stats, dict) else 0,
