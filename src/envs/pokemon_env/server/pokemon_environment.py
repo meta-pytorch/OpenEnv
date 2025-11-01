@@ -610,6 +610,11 @@ class PokemonEnvironment(Environment):
             if self._current_battle is None:
                 raise RuntimeError("No active battle. Call reset() first.")
 
+            # Validate battle state
+            if self._current_battle.finished:
+                logger.warning("Step called on finished battle, returning final state")
+                return self._battle_to_observation(self._current_battle, reward=None, done=True)
+
             logger.debug(f"Step: action={action.action_type}, index={action.action_index}")
 
             # Send action to player (schedules on POKE_LOOP)
