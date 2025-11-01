@@ -51,12 +51,19 @@ class OpenEnvPokemonPlayer(Player):
 
         # Action synchronization (all accessed from POKE_LOOP)
         self._next_action: Optional[PokemonAction] = None
-        self._action_event = asyncio.Event()
-        self._turn_complete_event = asyncio.Event()
+        self._action_event: Optional[asyncio.Event] = None
+        self._turn_complete_event: Optional[asyncio.Event] = None
 
         # Error tracking
         self._last_error: Optional[str] = None
         self._illegal_action_count = 0
+
+    def _ensure_events(self):
+        """Ensure events are created on POKE_LOOP."""
+        if self._action_event is None:
+            self._action_event = asyncio.Event()
+        if self._turn_complete_event is None:
+            self._turn_complete_event = asyncio.Event()
 
     def set_next_action(self, action: PokemonAction):
         """
@@ -65,6 +72,7 @@ class OpenEnvPokemonPlayer(Player):
         This schedules the action setting on POKE_LOOP and returns immediately.
         """
         async def _set_action():
+            self._ensure_events()  # Ensure events exist on POKE_LOOP
             self._next_action = action
             self._last_error = None
             self._action_event.set()
@@ -74,6 +82,7 @@ class OpenEnvPokemonPlayer(Player):
 
     async def wait_for_turn_complete(self, timeout: float = 30.0):
         """Wait for the current turn to complete."""
+        self._ensure_events()  # Ensure events exist on POKE_LOOP
         self._turn_complete_event.clear()
         try:
             await asyncio.wait_for(self._turn_complete_event.wait(), timeout=timeout)
@@ -88,6 +97,8 @@ class OpenEnvPokemonPlayer(Player):
         Waits for an action to be set via set_next_action(), validates it,
         and executes it. Handles illegal moves by retrying with random move.
         """
+        self._ensure_events()  # Ensure events exist on POKE_LOOP
+
         # Wait for action with timeout
         try:
             await asyncio.wait_for(self._action_event.wait(), timeout=60.0)
