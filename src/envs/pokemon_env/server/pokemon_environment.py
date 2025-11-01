@@ -507,15 +507,25 @@ class PokemonEnvironment(Environment):
         Reset the environment and start a new battle.
 
         This method:
-        1. Starts a new battle on POKE_LOOP
-        2. Waits for battle to initialize
-        3. Returns initial observation
+        1. Cancels any previous battle
+        2. Cleans up old battles (memory leak prevention)
+        3. Starts a new battle on POKE_LOOP
+        4. Waits for battle to initialize
+        5. Returns initial observation
 
         Returns:
             Initial observation for the agent.
         """
-        with self._reset_lock:
+        with self._env_lock:  # Single lock for all operations
             logger.info("Resetting Pokemon environment")
+
+            # Cancel any previous running battle
+            self._cancel_previous_battle()
+
+            # Periodic cleanup of old battles to prevent memory leak
+            self._episodes_completed += 1
+            if self._episodes_completed % self._cleanup_interval == 0:
+                self._cleanup_old_battles()
 
             # Reset reward tracking
             self._last_opponent_fainted = 0
@@ -552,7 +562,8 @@ class PokemonEnvironment(Environment):
             # Run on POKE_LOOP
             future = asyncio.run_coroutine_threadsafe(start_battle(), POKE_LOOP)
             try:
-                self._battle_future = future.result(timeout=15.0)
+                self._battle_task = future.result(timeout=15.0)
+                self._battle_future = future  # Keep for compatibility
             except Exception as e:
                 logger.error(f"Failed to start battle: {e}")
                 raise RuntimeError(f"Failed to start battle: {e}")
@@ -581,7 +592,7 @@ class PokemonEnvironment(Environment):
         Execute agent's action and wait for turn completion.
 
         This method:
-        1. Validates action type
+        1. Validates action type and battle state
         2. Sends action to player
         3. Waits for turn to complete
         4. Returns updated observation
@@ -592,7 +603,7 @@ class PokemonEnvironment(Environment):
         Returns:
             Observation after executing the action.
         """
-        with self._step_lock:
+        with self._env_lock:  # Single lock with reset()
             if not isinstance(action, PokemonAction):
                 raise TypeError(f"Expected PokemonAction, got {type(action)}")
 
