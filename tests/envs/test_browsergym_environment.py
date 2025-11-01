@@ -7,11 +7,6 @@ import time
 import requests
 import pytest
 
-# Add src to path
-ROOT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
-SRC_PATH = os.path.join(ROOT_DIR, "src")
-sys.path.insert(0, SRC_PATH)
-
 from envs.browsergym_env.client import BrowserGymEnv
 from envs.browsergym_env.models import BrowserGymAction
 
@@ -19,6 +14,9 @@ from envs.browsergym_env.models import BrowserGymAction
 @pytest.fixture(scope="module")
 def server():
     """Starts the BrowserGym environment server as a background process."""
+    # Define paths for subprocess environment
+    ROOT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+    SRC_PATH = os.path.join(ROOT_DIR, "src")
     PORT = 8010
     localhost = f"http://localhost:{PORT}"
 
