@@ -5,7 +5,7 @@
 # LICENSE file in the root directory of this source tree.
 
 """
-Data models for Atari Environment.
+Data types for Atari Environment.
 
 This module defines the Action, Observation, and State types for Atari games
 via the Arcade Learning Environment (ALE).

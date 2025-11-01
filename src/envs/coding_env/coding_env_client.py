@@ -19,7 +19,7 @@ from core.client_types import StepResult
 
 from core.http_env_client import HTTPEnvClient
 
-from .models import CodeAction, CodeObservation, CodeState
+from .env_types import CodeAction, CodeObservation, CodeState
 
 if TYPE_CHECKING:
     from core.containers.runtime import ContainerProvider
