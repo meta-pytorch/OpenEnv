@@ -404,11 +404,12 @@ class PokemonEnvironment(Environment):
             self._last_player_fainted = player_fainted
 
             # Small reward for opponent HP damage
-            if battle.opponent_active_pokemon:
+            if battle.opponent_active_pokemon and hasattr(battle.opponent_active_pokemon, 'current_hp_fraction'):
                 current_hp = battle.opponent_active_pokemon.current_hp_fraction
-                hp_delta = self._last_opponent_hp - current_hp
-                reward += hp_delta * 0.05
-                self._last_opponent_hp = current_hp
+                if current_hp is not None:
+                    hp_delta = self._last_opponent_hp - current_hp
+                    reward += hp_delta * 0.05
+                    self._last_opponent_hp = current_hp
 
             # Final outcome bonus
             if done:
