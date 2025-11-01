@@ -6,13 +6,14 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
-# Install all necessary Python packages for the server, including gunicorn
-RUN pip install --no-cache-dir \
-    fastapi>=0.104.0 \
-    "uvicorn[standard]>=0.24.0" \
-    requests>=2.25.0 \
-    wsproto>=1.0.0 \
-    gunicorn
+# Set the working directory
+WORKDIR /app
+
+# Copy requirements file and install dependencies. This is done in a separate
+# step to leverage Docker's layer caching. Dependencies are only re-installed
+# when the requirements.txt file changes.
+COPY src/envs/dipg_safety_env/server/requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
 
 # Set the working directory and PYTHONPATH inside the container
 WORKDIR /app
