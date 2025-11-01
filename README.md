@@ -16,16 +16,16 @@ OpenEnv provides a growing collection of environments across different domains f
 
 | Environment | Domain | Description | Documentation |
 |-------------|--------|-------------|---------------|
-| **Echo Env** | Testing | Simple message echo for testing framework infrastructure | [`src/envs/echo_env/`](src/envs/echo_env/README.md) |
-| **Coding Env** | Code Execution | Execute Python code in sandboxed environment with smolagents | [`src/envs/coding_env/`](src/envs/coding_env/README.md) |
-| **Chat Env** | LLM Training | Chat-based environment with tokenization and message history for conversation RL | [`src/envs/chat_env/`](src/envs/chat_env/README.md) |
 | **Atari Env** | Classic Games | 100+ Atari 2600 games via Arcade Learning Environment (Pong, Breakout, Space Invaders, etc.) | [`src/envs/atari_env/`](src/envs/atari_env/README.md) |
 | **OpenSpiel Env** | Game Theory | 70+ games from DeepMind's OpenSpiel (Tic-Tac-Toe, Poker, Chess, Catch, 2048, etc.) | [`src/envs/openspiel_env/`](src/envs/openspiel_env/README.md) |
-| **Git Env** | Software Dev | Git repository operations via Gitea for software development tasks | [`src/envs/git_env/`](src/envs/git_env/README.md) |
 | **FinRL Env** | Finance | Stock trading environment with technical indicators and portfolio management | [`src/envs/finrl_env/`](src/envs/finrl_env/README.md) |
 | **SUMO-RL Env** | Traffic Control | Traffic signal optimization using SUMO microscopic traffic simulation | [`src/envs/sumo_rl_env/`](src/envs/sumo_rl_env/README.md) |
-| **TextArena Env** | Word Games | Word games and reasoning tasks (Wordle, GuessTheNumber, etc.) | [`src/envs/textarena_env/`](src/envs/textarena_env/README.md) |
 | **DIPG Safety Env** | AI Safety | Medical domain safety training for high-stakes LLM applications with hallucination detection | [`src/envs/dipg_safety_env/`](src/envs/dipg_safety_env/README.md) |
+| **Git Env** | Software Dev | Git repository operations via Gitea for software development tasks | [`src/envs/git_env/`](src/envs/git_env/README.md) |
+| **Coding Env** | Code Execution | Execute Python code in sandboxed environment with smolagents | [`src/envs/coding_env/`](src/envs/coding_env/README.md) |
+| **Chat Env** | LLM Training | Chat-based environment with tokenization and message history for conversation RL | [`src/envs/chat_env/`](src/envs/chat_env/README.md) |
+| **TextArena Env** | Word Games | Word games and reasoning tasks (Wordle, GuessTheNumber, etc.) | [`src/envs/textarena_env/`](src/envs/textarena_env/README.md) |
+| **Echo Env** | Testing | Simple message echo for testing framework infrastructure | [`src/envs/echo_env/`](src/envs/echo_env/README.md) |
 
 Each environment follows the standard OpenEnv API (`reset()`, `step()`, `state()`) and can be deployed via Docker containers for isolated execution.
 
