@@ -25,19 +25,24 @@ import numpy as np
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
 from envs.atari_env import AtariEnv, AtariAction
-
+# import envs
+# print(envs.__path__)
 
 def main():
     """Run a simple Atari episode."""
     # Connect to the Atari environment server
     print("Connecting to Atari environment...")
     env = AtariEnv.from_docker_image("ghcr.io/meta-pytorch/openenv-atari-env:latest")
-
+    
+   
     try:
         # Reset the environment
         print("\nResetting environment...")
         result = env.reset()
         print(f"Screen shape: {result.observation.screen_shape}")
+
+    
+    
         print(f"Legal actions: {result.observation.legal_actions}")
         print(f"Lives: {result.observation.lives}")
 
