@@ -24,10 +24,12 @@ from core.env_server import Action, Environment, Observation
 from ..models import PokemonAction, PokemonObservation, PokemonData, PokemonState
 
 try:
-    from poke_env.player import Player, RandomPlayer
-    from poke_env.player.battle_order import BattleOrder, ForfeitBattleOrder
-    from poke_env import AccountConfiguration, LocalhostServerConfiguration
-    from poke_env.concurrency import POKE_LOOP, handle_threaded_coroutines
+    # Import from top-level poke_env module
+    from poke_env import Player, RandomPlayer, AccountConfiguration, LocalhostServerConfiguration
+    # Import battle orders from player submodule
+    from poke_env.player import BattleOrder, ForfeitBattleOrder
+    # Import concurrency from concurrency submodule
+    from poke_env.concurrency import POKE_LOOP
 except ImportError as e:
     raise ImportError(
         "poke-env is not installed. "
