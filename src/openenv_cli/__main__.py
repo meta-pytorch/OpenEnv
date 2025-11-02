@@ -9,7 +9,14 @@
 import argparse
 import sys
 
+from rich.console import Console
+from rich.traceback import install
+
 from .commands.push import push_environment
+
+
+console = Console()
+install(show_locals=False)
 
 
 def main():
@@ -59,20 +66,35 @@ def main():
     args = parser.parse_args()
     
     if args.command == "push":
+        if args.dry_run:
+            status_message = f"[bold yellow]Preparing dry run for '{args.env_name}'...[/bold yellow]"
+        else:
+            status_message = f"[bold cyan]Pushing environment '{args.env_name}'...[/bold cyan]"
+
         try:
-            push_environment(
-                env_name=args.env_name,
-                namespace=args.namespace,
-                space_name=args.space_name,
-                private=args.private,
-                base_image=args.base_image,
-                dry_run=args.dry_run,
-            )
+            with console.status(status_message):
+                push_environment(
+                    env_name=args.env_name,
+                    namespace=args.namespace,
+                    space_name=args.space_name,
+                    private=args.private,
+                    base_image=args.base_image,
+                    dry_run=args.dry_run,
+                )
+
+            if args.dry_run:
+                console.print(
+                    f"[bold yellow]Dry run complete for '{args.env_name}'.[/bold yellow]"
+                )
+            else:
+                console.print(
+                    f"[bold green]Successfully pushed '{args.env_name}'.[/bold green]"
+                )
         except Exception as e:
-            print(f"Error: {e}", file=sys.stderr)
+            console.print(f"[bold red]Error:[/bold red] {e}", highlight=False, soft_wrap=True)
             sys.exit(1)
     else:
-        parser.print_help()
+        console.print(parser.format_help())
         sys.exit(1)
 
 
