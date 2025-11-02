@@ -1,8 +1,8 @@
 
 import os
-import random, uuid
-from typing import List
-from dataclasses import replace
+import random
+import uuid
+
 from core.env_server import Environment
 from ..models import WildfireAction, WildfireObservation, WildfireState
 
@@ -54,22 +54,30 @@ class WildfireEnvironment(Environment):
         super().__init__()
 
         # --- Env-var overrides (optional) ---
-        self.width     = int(os.environ.get("WILDFIRE_WIDTH", width))
-        self.height    = int(os.environ.get("WILDFIRE_HEIGHT", height))
-        self.humidity  = float(os.environ.get("WILDFIRE_HUMIDITY", humidity))
+        width     = int(os.environ.get("WILDFIRE_WIDTH", width))
+        height    = int(os.environ.get("WILDFIRE_HEIGHT", height))
+        humidity  = float(os.environ.get("WILDFIRE_HUMIDITY", humidity))
+        forced_wind = os.environ.get("WILDFIRE_WIND", None)
+
+        # Store config
         self.w = width
         self.h = height
-        self.base_ignite_prob = float(os.environ.get("WILDFIRE_BASE_IGNITE_PROB", base_ignite_prob))
-        self.wind_bias        = float(os.environ.get("WILDFIRE_WIND_BIAS", wind_bias))
-        self.diag_factor      = float(os.environ.get("WILDFIRE_DIAG_FACTOR", diag_factor))
-        self.init_sources     = int(os.environ.get("WILDFIRE_INIT_SOURCES", init_sources))
-        self.rng              = random.Random(int(os.environ.get("WILDFIRE_SEED", seed)))
-        self.max_steps        = int(os.environ.get("WILDFIRE_MAX_STEPS", max_steps))
-        self.init_water       = int(os.environ.get("WILDFIRE_WATER_CAPACITY", water_capacity))
-        self.init_breaks      = int(os.environ.get("WILDFIRE_BREAK_CAPACITY", break_capacity))
-        self.burn_lifetime    = int(os.environ.get("WILDFIRE_BURN_LIFETIME", 3))  # ✅ new
-        self.forced_wind = os.getenv("WILDFIRE_WIND", "CALM")
+        self.base_ignite_prob = base_ignite_prob
+        self.wind_bias = wind_bias
+        self.diag_factor = diag_factor
+        self.init_humidity = humidity
+        self.init_sources = init_sources
+        self.rng = random.Random(seed)
+        self.max_steps = max_steps
+        self.init_water = water_capacity
+        self.init_breaks = break_capacity
+        self.forced_wind = forced_wind
+
+        # burn lifetime in ticks (balanced model)
+        self.burn_lifetime = 3
+
         self._state = WildfireState()
+
     # --- Core API ---
 
     def reset(self) -> WildfireObservation:
@@ -83,7 +91,7 @@ class WildfireEnvironment(Environment):
             wind_dir = self.rng.choice(list(DIRS_8.keys()))
 
         # Humidity small variation around init
-        humidity = min(1.0, max(0.0, self.humidity + self.rng.uniform(-0.05, 0.05)))
+        humidity = min(1.0, max(0.0, self.init_humidity + self.rng.uniform(-0.05, 0.05)))
 
         # Place initial fires
         for _ in range(self.init_sources):
@@ -352,9 +360,10 @@ class WildfireEnvironment(Environment):
             burned_count=burned,
             reward_hint=reward_hint,
         )
-           # --- Required abstract property implementation ---
+
+    # --- Required abstract property implementation ---
     @property
     def state(self) -> WildfireState:
-     """Return the current environment state."""
-     return self._state
+        """Return the current environment state."""
+        return self._state
 

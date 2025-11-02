@@ -16,6 +16,8 @@ class WildfireEnv(HTTPEnvClient[WildfireAction, WildfireObservation]):
 
     def _parse_state(self, payload: dict) -> WildfireState:
         return WildfireState(**payload)
+
+
 def render_grid(obs: WildfireObservation) -> str:
     legend = {0:"⬛", 1:"🟩", 2:"🟥", 3:"🟫", 4:"🟦"}
     w, h = obs.width, obs.height
@@ -23,5 +25,5 @@ def render_grid(obs: WildfireObservation) -> str:
     rows = []
     for y in range(h):
         rows.append("".join(legend.get(g[y*w+x], "?") for x in range(w)))
-    meta = f"step={obs.step} wind={obs.wind_dir} hum={obs.humidity:.2f} burning={obs.burning_count} burned=         {obs.burned_count}"
+    meta = f"step={obs.step} wind={obs.wind_dir} hum={obs.humidity:.2f} burning={obs.burning_count} burned={obs.burned_count}"
     return "\n".join(rows + [meta])

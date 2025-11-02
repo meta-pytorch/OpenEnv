@@ -23,9 +23,9 @@ class WildfireObservation(Observation):
     humidity: float                 # [0,1]
     burning_count: int
     burned_count: int               # total ash (0) cells (cumulative)
-    reward_hint: float = 0.0
+    reward_hint: float = 0.0        # optional shaping info
     remaining_water: int = 0
-    remaining_breaks: int = 0# optional shaping info
+    remaining_breaks: int = 0
 
 @dataclass
 class WildfireState(State):
@@ -43,3 +43,5 @@ class WildfireState(State):
     remaining_breaks: int = 50
     # internal full grid as flattened ints
     grid: List[int] = field(default_factory=list)
+    # burn timers for each cell (track how long cells have been burning/damp)
+    burn_timers: List[int] = field(default_factory=list)

@@ -36,18 +36,6 @@ This makes WildfireEnv a **fast, controllable**, and **open benchmark** for appl
 
 This environment models **forest-fire dynamics** influenced by:
 - **Wind direction** (8 directions + calm)
-- **Humidity** (suppresses ignition 🍵)
-- **Fuel state and burn progression**
-- **Limited resources** (water + barriers)
-- **Time pressure** (steps = cost)
-
-🎯 **Goal** → Minimize new fire spread + total burned land
-
----
-## 🔥 Environment Overview
-
-This environment models **forest-fire dynamics** influenced by:
-- **Wind direction** (8 directions + calm)
 - **Humidity** (suppresses ignition)
 - **Fuel type and spread rate**
 - **Limited resources** (water units, break materials)
@@ -209,21 +197,20 @@ class WildfireState(State):
 ```
 
 ---
-## Sample rendering to see wildfree simulation
+## Sample rendering to see wildfire simulation
+
+**Note:** This example requires Jupyter notebook or IPython environment for the `clear_output` and `display` functions. For standalone Python scripts, see `examples/wildfire.py`.
+
 ```python
 import matplotlib.pyplot as plt
 import numpy as np
-import time, sys
+import time
 
-from IPython.display import clear_output, display 
+from IPython.display import clear_output, display
 import matplotlib.colors as mcolors
-sys.path.append("/workspace/OpenEnv/src")
-from envs.wildfire_env import WildfireEnv, WildfireAction # Ensure these imports work
+from envs.wildfire_env import WildfireEnv, WildfireAction
 
-from envs.wildfire_env.server.wildfire_environment import WildfireEnvironment
-
-
-client = WildfireEnv("http://localhost:8020")
+client = WildfireEnv("http://localhost:8000")
 
 
 cmap = mcolors.ListedColormap([
@@ -279,7 +266,7 @@ for _ in range(100):
     time.sleep(0.3) 
 
    
-    res = client.step(WildfireAction(action="WAIT"))
+    res = client.step(WildfireAction(action="wait"))
     obs = res.observation
 
     if obs.burning_count == 0:
@@ -289,8 +276,8 @@ for _ in range(100):
 plt.ioff() # Turn off interactive mode
 plt.close(fig) # Close the figure at the end
 print("Animation complete.")
-```
 
+```
 
 ===
 
@@ -349,10 +336,33 @@ strategy:
 - [Fire Spread Simulation Models (USFS Research)](https://www.fs.fed.us/rm/pubs/rmrs_gtr371.html)
 
 ---
-
-## 🪵 Citation
+## 🔖 Citations
 
 ```bibtex
+@techreport{rothermel2022surface,
+  title     = {The Rothermel Surface Fire Spread Model and Associated Developments},
+  author    = {Andrews, Patricia L. and Rothermel, Richard C.},
+  year      = {2022},
+  institution = {USDA Forest Service},
+  number    = {RMRS-GTR-371},
+  url       = {https://www.fs.usda.gov/rm/pubs_series/rmrs/gtr/rmrs_gtr371.pdf}
+}
+
+@article{tapley2023reinforcement,
+  title   = {Reinforcement Learning for Wildfire Mitigation in Simulated Disaster Environments},
+  author  = {Tapley, A. and Dotter, M. and Doyle, M. and others},
+  journal = {arXiv preprint arXiv:2311.15925},
+  year    = {2023},
+  url     = {https://arxiv.org/abs/2311.15925}
+}
+
+@misc{mitrefireline2023simfire,
+  author = {{MITRE Fireline Project}},
+  title  = {SimFire: Wildfire Simulator for Decision-Support and AI Research},
+  year   = {2023},
+  howpublished = {\url{https://github.com/mitrefireline/simfire}}
+}
+
 @misc{wildfire-openenv-2025,
   title  = {Wildfire Environment for OpenEnv: Containment-Focused RL Simulation},
   author = {Harikrishnan, Ram Sankar},
