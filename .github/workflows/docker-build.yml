@@ -81,6 +81,9 @@ jobs:
             dockerfile: src/envs/git_env/server/Dockerfile
           - name: maze-env
             dockerfile: src/envs/maze_env/server/Dockerfile
+          - name: textarena-env
+            dockerfile: src/envs/textarena_env/server/Dockerfile
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4

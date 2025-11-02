@@ -15,14 +15,31 @@ on:
           - 'chat_env'
           - 'atari_env'
           - 'openspiel_env'
+      custom_environment:
+        description: 'Custom environment to deploy (leave empty for none)'
+        required: false
+        type: string
+        default: ''
       base_image_sha:
         description: 'SHA for openenv-base image (leave empty for latest)'
         required: false
         type: string
         default: ''
-
-env:
-  HF_USERNAME: openenv
+      hf_namespace:
+        description: 'Hugging Face namespace to deploy to (leave empty for openenv)'
+        required: false
+        type: string
+        default: 'openenv'
+      private:
+        description: 'Deploy the space as private (default: public)'
+        required: false
+        type: boolean
+        default: false
+      space_suffix:
+        description: 'Suffix to add to space name (e.g., "-test" for test spaces)'
+        required: false
+        type: string
+        default: ''
 
 jobs:
   # Job to determine which environments to deploy
@@ -101,73 +118,23 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Set up Git
+      - name: Install Hugging Face CLI
         run: |
-          git config --global user.email "github-actions[bot]@users.noreply.github.com"
-          git config --global user.name "github-actions[bot]"
-
-      - name: Prepare files for HF Space
-        run: |
-          chmod +x scripts/prepare_hf_deployment.sh
-          ./scripts/prepare_hf_deployment.sh "${{ matrix.environment }}" "${{ github.event.inputs.base_image_sha || '' }}"
+          curl -LsSf https://hf.co/cli/install.sh | bash
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
 
       - name: Deploy to Hugging Face Space
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
-          HF_USERNAME: openenv
+          HF_NAMESPACE: ${{ github.event.inputs.hf_namespace }}
+          HF_USERNAME: ${{ github.event.inputs.hf_namespace }}
         run: |
-          ENV_NAME="${{ matrix.environment }}"
-          SPACE_NAME="$ENV_NAME"
-          
-          echo "Deploying $ENV_NAME environment to HF Space: $SPACE_NAME"
-          
-          # Clone the target space
-          HF_SPACE_URL="https://$HF_USERNAME:$HF_TOKEN@huggingface.co/spaces/$HF_USERNAME/$SPACE_NAME"
-          echo "Cloning HF Space..."
-          
-          if git clone $HF_SPACE_URL hf-space 2>/dev/null; then
-            echo "Space exists, updating..."
+          chmod +x scripts/deploy_to_hf.sh
+          if [ -n "${{ github.event.inputs.base_image_sha }}" ]; then
+            ./scripts/deploy_to_hf.sh --env "${{ matrix.environment }}" --base-sha "${{ github.event.inputs.base_image_sha }}"
           else
-            echo "Space doesn't exist, will be created on first push"
-            mkdir -p hf-space
-            cd hf-space
-            git init
-            git remote add origin $HF_SPACE_URL
-            cd ..
+            ./scripts/deploy_to_hf.sh --env "${{ matrix.environment }}"
           fi
-          
-          cd hf-space
-          
-          # Clear existing files (except .git)
-          find . -mindepth 1 -maxdepth 1 ! -name '.git' -exec rm -rf {} +
-          
-          # Copy prepared files
-          cp -r ../hf-staging_$ENV_NAME/* .
-          
-          # Set the correct remote URL
-          git remote set-url origin $HF_SPACE_URL
-          
-          # Check if there are changes
-          if [ -n "$(git status --porcelain)" ]; then
-            echo "Committing changes..."
-            git add .
-            git commit -m "🤖 Deploy $ENV_NAME environment - $(date +'%Y-%m-%d %H:%M:%S')"
-            
-            echo "Pushing to Hugging Face..."
-            if git push origin main 2>/dev/null || git push origin master 2>/dev/null; then
-              echo "✅ Successfully deployed to https://huggingface.co/spaces/$HF_USERNAME/$SPACE_NAME"
-            else
-              echo "❌ Failed to push to Hugging Face. Check your credentials and permissions."
-              exit 1
-            fi
-          else
-            echo "ℹ️ No changes to deploy"
-          fi
-          
-          # Cleanup
-          cd ..
-          rm -rf hf-space
-          rm -rf hf-staging_$ENV_NAME
 
   # Job to deploy single environment
   deploy-single:
@@ -184,70 +151,20 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Set up Git
+      - name: Install Hugging Face CLI
         run: |
-          git config --global user.email "github-actions[bot]@users.noreply.github.com"
-          git config --global user.name "github-actions[bot]"
-
-      - name: Prepare files for HF Space
-        run: |
-          chmod +x scripts/prepare_hf_deployment.sh
-          ./scripts/prepare_hf_deployment.sh "${{ matrix.environment }}" "${{ github.event.inputs.base_image_sha || '' }}"
+          curl -LsSf https://hf.co/cli/install.sh | bash
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
 
       - name: Deploy to Hugging Face Space
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
-          HF_USERNAME: openenv
+          HF_NAMESPACE: ${{ github.event.inputs.hf_namespace }}
+          HF_USERNAME: ${{ github.event.inputs.hf_namespace }}
         run: |
-          ENV_NAME="${{ matrix.environment }}"
-          SPACE_NAME="$ENV_NAME"
-          
-          echo "Deploying $ENV_NAME environment to HF Space: $SPACE_NAME"
-          
-          # Clone the target space
-          HF_SPACE_URL="https://$HF_USERNAME:$HF_TOKEN@huggingface.co/spaces/$HF_USERNAME/$SPACE_NAME"
-          echo "Cloning HF Space..."
-          
-          if git clone $HF_SPACE_URL hf-space 2>/dev/null; then
-            echo "Space exists, updating..."
+          chmod +x scripts/deploy_to_hf.sh
+          if [ -n "${{ github.event.inputs.base_image_sha }}" ]; then
+            ./scripts/deploy_to_hf.sh --env "${{ matrix.environment }}" --base-sha "${{ github.event.inputs.base_image_sha }}"
           else
-            echo "Space doesn't exist, will be created on first push"
-            mkdir -p hf-space
-            cd hf-space
-            git init
-            git remote add origin $HF_SPACE_URL
-            cd ..
+            ./scripts/deploy_to_hf.sh --env "${{ matrix.environment }}"
           fi
-          
-          cd hf-space
-          
-          # Clear existing files (except .git)
-          find . -mindepth 1 -maxdepth 1 ! -name '.git' -exec rm -rf {} +
-          
-          # Copy prepared files
-          cp -r ../hf-staging_$ENV_NAME/* .
-          
-          # Set the correct remote URL
-          git remote set-url origin $HF_SPACE_URL
-          
-          # Check if there are changes
-          if [ -n "$(git status --porcelain)" ]; then
-            echo "Committing changes..."
-            git add .
-            git commit -m "🤖 Deploy $ENV_NAME environment - $(date +'%Y-%m-%d %H:%M:%S')"
-            
-            echo "Pushing to Hugging Face..."
-            if git push origin main 2>/dev/null || git push origin master 2>/dev/null; then
-              echo "✅ Successfully deployed to https://huggingface.co/spaces/$HF_USERNAME/$SPACE_NAME"
-            else
-              echo "❌ Failed to push to Hugging Face. Check your credentials and permissions."
-              exit 1
-            fi
-          else
-            echo "ℹ️ No changes to deploy"
-          fi
-          
-          # Cleanup
-          cd ..
-          rm -rf hf-space
-          rm -rf hf-staging_$ENV_NAME

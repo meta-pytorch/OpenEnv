@@ -84,17 +84,68 @@ env = MyEnvironment()
 app = create_fastapi_app(env, MyAction, MyObservation)
 ```
 
-### 4. Create Dockerfile
+### 4. Define Dependencies
+
+**For Python-only dependencies (most common case):**
+
+Create `src/envs/my_env/server/requirements.txt`:
+```txt
+your-package>=1.0.0
+another-package
+```
+
+**For complex setup (optional, only if needed):**
+
+If you need additional setup beyond pip install, create `src/envs/my_env/server/install_deps.sh`:
+```bash
+#!/bin/bash
+set -e
+
+# Install Python dependencies
+pip install --no-cache-dir -r /tmp/requirements.txt
+
+# Additional setup commands (only if needed)
+mkdir -p /some/directory
+# ... other setup steps
+```
+
+### 5. Create Dockerfile
 
 Build your Docker image from the openenv-base. Place this at `src/envs/my_env/server/Dockerfile`:
 
+**Simple case (just requirements.txt):**
 ```dockerfile
 # Accept base image as build argument for CI/CD flexibility
 ARG BASE_IMAGE=openenv-base:latest
 FROM ${BASE_IMAGE}
 
-# Install any additional dependencies
-RUN pip install --no-cache-dir your-dependencies
+# Install dependencies
+COPY src/envs/my_env/server/requirements.txt /tmp/requirements.txt
+RUN pip install --no-cache-dir -r /tmp/requirements.txt && rm /tmp/requirements.txt
+
+# Copy environment code
+COPY src/core/ /app/src/core/
+COPY src/envs/my_env/ /app/src/envs/my_env/
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+    CMD curl -f http://localhost:8000/health || exit 1
+
+# Run server
+CMD ["uvicorn", "envs.my_env.server.app:app", "--host", "0.0.0.0", "--port", "8000"]
+```
+
+**Complex case (requirements.txt + install_deps.sh):**
+```dockerfile
+ARG BASE_IMAGE=openenv-base:latest
+FROM ${BASE_IMAGE}
+
+# Install dependencies and run setup
+COPY src/envs/my_env/server/requirements.txt /tmp/requirements.txt
+COPY src/envs/my_env/server/install_deps.sh /tmp/install_deps.sh
+RUN chmod +x /tmp/install_deps.sh && \
+    /tmp/install_deps.sh && \
+    rm /tmp/install_deps.sh /tmp/requirements.txt
 
 # Copy environment code
 COPY src/core/ /app/src/core/
