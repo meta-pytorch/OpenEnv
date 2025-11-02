@@ -79,16 +79,15 @@ def push_environment(
         if dry_run:
             print(f"Dry run: Files prepared in {staging_dir}")
             print(f"Would upload to: https://huggingface.co/spaces/{repo_id}")
-            return
         
-        # Upload to space
-        print(f"Uploading to space: {repo_id}")
-        upload_to_space(api, repo_id, staging_dir, token)
-        
-        print(f"✅ Successfully pushed {env_name} to https://huggingface.co/spaces/{repo_id}")
+        # Upload to space (skip if dry run)
+        if not dry_run:
+            print(f"Uploading to space: {repo_id}")
+            upload_to_space(api, repo_id, staging_dir, token)
+            print(f"✅ Successfully pushed {env_name} to https://huggingface.co/spaces/{repo_id}")
         
     finally:
-        # Cleanup staging directory after upload (or if upload fails)
-        if not dry_run and staging_dir.exists():
+        # Cleanup staging directory after upload or dry run
+        if staging_dir.exists():
             import shutil
             shutil.rmtree(staging_dir)
