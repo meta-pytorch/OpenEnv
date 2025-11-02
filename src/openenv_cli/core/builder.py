@@ -173,7 +173,11 @@ def prepare_readme(env_name: str, staging_dir: Path) -> None:
         return
     
     # Otherwise, generate front matter with random emoji and colors
-    env_title = env_name[0].upper() + env_name[1:] if env_name else env_name
+    # Safely capitalize env_name - handle empty string and None cases
+    if env_name and len(env_name) > 0:
+        env_title = env_name[0].upper() + env_name[1:]
+    else:
+        env_title = ""
     
     # Approved emojis from Spaces Configuration Reference
     approved_emojis = [
@@ -247,26 +251,20 @@ The environment provides a health check endpoint at `/health`.
 """
     
     # Try to append content from original README if it exists (without front matter)
+    # Only append if the original README doesn't have front matter (if it has front matter,
+    # we've already used it as-is above, so we shouldn't append here to avoid duplicates)
     original_readme = Path("src/envs") / env_name / "README.md"
     if original_readme.exists():
         original_content = original_readme.read_text()
         
-        # Skip front matter if present
-        if original_content.startswith("---"):
-            lines = original_content.split("\n")
-            closing_idx = None
-            for i in range(1, len(lines)):
-                if lines[i].strip() == "---":
-                    closing_idx = i
-                    break
-            
-            if closing_idx:
-                # Skip front matter
-                original_content = "\n".join(lines[closing_idx + 1:]).strip()
-        
-        # Append original content if there's any
-        if original_content:
-            readme_content += "\n\n" + original_content
+        # Only append if original README doesn't have front matter
+        # (if it has front matter, we already used it as-is earlier, so skip to avoid duplicates)
+        if not original_content.startswith("---"):
+            # Original README has no front matter, append its content after generated sections
+            # This preserves environment-specific documentation
+            original_content_stripped = original_content.strip()
+            if original_content_stripped:
+                readme_content += "\n\n" + original_content_stripped
     
     readme_path = staging_dir / "README.md"
     readme_path.write_text(readme_content)

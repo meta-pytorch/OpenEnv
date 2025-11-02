@@ -330,3 +330,113 @@ class TestPrepareReadme:
             assert "colorTo: indigo" in content
         finally:
             os.chdir(old_cwd)
+
+    def test_prepare_readme_handles_empty_env_name(self, repo_root, tmp_path, monkeypatch):
+        """Test that README generation handles empty env_name safely."""
+        
+        # Create test environment (test_env_path already created the directory)
+        env_dir = repo_root / "src" / "envs" / ""
+        env_dir.mkdir(parents=True, exist_ok=True)
+        (env_dir / "README.md").write_text(
+            "# Test Environment\n\nThis is a test environment."
+        )
+        
+        # Prepare staging directory
+        staging_dir = prepare_staging_directory("", "test:latest", str(tmp_path / "hf-staging"))
+        
+        old_cwd = os.getcwd()
+        try:
+            os.chdir(repo_root)
+            # Should not raise IndexError
+            prepare_readme("", staging_dir)
+            
+            # Check README was created
+            readme_path = staging_dir / "README.md"
+            assert readme_path.exists()
+            
+            content = readme_path.read_text()
+            # Should have generated front matter
+            assert content.startswith("---")
+            assert "sdk: docker" in content
+            # Title should handle empty string
+            assert "title:" in content
+        finally:
+            os.chdir(old_cwd)
+
+    def test_prepare_readme_no_duplicate_when_original_has_front_matter(self, repo_root, tmp_path, monkeypatch):
+        """Test that original README with front matter is not appended (no duplicates)."""
+        
+        # Create test environment with README that has front matter (test_env_path already created the directory)
+        env_dir = repo_root / "src" / "envs" / "test_env"
+        env_dir.mkdir(parents=True, exist_ok=True)
+        original_content = (
+            "---\n"
+            "title: Test Environment\n"
+            "emoji: 🎮\n"
+            "colorFrom: red\n"
+            "colorTo: blue\n"
+            "sdk: docker\n"
+            "---\n"
+            "# Test Environment\n\nThis is a test environment.\n\n## About\n\nSome custom about content."
+        )
+        (env_dir / "README.md").write_text(original_content)
+        
+        # Prepare staging directory
+        staging_dir = prepare_staging_directory("test_env", "test:latest", str(tmp_path / "hf-staging"))
+        
+        old_cwd = os.getcwd()
+        try:
+            os.chdir(repo_root)
+            prepare_readme("test_env", staging_dir)
+            
+            # Check README was created
+            readme_path = staging_dir / "README.md"
+            assert readme_path.exists()
+            
+            content = readme_path.read_text()
+            # Should use original content as-is (not append duplicate sections)
+            assert content == original_content
+            # Should not have duplicate "About" sections
+            assert content.count("## About") == 1
+        finally:
+            os.chdir(old_cwd)
+
+    def test_prepare_readme_appends_original_without_front_matter(self, repo_root, tmp_path, monkeypatch):
+        """Test that original README without front matter is appended correctly."""
+        
+        # Create test environment with README without front matter (test_env_path already created the directory)
+        env_dir = repo_root / "src" / "envs" / "test_env"
+        env_dir.mkdir(parents=True, exist_ok=True)
+        original_content = (
+            "# Test Environment\n\n"
+            "This is a test environment with custom documentation.\n\n"
+            "## Custom Section\n\n"
+            "This is environment-specific content that should be preserved."
+        )
+        (env_dir / "README.md").write_text(original_content)
+        
+        # Prepare staging directory
+        staging_dir = prepare_staging_directory("test_env", "test:latest", str(tmp_path / "hf-staging"))
+        
+        old_cwd = os.getcwd()
+        try:
+            os.chdir(repo_root)
+            prepare_readme("test_env", staging_dir)
+            
+            # Check README was created
+            readme_path = staging_dir / "README.md"
+            assert readme_path.exists()
+            
+            content = readme_path.read_text()
+            # Should have generated front matter
+            assert content.startswith("---")
+            # Should have generated standard sections
+            assert "## About" in content
+            assert "## Web Interface" in content
+            # Should append original content after generated sections
+            assert "Custom Section" in content
+            assert "environment-specific content" in content
+            # Should not duplicate the title - original "# Test Environment" appears once (from appended content)
+            assert content.count("# Test Environment") == 1
+        finally:
+            os.chdir(old_cwd)
