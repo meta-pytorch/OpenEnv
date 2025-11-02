@@ -13,23 +13,6 @@ from huggingface_hub import HfApi
 from .auth import ensure_authenticated
 
 
-def space_exists(api: HfApi, repo_id: str) -> bool:
-    """
-    Check if a Docker Space exists.
-    
-    Args:
-        api: HfApi instance to use for API calls.
-        repo_id: Repository ID in format 'namespace/repo-name'.
-        
-    Returns:
-        True if space exists, False otherwise.
-    """
-    try:
-        return api.repo_exists(repo_id=repo_id, repo_type="space")
-    except Exception:
-        return False
-
-
 def create_space(api: HfApi, repo_id: str, private: bool = False) -> None:
     """
     Create a Docker Space on HuggingFace.
@@ -48,13 +31,31 @@ def create_space(api: HfApi, repo_id: str, private: bool = False) -> None:
             repo_type="space",
             space_sdk="docker",
             private=private,
-            exist_ok=True  # Don't fail if space already exists
+            exist_ok=True  # Hub CLI handles existence checks and private/non-private re-creation
         )
     except Exception as e:
-        # If space already exists, that's okay
-        if "already exists" in str(e).lower() or "repository already exists" in str(e).lower():
-            return
-        raise
+        # Check for authentication-related errors and provide clearer messages
+        error_str = str(e).lower()
+        if any(keyword in error_str for keyword in ["unauthorized", "authentication", "401", "invalid token", "token"]):
+            raise Exception(
+                f"Authentication failed when creating space {repo_id}. "
+                f"Please check your HuggingFace token and ensure it has write permissions. "
+                f"Original error: {e}"
+            ) from e
+        
+        # Check for permission-related errors
+        if any(keyword in error_str for keyword in ["forbidden", "403", "permission", "not authorized"]):
+            raise Exception(
+                f"Permission denied when creating space {repo_id}. "
+                f"Please verify you have permission to create spaces in this namespace. "
+                f"Original error: {e}"
+            ) from e
+        
+        # Raise a clearer generic error for other cases
+        # Note: exist_ok=True handles space existence and will print warnings to the user
+        raise Exception(
+            f"Failed to create space {repo_id}: {e}"
+        ) from e
 
 
 def get_space_repo_id(env_name: str, namespace: Optional[str] = None, space_name: Optional[str] = None) -> str:

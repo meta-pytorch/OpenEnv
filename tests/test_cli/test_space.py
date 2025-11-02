@@ -10,49 +10,13 @@ from unittest.mock import Mock, patch
 
 import pytest
 
-from openenv_cli.core.space import space_exists, create_space, get_space_repo_id
+from openenv_cli.core.space import create_space, get_space_repo_id
 
 
 @pytest.fixture
 def mock_hf_api():
     """Mock HfApi for testing."""
     return Mock()
-
-
-class TestSpaceExists:
-    """Tests for space_exists function."""
-
-    def test_space_exists_true(self, mock_hf_api):
-        """Test space_exists returns True when space exists."""
-        mock_hf_api.repo_exists.return_value = True
-
-        result = space_exists(mock_hf_api, "test_user/my-env")
-
-        assert result is True
-        mock_hf_api.repo_exists.assert_called_once_with(
-            repo_id="test_user/my-env",
-            repo_type="space"
-        )
-
-    def test_space_exists_false(self, mock_hf_api):
-        """Test space_exists returns False when space doesn't exist."""
-        mock_hf_api.repo_exists.return_value = False
-
-        result = space_exists(mock_hf_api, "test_user/my-env")
-
-        assert result is False
-        mock_hf_api.repo_exists.assert_called_once_with(
-            repo_id="test_user/my-env",
-            repo_type="space"
-        )
-
-    def test_space_exists_error(self, mock_hf_api):
-        """Test space_exists handles errors gracefully."""
-        mock_hf_api.repo_exists.side_effect = Exception("API error")
-
-        # Should return False on error (not raise)
-        result = space_exists(mock_hf_api, "test_user/my-env")
-        assert result is False
 
 
 class TestCreateSpace:
@@ -86,22 +50,43 @@ class TestCreateSpace:
             exist_ok=True
         )
 
-    def test_create_space_already_exists(self, mock_hf_api):
-        """Test creating a space that already exists."""
-        from huggingface_hub.utils import RepositoryNotFoundError
-        
-        # RepositoryNotFoundError doesn't exist in all versions, use generic Exception
-        mock_hf_api.create_repo.side_effect = Exception("Repository already exists")
 
-        # Should not raise, just silently continue
-        # This tests the function handles the case gracefully
-        try:
+    def test_create_space_authentication_error(self, mock_hf_api):
+        """Test that authentication errors are raised with clearer messages."""
+        mock_hf_api.create_repo.side_effect = Exception("401 Unauthorized: Invalid token")
+
+        with pytest.raises(Exception) as exc_info:
             create_space(mock_hf_api, "test_user/my-env", private=False)
-        except Exception:
-            # If it raises, that's okay - we just test the call was made
-            pass
         
-        mock_hf_api.create_repo.assert_called_once()
+        error_message = str(exc_info.value)
+        assert "Authentication failed" in error_message
+        assert "test_user/my-env" in error_message
+        assert "HuggingFace token" in error_message
+        assert "write permissions" in error_message
+
+    def test_create_space_permission_error(self, mock_hf_api):
+        """Test that permission errors are raised with clearer messages."""
+        mock_hf_api.create_repo.side_effect = Exception("403 Forbidden: Not authorized")
+
+        with pytest.raises(Exception) as exc_info:
+            create_space(mock_hf_api, "test_user/my-env", private=False)
+        
+        error_message = str(exc_info.value)
+        assert "Permission denied" in error_message
+        assert "test_user/my-env" in error_message
+        assert "permission to create spaces" in error_message
+
+    def test_create_space_generic_error(self, mock_hf_api):
+        """Test that generic errors are raised with clearer messages."""
+        mock_hf_api.create_repo.side_effect = Exception("Network error occurred")
+
+        with pytest.raises(Exception) as exc_info:
+            create_space(mock_hf_api, "test_user/my-env", private=False)
+        
+        error_message = str(exc_info.value)
+        assert "Failed to create space" in error_message
+        assert "test_user/my-env" in error_message
+        assert "Network error occurred" in error_message
 
 
 class TestGetSpaceRepoId:
