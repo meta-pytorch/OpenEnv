@@ -22,3 +22,10 @@ Mentor: init27
 - [ ] Add Env
 - [ ] Baseline on Env
 - [ ] Setup Trainer
+### Observations:
+SubZero:
+1) poke_env seems like a popular choice for Pokemon-RL projects, especially those involving Pokémon Showdown battles.
+2) Custom environments using earlier Pokemon versions (like Pokemon Red) often use emulators or simplified OpenAI Gym-like environments.
+3) Environments typically frame Pokemon states as numeric tensors or feature dictionaries, avoiding raw image input for easier training.
+4) Research projects use reward shaping and parallel training to speed learning.
+5) Most projects focus on battle-based interactions, therefore no focus on exploration or world interaction.
