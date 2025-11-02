@@ -13,7 +13,8 @@ dependencies = [
     "fastapi>=0.104.0",
     "uvicorn>=0.24.0",
     "smolagents>=1.22.0,<2",
-    "huggingface_hub>=0.20.0"
+    "huggingface_hub>=0.20.0",
+    "rich>=13.0.0",
 ]
 
 [tool.setuptools]
