@@ -1,7 +1,7 @@
 ## Project Pikachu: Solving Pokemon with RL and SFT
 
 Lead: cpich3g, init27
-Contributors: osiris, rycerzes, sub_zero5167, Zeus, Jackson, RioT007
+Contributors: osiris, rycerzes, sub_zero5167, Zeus, Jackson, RioT007, Surfiniaburger
 
 Mentor: init27
 
