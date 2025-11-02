@@ -29,7 +29,7 @@ COPY src/envs/maze_env/README.md /app/README.md
 
 # Extend Python path for OpenEnv (base image sets PYTHONPATH=/app/src)
 # We prepend Maze paths
-ENV PYTHONPATH=/repo:/repo/build/python:/app/src
+ENV PYTHONPATH=/app/src
 
 
 # Health check (curl provided by openenv-base)
