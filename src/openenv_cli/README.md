@@ -82,7 +82,7 @@ The CLI uses HuggingFace authentication. You can authenticate in two ways:
 
 To get a token:
 1. Go to https://huggingface.co/settings/tokens
-2. Create a new token with "write" permissions
+2. Create a new token with "write" permissions on the namespace where you are pushing the environment.
 3. Use it as `HF_TOKEN` or log in interactively
 
 ## How It Works
