@@ -43,4 +43,10 @@ packages = [
     "openenv_core.env_server",
     "openenv_core.tools"
 ]
-package-dir = {"openenv_core" = "."}
+[tool.black]
+line-length = 80
+
+[tool.ruff]
+line-length = 80
+select = ["E", "F", "W"]
+ignore = ["E501"]  # Ignore long lines, if desired
