@@ -6,7 +6,6 @@
 
 """Push command for deploying environments to HuggingFace Spaces."""
 
-from pathlib import Path
 from typing import Optional
 
 from huggingface_hub import HfApi
@@ -18,7 +17,7 @@ from ..core.builder import (
     prepare_dockerfile,
     prepare_readme,
 )
-from ..core.space import space_exists, create_space, get_space_repo_id
+from ..core.space import create_space, get_space_repo_id
 from ..core.uploader import upload_to_space
 from ..utils.env_loader import validate_environment
 
@@ -47,7 +46,7 @@ def push_environment(
     validate_environment(env_name)
     
     # Authenticate with HuggingFace
-    username, token = ensure_authenticated()
+    _, token = ensure_authenticated()
     
     # Determine target space repo ID
     repo_id = get_space_repo_id(env_name, namespace=namespace, space_name=space_name)
@@ -56,11 +55,7 @@ def push_environment(
     api = HfApi(token=token)
     
     # Check if space exists, create if needed
-    if not space_exists(api, repo_id):
-        create_space(api, repo_id, private=private)
-    else:
-        print(f"Space {repo_id} already exists, will update it")
-    
+    create_space(api, repo_id, private=private)
     # Set default base image if not provided
     if base_image is None:
         base_image = "ghcr.io/meta-pytorch/openenv-base:latest"
@@ -78,15 +73,9 @@ def push_environment(
         # Prepare README
         prepare_readme(env_name, staging_dir)
         
-        if dry_run:
-            print(f"Dry run: Files prepared in {staging_dir}")
-            print(f"Would upload to: https://huggingface.co/spaces/{repo_id}")
-        
         # Upload to space (skip if dry run)
         if not dry_run:
-            print(f"Uploading to space: {repo_id}")
             upload_to_space(api, repo_id, staging_dir, token)
-            print(f"✅ Successfully pushed {env_name} to https://huggingface.co/spaces/{repo_id}")
         
     finally:
         # Cleanup staging directory after upload or dry run
