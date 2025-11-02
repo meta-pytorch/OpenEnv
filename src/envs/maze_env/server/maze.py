@@ -10,7 +10,6 @@
 import logging
 from enum import Enum, IntEnum
 
-import matplotlib.pyplot as plt
 import numpy as np
 
 
@@ -136,33 +135,6 @@ class Maze:
         self.__ax1.plot(*self.__current_cell, "ro")  # current cell is a red dot
         self.__ax1.get_figure().canvas.draw()
         self.__ax1.get_figure().canvas.flush_events()
-
-    def render(self, content=Render.NOTHING):
-        """ Record what will be rendered during play and/or training.
-
-            :param Render content: NOTHING, TRAINING, MOVES
-        """
-        self.__render = content
-
-        if self.__render == Render.NOTHING:
-            if self.__ax1:
-                self.__ax1.get_figure().close()
-                self.__ax1 = None
-            if self.__ax2:
-                self.__ax2.get_figure().close()
-                self.__ax2 = None
-        if self.__render == Render.TRAINING:
-            if self.__ax2 is None:
-                fig, self.__ax2 = plt.subplots(1, 1, tight_layout=True)
-                fig.canvas.set_window_title("Best move")
-                self.__ax2.set_axis_off()
-                self.render_q(None)
-        if self.__render in (Render.MOVES, Render.TRAINING):
-            if self.__ax1 is None:
-                fig, self.__ax1 = plt.subplots(1, 1, tight_layout=True)
-                fig.canvas.set_window_title("Maze")
-
-        plt.show(block=False)
 
     def step(self, action):
         """ Move the agent according to 'action' and return the new state, reward and game status.
