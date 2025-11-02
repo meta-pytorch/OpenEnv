@@ -7,6 +7,7 @@
 """Builder module for preparing environments for deployment."""
 
 import os
+import random
 import re
 import shutil
 from pathlib import Path
@@ -137,24 +138,74 @@ def prepare_readme(env_name: str, staging_dir: Path) -> None:
     """
     Prepare README.md with HuggingFace front matter.
     
+    If the environment README already has HuggingFace front matter (starts and ends with `---`),
+    use it as-is. Otherwise, generate front matter with random emoji and colors.
+    
     Args:
         env_name: Name of the environment.
         staging_dir: Staging directory path.
     """
-    # Capitalize first letter of environment name
+    # Check both src/envs/${ENV_NAME}/README.md and src/envs/${ENV_NAME}/server/README.md
+    readme_paths = [
+        Path("src/envs") / env_name / "README.md",
+        Path("src/envs") / env_name / "server" / "README.md",
+    ]
+    
+    # Check if any README has HuggingFace front matter
+    existing_readme_content = None
+    for readme_path in readme_paths:
+        if readme_path.exists():
+            content = readme_path.read_text()
+            # Check if it has front matter (starts with --- and has closing ---)
+            if content.startswith("---"):
+                lines = content.split("\n")
+                # Look for closing --- (must be at the top, within first 100 lines)
+                for i in range(1, min(100, len(lines))):
+                    if lines[i].strip() == "---":
+                        # Found front matter, use this README as-is
+                        existing_readme_content = content
+                        break
+                if existing_readme_content:
+                    break
+    
+    # If we found an existing README with front matter, use it as-is
+    if existing_readme_content:
+        readme_path = staging_dir / "README.md"
+        readme_path.write_text(existing_readme_content)
+        return
+    
+    # Otherwise, generate front matter with random emoji and colors
     env_title = env_name[0].upper() + env_name[1:] if env_name else env_name
     
-    # Set environment-specific colors and emoji
-    emoji_map = {
-        "atari_env": ("🕹️", "red", "yellow"),
-        "coding_env": ("💻", "blue", "gray"),
-        "openspiel_env": ("🎮", "purple", "indigo"),
-        "echo_env": ("🔊", "blue", "gray"),
-        "chat_env": ("💬", "blue", "green"),
-        "textarena_env": ("📜", "green", "blue"),
-    }
+    # Approved emojis from Spaces Configuration Reference
+    approved_emojis = [
+        "🎮", "🚀", "💻", "🔬", "🧪", "🎯", "🎨", "📊", "🤖", "🌟",
+        "⚡", "🔧", "📱", "💡", "🎲", "🎵", "🎸", "🎭", "🎬", "🏆",
+        "🔥", "💎", "🌈", "🎁", "🎈", "🎊", "🎉", "🦄", "🐳", "🐙",
+        "🦋", "🐝", "🐞", "🦅", "🦉", "🦇", "🐉", "🦖", "🦕", "🐢",
+        "🐍", "🦎", "🐊", "🐋", "🦈", "🐬", "🐠", "🐟", "🐡", "🦑",
+        "🦐", "🦞", "🦀", "🐺", "🐗", "🐴", "🐛", "🐌", "🐜", "🦟",
+        "🦗", "🕷️", "🦂", "🐅", "🐆", "🦓", "🦍", "🦧", "🐘", "🦛",
+        "🦏", "🐪", "🐫", "🦒", "🦘", "🦬", "🐃", "🐂", "🐄", "🐎",
+        "🐖", "🐏", "🐑", "🦙", "🐐", "🦌", "🐕", "🐩", "🦮", "🐈",
+        "🪶", "🐓", "🦃", "🦚", "🦜", "🦢", "🦩", "🕊️", "🐇", "🐿️",
+        "🦫", "🦔", "🦝", "🦨", "🦡", "🦦", "🦥", "🐁", "🐀", "🐾",
+        "🐲", "🌵", "🎄", "🌲", "🌳", "🌴", "🌱", "🌿", "☘️", "🍀",
+        "🎍", "🪴", "🎋", "🍃", "🍂", "🍁", "🍄", "🐚", "🪨", "🌾",
+        "💐", "🌷", "🌹", "🥀", "🌺", "🌸", "🌼", "🌻", "🌞", "🌝",
+        "🌛", "🌜", "🌕", "🌖", "🌗", "🌘", "🌑", "🌒", "🌓", "🌔",
+        "🌙", "🌚", "🌏", "🪐", "💫", "⭐", "✨", "☄️", "💥", "☀️",
+        "⛅", "☁️", "⛈️", "🌤️", "🌦️", "🌧️", "🌩️", "❄️", "☃️", "⛄",
+        "🌬️", "💨", "💧", "💦", "☔", "☂️", "🌊", "🌫️",
+    ]
     
-    emoji, color_from, color_to = emoji_map.get(env_name, ("🐳", "blue", "green"))
+    # Approved colors from Spaces Configuration Reference
+    approved_colors = ["red", "yellow", "green", "blue", "indigo", "purple", "pink", "gray"]
+    
+    # Randomly select emoji and colors
+    emoji = random.choice(approved_emojis)
+    color_from = random.choice(approved_colors)
+    color_to = random.choice(approved_colors)
     
     # Create README with front matter
     readme_content = f"""---
@@ -197,14 +248,13 @@ Visit `/docs` for interactive API documentation.
 The environment provides a health check endpoint at `/health`.
 """
     
-    # Try to append content from original README if it exists
+    # Try to append content from original README if it exists (without front matter)
     original_readme = Path("src/envs") / env_name / "README.md"
     if original_readme.exists():
         original_content = original_readme.read_text()
         
         # Skip front matter if present
         if original_content.startswith("---"):
-            # Find closing ---
             lines = original_content.split("\n")
             closing_idx = None
             for i in range(1, len(lines)):
@@ -214,10 +264,11 @@ The environment provides a health check endpoint at `/health`.
             
             if closing_idx:
                 # Skip front matter
-                original_content = "\n".join(lines[closing_idx + 1:])
+                original_content = "\n".join(lines[closing_idx + 1:]).strip()
         
-        # Append original content
-        readme_content += "\n" + original_content
+        # Append original content if there's any
+        if original_content:
+            readme_content += "\n\n" + original_content
     
     readme_path = staging_dir / "README.md"
     readme_path.write_text(readme_content)
