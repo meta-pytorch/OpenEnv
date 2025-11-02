@@ -6,12 +6,10 @@
 
 """Builder module for preparing environments for deployment."""
 
-import os
 import random
 import re
 import shutil
 from pathlib import Path
-from typing import Optional
 
 
 def prepare_staging_directory(env_name: str, base_image: str, staging_root: str = "hf-staging") -> Path:

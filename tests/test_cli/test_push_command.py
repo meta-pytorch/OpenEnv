@@ -6,9 +6,8 @@
 
 """End-to-end tests for push command."""
 
-import os
 from pathlib import Path
-from unittest.mock import Mock, patch, MagicMock
+from unittest.mock import Mock, patch
 
 import pytest
 
@@ -34,7 +33,6 @@ def mock_environment(tmp_path, monkeypatch):
     (core_dir / "__init__.py").write_text("# Core")
     
     # Monkey patch Path to return our test paths
-    original_path = Path
     monkeypatch.chdir(tmp_path)
     
     return tmp_path
