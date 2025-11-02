@@ -15,6 +15,7 @@ on:
           - 'chat_env'
           - 'atari_env'
           - 'openspiel_env'
+          - 'maze_env'
       custom_environment:
         description: 'Custom environment to deploy (leave empty for none)'
         required: false
@@ -110,7 +111,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        environment: [echo_env, coding_env, chat_env, atari_env, openspiel_env]
+        environment: [echo_env, coding_env, chat_env, atari_env, openspiel_env, maze_env]
     permissions:
       contents: read
     

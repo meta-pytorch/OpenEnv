@@ -29,6 +29,7 @@ class MazeObservation(Observation):
     total_reward: float
     legal_actions: List[int] = field(default_factory=list)
 
+
 @dataclass
 class MazeState(State):
     episode_id: str

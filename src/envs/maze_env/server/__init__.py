@@ -8,4 +8,4 @@
 from .maze import Maze, Status
 from .maze_environment import MazeEnvironment
 
-__all__ = ["Maze","MazeEnvironment","Status"]
+__all__ = ["Maze", "MazeEnvironment", "Status"]

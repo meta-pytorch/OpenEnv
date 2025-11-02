@@ -23,10 +23,17 @@ from .models import MazeAction, MazeObservation, MazeState
 if TYPE_CHECKING:
     pass
 
+
 class MazeEnv(HTTPEnvClient[MazeAction, MazeObservation]):
     """HTTP client for Maze Environment."""
 
-    def render_ascii_maze(self, maze: List[List[int]], position: List[int], start: List[int], goal: List[int]) -> None:
+    def render_ascii_maze(
+        self,
+        maze: List[List[int]],
+        position: List[int],
+        start: List[int],
+        goal: List[int],
+    ) -> None:
         """
         Render the maze grid as ASCII art in the terminal.
         - 0 = free cell
@@ -49,8 +56,8 @@ class MazeEnv(HTTPEnvClient[MazeAction, MazeObservation]):
                     line += "G "
                 elif maze[r][c] == 1:
                     line += "█ "
-                elif r == rows-1 and c == cols-1:
-                    line+= "E "
+                elif r == rows - 1 and c == cols - 1:
+                    line += "E "
                 else:
                     line += ". "
             print(line)

@@ -42,7 +42,7 @@ class MazeEnvironment(Environment):
         self,
         maze_array: np.ndarray,
         start_cell: Tuple[int, int] = (0, 0),
-        exit_cell: Optional[Tuple[int, int]] = (7,7),
+        exit_cell: Optional[Tuple[int, int]] = (7, 7),
     ):
         # Create underlying Maze instance (matches your working code)
         self.env = Maze(maze=maze_array, start_cell=start_cell, exit_cell=exit_cell)
@@ -54,16 +54,26 @@ class MazeEnvironment(Environment):
 
     def reset(self) -> MazeObservation:
         """Reset environment and return initial observation (MazeObservation)."""
-        observation = self.env.reset()  # typically returns np.array([row, col]) or similar
+        observation = (
+            self.env.reset()
+        )  # typically returns np.array([row, col]) or similar
         # initialize episode state
         self.state = MazeState(episode_id="episode_1", step_count=0, done=False)
 
         # build MazeObservation; convert numpy to list for JSON-serializable dataclass fields
-        pos_list = observation.tolist() if hasattr(observation, "tolist") else list(observation)
+        pos_list = (
+            observation.tolist()
+            if hasattr(observation, "tolist")
+            else list(observation)
+        )
         self.total_reward = 0
         legal_actions = self._compute_legal_actions(pos_list[0])
 
-        return MazeObservation(position=pos_list, total_reward=self.total_reward, legal_actions=legal_actions)
+        return MazeObservation(
+            position=pos_list,
+            total_reward=self.total_reward,
+            legal_actions=legal_actions,
+        )
 
     def step(self, action: MazeAction) -> MazeObservation:
         """
@@ -91,9 +101,9 @@ class MazeEnvironment(Environment):
         }
 
         # --- Reward settings ---
-        reward_exit = 10.0          # reward for reaching the exit cell
-        reward_move = 0.05        # reward for a move that didn't find the exit but is valid
-        penalty_visited = -0.25     # penalty for revisiting a cell
+        reward_exit = 10.0  # reward for reaching the exit cell
+        reward_move = 0.05  # reward for a move that didn't find the exit but is valid
+        penalty_visited = -0.25  # penalty for revisiting a cell
         penalty_impossible = -0.75  # penalty for invalid move (wall/outside)
 
         dr, dc = move_map.get(action.action, (0, 0))
@@ -153,9 +163,8 @@ class MazeEnvironment(Environment):
             position=pos_list,
             total_reward=self.total_reward,
             legal_actions=legal_actions,
-            done=done
+            done=done,
         )
-
 
     def state(self) -> Optional[MazeState]:
         """Return the current MazeState object."""

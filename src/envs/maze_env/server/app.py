@@ -28,10 +28,11 @@ from core.env_server import create_app
 from ..models import MazeAction, MazeObservation
 from .maze_environment import MazeEnvironment
 from .mazearray import maze
+
 # Get game configuration from environment variables
 
 # Create the environment instance
-env = MazeEnvironment(maze_array=maze,start_cell=(0,0),exit_cell=(7,7))
+env = MazeEnvironment(maze_array=maze, start_cell=(0, 0), exit_cell=(7, 7))
 
 # Create the FastAPI app with web interface and README integration
 app = create_app(env, MazeAction, MazeObservation, env_name="maze_env")
