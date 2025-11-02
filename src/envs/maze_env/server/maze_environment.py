@@ -11,9 +11,9 @@ This module wraps Maze's environment and exposes it
 via the OpenEnv Environment interface.
 """
 
-from typing import Any, Dict, List, Tuple, Optional
-from core.env_server import Action, Environment, Observation
-from .maze import Maze, Status
+from typing import List, Tuple, Optional
+from core.env_server import Environment
+from .maze import Maze
 from ..models import MazeAction, MazeObservation, MazeState
 
 try:
@@ -60,10 +60,10 @@ class MazeEnvironment(Environment):
 
         # build MazeObservation; convert numpy to list for JSON-serializable dataclass fields
         pos_list = observation.tolist() if hasattr(observation, "tolist") else list(observation)
-        total_reward = 0
+        self.total_reward = 0
         legal_actions = self._compute_legal_actions(pos_list[0])
 
-        return MazeObservation(position=pos_list, total_reward=total_reward, legal_actions=legal_actions)
+        return MazeObservation(position=pos_list, total_reward=self.total_reward, legal_actions=legal_actions)
 
     def step(self, action: MazeAction) -> MazeObservation:
         """

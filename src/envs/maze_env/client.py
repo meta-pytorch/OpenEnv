@@ -21,7 +21,7 @@ from core.http_env_client import HTTPEnvClient
 from .models import MazeAction, MazeObservation, MazeState
 
 if TYPE_CHECKING:
-    from core.containers.runtime import ContainerProvider
+    pass
 
 class MazeEnv(HTTPEnvClient[MazeAction, MazeObservation]):
     """HTTP client for Maze Environment."""

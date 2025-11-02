@@ -72,13 +72,13 @@ def main():
             step += 1
             print("-----------------------------------------------------")
 
-        print(f"\n✅ Episode finished!")
+        print("\n✅ Episode finished!")
         print(f"   Total steps: {step}")
         print(f"   Total reward: {reward}")
 
         # Get environment state
         state = env.state()
-        print(f"\n📊 Environment State:")
+        print("\n📊 Environment State:")
         print(f"   Episode ID: {state.episode_id}")
         print(f"   Step count: {state.step_count}")
         print(f"   Done: {state.done}")

@@ -25,7 +25,6 @@ Variables:
 """
 
 from core.env_server import create_app
-import numpy as np
 from ..models import MazeAction, MazeObservation
 from .maze_environment import MazeEnvironment
 from .mazearray import maze
