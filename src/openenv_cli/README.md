@@ -317,17 +317,6 @@ validate_parser.add_argument("env_name")
 # ... handle command
 ```
 
-### Integration with Phase 2
-
-When HuggingFace native Environment primitives become available (Phase 2), the CLI will be updated to:
-
-- Use native Environment APIs instead of Docker Space orchestration
-- Leverage HuggingFace's built-in build processes
-- Simplify deployment workflow (less custom logic needed)
-- Potentially deprecate or simplify the current `push` command
-
-The modular architecture ensures a smooth transition path.
-
 ## Troubleshooting
 
 ### Authentication Issues
