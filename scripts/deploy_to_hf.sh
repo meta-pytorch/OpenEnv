@@ -290,6 +290,13 @@ DOCKERFILE_EOF
             echo "OpenSpiel builds can take 10-15 minutes due to C++ compilation"
             return  # Skip the common parts since OpenSpiel has its own complete Dockerfile
             ;;
+        "maze_env")
+         cat >> "$CURRENT_STAGING_DIR/Dockerfile" << 'DOCKERFILE_EOF'
+# Install additional dependencies for ChatEnvironment
+RUN pip install --no-cache-dir numpy
+DOCKERFILE_EOF
+            # Maze env requre
+            ;;
     esac
 
     # Add common parts
