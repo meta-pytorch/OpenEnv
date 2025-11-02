@@ -84,7 +84,7 @@ class TestPushEnvironment:
         # Verify calls
         mock_validate.assert_called_once_with("test_env")
         mock_ensure_auth.assert_called_once()
-        mock_get_repo_id.assert_called_once_with("test_env", namespace=None)
+        mock_get_repo_id.assert_called_once_with("test_env", namespace=None, space_name=None)
         mock_space_exists.assert_called_once_with(mock_api, "test_user/test_env")
         mock_create_space.assert_called_once_with(mock_api, "test_user/test_env", private=False)
         mock_prepare_staging.assert_called_once()
@@ -191,7 +191,7 @@ class TestPushEnvironment:
         push_environment("test_env", namespace="my-org")
         
         # Verify namespace was used
-        mock_get_repo_id.assert_called_once_with("test_env", namespace="my-org")
+        mock_get_repo_id.assert_called_once_with("test_env", namespace="my-org", space_name=None)
 
     @patch("openenv_cli.commands.push.upload_to_space")
     @patch("openenv_cli.commands.push.create_space")
@@ -233,3 +233,89 @@ class TestPushEnvironment:
         
         # Verify private space was created
         mock_create_space.assert_called_once_with(mock_api, "test_user/test_env", private=True)
+
+    @patch("openenv_cli.commands.push.upload_to_space")
+    @patch("openenv_cli.commands.push.create_space")
+    @patch("openenv_cli.commands.push.space_exists")
+    @patch("openenv_cli.commands.push.prepare_readme")
+    @patch("openenv_cli.commands.push.prepare_dockerfile")
+    @patch("openenv_cli.commands.push.copy_environment_files")
+    @patch("openenv_cli.commands.push.prepare_staging_directory")
+    @patch("openenv_cli.commands.push.validate_environment")
+    @patch("openenv_cli.commands.push.ensure_authenticated")
+    @patch("openenv_cli.commands.push.get_space_repo_id")
+    @patch("openenv_cli.commands.push.HfApi")
+    def test_push_environment_with_space_name(
+        self,
+        mock_api_class,
+        mock_get_repo_id,
+        mock_ensure_auth,
+        mock_validate,
+        mock_prepare_staging,
+        mock_copy_files,
+        mock_prepare_dockerfile,
+        mock_prepare_readme,
+        mock_space_exists,
+        mock_create_space,
+        mock_upload,
+        mock_environment,
+    ):
+        """Test push with custom space name."""
+        # Setup mocks
+        mock_api = Mock()
+        mock_api_class.return_value = mock_api
+        mock_ensure_auth.return_value = ("test_user", "test_token")
+        mock_get_repo_id.return_value = "test_user/custom-space"
+        mock_space_exists.return_value = False
+        mock_prepare_staging.return_value = Path("staging")
+        
+        # Run push with space_name
+        push_environment("test_env", space_name="custom-space")
+        
+        # Verify space_name was used
+        mock_get_repo_id.assert_called_once_with("test_env", namespace=None, space_name="custom-space")
+        mock_space_exists.assert_called_once_with(mock_api, "test_user/custom-space")
+        mock_create_space.assert_called_once_with(mock_api, "test_user/custom-space", private=False)
+
+    @patch("openenv_cli.commands.push.upload_to_space")
+    @patch("openenv_cli.commands.push.create_space")
+    @patch("openenv_cli.commands.push.space_exists")
+    @patch("openenv_cli.commands.push.prepare_readme")
+    @patch("openenv_cli.commands.push.prepare_dockerfile")
+    @patch("openenv_cli.commands.push.copy_environment_files")
+    @patch("openenv_cli.commands.push.prepare_staging_directory")
+    @patch("openenv_cli.commands.push.validate_environment")
+    @patch("openenv_cli.commands.push.ensure_authenticated")
+    @patch("openenv_cli.commands.push.get_space_repo_id")
+    @patch("openenv_cli.commands.push.HfApi")
+    def test_push_environment_with_namespace_and_space_name(
+        self,
+        mock_api_class,
+        mock_get_repo_id,
+        mock_ensure_auth,
+        mock_validate,
+        mock_prepare_staging,
+        mock_copy_files,
+        mock_prepare_dockerfile,
+        mock_prepare_readme,
+        mock_space_exists,
+        mock_create_space,
+        mock_upload,
+        mock_environment,
+    ):
+        """Test push with both namespace and space name."""
+        # Setup mocks
+        mock_api = Mock()
+        mock_api_class.return_value = mock_api
+        mock_ensure_auth.return_value = ("test_user", "test_token")
+        mock_get_repo_id.return_value = "my-org/custom-space"
+        mock_space_exists.return_value = False
+        mock_prepare_staging.return_value = Path("staging")
+        
+        # Run push with namespace and space_name
+        push_environment("test_env", namespace="my-org", space_name="custom-space")
+        
+        # Verify both namespace and space_name were used
+        mock_get_repo_id.assert_called_once_with("test_env", namespace="my-org", space_name="custom-space")
+        mock_space_exists.assert_called_once_with(mock_api, "my-org/custom-space")
+        mock_create_space.assert_called_once_with(mock_api, "my-org/custom-space", private=False)

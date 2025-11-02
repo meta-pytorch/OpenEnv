@@ -133,3 +133,19 @@ class TestGetSpaceRepoId:
         result = get_space_repo_id("my_env", namespace="my-org")
 
         assert result == "my-org/my_env"
+
+    @patch("openenv_cli.core.space.ensure_authenticated")
+    def test_get_space_repo_id_with_space_name(self, mock_auth):
+        """Test get_space_repo_id with custom space name."""
+        mock_auth.return_value = ("test_user", "token")
+
+        result = get_space_repo_id("my_env", space_name="custom-space")
+
+        assert result == "test_user/custom-space"
+
+    @patch("openenv_cli.core.space.ensure_authenticated")
+    def test_get_space_repo_id_with_namespace_and_space_name(self, mock_auth):
+        """Test get_space_repo_id with both namespace and space name."""
+        result = get_space_repo_id("my_env", namespace="my-org", space_name="custom-space")
+
+        assert result == "my-org/custom-space"

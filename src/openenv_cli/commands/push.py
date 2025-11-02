@@ -26,6 +26,7 @@ from ..utils.env_loader import validate_environment
 def push_environment(
     env_name: str,
     namespace: Optional[str] = None,
+    space_name: Optional[str] = None,
     private: bool = False,
     base_image: Optional[str] = None,
     dry_run: bool = False,
@@ -37,6 +38,7 @@ def push_environment(
         env_name: Name of the environment to push.
         namespace: Optional namespace (organization or user). If not provided,
                    uses the authenticated user's username.
+        space_name: Optional custom space name. If not provided, uses env_name.
         private: Whether the space should be private (default: False).
         base_image: Base Docker image to use (default: ghcr.io/meta-pytorch/openenv-base:latest).
         dry_run: If True, prepare files but don't upload (default: False).
@@ -48,7 +50,7 @@ def push_environment(
     username, token = ensure_authenticated()
     
     # Determine target space repo ID
-    repo_id = get_space_repo_id(env_name, namespace=namespace)
+    repo_id = get_space_repo_id(env_name, namespace=namespace, space_name=space_name)
     
     # Create HfApi instance
     api = HfApi(token=token)

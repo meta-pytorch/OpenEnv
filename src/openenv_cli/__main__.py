@@ -36,6 +36,11 @@ def main():
              "If not provided, uses authenticated user's username.",
     )
     push_parser.add_argument(
+        "--space-name",
+        help="Custom name for the HuggingFace Space. "
+             "If not provided, uses the environment name.",
+    )
+    push_parser.add_argument(
         "--private",
         action="store_true",
         help="Create a private space (default: public)",
@@ -58,6 +63,7 @@ def main():
             push_environment(
                 env_name=args.env_name,
                 namespace=args.namespace,
+                space_name=args.space_name,
                 private=args.private,
                 base_image=args.base_image,
                 dry_run=args.dry_run,
