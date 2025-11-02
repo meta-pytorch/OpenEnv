@@ -35,6 +35,7 @@ openenv push <env_name> [options]
 
 **Options:**
 - `--namespace <namespace>`: HuggingFace namespace (organization or user). If not provided, uses authenticated user's username.
+- `--space-name <space_name>`: Custom name for the HuggingFace Space. If not provided, uses the environment name.
 - `--private`: Create a private space (default: public)
 - `--base-image <image>`: Base Docker image to use (default: `ghcr.io/meta-pytorch/openenv-base:latest`)
 - `--dry-run`: Prepare files but don't upload to HuggingFace
@@ -47,6 +48,12 @@ openenv push echo_env
 
 # Push to a specific organization
 openenv push coding_env --namespace my-org
+
+# Push with a custom space name
+openenv push echo_env --space-name my-custom-space
+
+# Push to an organization with a custom space name
+openenv push echo_env --namespace my-org --space-name my-custom-space
 
 # Create a private space
 openenv push echo_env --private
@@ -84,12 +91,12 @@ The `openenv push` command performs the following steps:
 
 1. **Validation**: Checks that the environment exists in `src/envs/<env_name>/`
 2. **Authentication**: Ensures you're authenticated with HuggingFace (prompts if needed)
-3. **Space Provisioning**: Checks if a Docker Space exists, creates it if needed
+3. **Space Provisioning**: Determines the target Space name (uses `--space-name` if provided, otherwise `env_name`) and namespace (`--namespace` if provided, otherwise authenticated user). Checks if a Docker Space exists, creates it if needed
 4. **Build Process**:
    - Creates a staging directory
    - Copies core and environment files
    - Generates/modifies Dockerfile with web interface enabled
-   - Creates README with HuggingFace front matter
+   - Prepares README: If the environment's README already has HuggingFace front matter (starts and ends with `---`), uses it as-is. Otherwise, generates front matter with random emoji and colors from approved options
 5. **Deployment**: Uploads all files to the HuggingFace Space
 6. **Cleanup**: Removes staging directory after successful upload
 
