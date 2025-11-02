@@ -7,14 +7,12 @@
 """Tests for builder module."""
 
 import os
-from pathlib import Path
-from unittest.mock import patch, mock_open
+from unittest.mock import patch
 
 import pytest
 
 from openenv_cli.core.builder import (
     prepare_staging_directory,
-    copy_environment_files,
     prepare_dockerfile,
     prepare_readme,
 )
@@ -121,7 +119,6 @@ class TestPrepareDockerfile:
 
     def test_prepare_dockerfile_uses_existing_dockerfile(self, repo_root, tmp_path, monkeypatch):
         """Test that existing Dockerfile is used and modified."""
-        from openenv_cli.core.builder import prepare_dockerfile, prepare_staging_directory
         
         # Create test environment with Dockerfile (test_env_path already created the directory)
         env_dir = repo_root / "src" / "envs" / "test_env" / "server"
@@ -155,7 +152,6 @@ class TestPrepareDockerfile:
 
     def test_prepare_dockerfile_creates_default_if_missing(self, repo_root, tmp_path, monkeypatch):
         """Test that default Dockerfile is created if env doesn't have one."""
-        from openenv_cli.core.builder import prepare_dockerfile, prepare_staging_directory
         
         # Create test environment without Dockerfile (test_env_path already created the directory)
         env_dir = repo_root / "src" / "envs" / "test_env"
@@ -187,7 +183,6 @@ class TestPrepareReadme:
 
     def test_prepare_readme_adds_front_matter(self, repo_root, tmp_path, monkeypatch):
         """Test that README gets HF front matter added."""
-        from openenv_cli.core.builder import prepare_readme, prepare_staging_directory
         
         # Create test environment with README (test_env_path already created the directory)
         env_dir = repo_root / "src" / "envs" / "test_env"
@@ -218,7 +213,6 @@ class TestPrepareReadme:
 
     def test_prepare_readme_handles_existing_front_matter(self, repo_root, tmp_path, monkeypatch):
         """Test that README with existing front matter is used as-is."""
-        from openenv_cli.core.builder import prepare_readme, prepare_staging_directory
         
         # Create test environment with README that has front matter (test_env_path already created the directory)
         env_dir = repo_root / "src" / "envs" / "test_env"
@@ -258,7 +252,6 @@ class TestPrepareReadme:
 
     def test_prepare_readme_generates_front_matter_when_missing(self, repo_root, tmp_path, monkeypatch):
         """Test that README without front matter gets generated front matter."""
-        from openenv_cli.core.builder import prepare_readme, prepare_staging_directory
         
         # Create test environment with README without front matter (test_env_path already created the directory)
         env_dir = repo_root / "src" / "envs" / "test_env"
@@ -294,7 +287,6 @@ class TestPrepareReadme:
 
     def test_prepare_readme_uses_server_readme_front_matter(self, repo_root, tmp_path, monkeypatch):
         """Test that server/README.md front matter is used when present."""
-        from openenv_cli.core.builder import prepare_readme, prepare_staging_directory
         
         # Create test environment (test_env_path already created the directory)
         env_dir = repo_root / "src" / "envs" / "test_env"

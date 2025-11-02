@@ -43,7 +43,6 @@ class TestPushEnvironment:
 
     @patch("openenv_cli.commands.push.upload_to_space")
     @patch("openenv_cli.commands.push.create_space")
-    @patch("openenv_cli.commands.push.space_exists")
     @patch("openenv_cli.commands.push.prepare_readme")
     @patch("openenv_cli.commands.push.prepare_dockerfile")
     @patch("openenv_cli.commands.push.copy_environment_files")
@@ -62,7 +61,6 @@ class TestPushEnvironment:
         mock_copy_files,
         mock_prepare_dockerfile,
         mock_prepare_readme,
-        mock_space_exists,
         mock_create_space,
         mock_upload,
         mock_environment,
@@ -73,7 +71,6 @@ class TestPushEnvironment:
         mock_api_class.return_value = mock_api
         mock_ensure_auth.return_value = ("test_user", "test_token")
         mock_get_repo_id.return_value = "test_user/test_env"
-        mock_space_exists.return_value = False
         mock_prepare_staging.return_value = Path("staging")
         
         # Run push
@@ -83,7 +80,6 @@ class TestPushEnvironment:
         mock_validate.assert_called_once_with("test_env")
         mock_ensure_auth.assert_called_once()
         mock_get_repo_id.assert_called_once_with("test_env", namespace=None, space_name=None)
-        mock_space_exists.assert_called_once_with(mock_api, "test_user/test_env")
         mock_create_space.assert_called_once_with(mock_api, "test_user/test_env", private=False)
         mock_prepare_staging.assert_called_once()
         mock_copy_files.assert_called_once()
@@ -93,7 +89,6 @@ class TestPushEnvironment:
 
     @patch("openenv_cli.commands.push.upload_to_space")
     @patch("openenv_cli.commands.push.create_space")
-    @patch("openenv_cli.commands.push.space_exists")
     @patch("openenv_cli.commands.push.prepare_readme")
     @patch("openenv_cli.commands.push.prepare_dockerfile")
     @patch("openenv_cli.commands.push.copy_environment_files")
@@ -112,25 +107,23 @@ class TestPushEnvironment:
         mock_copy_files,
         mock_prepare_dockerfile,
         mock_prepare_readme,
-        mock_space_exists,
         mock_create_space,
         mock_upload,
         mock_environment,
     ):
-        """Test push when space already exists."""
+        """Test push when space already exists (create_space handles it with exist_ok=True)."""
         # Setup mocks
         mock_api = Mock()
         mock_api_class.return_value = mock_api
         mock_ensure_auth.return_value = ("test_user", "test_token")
         mock_get_repo_id.return_value = "test_user/test_env"
-        mock_space_exists.return_value = True  # Space already exists
         mock_prepare_staging.return_value = Path("staging")
         
         # Run push
         push_environment("test_env")
         
-        # Verify space was not created
-        mock_create_space.assert_not_called()
+        # Verify create_space was called (it handles existing spaces internally)
+        mock_create_space.assert_called_once_with(mock_api, "test_user/test_env", private=False)
 
     @patch("openenv_cli.commands.push.validate_environment")
     def test_push_environment_invalid_env(self, mock_validate, mock_environment):
@@ -152,7 +145,6 @@ class TestPushEnvironment:
 
     @patch("openenv_cli.commands.push.upload_to_space")
     @patch("openenv_cli.commands.push.create_space")
-    @patch("openenv_cli.commands.push.space_exists")
     @patch("openenv_cli.commands.push.prepare_readme")
     @patch("openenv_cli.commands.push.prepare_dockerfile")
     @patch("openenv_cli.commands.push.copy_environment_files")
@@ -171,7 +163,6 @@ class TestPushEnvironment:
         mock_copy_files,
         mock_prepare_dockerfile,
         mock_prepare_readme,
-        mock_space_exists,
         mock_create_space,
         mock_upload,
         mock_environment,
@@ -182,7 +173,6 @@ class TestPushEnvironment:
         mock_api_class.return_value = mock_api
         mock_ensure_auth.return_value = ("test_user", "test_token")
         mock_get_repo_id.return_value = "my-org/test_env"
-        mock_space_exists.return_value = False
         mock_prepare_staging.return_value = Path("staging")
         
         # Run push with namespace
@@ -193,7 +183,6 @@ class TestPushEnvironment:
 
     @patch("openenv_cli.commands.push.upload_to_space")
     @patch("openenv_cli.commands.push.create_space")
-    @patch("openenv_cli.commands.push.space_exists")
     @patch("openenv_cli.commands.push.prepare_readme")
     @patch("openenv_cli.commands.push.prepare_dockerfile")
     @patch("openenv_cli.commands.push.copy_environment_files")
@@ -212,7 +201,6 @@ class TestPushEnvironment:
         mock_copy_files,
         mock_prepare_dockerfile,
         mock_prepare_readme,
-        mock_space_exists,
         mock_create_space,
         mock_upload,
         mock_environment,
@@ -223,7 +211,6 @@ class TestPushEnvironment:
         mock_api_class.return_value = mock_api
         mock_ensure_auth.return_value = ("test_user", "test_token")
         mock_get_repo_id.return_value = "test_user/test_env"
-        mock_space_exists.return_value = False
         mock_prepare_staging.return_value = Path("staging")
         
         # Run push with private flag
@@ -234,7 +221,6 @@ class TestPushEnvironment:
 
     @patch("openenv_cli.commands.push.upload_to_space")
     @patch("openenv_cli.commands.push.create_space")
-    @patch("openenv_cli.commands.push.space_exists")
     @patch("openenv_cli.commands.push.prepare_readme")
     @patch("openenv_cli.commands.push.prepare_dockerfile")
     @patch("openenv_cli.commands.push.copy_environment_files")
@@ -253,7 +239,6 @@ class TestPushEnvironment:
         mock_copy_files,
         mock_prepare_dockerfile,
         mock_prepare_readme,
-        mock_space_exists,
         mock_create_space,
         mock_upload,
         mock_environment,
@@ -264,7 +249,6 @@ class TestPushEnvironment:
         mock_api_class.return_value = mock_api
         mock_ensure_auth.return_value = ("test_user", "test_token")
         mock_get_repo_id.return_value = "test_user/custom-space"
-        mock_space_exists.return_value = False
         mock_prepare_staging.return_value = Path("staging")
         
         # Run push with space_name
@@ -272,12 +256,10 @@ class TestPushEnvironment:
         
         # Verify space_name was used
         mock_get_repo_id.assert_called_once_with("test_env", namespace=None, space_name="custom-space")
-        mock_space_exists.assert_called_once_with(mock_api, "test_user/custom-space")
         mock_create_space.assert_called_once_with(mock_api, "test_user/custom-space", private=False)
 
     @patch("openenv_cli.commands.push.upload_to_space")
     @patch("openenv_cli.commands.push.create_space")
-    @patch("openenv_cli.commands.push.space_exists")
     @patch("openenv_cli.commands.push.prepare_readme")
     @patch("openenv_cli.commands.push.prepare_dockerfile")
     @patch("openenv_cli.commands.push.copy_environment_files")
@@ -296,7 +278,6 @@ class TestPushEnvironment:
         mock_copy_files,
         mock_prepare_dockerfile,
         mock_prepare_readme,
-        mock_space_exists,
         mock_create_space,
         mock_upload,
         mock_environment,
@@ -307,7 +288,6 @@ class TestPushEnvironment:
         mock_api_class.return_value = mock_api
         mock_ensure_auth.return_value = ("test_user", "test_token")
         mock_get_repo_id.return_value = "my-org/custom-space"
-        mock_space_exists.return_value = False
         mock_prepare_staging.return_value = Path("staging")
         
         # Run push with namespace and space_name
@@ -315,5 +295,4 @@ class TestPushEnvironment:
         
         # Verify both namespace and space_name were used
         mock_get_repo_id.assert_called_once_with("test_env", namespace="my-org", space_name="custom-space")
-        mock_space_exists.assert_called_once_with(mock_api, "my-org/custom-space")
         mock_create_space.assert_called_once_with(mock_api, "my-org/custom-space", private=False)
