@@ -25,6 +25,7 @@ from ..core.builder import (
 from ..core.space import create_space, get_space_repo_id
 from ..core.uploader import upload_to_space
 from ..utils.env_loader import validate_environment, resolve_environment, validate_environment_at
+from ..utils.manifest import load_manifest, validate_manifest
 
 
 # Push command function (following HF Hub pattern for top-level commands like upload/download)
@@ -96,6 +97,17 @@ def push(
             (repo_id.split("/", 1)[1] if "/" in repo_id else resolved_name)
             if repo_id is not None else resolved_name
         )
+
+        # Manifest validation (fail fast with clear guidance)
+        manifest = load_manifest(env_root)
+        if manifest is not None:
+            errors = validate_manifest(manifest, env_root)
+            if errors:
+                console.print("[bold red]Invalid openenv.yaml manifest:[/bold red]")
+                for err in errors:
+                    console.print(f"  - {err}")
+                console.print("\nFix the manifest or run from a valid environment root, or pass --env-path to one.")
+                sys.exit(1)
 
         if dry_run:
             status_message = f"[bold yellow]Preparing dry run for '{env_name}'...[/bold yellow]"

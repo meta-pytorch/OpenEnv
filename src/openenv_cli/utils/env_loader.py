@@ -9,6 +9,8 @@
 from pathlib import Path
 from typing import Dict, Any, Optional, Tuple
 
+from .manifest import load_manifest
+
 
 def validate_environment(env_name: str) -> Path:
     """
@@ -87,7 +89,9 @@ def resolve_environment(env_name: Optional[str] = None, env_path: Optional[str] 
     if env_path is not None:
         root = Path(env_path).resolve()
         validate_environment_at(root)
-        name = env_name if env_name is not None else root.name
+        # Prefer manifest name if present
+        man = load_manifest(root)
+        name = (man.name if man and man.name else (env_name if env_name is not None else root.name))
         return name, root
 
     if env_name is not None:
@@ -99,7 +103,8 @@ def resolve_environment(env_name: Optional[str] = None, env_path: Optional[str] 
     # Fallback: assume cwd is env root
     cwd = Path.cwd().resolve()
     validate_environment_at(cwd)
-    name = env_name if env_name is not None else cwd.name
+    man = load_manifest(cwd)
+    name = (man.name if man and man.name else (env_name if env_name is not None else cwd.name))
     return name, cwd
 
 
