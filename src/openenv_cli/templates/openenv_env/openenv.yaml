@@ -1,0 +1,8 @@
+spec_version: 1
+name: __ENV_NAME__
+type: space
+runtime: fastapi
+app: envs.__ENV_NAME__.server.app:app
+port: 8000
+
+

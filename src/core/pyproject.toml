@@ -52,5 +52,11 @@ packages = [
     "openenv_cli.commands",
     "openenv_cli.core",
     "openenv_cli.utils",
+    "openenv_cli.templates",
 ]
 package-dir = {"openenv_core" = ".", "openenv_cli" = "../openenv_cli"}
+
+[tool.setuptools.package-data]
+openenv_cli = [
+    "templates/openenv_env/**",
+]

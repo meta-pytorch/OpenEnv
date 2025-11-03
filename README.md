@@ -156,6 +156,16 @@ pip install -e .
 ```
 
 #### Push Environment
+#### Initialize a New Environment
+
+Use the CLI to scaffold a new environment from a bundled template (FastAPI + Dockerfile):
+
+```bash
+openenv init <env_name>
+cd <env_name>
+uvicorn envs.<env_name>.server.app:app --reload
+```
+
 
 Push an environment to Hugging Face Spaces. You can run the command from within the environment directory, or provide a path.
 

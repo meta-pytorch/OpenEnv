@@ -9,6 +9,7 @@
 import sys
 
 from ._cli_utils import console, typer_factory
+from .commands.init import init as init_cmd
 from .commands.push import push
 
 # Create main typer app
@@ -22,6 +23,7 @@ def main_callback() -> None:
 
 # Register top-level commands (following HF Hub pattern for simple commands)
 app.command(name="push", help="Push an environment to Hugging Face Spaces.")(push)
+app.command(name="init", help="Initialize a new OpenEnv environment.")(init_cmd)
 
 
 def main() -> None:
