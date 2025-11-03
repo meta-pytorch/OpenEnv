@@ -7,8 +7,8 @@
 # Use the pre-built OpenSpiel base image
 # Built from: docker build -t openspiel-base:latest -f src/envs/openspiel_env/server/Dockerfile.openspiel-base .
 # In GitHub Actions, this is overridden to use the GHCR base image
-ARG OPENSPIEL_BASE_IMAGE=openspiel-base:latest
-FROM ${OPENSPIEL_BASE_IMAGE}
+ARG BASE_IMAGE=openspiel-base:latest
+FROM ${BASE_IMAGE}
 
 # Copy OpenEnv core (base image already set WORKDIR=/app)
 WORKDIR /app

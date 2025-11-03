@@ -1,8 +1,8 @@
 ---
 title: Chat Environment Server
 emoji: 💬
-colorFrom: '#0084FF'
-colorTo: '#25D366'
+colorFrom: gray
+colorTo: blue
 sdk: docker
 pinned: false
 app_port: 8000

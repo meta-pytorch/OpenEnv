@@ -18,7 +18,13 @@ dependencies = [
     "requests>=2.25.0",
     "fastapi>=0.104.0",
     "uvicorn>=0.24.0",
+    "huggingface_hub>=0.20.0",
+    "rich>=13.0.0",
+    "typer>=0.12.0",
 ]
+
+[project.scripts]
+openenv = "openenv_cli.__main__:main"
 
 [project.optional-dependencies]
 dev = [
@@ -41,6 +47,10 @@ packages = [
     "openenv_core.containers",
     "openenv_core.containers.runtime",
     "openenv_core.env_server",
-    "openenv_core.tools"
+    "openenv_core.tools",
+    "openenv_cli",
+    "openenv_cli.commands",
+    "openenv_cli.core",
+    "openenv_cli.utils",
 ]
-package-dir = {"openenv_core" = "."}
+package-dir = {"openenv_core" = ".", "openenv_cli" = "../openenv_cli"}

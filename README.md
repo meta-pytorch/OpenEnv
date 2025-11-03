@@ -143,6 +143,118 @@ To use an environment:
 
 See example scripts in `examples/` directory.
 
+### Deploying Environments to Hugging Face Spaces
+
+The OpenEnv CLI provides a self-service workflow for publishing environments to Hugging Face Spaces. This enables community members to share environments without requiring adding them as examples to this repo. 
+
+#### Installation
+
+The CLI is installed as part of the OpenEnv package:
+
+```bash
+pip install -e .
+```
+
+#### Push Environment
+
+Push an environment to Hugging Face Spaces:
+
+```bash
+openenv push <env_name> [options]
+```
+
+**Arguments:**
+- `env_name`: Name of the environment to push (e.g., `echo_env`, `coding_env`)
+
+**Options:**
+- `--repo-id <repo_id>`: Hugging Face repository ID in format `namespace/space-name`. If not provided, uses `{username}/{env_name}`.
+- `--private`: Create a private space (default: public)
+- `--base-image <image>`: Base Docker image to use (default: `ghcr.io/meta-pytorch/openenv-base:latest`)
+- `--dry-run`: Prepare files but don't upload to Hugging Face
+
+**Examples:**
+
+```bash
+# Push echo_env to your personal namespace
+openenv push echo_env
+
+# Push to a specific organization
+openenv push coding_env --repo-id my-org/coding_env
+
+# Push with a custom space name
+openenv push echo_env --repo-id my-org/my-custom-space
+
+# Create a private space
+openenv push echo_env --private
+
+# Use a custom base image
+openenv push echo_env --base-image ghcr.io/my-org/custom-base:latest
+
+# Prepare files without uploading
+openenv push echo_env --dry-run
+```
+
+#### How It Works
+
+The `openenv push` command performs the following steps:
+
+1. **Validation**: Checks that the environment exists in `src/envs/<env_name>/`
+2. **Authentication**: Ensures you're authenticated with Hugging Face via interactive login (prompts if needed)
+3. **Space Provisioning**: Determines the target Space repository ID (uses `--repo-id` if provided, otherwise `{username}/{env_name}`). Creates the Docker Space if needed (using `exist_ok=True` to handle existing spaces automatically)
+4. **Build Process**:
+   - Creates a staging directory
+   - Copies core and environment files
+   - Generates/modifies Dockerfile with web interface enabled
+   - Prepares README: If the environment's README already has Hugging Face front matter (starts and ends with `---`), uses it as-is. Otherwise, generates front matter with random emoji and colors from approved options
+5. **Deployment**: Uploads all files to the Hugging Face Space
+6. **Cleanup**: Removes staging directory after successful upload
+
+All pushed environments automatically include the web interface, available at `/web` on deployed spaces.
+
+For more details on the CLI architecture and development, see [`src/openenv_cli/README.md`](src/openenv_cli/README.md).
+
+## CLI Troubleshooting
+
+### Authentication Issues
+
+**Problem**: "Failed to retrieve token after login" or authentication errors
+
+**Solution**: 
+- Check that `huggingface_hub` is properly installed: `pip install --upgrade huggingface_hub`
+- Try logging in via the Hugging Face CLI: `huggingface-cli login`
+- Clear cached credentials if needed (credentials are stored by `huggingface_hub`)
+- Ensure you have "write" permissions on the namespace where you're pushing
+
+### Space Creation Fails
+
+**Problem**: "Failed to create space" or "Permission denied"
+
+**Solution**:
+- Check that namespace/username is correct
+- Verify you have permission to create spaces in that namespace
+- If the space already exists, `exist_ok=True` handles it automatically (you may see a warning from the Hub CLI)
+- For authentication errors, see "Authentication Issues" above
+
+### Upload Fails
+
+**Problem**: "Failed to upload to space"
+
+**Solution**:
+- Check internet connection
+- Verify you're still authenticated (may need to log in again)
+- Try `--dry-run` first to check file preparation
+- Check staging directory exists and has files
+- Verify you have write permissions on the target space
+
+### Environment Not Found
+
+**Problem**: "Environment 'xyz' not found"
+
+**Solution**:
+- Verify environment exists in `src/envs/<env_name>/`
+- Check spelling of environment name
+- Ensure environment directory has required structure (models.py, server/, etc.)
+
 ## Design Principles
 
 1. **Separation of Concerns**: Clear client-server boundaries

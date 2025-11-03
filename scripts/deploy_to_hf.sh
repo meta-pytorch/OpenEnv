@@ -75,6 +75,10 @@ while [[ $# -gt 0 ]]; do
             ENV_NAME="$2"
             shift 2
             ;;
+        --hub-tag)
+            HUB_TAG="$2"
+            shift 2
+            ;;
         --base-sha|--base-image-sha)
             BASE_IMAGE_SHA="$2"
             shift 2
@@ -126,6 +130,10 @@ while [[ $# -gt 0 ]]; do
             ;;
     esac
 done
+
+if [ -z "$HUB_TAG" ]; then
+    HUB_TAG="openenv"
+fi
 
 if [ -z "$ENV_NAME" ]; then
     echo "Error: Environment name is required" >&2
@@ -364,6 +372,8 @@ sdk: docker
 pinned: false
 app_port: 8000
 base_path: /web
+tags:
+  - ${HUB_TAG}
 ---
 
 # ${env_title} Environment Server

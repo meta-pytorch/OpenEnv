@@ -36,6 +36,8 @@ jobs:
     - name: Build package
       run: |
         cd src/core
+        # Verify openenv_cli is accessible
+        ls -la ../openenv_cli || echo "Warning: openenv_cli directory not found"
         python -m build
 
     - name: Check package
