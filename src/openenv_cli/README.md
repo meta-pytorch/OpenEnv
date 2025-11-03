@@ -2,97 +2,11 @@
 
 Command-line tool for managing and deploying OpenEnv environments to Hugging Face Spaces.
 
+> **Note**: For basic usage and examples, see the main [README.md](../../README.md#deploying-environments-to-hugging-face-spaces) in the project root. This document focuses on CLI development, testing, and architecture.
+
 ## Overview
 
 The OpenEnv CLI provides a self-service workflow for publishing environments to Hugging Face Spaces, enabling community members to share environments without requiring GitHub PRs. The CLI handles authentication, space provisioning, building, and deployment automatically.
-
-## Installation
-
-The CLI is installed as part of the OpenEnv package:
-
-```bash
-pip install -e .
-```
-
-Or install with development dependencies:
-
-```bash
-pip install -e ".[dev]"
-```
-
-## Usage
-
-### Push Environment
-
-Push an environment to Hugging Face Spaces:
-
-```bash
-openenv push <env_name> [options]
-```
-
-**Arguments:**
-- `env_name`: Name of the environment to push (e.g., `echo_env`, `coding_env`)
-
-**Options:**
-- `--namespace <namespace>`: Hugging Face namespace (organization or user). If not provided, uses authenticated user's username.
-- `--space-name <space_name>`: Custom name for the Hugging Face Space. If not provided, uses the environment name.
-- `--private`: Create a private space (default: public)
-- `--base-image <image>`: Base Docker image to use (default: `ghcr.io/meta-pytorch/openenv-base:latest`)
-- `--dry-run`: Prepare files but don't upload to Hugging Face
-
-**Examples:**
-
-```bash
-# Push echo_env to your personal namespace
-openenv push echo_env
-
-# Push to a specific organization
-openenv push coding_env --namespace my-org
-
-# Push with a custom space name
-openenv push echo_env --space-name my-custom-space
-
-# Push to an organization with a custom space name
-openenv push echo_env --namespace my-org --space-name my-custom-space
-
-# Create a private space
-openenv push echo_env --private
-
-# Use a custom base image
-openenv push echo_env --base-image ghcr.io/my-org/custom-base:latest
-
-# Prepare files without uploading
-openenv push echo_env --dry-run
-```
-
-### Authentication
-
-The CLI uses Hugging Face authentication via interactive login. When you run a command that requires authentication, the CLI will prompt you to log in:
-
-```bash
-# The CLI will automatically prompt for login when needed
-openenv push echo_env
-```
-
-The login process will:
-1. Open your browser to authenticate with Hugging Face
-2. Store your credentials for future use (from `huggingface_hub`)
-
-
-## How It Works
-
-The `openenv push` command performs the following steps:
-
-1. **Validation**: Checks that the environment exists in `src/envs/<env_name>/`
-2. **Authentication**: Ensures you're authenticated with Hugging Face via interactive login (prompts if needed)
-3. **Space Provisioning**: Determines the target Space name (uses `--space-name` if provided, otherwise `env_name`) and namespace (`--namespace` if provided, otherwise authenticated user). Creates the Docker Space if needed (using `exist_ok=True` to handle existing spaces automatically)
-4. **Build Process**:
-   - Creates a staging directory
-   - Copies core and environment files
-   - Generates/modifies Dockerfile with web interface enabled
-   - Prepares README: If the environment's README already has Hugging Face front matter (starts and ends with `---`), uses it as-is. Otherwise, generates front matter with random emoji and colors from approved options
-5. **Deployment**: Uploads all files to the Hugging Face Space
-6. **Cleanup**: Removes staging directory after successful upload
 
 ## Testing
 
@@ -310,48 +224,6 @@ validate_parser = subparsers.add_parser("validate", help="Validate environment")
 validate_parser.add_argument("env_name")
 # ... handle command
 ```
-
-## Troubleshooting
-
-### Authentication Issues
-
-**Problem**: "Failed to retrieve token after login" or authentication errors
-
-**Solution**: 
-- Check that `huggingface_hub` is properly installed: `pip install --upgrade huggingface_hub`
-- Try logging in via the Hugging Face CLI: `huggingface-cli login`
-- Clear cached credentials if needed (credentials are stored by `huggingface_hub`)
-- Ensure you have "write" permissions on the namespace where you're pushing
-
-### Space Creation Fails
-
-**Problem**: "Failed to create space" or "Permission denied"
-
-**Solution**:
-- Check that namespace/username is correct
-- Verify you have permission to create spaces in that namespace
-- If the space already exists, `exist_ok=True` handles it automatically (you may see a warning from the Hub CLI)
-- For authentication errors, see "Authentication Issues" above
-
-### Upload Fails
-
-**Problem**: "Failed to upload to space"
-
-**Solution**:
-- Check internet connection
-- Verify you're still authenticated (may need to log in again)
-- Try `--dry-run` first to check file preparation
-- Check staging directory exists and has files
-- Verify you have write permissions on the target space
-
-### Environment Not Found
-
-**Problem**: "Environment 'xyz' not found"
-
-**Solution**:
-- Verify environment exists in `src/envs/<env_name>/`
-- Check spelling of environment name
-- Ensure environment directory has required structure (models.py, server/, etc.)
 
 ## Contributing
 
