@@ -293,6 +293,36 @@ jobs:
               });
             }
 
+      - name: Delete preview space on Hugging Face
+        if: always()
+        continue-on-error: true
+        shell: bash
+        env:
+          SPACE_REPO_ID: ${{ steps.urls.outputs.space_repo_id }}
+        run: |
+          set -euo pipefail
+          if [ -z "${SPACE_REPO_ID:-}" ]; then
+            echo "No space repo id; skipping deletion"
+            exit 0
+          fi
+
+          TOKEN="${HF_TOKEN:-${HUGGINGFACEHUB_API_TOKEN:-}}"
+          if [ -z "$TOKEN" ]; then
+            echo "HF token not available; cannot delete space"
+            exit 0
+          fi
+
+          set +e
+          hf repo delete "$SPACE_REPO_ID" --repo-type space --yes --token "$TOKEN"
+          status=$?
+          set -e
+
+          if [ $status -eq 0 ]; then
+            echo "Deleted preview space $SPACE_REPO_ID"
+          else
+            echo "Failed to delete space $SPACE_REPO_ID (exit $status)"
+          fi
+
       - name: Fail job if health check failed
         if: steps.health_check.conclusion == 'failure'
         run: exit 1
