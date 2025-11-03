@@ -105,6 +105,20 @@ class HTTPEnvClient(ABC, Generic[ActT, ObsT]):
         # 3. Create and return client instance with provider reference
         return cls(base_url=base_url, provider=provider)
 
+    @classmethod
+    def from_hub(cls: Type[EnvClientT], repo_id: str, provider: Optional["ContainerProvider"] = None, **kwargs: Any) -> EnvClientT:
+        """
+        Create an environment client by pulling from a Hugging Face model hub.
+        """
+        if provider is None:
+            provider = LocalDockerProvider()
+        if "tag" in kwargs:
+            tag = kwargs["tag"]
+        else:
+            tag = "latest"
+        base_url = f"registry.hf.space/{repo_id.replace('/', '-')}:{tag}"
+        return cls.from_docker_image(image=base_url, provider=provider)
+
     @abstractmethod
     def _step_payload(self, action: ActT) -> dict:
         """Convert an Action object to the JSON body expected by the env server."""
