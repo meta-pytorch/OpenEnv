@@ -27,13 +27,14 @@ COPY src/envs/gym_env/README.md /app/README.md
 
 ARG GYM_ENVIRONMENT_ID="MountainCarContinuous-v0"
 ARG GYM_RENDER_MODE="rgb_array"
+ENV ADDITIONAL_PARAMETERS_YAML_FILE=""
 
 
 # --- Runtime environment with defaults ---
 # These ENV lines set defaults but still allow runtime overrides
 ENV GYM_ENVIRONMENT_ID=${GYM_ENVIRONMENT_ID}
 ENV NODE_ENV=${BUILD_ENV}
-
+ENV ADDITIONAL_PARAMETERS=${ADDITIONAL_PARAMETERS_YAML_FILE}
 
 # Expose port
 EXPOSE 8000
