@@ -67,31 +67,25 @@ openenv push echo_env --dry-run
 
 ### Authentication
 
-The CLI uses Hugging Face authentication. You can authenticate in two ways:
+The CLI uses Hugging Face authentication via interactive login. When you run a command that requires authentication, the CLI will prompt you to log in:
 
-1. **Environment Variable**: Set `HF_TOKEN` environment variable with your Hugging Face token
-   ```bash
-   export HF_TOKEN=your_token_here
-   ```
+```bash
+# The CLI will automatically prompt for login when needed
+openenv push echo_env
+```
 
-2. **Interactive Login**: If no token is found, the CLI will prompt for interactive login:
-   ```bash
-   # The CLI will automatically prompt when needed
-   openenv push echo_env
-   ```
+The login process will:
+1. Open your browser to authenticate with Hugging Face
+2. Store your credentials for future use (from `huggingface_hub`)
 
-To get a token:
-1. Go to https://huggingface.co/settings/tokens
-2. Create a new token with "write" permissions on the namespace where you are pushing the environment.
-3. Use it as `HF_TOKEN` or log in interactively
 
 ## How It Works
 
 The `openenv push` command performs the following steps:
 
 1. **Validation**: Checks that the environment exists in `src/envs/<env_name>/`
-2. **Authentication**: Ensures you're authenticated with Hugging Face (prompts if needed)
-3. **Space Provisioning**: Determines the target Space name (uses `--space-name` if provided, otherwise `env_name`) and namespace (`--namespace` if provided, otherwise authenticated user). Checks if a Docker Space exists, creates it if needed
+2. **Authentication**: Ensures you're authenticated with Hugging Face via interactive login (prompts if needed)
+3. **Space Provisioning**: Determines the target Space name (uses `--space-name` if provided, otherwise `env_name`) and namespace (`--namespace` if provided, otherwise authenticated user). Creates the Docker Space if needed (using `exist_ok=True` to handle existing spaces automatically)
 4. **Build Process**:
    - Creates a staging directory
    - Copies core and environment files
@@ -185,8 +179,8 @@ src/openenv_cli/
 
 ### Module Responsibilities
 
-- **`auth.py`**: Handles Hugging Face authentication using `huggingface_hub`
-- **`space.py`**: Manages Docker Spaces (check existence, create)
+- **`auth.py`**: Handles Hugging Face authentication via interactive login using `huggingface_hub`
+- **`space.py`**: Manages Docker Spaces (creates with `exist_ok=True` to handle existing spaces)
 - **`builder.py`**: Prepares deployment package (copy files, generate Dockerfile/README)
 - **`uploader.py`**: Uploads files to Hugging Face using `upload_folder`
 - **`env_loader.py`**: Validates environment structure and loads metadata
@@ -198,11 +192,11 @@ src/openenv_cli/
 The CLI uses `huggingface_hub` Python modules directly (not the CLI), as specified:
 
 - `huggingface_hub.HfApi` for API calls
-- `huggingface_hub.login()` for authentication
+- `huggingface_hub.login()` for interactive authentication
 - `huggingface_hub.upload_folder()` for file uploads
-- `huggingface_hub.utils.get_token` for token management
+- `huggingface_hub.utils.get_token` for token management (reads stored credentials from previous login)
 
-This ensures consistency with Hugging Face tooling and allows for better error handling and programmatic control.
+This ensures consistency with Hugging Face tooling and allows for better error handling and programmatic control. Authentication is handled exclusively through interactive login via the browser, with credentials stored by `huggingface_hub` for future use.
 
 ### Web Interface
 
@@ -321,21 +315,23 @@ validate_parser.add_argument("env_name")
 
 ### Authentication Issues
 
-**Problem**: "Failed to retrieve token after login"
+**Problem**: "Failed to retrieve token after login" or authentication errors
 
 **Solution**: 
 - Check that `huggingface_hub` is properly installed: `pip install --upgrade huggingface_hub`
-- Verify token permissions (needs "write" access)
-- Try logging in via CLI: `huggingface-cli login`
+- Try logging in via the Hugging Face CLI: `huggingface-cli login`
+- Clear cached credentials if needed (credentials are stored by `huggingface_hub`)
+- Ensure you have "write" permissions on the namespace where you're pushing
 
 ### Space Creation Fails
 
-**Problem**: "Failed to create space"
+**Problem**: "Failed to create space" or "Permission denied"
 
 **Solution**:
 - Check that namespace/username is correct
 - Verify you have permission to create spaces in that namespace
-- Ensure space name doesn't already exist (check on huggingface.co)
+- If the space already exists, `exist_ok=True` handles it automatically (you may see a warning from the Hub CLI)
+- For authentication errors, see "Authentication Issues" above
 
 ### Upload Fails
 
@@ -343,9 +339,10 @@ validate_parser.add_argument("env_name")
 
 **Solution**:
 - Check internet connection
-- Verify token hasn't expired
+- Verify you're still authenticated (may need to log in again)
 - Try `--dry-run` first to check file preparation
 - Check staging directory exists and has files
+- Verify you have write permissions on the target space
 
 ### Environment Not Found
 

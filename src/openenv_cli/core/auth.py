@@ -6,7 +6,6 @@
 
 """Authentication module for Hugging Face."""
 
-import os
 from typing import Optional, Tuple
 
 from huggingface_hub import HfApi, login
@@ -20,12 +19,8 @@ def check_authentication() -> Optional[str]:
     Returns:
         Username if authenticated, None otherwise.
     """
-    # Check for token in environment variable first
-    token = os.environ.get("HF_TOKEN")
-    
-    if not token:
-        # Try to get token from stored credentials
-        token = get_token()
+    # Get token from stored credentials (from previous login)
+    token = get_token()
     
     if not token:
         return None
@@ -49,27 +44,16 @@ def ensure_authenticated() -> Tuple[str, str]:
     Raises:
         Exception: If authentication fails.
     """
-    # Check for token in environment variable first
-    token = os.environ.get("HF_TOKEN")
-    
-    if token:
-        try:
-            api = HfApi(token=token)
-            user_info = api.whoami()
-            return user_info.get("name"), token
-        except Exception:
-            pass  # Fall through to login
-    
-    # Check existing authentication
+    # Check existing authentication (from stored credentials)
     username = check_authentication()
     if username:
-        token = get_token() or os.environ.get("HF_TOKEN")
+        token = get_token()
         if token:
             return username, token
     
     # Need to login
     username = login_interactive()
-    token = get_token() or os.environ.get("HF_TOKEN")
+    token = get_token()
     if not token:
         raise Exception("Failed to retrieve token after login")
     

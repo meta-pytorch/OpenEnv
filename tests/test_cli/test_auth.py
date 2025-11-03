@@ -6,8 +6,7 @@
 
 """Tests for authentication module."""
 
-import os
-from unittest.mock import Mock, patch, MagicMock
+from unittest.mock import Mock, patch
 
 import pytest
 
@@ -68,20 +67,6 @@ class TestCheckAuthentication:
 
         assert result is None
 
-    @patch("openenv_cli.core.auth.HfApi")
-    @patch.dict(os.environ, {"HF_TOKEN": "env_token"})
-    def test_check_authentication_env_token(self, mock_api_class):
-        """Test check_authentication using HF_TOKEN environment variable."""
-        mock_api = Mock()
-        mock_api.whoami.return_value = {"name": "env_user"}
-        mock_api_class.return_value = mock_api
-
-        result = check_authentication()
-
-        assert result == "env_user"
-        mock_api_class.assert_called_once_with(token="env_token")
-        mock_api.whoami.assert_called_once()
-
 
 class TestEnsureAuthenticated:
     """Tests for ensure_authenticated function."""
@@ -113,19 +98,6 @@ class TestEnsureAuthenticated:
         assert username == "new_user"
         assert token == "new_token"
         mock_login.assert_called_once()
-
-    @patch.dict(os.environ, {"HF_TOKEN": "env_token"})
-    @patch("openenv_cli.core.auth.HfApi")
-    def test_ensure_authenticated_env_token(self, mock_api_class):
-        """Test ensure_authenticated using HF_TOKEN environment variable."""
-        mock_api = Mock()
-        mock_api.whoami.return_value = {"name": "env_user"}
-        mock_api_class.return_value = mock_api
-
-        username, token = ensure_authenticated()
-
-        assert username == "env_user"
-        assert token == "env_token"
 
 
 class TestLoginInteractive:
