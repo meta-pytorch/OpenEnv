@@ -24,21 +24,24 @@ from ..core.builder import (
 )
 from ..core.space import create_space, get_space_repo_id
 from ..core.uploader import upload_to_space
-from ..utils.env_loader import validate_environment
+from ..utils.env_loader import validate_environment, resolve_environment, validate_environment_at
 
 
 # Push command function (following HF Hub pattern for top-level commands like upload/download)
 def push(
-    env_name: Annotated[
-        str,
-        typer.Argument(help="Name of the environment to push (e.g., echo_env)"),
-    ],
     repo_id: Annotated[
         Optional[str],
         typer.Option(
             "--repo-id",
             help="Hugging Face repository ID in format 'namespace/space-name'. "
             "If not provided, uses '{username}/{env_name}'.",
+        ),
+    ] = None,
+    env_path: Annotated[
+        Optional[str],
+        typer.Option(
+            "--env-path",
+            help="Path to the environment root (defaults to current directory if env_name omitted).",
         ),
     ] = None,
     private: Annotated[
@@ -86,6 +89,14 @@ def push(
         # Print a newline to separate authentication from workflow messages
         console.print()
         
+        # Resolve environment name and root
+        resolved_name, env_root = resolve_environment(env_name=None, env_path=env_path)
+        # Prefer the repo_id space name if provided
+        env_name = (
+            (repo_id.split("/", 1)[1] if "/" in repo_id else resolved_name)
+            if repo_id is not None else resolved_name
+        )
+
         if dry_run:
             status_message = f"[bold yellow]Preparing dry run for '{env_name}'...[/bold yellow]"
             with console.status(status_message):
@@ -97,6 +108,7 @@ def push(
                     private=private,
                     base_image=base_image,
                     dry_run=dry_run,
+                    env_root=env_root,
                 )
         else:
             # Use status spinner for preparation steps
@@ -108,6 +120,7 @@ def push(
                     base_image=base_image,
                     username=username,
                     token=token,
+                    env_root=env_root,
                 )
             
             # Determine repo_id for upload
@@ -144,6 +157,7 @@ def push_environment(
     private: bool = False,
     base_image: Optional[str] = None,
     dry_run: bool = False,
+    env_root: Optional[Path] = None,
 ) -> None:
     """
     Push an environment to Hugging Face Spaces.
@@ -159,7 +173,10 @@ def push_environment(
         dry_run: If True, prepare files but don't upload (default: False).
     """
     # Validate environment exists
-    validate_environment(env_name)
+    if env_root is not None:
+        validate_environment_at(env_root)
+    else:
+        validate_environment(env_name)
     
     # Determine target space repo ID
     if repo_id is None:
@@ -174,18 +191,19 @@ def push_environment(
     if base_image is None:
         base_image = "ghcr.io/meta-pytorch/openenv-base:latest"
     
-    # Prepare staging directory
-    staging_dir = prepare_staging_directory(env_name, base_image)
+    # Prepare staging directory; if running inside env root, place staging outside env root to avoid recursive copies
+    staging_root = (env_root.parent / "hf-staging") if env_root is not None else Path("hf-staging")
+    staging_dir = prepare_staging_directory(env_name, base_image, str(staging_root))
     
     try:
         # Copy files
-        copy_environment_files(env_name, staging_dir)
+        copy_environment_files(env_name, staging_dir, env_root=env_root)
         
         # Prepare Dockerfile
-        prepare_dockerfile(env_name, staging_dir, base_image)
+        prepare_dockerfile(env_name, staging_dir, base_image, env_root=env_root)
         
         # Prepare README
-        prepare_readme(env_name, staging_dir)
+        prepare_readme(env_name, staging_dir, env_root=env_root)
         
         # Upload to space (skip if dry run)
         if not dry_run:
@@ -205,6 +223,7 @@ def _prepare_environment(
     base_image: Optional[str],
     username: str,
     token: str,
+    env_root: Optional[Path] = None,
 ) -> Path:
     """
     Internal function to prepare environment staging directory.
@@ -213,7 +232,10 @@ def _prepare_environment(
         Path to staging directory (must be cleaned up by caller).
     """
     # Validate environment exists
-    validate_environment(env_name)
+    if env_root is not None:
+        validate_environment_at(env_root)
+    else:
+        validate_environment(env_name)
     
     # Determine target space repo ID
     if repo_id is None:
@@ -229,17 +251,18 @@ def _prepare_environment(
     if base_image is None:
         base_image = "ghcr.io/meta-pytorch/openenv-base:latest"
     
-    # Prepare staging directory
-    staging_dir = prepare_staging_directory(env_name, base_image)
+    # Prepare staging directory; if running inside env root, place staging outside env root to avoid recursive copies
+    staging_root = (env_root.parent / "hf-staging") if env_root is not None else Path("hf-staging")
+    staging_dir = prepare_staging_directory(env_name, base_image, str(staging_root))
     
     # Copy files
-    copy_environment_files(env_name, staging_dir)
+    copy_environment_files(env_name, staging_dir, env_root=env_root)
     
     # Prepare Dockerfile
-    prepare_dockerfile(env_name, staging_dir, base_image)
+    prepare_dockerfile(env_name, staging_dir, base_image, env_root=env_root)
     
     # Prepare README
-    prepare_readme(env_name, staging_dir)
+    prepare_readme(env_name, staging_dir, env_root=env_root)
     
     return staging_dir
 

@@ -157,41 +157,43 @@ pip install -e .
 
 #### Push Environment
 
-Push an environment to Hugging Face Spaces:
+Push an environment to Hugging Face Spaces. You can run the command from within the environment directory, or provide a path.
 
 ```bash
-openenv push <env_name> [options]
+cd src/envs/echo_env
+openenv push [options]
 ```
 
 **Arguments:**
-- `env_name`: Name of the environment to push (e.g., `echo_env`, `coding_env`)
+None. The environment name is derived from `--repo-id` (the part after `/`) or from the current working directory name. Use `--env-path` to specify the environment root when not running from it.
 
 **Options:**
 - `--repo-id <repo_id>`: Hugging Face repository ID in format `namespace/space-name`. If not provided, uses `{username}/{env_name}`.
 - `--private`: Create a private space (default: public)
 - `--base-image <image>`: Base Docker image to use (default: `ghcr.io/meta-pytorch/openenv-base:latest`)
 - `--dry-run`: Prepare files but don't upload to Hugging Face
+ - `--env-path <path>`: Path to the environment root (directory containing `server/`, `models.py`, etc.). Defaults to current directory when `env_name` is omitted.
 
 **Examples:**
 
 ```bash
-# Push echo_env to your personal namespace
-openenv push echo_env
+# Push echo_env by running from its directory
+cd src/envs/echo_env && openenv push
 
 # Push to a specific organization
-openenv push coding_env --repo-id my-org/coding_env
+openenv push --env-path src/envs/coding_env --repo-id my-org/coding_env
 
 # Push with a custom space name
-openenv push echo_env --repo-id my-org/my-custom-space
+openenv push --env-path src/envs/echo_env --repo-id my-org/my-custom-space
 
 # Create a private space
-openenv push echo_env --private
+openenv push --env-path src/envs/echo_env --private
 
 # Use a custom base image
-openenv push echo_env --base-image ghcr.io/my-org/custom-base:latest
+openenv push --env-path src/envs/echo_env --base-image ghcr.io/my-org/custom-base:latest
 
 # Prepare files without uploading
-openenv push echo_env --dry-run
+openenv push --env-path src/envs/echo_env --dry-run
 ```
 
 #### How It Works

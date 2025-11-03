@@ -7,7 +7,7 @@
 """Environment loader utilities."""
 
 from pathlib import Path
-from typing import Dict, Any
+from typing import Dict, Any, Optional, Tuple
 
 
 def validate_environment(env_name: str) -> Path:
@@ -35,6 +35,72 @@ def validate_environment(env_name: str) -> Path:
             f"Path: {env_path.absolute()}"
         )
     return env_path
+
+
+def validate_environment_at(env_root: Path) -> Path:
+    """
+    Validate that a given path is an environment root and return its path.
+    
+    An environment root is a directory that typically contains environment files, e.g.:
+    - README.md
+    - models.py
+    - client.py
+    - server/ (with Dockerfile)
+    
+    Args:
+        env_root: Path to the environment root directory.
+    
+    Returns:
+        Path to the environment directory.
+    
+    Raises:
+        FileNotFoundError: If env_root does not exist or is not a directory.
+    """
+    if not env_root.exists():
+        raise FileNotFoundError(
+            f"Environment directory not found. Expected path: {env_root.absolute()}"
+        )
+    if not env_root.is_dir():
+        raise FileNotFoundError(
+            f"Environment path is not a directory. Path: {env_root.absolute()}"
+        )
+    # Require minimal environment structure: a 'server' directory
+    server_dir = env_root / "server"
+    if not server_dir.exists() or not server_dir.is_dir():
+        raise FileNotFoundError(
+            "Not a valid environment root. Expected a directory containing 'server/'. "
+            "Run this command from the environment root (e.g., src/envs/<env_name>) or pass --env-path to it."
+        )
+    return env_root
+
+
+def resolve_environment(env_name: Optional[str] = None, env_path: Optional[str] = None) -> Tuple[str, Path]:
+    """
+    Resolve environment name and root directory from either an explicit path,
+    the current working directory, or the repo structure.
+    
+    Priority:
+    1) If env_path is provided, use it as env root (env_name defaults to directory name if None)
+    2) If env_name provided and src/envs/<env_name> exists, use that
+    3) Otherwise, assume current working directory is the environment root (env_name = cwd name)
+    """
+    if env_path is not None:
+        root = Path(env_path)
+        validate_environment_at(root)
+        name = env_name if env_name is not None else root.name
+        return name, root
+
+    if env_name is not None:
+        # Try repo structure
+        repo_env = Path("src/envs") / env_name
+        if repo_env.exists() and repo_env.is_dir():
+            return env_name, repo_env
+
+    # Fallback: assume cwd is env root
+    cwd = Path.cwd()
+    validate_environment_at(cwd)
+    name = env_name if env_name is not None else cwd.name
+    return name, cwd
 
 
 def load_env_metadata(env_name: str) -> Dict[str, Any]:

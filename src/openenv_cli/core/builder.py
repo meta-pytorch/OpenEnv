@@ -10,6 +10,7 @@ import random
 import re
 import shutil
 from pathlib import Path
+import shutil as _shutil
 
 
 def prepare_staging_directory(env_name: str, base_image: str, staging_root: str = "hf-staging") -> Path:
@@ -37,7 +38,7 @@ def prepare_staging_directory(env_name: str, base_image: str, staging_root: str 
     return staging_dir
 
 
-def copy_environment_files(env_name: str, staging_dir: Path) -> None:
+def copy_environment_files(env_name: str, staging_dir: Path, env_root: Path | None = None) -> None:
     """
     Copy environment files to staging directory.
     
@@ -52,14 +53,16 @@ def copy_environment_files(env_name: str, staging_dir: Path) -> None:
         shutil.copytree(core_src, core_dst, dirs_exist_ok=True)
     
     # Copy environment files
-    env_src = Path("src/envs") / env_name
+    env_src = env_root if env_root is not None else (Path("src/envs") / env_name)
     env_dst = staging_dir / "src" / "envs" / env_name
     if not env_src.exists():
         raise FileNotFoundError(f"Environment not found: {env_src}")
-    shutil.copytree(env_src, env_dst, dirs_exist_ok=True)
+    # Ignore generated staging and caches to avoid recursive copies when running from env root
+    ignore = _shutil.ignore_patterns("hf-staging", "__pycache__", ".git", "*.pyc", "*.pyo")
+    shutil.copytree(env_src, env_dst, dirs_exist_ok=True, ignore=ignore)
 
 
-def prepare_dockerfile(env_name: str, staging_dir: Path, base_image: str) -> None:
+def prepare_dockerfile(env_name: str, staging_dir: Path, base_image: str, env_root: Path | None = None) -> None:
     """
     Prepare Dockerfile for deployment.
     
@@ -70,7 +73,7 @@ def prepare_dockerfile(env_name: str, staging_dir: Path, base_image: str) -> Non
         staging_dir: Staging directory path.
         base_image: Base Docker image to use.
     """
-    env_dockerfile = Path("src/envs") / env_name / "server" / "Dockerfile"
+    env_dockerfile = (env_root / "server" / "Dockerfile") if env_root is not None else (Path("src/envs") / env_name / "server" / "Dockerfile")
     dockerfile_path = staging_dir / "Dockerfile"
     
     if env_dockerfile.exists():
@@ -132,7 +135,7 @@ CMD ["uvicorn", "envs.{env_name}.server.app:app", "--host", "0.0.0.0", "--port",
         dockerfile_path.write_text(content)
 
 
-def prepare_readme(env_name: str, staging_dir: Path) -> None:
+def prepare_readme(env_name: str, staging_dir: Path, env_root: Path | None = None) -> None:
     """
     Prepare README.md with Hugging Face front matter.
     
@@ -144,9 +147,10 @@ def prepare_readme(env_name: str, staging_dir: Path) -> None:
         staging_dir: Staging directory path.
     """
     # Check both src/envs/${ENV_NAME}/README.md and src/envs/${ENV_NAME}/server/README.md
+    base = env_root if env_root is not None else (Path("src/envs") / env_name)
     readme_paths = [
-        Path("src/envs") / env_name / "README.md",
-        Path("src/envs") / env_name / "server" / "README.md",
+        base / "README.md",
+        base / "server" / "README.md",
     ]
     
     # Check if any README has Hugging Face front matter
@@ -253,7 +257,7 @@ The environment provides a health check endpoint at `/health`.
     # Try to append content from original README if it exists (without front matter)
     # Only append if the original README doesn't have front matter (if it has front matter,
     # we've already used it as-is above, so we shouldn't append here to avoid duplicates)
-    original_readme = Path("src/envs") / env_name / "README.md"
+    original_readme = (env_root / "README.md") if env_root is not None else (Path("src/envs") / env_name / "README.md")
     if original_readme.exists():
         original_content = original_readme.read_text()
         

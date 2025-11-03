@@ -422,7 +422,11 @@ class TestPrepareEnvironment:
         # Verify get_space_repo_id was NOT called
         mock_get_repo_id.assert_not_called()
         mock_create_space.assert_called_once_with(mock_api, "my-org/test_env", private=True)
-        mock_prepare_staging.assert_called_once_with("test_env", "custom:latest")
+        # prepare_staging_directory now receives a staging root third argument; validate first two args
+        assert mock_prepare_staging.call_count == 1
+        args, _ = mock_prepare_staging.call_args
+        assert args[0] == "test_env"
+        assert args[1] == "custom:latest"
         assert result == staging_dir
 
 
@@ -504,10 +508,12 @@ class TestPushCommand:
     """Tests for push() typer command function."""
 
     @patch("openenv_cli.commands.push.push_environment")
+    @patch("openenv_cli.commands.push.resolve_environment")
     @patch("openenv_cli.commands.push.check_auth_status")
     def test_push_command_already_authenticated(
         self,
         mock_check_auth,
+        mock_resolve,
         mock_push_env,
         mock_environment,
     ):
@@ -519,9 +525,10 @@ class TestPushCommand:
             is_authenticated=True, username="test_user", token="test_token"
         )
         
+        # Resolve environment
+        mock_resolve.return_value = ("test_env", Path("src/envs/test_env"))
         # Run command
         push(
-            env_name="test_env",
             repo_id=None,
             private=False,
             base_image=None,
@@ -530,15 +537,15 @@ class TestPushCommand:
         
         # Verify
         mock_check_auth.assert_called_once()
-        mock_push_env.assert_called_once_with(
-            env_name="test_env",
-            username="test_user",
-            token="test_token",
-            repo_id=None,
-            private=False,
-            base_image=None,
-            dry_run=True,
-        )
+        mock_push_env.assert_called_once()
+        _, kwargs = mock_push_env.call_args
+        assert kwargs["env_name"] == "test_env"
+        assert kwargs["username"] == "test_user"
+        assert kwargs["token"] == "test_token"
+        assert kwargs["repo_id"] is None
+        assert kwargs["private"] is False
+        assert kwargs["base_image"] is None
+        assert kwargs["dry_run"] is True
 
     @patch("openenv_cli.commands.push.perform_login")
     @patch("openenv_cli.commands.push.check_auth_status")
@@ -561,7 +568,6 @@ class TestPushCommand:
         
         # Run command
         push(
-            env_name="test_env",
             repo_id=None,
             private=False,
             base_image=None,
@@ -590,7 +596,6 @@ class TestPushCommand:
         # Run command (should exit with SystemExit)
         with pytest.raises(SystemExit) as exc_info:
             push(
-                env_name="test_env",
                 repo_id=None,
                 private=False,
                 base_image=None,
@@ -603,10 +608,12 @@ class TestPushCommand:
     @patch("openenv_cli.commands.push._upload_environment")
     @patch("openenv_cli.commands.push._prepare_environment")
     @patch("openenv_cli.commands.push.get_space_repo_id")
+    @patch("openenv_cli.commands.push.resolve_environment")
     @patch("openenv_cli.commands.push.check_auth_status")
     def test_push_command_non_dry_run(
         self,
         mock_check_auth,
+        mock_resolve,
         mock_get_repo_id,
         mock_prepare,
         mock_upload,
@@ -623,9 +630,9 @@ class TestPushCommand:
         staging_dir = Path("staging")
         mock_prepare.return_value = staging_dir
         
+        mock_resolve.return_value = ("test_env", Path("src/envs/test_env"))
         # Run command
         push(
-            env_name="test_env",
             repo_id=None,
             private=False,
             base_image=None,
@@ -663,7 +670,6 @@ class TestPushCommand:
         # Run command (should exit with error)
         with pytest.raises(SystemExit) as exc_info:
             push(
-                env_name="test_env",
                 repo_id=None,
                 private=False,
                 base_image=None,
@@ -671,3 +677,65 @@ class TestPushCommand:
             )
         
         assert exc_info.value.code == 1
+
+    @patch("openenv_cli.commands.push.push_environment")
+    @patch("openenv_cli.commands.push.resolve_environment")
+    @patch("openenv_cli.commands.push.check_auth_status")
+    def test_push_command_with_env_path(
+        self,
+        mock_check_auth,
+        mock_resolve,
+        mock_push_env,
+        mock_environment,
+    ):
+        """Test push command resolves env from --env-path."""
+        from openenv_cli.core.auth import AuthStatus
+        
+        mock_check_auth.return_value = AuthStatus(
+            is_authenticated=True, username="test_user", token="test_token"
+        )
+        env_root = Path("/tmp/myenv")
+        mock_resolve.return_value = ("test_env", env_root)
+        
+        push(
+            repo_id=None,
+            private=False,
+            base_image=None,
+            dry_run=True,
+            env_path=str(env_root),
+        )
+        
+        mock_resolve.assert_called_once()
+        _, kwargs = mock_push_env.call_args
+        assert kwargs["env_root"] == env_root
+
+    @patch("openenv_cli.commands.push.push_environment")
+    @patch("openenv_cli.commands.push.resolve_environment")
+    @patch("openenv_cli.commands.push.check_auth_status")
+    def test_push_command_in_cwd(
+        self,
+        mock_check_auth,
+        mock_resolve,
+        mock_push_env,
+        mock_environment,
+    ):
+        """Test push command infers env from current working directory when no args provided."""
+        from openenv_cli.core.auth import AuthStatus
+        
+        mock_check_auth.return_value = AuthStatus(
+            is_authenticated=True, username="test_user", token="test_token"
+        )
+        cwd_root = Path("/work/env_root")
+        mock_resolve.return_value = ("test_env", cwd_root)
+        
+        push(
+            repo_id=None,
+            private=False,
+            base_image=None,
+            dry_run=True,
+            env_path=None,
+        )
+        
+        mock_resolve.assert_called_once()
+        _, kwargs = mock_push_env.call_args
+        assert kwargs["env_root"] == cwd_root
