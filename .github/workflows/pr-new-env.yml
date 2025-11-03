@@ -240,25 +240,22 @@ jobs:
             const marker = process.env.COMMENT_TAG;
 
             const header = status === 'success'
-              ? `✅ Deployment succeeded for \`${envName}\``
-              : `⚠️ Deployment failed for \`${envName}\``;
+              ? `✅ Deployment to Hugging Face succeeded for \`${envName}\``
+              : `⚠️ Deployment Hugging Face failed for \`${envName}\``;
 
             const summary = status === 'success'
-              ? 'Nice work! Wait for a code review and we\'re ready to go.'
-              : 'Please resolve your environment.';
+              ? 'Nice work! Wait for a code review and we\'re ready to go. You can test it with the CLI:'
+              : 'Please resolve your environment and test it with the CLI:';
 
             const body = [
               marker,
               '',
               header,
               '',
-              `- Space repo: [${repoUrl}](${repoUrl})`,
-              `- Live URL: [${liveUrl}](${liveUrl})`,
               '',
               summary,
               '',
-              '- CLI: `openenv push ' + envName + ' --repo-id ' + repoId + '`',
-              '- Auth: export `HUGGINGFACEHUB_API_TOKEN` before running'
+              '- `openenv push ' + envName + ' --repo-id ' + repoId + '`',
             ].join('\n');
 
             const {owner, repo} = context.repo;
