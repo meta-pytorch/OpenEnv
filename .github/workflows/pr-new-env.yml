@@ -255,11 +255,21 @@ jobs:
               '',
               summary,
               '',
-              '- `openenv push ' + envName + ' --repo-id ' + repoId + '`',
-            ].join('\n');
+              '- `openenv push ' + envName + ' --repo-id <your-username>/' + envName + '`',
+            ];
 
             const {owner, repo} = context.repo;
             const issue_number = context.payload.pull_request.number;
+            const serverUrl = process.env.GITHUB_SERVER_URL || 'https://github.com';
+            const runUrl = `${serverUrl}/${owner}/${repo}/actions/runs/${context.runId}`;
+
+            if (status !== 'success') {
+              body.push(`- Failed run: ${runUrl}`);
+            } else {
+              body.push(`- Success run: ${runUrl}`);
+            }
+
+            const bodyText = body.join('\n');
 
             const existing = await github.paginate(
               github.rest.issues.listComments,
