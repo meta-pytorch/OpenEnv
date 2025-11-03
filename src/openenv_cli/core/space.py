@@ -6,8 +6,6 @@
 
 """Space management module for Hugging Face Spaces."""
 
-from typing import Optional
-
 from huggingface_hub import HfApi
 
 

@@ -14,7 +14,7 @@ import typer
 
 from huggingface_hub import HfApi
 
-from .._cli_utils import console, typer_factory
+from .._cli_utils import console
 from ..core.auth import check_auth_status, perform_login
 from ..core.builder import (
     prepare_staging_directory,
@@ -189,7 +189,7 @@ def push_environment(
         
         # Upload to space (skip if dry run)
         if not dry_run:
-            upload_to_space(api, repo_id, staging_dir, token)
+            upload_to_space(repo_id, staging_dir, token)
         
     finally:
         # Cleanup staging directory after upload or dry run
@@ -259,7 +259,7 @@ def _upload_environment(
     api = HfApi(token=token)
     
     try:
-        upload_to_space(api, repo_id, staging_dir, token)
+        upload_to_space(repo_id, staging_dir, token)
     finally:
         # Cleanup staging directory after upload
         if staging_dir.exists():

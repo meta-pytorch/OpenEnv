@@ -29,7 +29,6 @@ def typer_factory(help: str) -> typer.Typer:
         help=help,
         add_completion=True,
         no_args_is_help=True,
-        # Use rich for better formatting
         rich_markup_mode="rich",
         pretty_exceptions_show_locals=False,
     )

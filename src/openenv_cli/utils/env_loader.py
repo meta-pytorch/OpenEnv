@@ -7,7 +7,7 @@
 """Environment loader utilities."""
 
 from pathlib import Path
-from typing import Dict, Any, Optional
+from typing import Dict, Any
 
 
 def validate_environment(env_name: str) -> Path:

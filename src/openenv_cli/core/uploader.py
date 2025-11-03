@@ -8,12 +8,10 @@
 
 from pathlib import Path
 
-from huggingface_hub import HfApi
 from huggingface_hub import upload_folder
 
 
 def upload_to_space(
-    api: HfApi,
     repo_id: str,
     staging_dir: Path,
     token: str,
@@ -22,7 +20,6 @@ def upload_to_space(
     Upload staging directory contents to Hugging Face Space.
     
     Args:
-        api: HfApi instance to use for API calls.
         repo_id: Repository ID in format 'namespace/repo-name'.
         staging_dir: Path to staging directory to upload.
         token: Hugging Face token for authentication.

@@ -7,9 +7,6 @@
 """CLI entry point for OpenEnv."""
 
 import sys
-from typing import Annotated, Optional
-
-import typer
 
 from ._cli_utils import console, typer_factory
 from .commands.push import push
