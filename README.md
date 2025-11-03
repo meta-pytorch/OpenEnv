@@ -194,19 +194,6 @@ openenv push echo_env --base-image ghcr.io/my-org/custom-base:latest
 openenv push echo_env --dry-run
 ```
 
-#### Authentication
-
-The CLI uses Hugging Face authentication via interactive login. When you run a command that requires authentication, the CLI will prompt you to log in:
-
-```bash
-# The CLI will automatically prompt for login when needed
-openenv push echo_env
-```
-
-The login process will:
-1. Open your browser to authenticate with Hugging Face
-2. Store your credentials for future use (from `huggingface_hub`)
-
 #### How It Works
 
 The `openenv push` command performs the following steps:
