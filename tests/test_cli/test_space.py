@@ -93,44 +93,20 @@ class TestGetSpaceRepoId:
     """Tests for get_space_repo_id function."""
 
     @patch("openenv_cli.core.space.ensure_authenticated")
-    def test_get_space_repo_id_with_namespace(self, mock_auth):
-        """Test get_space_repo_id with explicit namespace."""
-        mock_auth.return_value = ("user", "token")
-
-        result = get_space_repo_id("my-env", namespace="my-org")
-
-        assert result == "my-org/my-env"
-
-    @patch("openenv_cli.core.space.ensure_authenticated")
-    def test_get_space_repo_id_no_namespace(self, mock_auth):
-        """Test get_space_repo_id without namespace uses authenticated user."""
+    def test_get_space_repo_id_uses_authenticated_user(self, mock_auth):
+        """Test get_space_repo_id uses authenticated user's username."""
         mock_auth.return_value = ("test_user", "token")
 
         result = get_space_repo_id("my-env")
 
         assert result == "test_user/my-env"
+        mock_auth.assert_called_once()
 
     @patch("openenv_cli.core.space.ensure_authenticated")
     def test_get_space_repo_id_env_name_with_underscore(self, mock_auth):
         """Test get_space_repo_id handles env names with underscores."""
         mock_auth.return_value = ("test_user", "token")
 
-        result = get_space_repo_id("my_env", namespace="my-org")
+        result = get_space_repo_id("my_env")
 
-        assert result == "my-org/my_env"
-
-    @patch("openenv_cli.core.space.ensure_authenticated")
-    def test_get_space_repo_id_with_space_name(self, mock_auth):
-        """Test get_space_repo_id with custom space name."""
-        mock_auth.return_value = ("test_user", "token")
-
-        result = get_space_repo_id("my_env", space_name="custom-space")
-
-        assert result == "test_user/custom-space"
-
-    @patch("openenv_cli.core.space.ensure_authenticated")
-    def test_get_space_repo_id_with_namespace_and_space_name(self, mock_auth):
-        """Test get_space_repo_id with both namespace and space name."""
-        result = get_space_repo_id("my_env", namespace="my-org", space_name="custom-space")
-
-        assert result == "my-org/custom-space"
+        assert result == "test_user/my_env"

@@ -167,8 +167,7 @@ openenv push <env_name> [options]
 - `env_name`: Name of the environment to push (e.g., `echo_env`, `coding_env`)
 
 **Options:**
-- `--namespace <namespace>`: Hugging Face namespace (organization or user). If not provided, uses authenticated user's username.
-- `--space-name <space_name>`: Custom name for the Hugging Face Space. If not provided, uses the environment name.
+- `--repo-id <repo_id>`: Hugging Face repository ID in format `namespace/space-name`. If not provided, uses `{username}/{env_name}`.
 - `--private`: Create a private space (default: public)
 - `--base-image <image>`: Base Docker image to use (default: `ghcr.io/meta-pytorch/openenv-base:latest`)
 - `--dry-run`: Prepare files but don't upload to Hugging Face
@@ -180,13 +179,10 @@ openenv push <env_name> [options]
 openenv push echo_env
 
 # Push to a specific organization
-openenv push coding_env --namespace my-org
+openenv push coding_env --repo-id my-org/coding_env
 
 # Push with a custom space name
-openenv push echo_env --space-name my-custom-space
-
-# Push to an organization with a custom space name
-openenv push echo_env --namespace my-org --space-name my-custom-space
+openenv push echo_env --repo-id my-org/my-custom-space
 
 # Create a private space
 openenv push echo_env --private
@@ -217,7 +213,7 @@ The `openenv push` command performs the following steps:
 
 1. **Validation**: Checks that the environment exists in `src/envs/<env_name>/`
 2. **Authentication**: Ensures you're authenticated with Hugging Face via interactive login (prompts if needed)
-3. **Space Provisioning**: Determines the target Space name (uses `--space-name` if provided, otherwise `env_name`) and namespace (`--namespace` if provided, otherwise authenticated user). Creates the Docker Space if needed (using `exist_ok=True` to handle existing spaces automatically)
+3. **Space Provisioning**: Determines the target Space repository ID (uses `--repo-id` if provided, otherwise `{username}/{env_name}`). Creates the Docker Space if needed (using `exist_ok=True` to handle existing spaces automatically)
 4. **Build Process**:
    - Creates a staging directory
    - Copies core and environment files

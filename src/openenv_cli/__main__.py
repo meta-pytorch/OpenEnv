@@ -13,6 +13,7 @@ from rich.console import Console
 from rich.traceback import install
 
 from .commands.push import push_environment
+from .core.auth import ensure_authenticated
 
 
 console = Console()
@@ -38,14 +39,9 @@ def main():
         help="Name of the environment to push (e.g., echo_env)",
     )
     push_parser.add_argument(
-        "--namespace",
-        help="Hugging Face namespace (organization or user). "
-             "If not provided, uses authenticated user's username.",
-    )
-    push_parser.add_argument(
-        "--space-name",
-        help="Custom name for the Hugging Face Space. "
-             "If not provided, uses the environment name.",
+        "--repo-id",
+        help="Hugging Face repository ID in format 'namespace/space-name'. "
+             "If not provided, uses '{username}/{env_name}'.",
     )
     push_parser.add_argument(
         "--private",
@@ -66,17 +62,20 @@ def main():
     args = parser.parse_args()
     
     if args.command == "push":
-        if args.dry_run:
-            status_message = f"[bold yellow]Preparing dry run for '{args.env_name}'...[/bold yellow]"
-        else:
-            status_message = f"[bold cyan]Pushing environment '{args.env_name}'...[/bold cyan]"
-
         try:
+            # Authenticate first (before status spinner) to allow interactive login if needed
+            console.print(f"[bold cyan]Authenticating...[/bold cyan]")
+            username, token = ensure_authenticated()
+            
+            if args.dry_run:
+                status_message = f"[bold yellow]Preparing dry run for '{args.env_name}'...[/bold yellow]"
+            else:
+                status_message = f"[bold cyan]Pushing environment '{args.env_name}'...[/bold cyan]"
+
             with console.status(status_message):
                 push_environment(
                     env_name=args.env_name,
-                    namespace=args.namespace,
-                    space_name=args.space_name,
+                    repo_id=args.repo_id,
                     private=args.private,
                     base_image=args.base_image,
                     dry_run=args.dry_run,

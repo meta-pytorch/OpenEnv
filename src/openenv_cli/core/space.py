@@ -58,25 +58,16 @@ def create_space(api: HfApi, repo_id: str, private: bool = False) -> None:
         ) from e
 
 
-def get_space_repo_id(env_name: str, namespace: Optional[str] = None, space_name: Optional[str] = None) -> str:
+def get_space_repo_id(env_name: str) -> str:
     """
-    Get the full repository ID for a space.
+    Get the full repository ID for a space using the authenticated user's username.
     
     Args:
-        env_name: Environment name (e.g., "echo_env"). Used as space name if space_name is not provided.
-        namespace: Optional namespace (organization or user). If not provided,
-                   uses the authenticated user's username.
-        space_name: Optional custom space name. If provided, used instead of env_name.
+        env_name: Environment name (e.g., "echo_env"). Used as space name.
         
     Returns:
-        Repository ID in format 'namespace/space-name'.
+        Repository ID in format 'username/env_name'.
     """
-    # Use space_name if provided, otherwise use env_name
-    repo_name = space_name if space_name else env_name
-    
-    if namespace:
-        return f"{namespace}/{repo_name}"
-    
     # Use authenticated user's username
     username, _ = ensure_authenticated()
-    return f"{username}/{repo_name}"
+    return f"{username}/{env_name}"
