@@ -7,12 +7,16 @@ import pytest
 
 
 try:
-    pass
+    # Ensure gymnasium is available; skip the whole module if it's missing.
+    import importlib
+
+    if importlib.util.find_spec("gymnasium") is None:
+        raise ModuleNotFoundError
 except ModuleNotFoundError:
     pytest.skip("gymnasium not installed", allow_module_level=True)
 
-from envs.gym_environment.client import GymAction, GymEnvironment
-from envs.gym_environment.server.gymnasium_environment import GymnasiumEnvironment
+from envs.gym_env.client import GymAction, GymEnvironment
+from envs.gym_env.server.gymnasium_environment import GymnasiumEnvironment
 
 
 ENV_ID = "BipedalWalker-v3"
@@ -82,6 +86,55 @@ def test_continuous_action_conversion_and_metadata():
     assert len(low) == len(high) == 1
 
     env.close()
+
+
+def test_lunarlander_environments():
+    """Test both discrete and continuous versions of LunarLander.
+
+    This test verifies that:
+    1. Both discrete and continuous versions can be initialized
+    2. Action spaces are correctly reported
+    3. Observations and rewards are properly structured
+    4. State transitions work as expected
+    """
+    # Test LunarLander-v2 (discrete actions)
+    env_discrete = GymnasiumEnvironment(env_id="LunarLander-v3", seed=42)
+    obs_discrete = env_discrete.reset()
+
+    # Verify discrete action space
+    assert obs_discrete.legal_actions == [0, 1, 2, 3]  # Four discrete actions
+    assert isinstance(obs_discrete.state, list)
+    assert len(obs_discrete.state) == 8  # LunarLander has 8 state components
+
+    # Test a discrete action
+    next_obs = env_discrete.step(GymAction(action=1))  # Main engine
+    assert env_discrete.state.step_count == 1
+    assert isinstance(next_obs.state, list)
+    assert next_obs.reward is not None
+    assert next_obs.metadata["action_space"]["type"] == "Discrete"
+    env_discrete.close()
+
+    # Test LunarLander-v2 with continuous actions
+    env_continuous = GymnasiumEnvironment(
+        env_id="LunarLander-v3", seed=42, continuous=True
+    )
+    obs_continuous = env_continuous.reset()
+
+    # Verify continuous action space
+    assert obs_continuous.legal_actions == {
+        "low": [-1.0, -1.0],  # Main engine, left-right engines
+        "high": [1.0, 1.0],
+    }
+    assert isinstance(obs_continuous.state, list)
+
+    # Test a continuous action
+    next_obs = env_continuous.step(GymAction(action=[0.5, 0.0]))
+    assert env_continuous.state.step_count == 1
+    assert isinstance(next_obs.state, list)
+    assert next_obs.reward is not None
+    assert next_obs.metadata["action_space"]["type"] in ("Box", "box")
+    assert len(next_obs.metadata["action_space"]["low"]) == 2
+    env_continuous.close()
 
 
 def test_client_parsers_handle_payloads():
@@ -209,3 +262,65 @@ def test_client_parsers_handle_payloads():
     assert result.done is False
 
     client.close()
+
+
+def test_cartpole_discrete_action_space_and_step():
+    env = GymnasiumEnvironment(env_id="CartPole-v1", seed=7)
+    obs = env.reset()
+
+    # Discrete action space should expose 'n' in metadata and legal_actions as a list
+    assert env.state.env_id == "CartPole-v1"
+    assert "action_space" in obs.metadata
+    action_meta = obs.metadata["action_space"]
+    assert action_meta["type"] in ("Discrete", "discrete")
+    assert "n" in action_meta and isinstance(action_meta["n"], int)
+
+    # legal_actions should be a list of integers 0..n-1
+    assert isinstance(obs.legal_actions, list)
+    assert obs.legal_actions == list(range(action_meta["n"]))
+
+    # Perform a step with a valid discrete action
+    next_obs = env.step(GymAction(action=0))
+    assert isinstance(next_obs.state, list) or next_obs.state is not None
+    assert next_obs.reward is not None
+    env.close()
+
+
+def test_taxi_discrete_action_space():
+    # Taxi is a classic discrete-action environment (n typically 6)
+    env = GymnasiumEnvironment(env_id="Taxi-v3", seed=10)
+    obs = env.reset()
+
+    assert env.state.env_id == "Taxi-v3"
+    assert "action_space" in obs.metadata
+    action_meta = obs.metadata["action_space"]
+    assert action_meta["type"] in ("Discrete", "discrete")
+    assert action_meta.get("n", None) is not None
+    assert isinstance(obs.legal_actions, list)
+
+    # Try a valid action (0) and ensure step returns a serializable state
+    next_obs = env.step(GymAction(action=0))
+    assert next_obs.reward is not None
+    assert next_obs.done in (True, False)
+    env.close()
+
+
+def test_pendulum_continuous_action_box():
+    # Pendulum has a continuous Box action space of shape (1,)
+    env = GymnasiumEnvironment(env_id="Pendulum-v1", seed=42)
+    obs = env.reset()
+
+    assert env.state.env_id == "Pendulum-v1"
+    assert "action_space" in obs.metadata
+    action_meta = obs.metadata["action_space"]
+    assert action_meta["type"] in ("Box", "box")
+    # Expect shape to be present and of length 1
+    shape = action_meta.get("shape")
+    assert isinstance(shape, list) or isinstance(shape, tuple)
+    assert len(shape) >= 1
+
+    # Provide a valid continuous action (single-element list)
+    next_obs = env.step(GymAction(action=[0.0]))
+    assert next_obs.reward is not None
+    assert isinstance(next_obs.state, list) or next_obs.state is not None
+    env.close()

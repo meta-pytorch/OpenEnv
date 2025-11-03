@@ -45,6 +45,7 @@ class GymnasiumEnvironment(Environment):
         render_mode: Optional[str] = None,
         max_steps: Optional[int] = None,
         seed: Optional[int] = None,
+        **gym_kwargs,
     ):
         super().__init__()
 
@@ -62,7 +63,7 @@ class GymnasiumEnvironment(Environment):
             seed,
         )
 
-        self.env = gym.make(env_id, render_mode=render_mode)
+        self.env = gym.make(env_id, render_mode=render_mode, **gym_kwargs)
 
         if self.max_steps is not None:
             self.env = gym.wrappers.TimeLimit(
