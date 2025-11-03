@@ -7,7 +7,7 @@ Example:
     >>> from envs.pokemon_env import PokemonEnv, PokemonAction
     >>>
     >>> # Connect to a running Pokemon Showdown server
-    >>> env = PokemonEnv(battle_format="gen9randombattle")
+    >>> env = PokemonEnv(battle_format="gen8randombattle")
     >>>
     >>> # Reset and interact
     >>> result = env.reset()
