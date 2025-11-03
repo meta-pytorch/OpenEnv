@@ -31,6 +31,10 @@ def test_resolve_environment_with_env_path(tmp_path, monkeypatch):
     env_root = tmp_path / "myenv"
     server = env_root / "server"
     server.mkdir(parents=True)
+    # add manifest
+    (env_root / "openenv.yaml").write_text(
+        "spec_version: 1\nname: myenv\ntype: space\nruntime: fastapi\napp: server.app:app\nport: 8000\n"
+    )
     monkeypatch.chdir(tmp_path)
 
     name, root = resolve_environment(env_name=None, env_path=str(env_root))

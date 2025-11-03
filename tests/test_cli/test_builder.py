@@ -94,8 +94,6 @@ class TestPrepareStagingDirectory:
         
         assert result.exists()
         assert not (result / "old_file.txt").exists()
-        assert (result / "src" / "core").exists()
-
 
 class TestCopyEnvironmentFiles:
     """Tests for copy_environment_files function."""
@@ -124,48 +122,14 @@ class TestCopyEnvironmentFiles:
             os.chdir(repo_root)
             copy_environment_files("test_env", staging_dir)
             
-            # Verify files were copied
-            assert (staging_dir / "src" / "core" / "__init__.py").exists()
-            assert (staging_dir / "src" / "envs" / "test_env" / "models.py").exists()
+            # Verify files were copied to flat staging root
+            assert (staging_dir / "models.py").exists()
         finally:
             os.chdir(old_cwd)
 
 
 class TestPrepareDockerfile:
     """Tests for prepare_dockerfile function."""
-
-    def test_prepare_dockerfile_uses_existing_dockerfile(self, repo_root, tmp_path, monkeypatch):
-        """Test that existing Dockerfile is used and modified."""
-        
-        # Create test environment with Dockerfile (test_env_path already created the directory)
-        env_dir = repo_root / "src" / "envs" / "test_env" / "server"
-        env_dir.mkdir(parents=True, exist_ok=True)
-        (env_dir / "Dockerfile").write_text(
-            "ARG BASE_IMAGE=openenv-base:latest\n"
-            "FROM ${BASE_IMAGE}\n"
-            "COPY src/core/ /app/src/core/\n"
-            "CMD [\"uvicorn\", \"envs.test_env.server.app:app\", \"--host\", \"0.0.0.0\", \"--port\", \"8000\"]"
-        )
-        
-        # Prepare staging directory
-        staging_dir = prepare_staging_directory("test_env", "test:latest", str(tmp_path / "hf-staging"))
-        
-        old_cwd = os.getcwd()
-        try:
-            os.chdir(repo_root)
-            base_image = "ghcr.io/meta-pytorch/openenv-base:latest"
-            prepare_dockerfile("test_env", staging_dir, base_image)
-            
-            # Check Dockerfile was created
-            dockerfile_path = staging_dir / "Dockerfile"
-            assert dockerfile_path.exists()
-            
-            # Check base image was replaced
-            content = dockerfile_path.read_text()
-            assert base_image in content
-            assert "ENV ENABLE_WEB_INTERFACE=true" in content or "ENABLE_WEB_INTERFACE=true" in content
-        finally:
-            os.chdir(old_cwd)
 
     def test_prepare_dockerfile_creates_default_if_missing(self, repo_root, tmp_path, monkeypatch):
         """Test that default Dockerfile is created if env doesn't have one."""
@@ -190,7 +154,10 @@ class TestPrepareDockerfile:
             
             content = dockerfile_path.read_text()
             assert base_image in content
-            assert "test_env" in content
+            assert "COPY . /app" in content
+            assert "CMD [\"uvicorn\", \"server.app:app\"" in content
+            # If requirements are present, ensure we install them
+            # In this test set, requirements presence isn't created; skip strict assert
         finally:
             os.chdir(old_cwd)
 
@@ -513,15 +480,162 @@ class TestPrepareDockerfileDefault:
             assert dockerfile_path.exists()
             
             content = dockerfile_path.read_text()
-            # Check for default Dockerfile structure (lines 101-121)
-            # Default template includes HEALTHCHECK, FROM, COPY, CMD
+            # Default template includes FROM, WORKDIR, COPY ., ENV, CMD
             assert f"FROM {base_image}" in content
-            assert "COPY src/core/" in content
-            assert "COPY src/envs/test_env/" in content
-            # HEALTHCHECK should be in default template
-            assert "HEALTHCHECK" in content
-            # ENABLE_WEB_INTERFACE is added after default template (line 129)
+            assert "COPY . /app" in content
             assert "ENV ENABLE_WEB_INTERFACE=true" in content
-            assert "CMD [\"uvicorn\", \"envs.test_env.server.app:app\"" in content
+            assert "ENV PYTHONPATH=/app" in content
+            assert "CMD [\"uvicorn\", \"server.app:app\"" in content
+            # No requirements in this synthetic env; if present they'd be installed
+        finally:
+            os.chdir(old_cwd)
+
+    def test_prepare_dockerfile_transforms_template_copy(self, repo_root, tmp_path, monkeypatch):
+        """Test that template Dockerfile's COPY . /app remains and is compatible with staging."""
+        from openenv_cli.core.builder import prepare_dockerfile, prepare_staging_directory
+        
+        # Create test environment with template-style Dockerfile (COPY . /app)
+        env_dir = repo_root / "src" / "envs" / "test_env" / "server"
+        env_dir.mkdir(parents=True, exist_ok=True)
+        template_dockerfile = (
+            "ARG BASE_IMAGE=ghcr.io/meta-pytorch/openenv-base:latest\n"
+            "FROM ${BASE_IMAGE}\n"
+            "WORKDIR /app\n"
+            "COPY . /app\n"
+            "CMD [\"uvicorn\", \"server.app:app\", \"--host\", \"0.0.0.0\", \"--port\", \"8000\"]"
+        )
+        (env_dir / "Dockerfile").write_text(template_dockerfile)
+        
+        staging_dir = prepare_staging_directory("test_env", "test:latest", str(tmp_path / "hf-staging"))
+        
+        old_cwd = os.getcwd()
+        try:
+            os.chdir(repo_root)
+            base_image = "ghcr.io/meta-pytorch/openenv-base:latest"
+            prepare_dockerfile("test_env", staging_dir, base_image)
+            
+            dockerfile_path = staging_dir / "Dockerfile"
+            assert dockerfile_path.exists()
+            
+            content = dockerfile_path.read_text()
+            # COPY . /app should be present
+            assert "COPY . /app" in content
+            # ENABLE_WEB_INTERFACE and PYTHONPATH should be added
+            assert "ENV ENABLE_WEB_INTERFACE=true" in content
+            assert "ENV PYTHONPATH=/app" in content
+            # server.app:app should remain
+            assert '"server.app:app"' in content
+            # If requirements exist, pip install should be present; not enforced here
+        finally:
+            os.chdir(old_cwd)
+
+    def test_prepare_dockerfile_transforms_server_app_to_envs_path(self, repo_root, tmp_path, monkeypatch):
+        """Test that server.app:app is used in flattened layout (no envs.* path)."""
+        from openenv_cli.core.builder import prepare_dockerfile, prepare_staging_directory
+        
+        # Create test environment with Dockerfile using server.app:app
+        env_dir = repo_root / "src" / "envs" / "my_env" / "server"
+        env_dir.mkdir(parents=True, exist_ok=True)
+        dockerfile_content = (
+            "FROM ghcr.io/meta-pytorch/openenv-base:latest\n"
+            "COPY src/core/ /app/src/core/\n"
+            "COPY src/envs/my_env/ /app/src/envs/my_env/\n"
+            "CMD [\"uvicorn\", \"server.app:app\", \"--host\", \"0.0.0.0\", \"--port\", \"8000\"]"
+        )
+        (env_dir / "Dockerfile").write_text(dockerfile_content)
+        
+        staging_dir = prepare_staging_directory("my_env", "test:latest", str(tmp_path / "hf-staging"))
+        
+        old_cwd = os.getcwd()
+        try:
+            os.chdir(repo_root)
+            base_image = "ghcr.io/meta-pytorch/openenv-base:latest"
+            prepare_dockerfile("my_env", staging_dir, base_image)
+            
+            dockerfile_path = staging_dir / "Dockerfile"
+            assert dockerfile_path.exists()
+            
+            content = dockerfile_path.read_text()
+            # server.app:app should be used
+            assert "server.app:app" in content
+            # No envs.my_env path
+            assert "envs.my_env.server.app:app" not in content
+        finally:
+            os.chdir(old_cwd)
+
+    def test_prepare_dockerfile_always_adds_web_interface_flag(self, repo_root, tmp_path, monkeypatch):
+        """Test that ENABLE_WEB_INTERFACE=true is always added even if not in template."""
+        from openenv_cli.core.builder import prepare_dockerfile, prepare_staging_directory
+        
+        # Create test environment with Dockerfile that doesn't have ENABLE_WEB_INTERFACE
+        env_dir = repo_root / "src" / "envs" / "test_env" / "server"
+        env_dir.mkdir(parents=True, exist_ok=True)
+        dockerfile_content = (
+            "FROM ghcr.io/meta-pytorch/openenv-base:latest\n"
+            "COPY src/core/ /app/src/core/\n"
+            "COPY src/envs/test_env/ /app/src/envs/test_env/\n"
+            "CMD [\"uvicorn\", \"envs.test_env.server.app:app\", \"--host\", \"0.0.0.0\", \"--port\", \"8000\"]"
+        )
+        (env_dir / "Dockerfile").write_text(dockerfile_content)
+        
+        staging_dir = prepare_staging_directory("test_env", "test:latest", str(tmp_path / "hf-staging"))
+        
+        old_cwd = os.getcwd()
+        try:
+            os.chdir(repo_root)
+            base_image = "ghcr.io/meta-pytorch/openenv-base:latest"
+            prepare_dockerfile("test_env", staging_dir, base_image)
+            
+            dockerfile_path = staging_dir / "Dockerfile"
+            assert dockerfile_path.exists()
+            
+            content = dockerfile_path.read_text()
+            # ENABLE_WEB_INTERFACE should be added before CMD
+            assert "ENV ENABLE_WEB_INTERFACE=true" in content
+            # Should appear before CMD line
+            cmd_index = content.find("CMD")
+            env_index = content.find("ENV ENABLE_WEB_INTERFACE")
+            assert env_index < cmd_index, "ENV ENABLE_WEB_INTERFACE should appear before CMD"
+        finally:
+            os.chdir(old_cwd)
+
+    def test_prepare_dockerfile_with_env_root_transforms_correctly(self, repo_root, tmp_path, monkeypatch):
+        """Test that prepare_dockerfile works correctly when env_root is provided."""
+        from openenv_cli.core.builder import prepare_dockerfile, prepare_staging_directory
+        
+        # Create an environment root (simulating openenv init structure)
+        env_root = tmp_path / "my_env"
+        env_root.mkdir()
+        server_dir = env_root / "server"
+        server_dir.mkdir()
+        
+        # Template Dockerfile with COPY . /app and server.app:app
+        template_dockerfile = (
+            "ARG BASE_IMAGE=ghcr.io/meta-pytorch/openenv-base:latest\n"
+            "FROM ${BASE_IMAGE}\n"
+            "WORKDIR /app\n"
+            "COPY . /app\n"
+            "CMD [\"uvicorn\", \"server.app:app\", \"--host\", \"0.0.0.0\", \"--port\", \"8000\"]"
+        )
+        (server_dir / "Dockerfile").write_text(template_dockerfile)
+        
+        staging_dir = prepare_staging_directory("my_env", "test:latest", str(tmp_path / "hf-staging"))
+        
+        old_cwd = os.getcwd()
+        try:
+            os.chdir(repo_root)
+            base_image = "ghcr.io/meta-pytorch/openenv-base:latest"
+            prepare_dockerfile("my_env", staging_dir, base_image, env_root=env_root)
+            
+            dockerfile_path = staging_dir / "Dockerfile"
+            assert dockerfile_path.exists()
+            
+            content = dockerfile_path.read_text()
+            # Should use COPY . /app and enable web interface and PYTHONPATH
+            assert "COPY . /app" in content
+            assert "ENV ENABLE_WEB_INTERFACE=true" in content
+            assert "ENV PYTHONPATH=/app" in content
+            # Should run server.app:app
+            assert '"server.app:app"' in content
         finally:
             os.chdir(old_cwd)

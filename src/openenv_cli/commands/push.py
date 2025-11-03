@@ -100,14 +100,17 @@ def push(
 
         # Manifest validation (fail fast with clear guidance)
         manifest = load_manifest(env_root)
-        if manifest is not None:
-            errors = validate_manifest(manifest, env_root)
-            if errors:
-                console.print("[bold red]Invalid openenv.yaml manifest:[/bold red]")
-                for err in errors:
-                    console.print(f"  - {err}")
-                console.print("\nFix the manifest or run from a valid environment root, or pass --env-path to one.")
-                sys.exit(1)
+        if manifest is None:
+            console.print("[bold red]Error:[/bold red] Missing 'openenv.yaml' manifest in the environment root.")
+            console.print("Run 'openenv init <name>' to scaffold a valid environment or add a manifest to the root.")
+            sys.exit(1)
+        errors = validate_manifest(manifest, env_root)
+        if errors:
+            console.print("[bold red]Invalid openenv.yaml manifest:[/bold red]")
+            for err in errors:
+                console.print(f"  - {err}")
+            console.print("\nFix the manifest or run from a valid environment root, or pass --env-path to one.")
+            sys.exit(1)
 
         if dry_run:
             status_message = f"[bold yellow]Preparing dry run for '{env_name}'...[/bold yellow]"

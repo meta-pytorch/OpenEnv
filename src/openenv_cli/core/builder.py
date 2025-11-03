@@ -31,10 +31,6 @@ def prepare_staging_directory(env_name: str, base_image: str, staging_root: str 
         shutil.rmtree(staging_dir)
     staging_dir.mkdir(parents=True)
     
-    # Create subdirectories
-    (staging_dir / "src" / "core").mkdir(parents=True)
-    (staging_dir / "src" / "envs" / env_name).mkdir(parents=True)
-    
     return staging_dir
 
 
@@ -46,20 +42,18 @@ def copy_environment_files(env_name: str, staging_dir: Path, env_root: Path | No
         env_name: Name of the environment.
         staging_dir: Staging directory path.
     """
-    # Copy core files
-    core_src = Path("src/core")
-    core_dst = staging_dir / "src" / "core"
-    if core_src.exists():
-        shutil.copytree(core_src, core_dst, dirs_exist_ok=True)
-    
-    # Copy environment files
+    # Copy environment files from env_root or repo structure
     env_src = env_root if env_root is not None else (Path("src/envs") / env_name)
-    env_dst = staging_dir / "src" / "envs" / env_name
     if not env_src.exists():
         raise FileNotFoundError(f"Environment not found: {env_src}")
     # Ignore generated staging and caches to avoid recursive copies when running from env root
     ignore = _shutil.ignore_patterns("hf-staging", "__pycache__", ".git", "*.pyc", "*.pyo")
-    shutil.copytree(env_src, env_dst, dirs_exist_ok=True, ignore=ignore)
+    shutil.copytree(env_src, staging_dir, dirs_exist_ok=True, ignore=ignore)
+    
+    # Also include openenv_core runtime so web interface is available in container
+    core_pkg = Path("src/core/openenv_core")
+    if core_pkg.exists():
+        shutil.copytree(core_pkg, staging_dir / "openenv_core", dirs_exist_ok=True, ignore=ignore)
 
 
 def prepare_dockerfile(env_name: str, staging_dir: Path, base_image: str, env_root: Path | None = None) -> None:
@@ -67,6 +61,8 @@ def prepare_dockerfile(env_name: str, staging_dir: Path, base_image: str, env_ro
     Prepare Dockerfile for deployment.
     
     Uses the environment's Dockerfile if it exists, otherwise creates a default one.
+    Transforms template Dockerfiles (which use COPY . /app and server.app) to the
+    flattened staging structure (COPY . /app).
     
     Args:
         env_name: Name of the environment.
@@ -75,6 +71,7 @@ def prepare_dockerfile(env_name: str, staging_dir: Path, base_image: str, env_ro
     """
     env_dockerfile = (env_root / "server" / "Dockerfile") if env_root is not None else (Path("src/envs") / env_name / "server" / "Dockerfile")
     dockerfile_path = staging_dir / "Dockerfile"
+    reqs_exists = (staging_dir / "server" / "requirements.txt").exists()
     
     if env_dockerfile.exists():
         # Copy and modify existing Dockerfile
@@ -98,9 +95,32 @@ def prepare_dockerfile(env_name: str, staging_dir: Path, base_image: str, env_ro
             content
         )
         
+        # Ensure a WORKDIR /app exists
+        if not re.search(r'^WORKDIR\s+/app', content, flags=re.MULTILINE):
+            content = re.sub(r'^(FROM\s+.*)$', r"\1\n\nWORKDIR /app", content, flags=re.MULTILINE)
+        
+        # Ensure COPY . /app (remove repo-structure COPYs if present)
+        content = re.sub(r'^COPY\s+src/.*$', '', content, flags=re.MULTILINE)
+        if not re.search(r'^COPY\s+\.\s+/app', content, flags=re.MULTILINE):
+            content = re.sub(r'^(WORKDIR\s+/app.*)$', r"\1\n\nCOPY . /app", content, flags=re.MULTILINE)
+        
+        # If requirements exist, ensure they are installed after COPY
+        if reqs_exists and "pip install" not in content:
+            content = re.sub(
+                r'^(COPY\s+\.\s+/app.*)$',
+                r"\1\n\nRUN pip install --no-cache-dir -r server/requirements.txt",
+                content,
+                flags=re.MULTILINE
+            )
+        
+        # Ensure uvicorn points to server.app:app (flat layout)
+        content = re.sub(r'"envs\.[^"]*\.server\.app:app"', '"server.app:app"', content)
+        content = re.sub(r'uvicorn\s+envs\.[^\s]*\.server\.app:app', 'uvicorn server.app:app', content)
+        
         dockerfile_path.write_text(content)
     else:
-        # Create default Dockerfile
+        # Create default Dockerfile for flat layout
+        install_line = "\nRUN pip install --no-cache-dir -r server/requirements.txt\n" if reqs_exists else "\n"
         default_dockerfile = f"""# Copyright (c) Meta Platforms, Inc. and affiliates.
 # All rights reserved.
 #
@@ -110,27 +130,33 @@ def prepare_dockerfile(env_name: str, staging_dir: Path, base_image: str, env_ro
 # Use the specified openenv-base image
 FROM {base_image}
 
-# Copy only what's needed for this environment
-COPY src/core/ /app/src/core/
-COPY src/envs/{env_name}/ /app/src/envs/{env_name}/
+WORKDIR /app
 
+# Copy environment root contents
+COPY . /app{install_line}
 # Health check
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \\
     CMD curl -f http://localhost:8000/health || exit 1
 
 # Run the FastAPI server
-CMD ["uvicorn", "envs.{env_name}.server.app:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["uvicorn", "server.app:app", "--host", "0.0.0.0", "--port", "8000"]
 """
         dockerfile_path.write_text(default_dockerfile)
     
-    # Ensure web interface is enabled
+    # Ensure web interface and Python path are enabled (must be before CMD)
     content = dockerfile_path.read_text()
+    injections = []
     if "ENABLE_WEB_INTERFACE" not in content:
-        # Add before the CMD line
+        injections.append("ENV ENABLE_WEB_INTERFACE=true")
+    if "PYTHONPATH=/app" not in content:
+        injections.append("ENV PYTHONPATH=/app")
+    if injections:
+        # Insert both lines before the CMD line (in order)
         content = re.sub(
-            r'(CMD\s+\[)',
-            r'ENV ENABLE_WEB_INTERFACE=true\n\n\1',
-            content
+            r'^(CMD\s+\[)',
+            "\n".join(injections) + "\n\n" + r"\1",
+            content,
+            flags=re.MULTILINE
         )
         dockerfile_path.write_text(content)
 

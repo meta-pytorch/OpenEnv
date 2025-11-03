@@ -48,6 +48,7 @@ def validate_environment_at(env_root: Path) -> Path:
     - models.py
     - client.py
     - server/ (with Dockerfile)
+    - openenv.yaml (manifest)
     
     Args:
         env_root: Path to the environment root directory.
@@ -72,6 +73,13 @@ def validate_environment_at(env_root: Path) -> Path:
         raise FileNotFoundError(
             "Not a valid environment root. Expected a directory containing 'server/'. "
             "Run this command from the environment root (e.g., src/envs/<env_name>) or pass --env-path to it."
+        )
+    # Require manifest file
+    manifest_file = env_root / "openenv.yaml"
+    if not manifest_file.exists():
+        raise FileNotFoundError(
+            "Missing 'openenv.yaml' manifest. Initialize with 'openenv init <name>' "
+            "or add a valid manifest to the environment root."
         )
     return env_root
 

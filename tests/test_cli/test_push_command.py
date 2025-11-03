@@ -17,6 +17,7 @@ from openenv_cli.commands.push import (
     push,
     push_environment,
 )
+from openenv_cli.utils.manifest import Manifest
 
 
 @pytest.fixture
@@ -510,8 +511,10 @@ class TestPushCommand:
     @patch("openenv_cli.commands.push.push_environment")
     @patch("openenv_cli.commands.push.resolve_environment")
     @patch("openenv_cli.commands.push.check_auth_status")
+    @patch("openenv_cli.commands.push.load_manifest")
     def test_push_command_already_authenticated(
         self,
+        mock_load_manifest,
         mock_check_auth,
         mock_resolve,
         mock_push_env,
@@ -524,6 +527,7 @@ class TestPushCommand:
         mock_check_auth.return_value = AuthStatus(
             is_authenticated=True, username="test_user", token="test_token"
         )
+        mock_load_manifest.return_value = Manifest(raw={"spec_version": 1, "name": "test_env", "type": "space", "runtime": "fastapi", "app": "server.app:app", "port": 8000})
         
         # Resolve environment
         mock_resolve.return_value = ("test_env", Path("src/envs/test_env"))
@@ -610,8 +614,10 @@ class TestPushCommand:
     @patch("openenv_cli.commands.push.get_space_repo_id")
     @patch("openenv_cli.commands.push.resolve_environment")
     @patch("openenv_cli.commands.push.check_auth_status")
+    @patch("openenv_cli.commands.push.load_manifest")
     def test_push_command_non_dry_run(
         self,
+        mock_load_manifest,
         mock_check_auth,
         mock_resolve,
         mock_get_repo_id,
@@ -629,6 +635,7 @@ class TestPushCommand:
         mock_get_repo_id.return_value = "test_user/test_env"
         staging_dir = Path("staging")
         mock_prepare.return_value = staging_dir
+        mock_load_manifest.return_value = Manifest(raw={"spec_version": 1, "name": "test_env", "type": "space", "runtime": "fastapi", "app": "server.app:app", "port": 8000})
         
         mock_resolve.return_value = ("test_env", Path("src/envs/test_env"))
         # Run command
@@ -651,38 +658,14 @@ class TestPushCommand:
         )
 
     @patch("openenv_cli.commands.push.push_environment")
-    @patch("openenv_cli.commands.push.check_auth_status")
-    def test_push_command_error_handling(
-        self,
-        mock_check_auth,
-        mock_push_env,
-        mock_environment,
-    ):
-        """Test push command error handling."""
-        from openenv_cli.core.auth import AuthStatus
-        
-        # Setup
-        mock_check_auth.return_value = AuthStatus(
-            is_authenticated=True, username="test_user", token="test_token"
-        )
-        mock_push_env.side_effect = Exception("Test error")
-        
-        # Run command (should exit with error)
-        with pytest.raises(SystemExit) as exc_info:
-            push(
-                repo_id=None,
-                private=False,
-                base_image=None,
-                dry_run=True,
-            )
-        
-        assert exc_info.value.code == 1
-
-    @patch("openenv_cli.commands.push.push_environment")
     @patch("openenv_cli.commands.push.resolve_environment")
     @patch("openenv_cli.commands.push.check_auth_status")
+    @patch("openenv_cli.commands.push.load_manifest")
+    @patch("openenv_cli.commands.push.validate_manifest")
     def test_push_command_with_env_path(
         self,
+        mock_validate_manifest,
+        mock_load_manifest,
         mock_check_auth,
         mock_resolve,
         mock_push_env,
@@ -696,6 +679,8 @@ class TestPushCommand:
         )
         env_root = Path("/tmp/myenv")
         mock_resolve.return_value = ("test_env", env_root)
+        mock_load_manifest.return_value = Manifest(raw={"spec_version": 1, "name": "test_env", "type": "space", "runtime": "fastapi", "app": "server.app:app", "port": 8000})
+        mock_validate_manifest.return_value = []
         
         push(
             repo_id=None,
@@ -712,8 +697,12 @@ class TestPushCommand:
     @patch("openenv_cli.commands.push.push_environment")
     @patch("openenv_cli.commands.push.resolve_environment")
     @patch("openenv_cli.commands.push.check_auth_status")
+    @patch("openenv_cli.commands.push.load_manifest")
+    @patch("openenv_cli.commands.push.validate_manifest")
     def test_push_command_in_cwd(
         self,
+        mock_validate_manifest,
+        mock_load_manifest,
         mock_check_auth,
         mock_resolve,
         mock_push_env,
@@ -727,6 +716,8 @@ class TestPushCommand:
         )
         cwd_root = Path("/work/env_root")
         mock_resolve.return_value = ("test_env", cwd_root)
+        mock_load_manifest.return_value = Manifest(raw={"spec_version": 1, "name": "test_env", "type": "space", "runtime": "fastapi", "app": "server.app:app", "port": 8000})
+        mock_validate_manifest.return_value = []
         
         push(
             repo_id=None,

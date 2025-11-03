@@ -1,4 +1,5 @@
 fastapi
 uvicorn
+openenv-core>=0.1.0
 
 

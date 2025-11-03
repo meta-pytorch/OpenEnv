@@ -36,6 +36,14 @@ class TestInitCommand:
         assert "BASE_IMAGE=ghcr.io/meta-pytorch/openenv-base:latest" in dockerfile
         assert "ENABLE_WEB_INTERFACE" not in dockerfile
 
+        # Template requirements include openenv-core for local runs
+        reqs = (target / "server" / "requirements.txt").read_text()
+        assert "openenv-core" in reqs
+
+        # app.py uses create_app to enable /web
+        app_py = (target / "server" / "app.py").read_text()
+        assert "create_app(" in app_py
+
         # Git commands invoked
         expected_calls = [
             call(["git", "init"], cwd=str(target), check=True),

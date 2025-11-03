@@ -5,6 +5,7 @@ import subprocess
 import time
 import requests
 import pytest
+import shutil
 
 from envs.dipg_safety_env.client import DIPGSafetyEnv
 from envs.dipg_safety_env.models import DIPGAction
@@ -18,6 +19,10 @@ def server():
     SRC_PATH = os.path.join(ROOT_DIR, "src")
     DATASET_SOURCE_PATH = os.path.abspath(os.path.join(os.path.dirname(__file__), "mock_dataset.jsonl"))
     PORT = 8009
+
+    # Skip if gunicorn is not available in the environment
+    if shutil.which("gunicorn") is None:
+        pytest.skip("gunicorn not available; skipping server e2e tests")
 
     # --- Launch the Server using Gunicorn ---
     localhost = f"http://localhost:{PORT}"
@@ -36,11 +41,14 @@ def server():
         "-b", f"0.0.0.0:{PORT}",
         "envs.dipg_safety_env.server.app:app",
     ]
-    openenv_process = subprocess.Popen(
-        gunicorn_command,
-        env=server_env,
-        stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
-    )
+    try:
+        openenv_process = subprocess.Popen(
+            gunicorn_command,
+            env=server_env,
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
+        )
+    except FileNotFoundError:
+        pytest.skip("gunicorn not available; skipping server e2e tests")
 
     # --- Wait and Verify ---
     print("\n--- Waiting for server to become healthy... ---")
