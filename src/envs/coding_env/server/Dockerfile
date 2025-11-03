@@ -21,9 +21,12 @@ COPY src/envs/coding_env/ /app/src/envs/coding_env/
 # Copy README for web interface documentation
 COPY src/envs/coding_env/README.md /app/README.md
 
-# Health check
-HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-    CMD curl -f http://localhost:8000/health || exit 1
+# Set default port (can be overridden via environment variable)
+ENV PORT=8000
 
-# Run the FastAPI server
-CMD ["uvicorn", "envs.coding_env.server.app:app", "--host", "0.0.0.0", "--port", "8000"]
+# Health check (uses PORT env variable)
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+    CMD curl -f http://localhost:${PORT}/health || exit 1
+
+# Run the FastAPI server (uses PORT env variable)
+CMD sh -c "uvicorn envs.coding_env.server.app:app --host 0.0.0.0 --port ${PORT}"

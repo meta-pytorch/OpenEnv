@@ -8,12 +8,21 @@
 Local Python Executor.
 
 This module provides functionality for executing Python code locally by wrapping
-the smolagents LocalPythonExecutor.
+the smolagents LocalPythonExecutor with timeout protection.
 """
+
+import multiprocessing
+import signal
+from typing import Optional
 
 from smolagents import LocalPythonExecutor
 
 from core.env_server.types import CodeExecResult
+
+
+def _timeout_handler(signum, frame):
+    """Signal handler for timeout."""
+    raise TimeoutError("Code execution timed out")
 
 
 class PyExecutor:
@@ -57,12 +66,14 @@ class PyExecutor:
         # Initialize tools to make BASE_PYTHON_TOOLS available (including print)
         self._executor.send_tools({})
 
-    def run(self, code: str) -> CodeExecResult:
+    def run(self, code: str, timeout_s: Optional[float] = None) -> CodeExecResult:
         """
-        Execute Python code and return the result.
+        Execute Python code and return the result with optional timeout protection.
 
         Args:
             code: Python code string to execute
+            timeout_s: Maximum execution time in seconds. If None, no timeout is enforced.
+                      If the code exceeds this time, it will be terminated with a timeout error.
 
         Returns:
             CodeExecResult containing stdout, stderr, and exit_code
@@ -77,22 +88,58 @@ class PyExecutor:
             >>> result = executor.run("1 / 0")
             >>> print(result.exit_code)  # 1
             >>> print(result.stderr)  # Contains error message
+            >>>
+            >>> # Timeout protection
+            >>> result = executor.run("while True: pass", timeout_s=5.0)
+            >>> print(result.exit_code)  # 1
+            >>> print("timeout" in result.stderr.lower())  # True
         """
         try:
-            # Execute the code using LocalPythonExecutor
-            # LocalPythonExecutor returns a CodeOutput object with output, logs, is_final_answer
-            exec_result = self._executor(code)
+            # Set up timeout using signal (Unix/Linux only)
+            old_handler = None
+            if timeout_s is not None and timeout_s > 0:
+                try:
+                    # Set alarm signal handler for timeout
+                    old_handler = signal.signal(signal.SIGALRM, _timeout_handler)
+                    signal.alarm(int(timeout_s))
+                except (ValueError, AttributeError):
+                    # signal.alarm is not available on Windows
+                    # Fall back to no timeout on Windows
+                    pass
 
-            # Extract the logs (which contain print outputs) as stdout
-            # The output field contains the return value of the code
-            stdout = exec_result.logs
-            stderr = ""
-            exit_code = 0  # Success
+            try:
+                # Execute the code using LocalPythonExecutor
+                # LocalPythonExecutor returns a CodeOutput object with output, logs, is_final_answer
+                exec_result = self._executor(code)
 
+                # Extract the logs (which contain print outputs) as stdout
+                # The output field contains the return value of the code
+                stdout = exec_result.logs
+                stderr = ""
+                exit_code = 0  # Success
+
+                return CodeExecResult(
+                    stdout=stdout,
+                    stderr=stderr,
+                    exit_code=exit_code,
+                )
+            finally:
+                # Cancel the alarm and restore old handler
+                if timeout_s is not None and timeout_s > 0:
+                    try:
+                        signal.alarm(0)
+                        if old_handler is not None:
+                            signal.signal(signal.SIGALRM, old_handler)
+                    except (ValueError, AttributeError):
+                        pass
+
+        except TimeoutError as e:
+            # Code execution exceeded timeout
             return CodeExecResult(
-                stdout=stdout,
-                stderr=stderr,
-                exit_code=exit_code,
+                stdout="",
+                stderr=f"Code execution timed out after {timeout_s} seconds. "
+                       f"Possible infinite loop or extremely long computation.",
+                exit_code=1,  # Non-zero indicates error
             )
 
         except Exception as e:

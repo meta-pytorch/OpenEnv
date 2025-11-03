@@ -46,6 +46,8 @@ class HTTPEnvClient(ABC, Generic[ActT, ObsT]):
         cls: Type[EnvClientT],
         image: str,
         provider: Optional["ContainerProvider"] = None,
+        timeout_s: float = 120.0,
+        request_timeout_s: float = 15.0,
         **kwargs: Any,
     ) -> EnvClientT:
         """
@@ -62,6 +64,8 @@ class HTTPEnvClient(ABC, Generic[ActT, ObsT]):
         Args:
             image: Docker image name to run (e.g., "echo-env:latest")
             provider: Container provider to use (defaults to LocalDockerProvider)
+            timeout_s: Maximum time to wait for container to become ready (default: 120 seconds)
+            request_timeout_s: Timeout for HTTP requests to the environment (default: 15 seconds)
             **kwargs: Additional arguments to pass to provider.start_container()
                      (e.g., env_vars, port)
 
@@ -75,9 +79,11 @@ class HTTPEnvClient(ABC, Generic[ActT, ObsT]):
             >>> # Create environment from image
             >>> env = CodingEnv.from_docker_image("coding-env:latest")
             >>>
-            >>> # Create environment with custom env vars
+            >>> # Create environment with custom env vars and timeouts
             >>> env = CodingEnv.from_docker_image(
             ...     "coding-env:latest",
+            ...     timeout_s=180.0,
+            ...     request_timeout_s=120.0,
             ...     env_vars={"MY_VAR": "value"}
             ... )
             >>>
@@ -99,11 +105,11 @@ class HTTPEnvClient(ABC, Generic[ActT, ObsT]):
         # 1. Start container with optional kwargs (e.g., env_vars, port)
         base_url = provider.start_container(image, **kwargs)
 
-        # 2. Wait for server to be ready
-        provider.wait_for_ready(base_url)
+        # 2. Wait for server to be ready with configured timeout
+        provider.wait_for_ready(base_url, timeout_s=timeout_s)
 
-        # 3. Create and return client instance with provider reference
-        return cls(base_url=base_url, provider=provider)
+        # 3. Create and return client instance with provider reference and request timeout
+        return cls(base_url=base_url, request_timeout_s=request_timeout_s, provider=provider)
 
     @abstractmethod
     def _step_payload(self, action: ActT) -> dict:

@@ -45,10 +45,12 @@ class PythonCodeActEnv(Environment):
 
     def __init__(
         self,
+        additional_imports: list[str] | None = None,
     ):
         self.transform = create_safe_coding_transform()
-        self._executor = PyExecutor()
+        self._executor = PyExecutor(additional_imports=additional_imports)
         self._state = CodeState()
+        self._additional_imports = additional_imports
 
     def reset(self) -> Observation:
         """
@@ -63,7 +65,7 @@ class PythonCodeActEnv(Environment):
         self._state.last_exit_code = 0
 
         # Reset executor to clear any previously defined variables/functions
-        self._executor = PyExecutor()
+        self._executor = PyExecutor(additional_imports=self._additional_imports)
 
         # Reset transform to clear any accumulated state
         self.transform = create_safe_coding_transform()
@@ -77,24 +79,37 @@ class PythonCodeActEnv(Environment):
 
         return self._apply_transform(observation)
 
-    def step(self, action: Action) -> Observation:
+    def step(self, action: Action, timeout_s: float | None = None) -> Observation:
         """
         Execute code action and return observation.
 
         Args:
             action: CodeAction containing the code to execute
+            timeout_s: Maximum execution time in seconds. If None, uses default timeout (60s).
+                      If code exceeds timeout, execution is terminated with a timeout error.
 
         Returns:
             CodeObservation with execution results (stdout, stderr, exit_code)
 
         Raises:
             ValueError: If action is not a CodeAction instance
+
+        Example:
+            >>> env = PythonCodeActEnv()
+            >>> env.reset()
+            >>> action = CodeAction(code="print('Hello')")
+            >>> obs = env.step(action, timeout_s=30.0)  # 30 second timeout
+            >>> print(obs.stdout)  # "Hello\n"
         """
         if not isinstance(action, CodeAction):
             raise ValueError(f"Expected CodeAction, got {type(action)}")
 
-        # Execute the code using PyExecutor
-        result = self._executor.run(action.code)
+        # Use default timeout if none provided (60 seconds is reasonable for most code)
+        if timeout_s is None:
+            timeout_s = 60.0
+
+        # Execute the code using PyExecutor with timeout protection
+        result = self._executor.run(action.code, timeout_s=timeout_s)
 
         # Update state
         self._state.step_count += 1

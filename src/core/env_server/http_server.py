@@ -15,7 +15,7 @@ from __future__ import annotations
 
 import os
 from dataclasses import asdict
-from typing import Any, Dict, Type
+from typing import Any, Dict, Optional, Type
 
 from .interfaces import Environment
 from .types import Action, Observation
@@ -85,13 +85,22 @@ class HTTPEnvServer:
         async def step(request: Dict[str, Any]) -> Dict[str, Any]:
             """Step endpoint - executes action and returns observation."""
             action_data = request.get("action", {})
-            # TODO: Handle timeout_s, request_id, episode_id from request if provided
+            
+            # Extract timeout_s from request (sent by HTTPEnvClient)
+            timeout_s = request.get("timeout_s", None)
+            
+            # TODO: Handle request_id, episode_id from request if provided
 
             # Deserialize action
             action = self._deserialize_action(action_data)
 
-            # Execute step
-            observation = self.env.step(action)
+            # Execute step with timeout if environment supports it
+            try:
+                # Try to pass timeout_s to step() method
+                observation = self.env.step(action, timeout_s=timeout_s)
+            except TypeError:
+                # Environment doesn't support timeout parameter, call without it
+                observation = self.env.step(action)
 
             # Return serialized observation
             return self._serialize_observation(observation)

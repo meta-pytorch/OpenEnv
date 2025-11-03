@@ -135,29 +135,42 @@ class LocalDockerProvider(ContainerProvider):
 
         Args:
             image: Docker image name
-            port: Port to expose (if None, finds available port)
+            port: Port to expose (if None, uses 8000)
             env_vars: Environment variables for the container
             **kwargs: Additional Docker run options
+                - command_override: List of command args to override container CMD
+                - memory_gb: Memory limit in GB (default: 4GB)
 
         Returns:
             Base URL to connect to the container
         """
         import subprocess
         import time
+        import logging
 
-        # Find available port if not specified
+        logger = logging.getLogger(__name__)
+
+        # Use default port if not specified
         if port is None:
-            port = self._find_available_port()
+            port = 8000
+
+        # Use default memory limit if not specified
+        memory_gb = kwargs.get("memory_gb", 4)
 
         # Generate container name
         self._container_name = self._generate_container_name(image)
 
         # Build docker run command
+        # Use host networking for better performance and consistency with podman
+        # NOTE: Do NOT use --rm initially - if container fails to start, we need logs
         cmd = [
             "docker", "run",
             "-d",  # Detached
             "--name", self._container_name,
-            "-p", f"{port}:8000",  # Map port
+            "--network", "host",  # Use host network
+            "--memory", f"{memory_gb}g",  # Limit container memory
+            "--memory-swap", f"{memory_gb}g",  # Prevent swap usage (set equal to --memory)
+            "--oom-kill-disable=false",  # Allow OOM killer (exit gracefully)
         ]
 
         # Add environment variables
@@ -165,13 +178,24 @@ class LocalDockerProvider(ContainerProvider):
             for key, value in env_vars.items():
                 cmd.extend(["-e", f"{key}={value}"])
 
+        # Pass custom port via environment variable instead of overriding command
+        # This allows the container to use its proper entrypoint/CMD
+        if port != 8000:
+            cmd.extend(["-e", f"PORT={port}"])
+
         # Add image
         cmd.append(image)
+          
+        # Add command override if provided (explicit override by user)
+        if "command_override" in kwargs:
+            cmd.extend(kwargs["command_override"])
 
         # Run container
         try:
+            logger.debug(f"Starting container with command: {' '.join(cmd)}")
             result = subprocess.run(cmd, capture_output=True, text=True, check=True)
             self._container_id = result.stdout.strip()
+            logger.debug(f"Container started with ID: {self._container_id}")
         except subprocess.CalledProcessError as e:
             error_msg = f"Failed to start Docker container.\nCommand: {' '.join(cmd)}\nExit code: {e.returncode}\nStderr: {e.stderr}\nStdout: {e.stdout}"
             raise RuntimeError(error_msg) from e
@@ -179,7 +203,7 @@ class LocalDockerProvider(ContainerProvider):
         # Wait a moment for container to start
         time.sleep(1)
 
-        base_url = f"http://localhost:{port}"
+        base_url = f"http://127.0.0.1:{port}"
         return base_url
 
     def stop_container(self) -> None:
@@ -227,23 +251,65 @@ class LocalDockerProvider(ContainerProvider):
         """
         import time
         import requests
+        import subprocess
+        import logging
 
         start_time = time.time()
         health_url = f"{base_url}/health"
+        last_error = None
 
         while time.time() - start_time < timeout_s:
             try:
                 response = requests.get(health_url, timeout=2.0)
                 if response.status_code == 200:
                     return
-            except requests.RequestException:
-                pass
+            except requests.RequestException as e:
+                last_error = str(e)
 
             time.sleep(0.5)
 
-        raise TimeoutError(
-            f"Container at {base_url} did not become ready within {timeout_s}s"
-        )
+        # If we timeout, provide diagnostic information
+        error_msg = f"Container at {base_url} did not become ready within {timeout_s}s"
+          
+        if self._container_id:
+            try:
+                # First check if container exists
+                inspect_result = subprocess.run(
+                    ["docker", "inspect", self._container_id],
+                    capture_output=True,
+                    text=True,
+                    timeout=5,
+                )
+                  
+                if inspect_result.returncode != 0:
+                    # Container doesn't exist - likely exited and auto-removed due to --rm flag
+                    error_msg += f"\n\nContainer was auto-removed (likely exited immediately)."
+                    error_msg += f"\nThis typically means:"
+                    error_msg += f"\n  1. The container image has an error in its startup script"
+                    error_msg += f"\n  2. Required dependencies are missing in the container"
+                    error_msg += f"\n  3. Port {base_url.split(':')[-1]} might be in use by another process"
+                    error_msg += f"\n  4. Container command/entrypoint is misconfigured"
+                    error_msg += f"\nTry running the container manually to debug:"
+                    error_msg += f"\n  docker run -it --rm <IMAGE_NAME>"
+                else:
+                    # Container exists, try to get logs
+                    result = subprocess.run(
+                        ["docker", "logs", "--tail", "50", self._container_id],
+                        capture_output=True,
+                        text=True,
+                        timeout=5,
+                    )
+                    if result.stdout or result.stderr:
+                        error_msg += f"\n\nContainer logs (last 50 lines):\n{result.stdout}\n{result.stderr}"
+            except subprocess.TimeoutExpired:
+                error_msg += f"\n\nTimeout while trying to inspect container"
+            except Exception as e:
+                error_msg += f"\n\nFailed to get container diagnostics: {e}"
+
+        if last_error:
+            error_msg += f"\n\nLast connection error: {last_error}"
+
+        raise TimeoutError(error_msg)
 
     def _find_available_port(self) -> int:
         """
@@ -275,6 +341,31 @@ class LocalDockerProvider(ContainerProvider):
         clean_image = image.split("/")[-1].split(":")[0]
         timestamp = int(time.time() * 1000)
         return f"{clean_image}-{timestamp}"
+
+    def _infer_app_module(self, image: str) -> Optional[str]:
+        """
+        Infer the uvicorn app module path from the image name.
+
+        Args:
+            image: Container image name
+
+        Returns:
+            App module path like "envs.coding_env.server.app:app" or None
+        """
+        clean_image = image.split("/")[-1].split(":")[0]
+        
+        # Map common environment names to their app modules
+        env_module_map = {
+            "coding-env": "envs.coding_env.server.app:app",
+            "echo-env": "envs.echo_env.server.app:app",
+            "git-env": "envs.git_env.server.app:app",
+            "openspiel-env": "envs.openspiel_env.server.app:app",
+            "sumo-rl-env": "envs.sumo_rl_env.server.app:app",
+            "finrl-env": "envs.finrl_env.server.app:app",
+        }
+        
+        return env_module_map.get(clean_image)
+
 
 
 class KubernetesProvider(ContainerProvider):
