@@ -92,21 +92,14 @@ class TestCreateSpace:
 class TestGetSpaceRepoId:
     """Tests for get_space_repo_id function."""
 
-    @patch("openenv_cli.core.space.ensure_authenticated")
-    def test_get_space_repo_id_uses_authenticated_user(self, mock_auth):
-        """Test get_space_repo_id uses authenticated user's username."""
-        mock_auth.return_value = ("test_user", "token")
-
-        result = get_space_repo_id("my-env")
+    def test_get_space_repo_id_uses_provided_username(self):
+        """Test get_space_repo_id uses provided username."""
+        result = get_space_repo_id("my-env", "test_user")
 
         assert result == "test_user/my-env"
-        mock_auth.assert_called_once()
 
-    @patch("openenv_cli.core.space.ensure_authenticated")
-    def test_get_space_repo_id_env_name_with_underscore(self, mock_auth):
+    def test_get_space_repo_id_env_name_with_underscore(self):
         """Test get_space_repo_id handles env names with underscores."""
-        mock_auth.return_value = ("test_user", "token")
-
-        result = get_space_repo_id("my_env")
+        result = get_space_repo_id("my_env", "test_user")
 
         assert result == "test_user/my_env"

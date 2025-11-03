@@ -10,8 +10,6 @@ from typing import Optional
 
 from huggingface_hub import HfApi
 
-from .auth import ensure_authenticated
-
 
 def create_space(api: HfApi, repo_id: str, private: bool = False) -> None:
     """
@@ -58,16 +56,15 @@ def create_space(api: HfApi, repo_id: str, private: bool = False) -> None:
         ) from e
 
 
-def get_space_repo_id(env_name: str) -> str:
+def get_space_repo_id(env_name: str, username: str) -> str:
     """
-    Get the full repository ID for a space using the authenticated user's username.
+    Get the full repository ID for a space using the provided username.
     
     Args:
         env_name: Environment name (e.g., "echo_env"). Used as space name.
+        username: Username to use for the repository ID.
         
     Returns:
         Repository ID in format 'username/env_name'.
     """
-    # Use authenticated user's username
-    username, _ = ensure_authenticated()
     return f"{username}/{env_name}"

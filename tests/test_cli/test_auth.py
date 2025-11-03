@@ -10,7 +10,13 @@ from unittest.mock import Mock, patch
 
 import pytest
 
-from openenv_cli.core.auth import check_authentication, ensure_authenticated, login_interactive
+from openenv_cli.core.auth import (
+    check_authentication,
+    check_auth_status,
+    ensure_authenticated,
+    perform_login,
+    AuthStatus,
+)
 
 
 @pytest.fixture
@@ -69,60 +75,95 @@ class TestCheckAuthentication:
 
 
 class TestEnsureAuthenticated:
-    """Tests for ensure_authenticated function."""
+    """Tests for ensure_authenticated function (legacy compatibility)."""
 
-    @patch("openenv_cli.core.auth.check_authentication")
+    @patch("openenv_cli.core.auth.check_auth_status")
     @patch("openenv_cli.core.auth.get_token")
-    def test_ensure_authenticated_already_authenticated(self, mock_get_token, mock_check):
+    def test_ensure_authenticated_already_authenticated(self, mock_get_token, mock_check_status):
         """Test ensure_authenticated when already authenticated."""
-        mock_check.return_value = "test_user"
+        mock_check_status.return_value = AuthStatus(
+            is_authenticated=True, username="test_user", token="test_token"
+        )
         mock_get_token.return_value = "test_token"
 
         username, token = ensure_authenticated()
 
         assert username == "test_user"
         assert token == "test_token"
-        mock_check.assert_called_once()
+        mock_check_status.assert_called_once()
 
-    @patch("openenv_cli.core.auth.check_authentication")
-    @patch("openenv_cli.core.auth.login_interactive")
+    @patch("openenv_cli.core.auth.perform_login")
+    @patch("openenv_cli.core.auth.check_auth_status")
     @patch("openenv_cli.core.auth.get_token")
-    def test_ensure_authenticated_needs_login(self, mock_get_token, mock_login, mock_check):
+    def test_ensure_authenticated_needs_login(self, mock_get_token, mock_check_status, mock_perform_login):
         """Test ensure_authenticated when login is needed."""
-        mock_check.return_value = None
-        mock_login.return_value = "new_user"
+        mock_check_status.return_value = AuthStatus(is_authenticated=False)
+        mock_perform_login.return_value = AuthStatus(
+            is_authenticated=True, username="new_user", token="new_token"
+        )
         mock_get_token.return_value = "new_token"
 
         username, token = ensure_authenticated()
 
         assert username == "new_user"
         assert token == "new_token"
-        mock_login.assert_called_once()
+        mock_perform_login.assert_called_once()
 
 
-class TestLoginInteractive:
-    """Tests for login_interactive function."""
+class TestCheckAuthStatus:
+    """Tests for check_auth_status function."""
 
-    @patch("openenv_cli.core.auth.login")
     @patch("openenv_cli.core.auth.HfApi")
     @patch("openenv_cli.core.auth.get_token")
-    def test_login_interactive_success(self, mock_get_token, mock_api_class, mock_login):
-        """Test successful interactive login."""
-        mock_login.return_value = None  # login doesn't return anything
+    def test_check_auth_status_authenticated(self, mock_get_token, mock_api_class):
+        """Test check_auth_status when authenticated."""
+        mock_get_token.return_value = "test_token"
         mock_api = Mock()
-        mock_api.whoami.return_value = {"name": "logged_in_user"}
+        mock_api.whoami.return_value = {"name": "test_user"}
         mock_api_class.return_value = mock_api
-        mock_get_token.return_value = "new_token"
 
-        username = login_interactive()
+        status = check_auth_status()
 
-        assert username == "logged_in_user"
+        assert status.is_authenticated is True
+        assert status.username == "test_user"
+        assert status.token == "test_token"
+        mock_api.whoami.assert_called_once()
+
+    @patch("openenv_cli.core.auth.get_token")
+    def test_check_auth_status_no_token(self, mock_get_token):
+        """Test check_auth_status when no token exists."""
+        mock_get_token.return_value = None
+
+        status = check_auth_status()
+
+        assert status.is_authenticated is False
+        assert status.username is None
+        assert status.token is None
+
+
+class TestPerformLogin:
+    """Tests for perform_login function."""
+
+    @patch("openenv_cli.core.auth.check_auth_status")
+    @patch("openenv_cli.core.auth.login")
+    def test_perform_login_success(self, mock_login, mock_check_auth):
+        """Test successful login."""
+        mock_login.return_value = None  # login doesn't return anything
+        mock_check_auth.return_value = AuthStatus(
+            is_authenticated=True, username="logged_in_user", token="new_token"
+        )
+
+        status = perform_login()
+
+        assert status.is_authenticated is True
+        assert status.username == "logged_in_user"
         mock_login.assert_called_once()
+        mock_check_auth.assert_called_once()
 
     @patch("openenv_cli.core.auth.login")
-    def test_login_interactive_failure(self, mock_login):
-        """Test interactive login failure."""
+    def test_perform_login_failure(self, mock_login):
+        """Test login failure."""
         mock_login.side_effect = Exception("Login failed")
 
         with pytest.raises(Exception, match="Login failed"):
-            login_interactive()
+            perform_login()

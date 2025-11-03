@@ -75,31 +75,51 @@ pytest --cov=openenv_cli --cov-report=html tests/test_cli/
 
 ## Architecture
 
-The CLI is organized into modular components:
+The CLI follows the HuggingFace Hub CLI pattern, using `typer` for command-line interface definition. All user interaction is centralized in command handlers, while business logic remains in pure functions.
+
+### Structure
 
 ```
 src/openenv_cli/
-├── __main__.py              # CLI entry point
+├── __main__.py              # CLI entry point (creates typer app, registers commands)
+├── _cli_utils.py            # CLI utilities (console, typer_factory)
 ├── commands/
-│   └── push.py              # Push command implementation
+│   └── push.py              # Push command (typer command with all UI interaction)
 ├── core/
-│   ├── auth.py              # Hugging Face authentication
-│   ├── space.py             # Space management (create/check)
-│   ├── builder.py           # Build staging directory and files
-│   └── uploader.py          # Upload to Hugging Face Spaces
+│   ├── auth.py              # Hugging Face authentication (pure functions)
+│   ├── space.py             # Space management (pure functions)
+│   ├── builder.py           # Build staging directory and files (pure functions)
+│   └── uploader.py          # Upload to Hugging Face Spaces (pure functions)
 └── utils/
-    └── env_loader.py         # Environment validation and metadata
+    └── env_loader.py         # Environment validation and metadata (pure functions)
 ```
 
 ### Module Responsibilities
 
-- **`auth.py`**: Handles Hugging Face authentication via interactive login using `huggingface_hub`
-- **`space.py`**: Manages Docker Spaces (creates with `exist_ok=True` to handle existing spaces)
-- **`builder.py`**: Prepares deployment package (copy files, generate Dockerfile/README)
-- **`uploader.py`**: Uploads files to Hugging Face using `upload_folder`
-- **`env_loader.py`**: Validates environment structure and loads metadata
+- **`__main__.py`**: Creates typer app and registers commands. Minimal logic, delegates to command handlers.
+- **`_cli_utils.py`**: Provides `typer_factory()` for consistent app creation and shared `console` instance.
+- **`commands/push.py`**: `push_command()` function decorated with `@app.command()` - handles all UI interaction (authentication prompts, status messages, error handling).
+- **`core/auth.py`**: Pure authentication functions returning status objects (no UI).
+- **`core/space.py`**: Pure functions for space management (no UI).
+- **`core/builder.py`**: Pure functions for preparing deployment files (no UI).
+- **`core/uploader.py`**: Pure function for uploading files (no UI).
+- **`utils/env_loader.py`**: Pure functions for environment validation and metadata (no UI).
 
 ## Implementation Details
+
+### CLI Framework: Typer
+
+The CLI uses [Typer](https://typer.timascio.com/) for command-line interface definition, following the same pattern as HuggingFace Hub's CLI:
+
+- **`typer_factory()`**: Creates typer apps with consistent settings
+- **Command handlers**: Functions decorated with `@app.command()` handle all UI interaction
+- **Type hints**: Uses `Annotated` types for better CLI argument definitions
+- **Rich integration**: Typer integrates with Rich for beautiful terminal output
+
+This pattern ensures:
+- Clean separation: All UI in command handlers, business logic in pure functions
+- Better testability: Business logic can be tested without mocking UI
+- Consistent experience: Same patterns as HuggingFace Hub CLI
 
 ### Using huggingface_hub Modules
 
@@ -205,24 +225,47 @@ openenv validate my_env
 
 The CLI architecture supports extension through:
 
-1. **Command Registration**: Add new commands in `commands/` and register in `__main__.py`
-2. **Core Modules**: Add new core functionality (e.g., `core/validator.py`)
+1. **Command Registration**: Add new typer commands in `commands/` and register in `__main__.py`
+2. **Core Modules**: Add new core functionality (e.g., `core/validator.py`) as pure functions
 3. **Shared Utilities**: Extend `utils/` for reusable functions
+4. **CLI Utilities**: Use `_cli_utils.py` for shared console and typer factory
 
 ### Example: Adding a New Command
 
+Following the typer pattern:
+
 ```python
 # src/openenv_cli/commands/validate.py
-def validate_environment(env_name: str) -> None:
+from typing import Annotated
+import typer
+
+from .._cli_utils import console
+
+def validate_command(
+    env_name: Annotated[
+        str,
+        typer.Argument(help="Name of the environment to validate"),
+    ],
+) -> None:
     """Validate environment structure."""
-    # Implementation
-    pass
+    # All UI interaction here
+    console.print(f"[bold cyan]Validating '{env_name}'...[/bold cyan]")
+    
+    # Call pure business logic functions
+    from ..core.validator import validate_environment
+    result = validate_environment(env_name)
+    
+    if result.is_valid:
+        console.print(f"[bold green]✓ Environment '{env_name}' is valid[/bold green]")
+    else:
+        console.print(f"[bold red]✗ Validation failed: {result.errors}[/bold red]")
+        sys.exit(1)
 
 # src/openenv_cli/__main__.py
-# Add to subparsers:
-validate_parser = subparsers.add_parser("validate", help="Validate environment")
-validate_parser.add_argument("env_name")
-# ... handle command
+from .commands.validate import validate_command
+
+# Register command
+app.command(name="validate", help="Validate environment structure")(validate_command)
 ```
 
 ## Contributing
