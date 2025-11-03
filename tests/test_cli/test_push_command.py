@@ -11,7 +11,12 @@ from unittest.mock import Mock, patch
 
 import pytest
 
-from openenv_cli.commands.push import push_environment
+from openenv_cli.commands.push import (
+    _prepare_environment,
+    _upload_environment,
+    push,
+    push_environment,
+)
 
 
 @pytest.fixture
@@ -241,3 +246,428 @@ class TestPushEnvironment:
         # Verify repo_id was used directly (get_space_repo_id should not be called)
         mock_get_repo_id.assert_not_called()
         mock_create_space.assert_called_once_with(mock_api, "my-org/custom-space", private=False)
+
+    @patch("openenv_cli.commands.push.upload_to_space")
+    @patch("openenv_cli.commands.push.create_space")
+    @patch("openenv_cli.commands.push.prepare_readme")
+    @patch("openenv_cli.commands.push.prepare_dockerfile")
+    @patch("openenv_cli.commands.push.copy_environment_files")
+    @patch("openenv_cli.commands.push.prepare_staging_directory")
+    @patch("openenv_cli.commands.push.validate_environment")
+    @patch("openenv_cli.commands.push.get_space_repo_id")
+    @patch("openenv_cli.commands.push.HfApi")
+    def test_push_environment_dry_run(
+        self,
+        mock_api_class,
+        mock_get_repo_id,
+        mock_validate,
+        mock_prepare_staging,
+        mock_copy_files,
+        mock_prepare_dockerfile,
+        mock_prepare_readme,
+        mock_create_space,
+        mock_upload,
+        mock_environment,
+    ):
+        """Test push with dry_run=True (should not upload)."""
+        # Setup mocks
+        mock_api = Mock()
+        mock_api_class.return_value = mock_api
+        mock_get_repo_id.return_value = "test_user/test_env"
+        staging_dir = mock_environment / "staging"
+        staging_dir.mkdir()
+        mock_prepare_staging.return_value = staging_dir
+        
+        # Run push with dry_run=True
+        push_environment(
+            "test_env",
+            username="test_user",
+            token="test_token",
+            dry_run=True,
+        )
+        
+        # Verify upload was NOT called (dry run)
+        mock_upload.assert_not_called()
+        # Verify cleanup happened
+        assert not staging_dir.exists()
+
+    @patch("openenv_cli.commands.push.upload_to_space")
+    @patch("openenv_cli.commands.push.create_space")
+    @patch("openenv_cli.commands.push.prepare_readme")
+    @patch("openenv_cli.commands.push.prepare_dockerfile")
+    @patch("openenv_cli.commands.push.copy_environment_files")
+    @patch("openenv_cli.commands.push.prepare_staging_directory")
+    @patch("openenv_cli.commands.push.validate_environment")
+    @patch("openenv_cli.commands.push.get_space_repo_id")
+    @patch("openenv_cli.commands.push.HfApi")
+    def test_push_environment_cleanup_on_error(
+        self,
+        mock_api_class,
+        mock_get_repo_id,
+        mock_validate,
+        mock_prepare_staging,
+        mock_copy_files,
+        mock_prepare_dockerfile,
+        mock_prepare_readme,
+        mock_create_space,
+        mock_upload,
+        mock_environment,
+    ):
+        """Test that staging directory is cleaned up even on upload error."""
+        # Setup mocks
+        mock_api = Mock()
+        mock_api_class.return_value = mock_api
+        mock_get_repo_id.return_value = "test_user/test_env"
+        staging_dir = mock_environment / "staging"
+        staging_dir.mkdir()
+        mock_prepare_staging.return_value = staging_dir
+        mock_upload.side_effect = Exception("Upload failed")
+        
+        # Run push and expect error
+        with pytest.raises(Exception, match="Upload failed"):
+            push_environment("test_env", username="test_user", token="test_token")
+        
+        # Verify cleanup happened even after error
+        assert not staging_dir.exists()
+
+
+class TestPrepareEnvironment:
+    """Tests for _prepare_environment function."""
+
+    @patch("openenv_cli.commands.push.prepare_readme")
+    @patch("openenv_cli.commands.push.prepare_dockerfile")
+    @patch("openenv_cli.commands.push.copy_environment_files")
+    @patch("openenv_cli.commands.push.prepare_staging_directory")
+    @patch("openenv_cli.commands.push.create_space")
+    @patch("openenv_cli.commands.push.validate_environment")
+    @patch("openenv_cli.commands.push.get_space_repo_id")
+    @patch("openenv_cli.commands.push.HfApi")
+    def test_prepare_environment_full(
+        self,
+        mock_api_class,
+        mock_get_repo_id,
+        mock_validate,
+        mock_create_space,
+        mock_prepare_staging,
+        mock_copy_files,
+        mock_prepare_dockerfile,
+        mock_prepare_readme,
+        mock_environment,
+    ):
+        """Test _prepare_environment with all steps."""
+        # Setup mocks
+        mock_api = Mock()
+        mock_api_class.return_value = mock_api
+        mock_get_repo_id.return_value = "test_user/test_env"
+        staging_dir = Path("staging")
+        mock_prepare_staging.return_value = staging_dir
+        
+        # Run prepare
+        result = _prepare_environment(
+            env_name="test_env",
+            repo_id=None,
+            private=False,
+            base_image=None,
+            username="test_user",
+            token="test_token",
+        )
+        
+        # Verify calls
+        mock_validate.assert_called_once_with("test_env")
+        mock_get_repo_id.assert_called_once_with("test_env", "test_user")
+        mock_create_space.assert_called_once_with(mock_api, "test_user/test_env", private=False)
+        mock_prepare_staging.assert_called_once()
+        mock_copy_files.assert_called_once()
+        mock_prepare_dockerfile.assert_called_once()
+        mock_prepare_readme.assert_called_once()
+        assert result == staging_dir
+
+    @patch("openenv_cli.commands.push.prepare_readme")
+    @patch("openenv_cli.commands.push.prepare_dockerfile")
+    @patch("openenv_cli.commands.push.copy_environment_files")
+    @patch("openenv_cli.commands.push.prepare_staging_directory")
+    @patch("openenv_cli.commands.push.create_space")
+    @patch("openenv_cli.commands.push.validate_environment")
+    @patch("openenv_cli.commands.push.get_space_repo_id")
+    @patch("openenv_cli.commands.push.HfApi")
+    def test_prepare_environment_with_repo_id(
+        self,
+        mock_api_class,
+        mock_get_repo_id,
+        mock_validate,
+        mock_create_space,
+        mock_prepare_staging,
+        mock_copy_files,
+        mock_prepare_dockerfile,
+        mock_prepare_readme,
+        mock_environment,
+    ):
+        """Test _prepare_environment with explicit repo_id."""
+        # Setup mocks
+        mock_api = Mock()
+        mock_api_class.return_value = mock_api
+        staging_dir = Path("staging")
+        mock_prepare_staging.return_value = staging_dir
+        
+        # Run prepare with repo_id
+        result = _prepare_environment(
+            env_name="test_env",
+            repo_id="my-org/test_env",
+            private=True,
+            base_image="custom:latest",
+            username="test_user",
+            token="test_token",
+        )
+        
+        # Verify get_space_repo_id was NOT called
+        mock_get_repo_id.assert_not_called()
+        mock_create_space.assert_called_once_with(mock_api, "my-org/test_env", private=True)
+        mock_prepare_staging.assert_called_once_with("test_env", "custom:latest")
+        assert result == staging_dir
+
+
+class TestUploadEnvironment:
+    """Tests for _upload_environment function."""
+
+    @patch("openenv_cli.commands.push.upload_to_space")
+    @patch("openenv_cli.commands.push.HfApi")
+    def test_upload_environment_success(self, mock_api_class, mock_upload, tmp_path):
+        """Test _upload_environment successfully uploads."""
+        # Setup
+        mock_api = Mock()
+        mock_api_class.return_value = mock_api
+        staging_dir = tmp_path / "staging"
+        staging_dir.mkdir()
+        (staging_dir / "test.txt").write_text("test")
+        
+        # Run upload
+        _upload_environment(
+            env_name="test_env",
+            repo_id="test_user/test_env",
+            staging_dir=staging_dir,
+            username="test_user",
+            token="test_token",
+        )
+        
+        # Verify upload was called and cleanup happened
+        mock_upload.assert_called_once_with("test_user/test_env", staging_dir, "test_token")
+        assert not staging_dir.exists()
+
+    @patch("openenv_cli.commands.push.upload_to_space")
+    @patch("openenv_cli.commands.push.HfApi")
+    def test_upload_environment_cleanup_on_error(self, mock_api_class, mock_upload, tmp_path):
+        """Test _upload_environment cleans up even on upload error."""
+        # Setup
+        mock_api = Mock()
+        mock_api_class.return_value = mock_api
+        staging_dir = tmp_path / "staging"
+        staging_dir.mkdir()
+        (staging_dir / "test.txt").write_text("test")
+        mock_upload.side_effect = Exception("Upload failed")
+        
+        # Run upload and expect error
+        with pytest.raises(Exception, match="Upload failed"):
+            _upload_environment(
+                env_name="test_env",
+                repo_id="test_user/test_env",
+                staging_dir=staging_dir,
+                username="test_user",
+                token="test_token",
+            )
+        
+        # Verify cleanup happened even after error
+        assert not staging_dir.exists()
+
+    @patch("openenv_cli.commands.push.upload_to_space")
+    @patch("openenv_cli.commands.push.HfApi")
+    def test_upload_environment_nonexistent_staging_dir(self, mock_api_class, mock_upload, tmp_path):
+        """Test _upload_environment handles nonexistent staging directory."""
+        # Setup
+        mock_api = Mock()
+        mock_api_class.return_value = mock_api
+        staging_dir = tmp_path / "nonexistent"
+        
+        # Run upload
+        _upload_environment(
+            env_name="test_env",
+            repo_id="test_user/test_env",
+            staging_dir=staging_dir,
+            username="test_user",
+            token="test_token",
+        )
+        
+        # Verify upload was called (cleanup won't fail on nonexistent dir)
+        mock_upload.assert_called_once_with("test_user/test_env", staging_dir, "test_token")
+
+
+class TestPushCommand:
+    """Tests for push() typer command function."""
+
+    @patch("openenv_cli.commands.push.push_environment")
+    @patch("openenv_cli.commands.push.check_auth_status")
+    def test_push_command_already_authenticated(
+        self,
+        mock_check_auth,
+        mock_push_env,
+        mock_environment,
+    ):
+        """Test push command when already authenticated."""
+        from openenv_cli.core.auth import AuthStatus
+        
+        # Setup
+        mock_check_auth.return_value = AuthStatus(
+            is_authenticated=True, username="test_user", token="test_token"
+        )
+        
+        # Run command
+        push(
+            env_name="test_env",
+            repo_id=None,
+            private=False,
+            base_image=None,
+            dry_run=True,
+        )
+        
+        # Verify
+        mock_check_auth.assert_called_once()
+        mock_push_env.assert_called_once_with(
+            env_name="test_env",
+            username="test_user",
+            token="test_token",
+            repo_id=None,
+            private=False,
+            base_image=None,
+            dry_run=True,
+        )
+
+    @patch("openenv_cli.commands.push.perform_login")
+    @patch("openenv_cli.commands.push.check_auth_status")
+    @patch("sys.exit")
+    def test_push_command_needs_login(
+        self,
+        mock_exit,
+        mock_check_auth,
+        mock_perform_login,
+        mock_environment,
+    ):
+        """Test push command when login is needed."""
+        from openenv_cli.core.auth import AuthStatus
+        
+        # Setup
+        mock_check_auth.return_value = AuthStatus(is_authenticated=False)
+        mock_perform_login.return_value = AuthStatus(
+            is_authenticated=True, username="test_user", token="test_token"
+        )
+        
+        # Run command
+        push(
+            env_name="test_env",
+            repo_id=None,
+            private=False,
+            base_image=None,
+            dry_run=True,
+        )
+        
+        # Verify login was called
+        mock_check_auth.assert_called_once()
+        mock_perform_login.assert_called_once()
+
+    @patch("openenv_cli.commands.push.perform_login")
+    @patch("openenv_cli.commands.push.check_auth_status")
+    def test_push_command_login_failure(
+        self,
+        mock_check_auth,
+        mock_perform_login,
+        mock_environment,
+    ):
+        """Test push command when login fails."""
+        from openenv_cli.core.auth import AuthStatus
+        
+        # Setup
+        mock_check_auth.return_value = AuthStatus(is_authenticated=False)
+        mock_perform_login.side_effect = Exception("Login failed")
+        
+        # Run command (should exit with SystemExit)
+        with pytest.raises(SystemExit) as exc_info:
+            push(
+                env_name="test_env",
+                repo_id=None,
+                private=False,
+                base_image=None,
+                dry_run=True,
+            )
+        
+        # Verify exit code
+        assert exc_info.value.code == 1
+
+    @patch("openenv_cli.commands.push._upload_environment")
+    @patch("openenv_cli.commands.push._prepare_environment")
+    @patch("openenv_cli.commands.push.get_space_repo_id")
+    @patch("openenv_cli.commands.push.check_auth_status")
+    def test_push_command_non_dry_run(
+        self,
+        mock_check_auth,
+        mock_get_repo_id,
+        mock_prepare,
+        mock_upload,
+        mock_environment,
+    ):
+        """Test push command with dry_run=False (full workflow)."""
+        from openenv_cli.core.auth import AuthStatus
+        
+        # Setup
+        mock_check_auth.return_value = AuthStatus(
+            is_authenticated=True, username="test_user", token="test_token"
+        )
+        mock_get_repo_id.return_value = "test_user/test_env"
+        staging_dir = Path("staging")
+        mock_prepare.return_value = staging_dir
+        
+        # Run command
+        push(
+            env_name="test_env",
+            repo_id=None,
+            private=False,
+            base_image=None,
+            dry_run=False,
+        )
+        
+        # Verify
+        mock_prepare.assert_called_once()
+        mock_get_repo_id.assert_called_once_with("test_env", "test_user")
+        mock_upload.assert_called_once_with(
+            env_name="test_env",
+            repo_id="test_user/test_env",
+            staging_dir=staging_dir,
+            username="test_user",
+            token="test_token",
+        )
+
+    @patch("openenv_cli.commands.push.push_environment")
+    @patch("openenv_cli.commands.push.check_auth_status")
+    def test_push_command_error_handling(
+        self,
+        mock_check_auth,
+        mock_push_env,
+        mock_environment,
+    ):
+        """Test push command error handling."""
+        from openenv_cli.core.auth import AuthStatus
+        
+        # Setup
+        mock_check_auth.return_value = AuthStatus(
+            is_authenticated=True, username="test_user", token="test_token"
+        )
+        mock_push_env.side_effect = Exception("Test error")
+        
+        # Run command (should exit with error)
+        with pytest.raises(SystemExit) as exc_info:
+            push(
+                env_name="test_env",
+                repo_id=None,
+                private=False,
+                base_image=None,
+                dry_run=True,
+            )
+        
+        assert exc_info.value.code == 1

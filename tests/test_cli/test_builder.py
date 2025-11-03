@@ -7,6 +7,7 @@
 """Tests for builder module."""
 
 import os
+from pathlib import Path
 from unittest.mock import patch
 
 import pytest
@@ -78,6 +79,22 @@ class TestPrepareStagingDirectory:
         """Test that staging directory structure is created."""
         # This will be tested through integration with copy functions
         pass
+
+    def test_prepare_staging_directory_removes_existing(self, tmp_path, monkeypatch):
+        """Test that prepare_staging_directory removes existing directory."""
+        from openenv_cli.core.builder import prepare_staging_directory
+        
+        staging_root = tmp_path / "hf-staging"
+        staging_dir = staging_root / "test_env"
+        staging_dir.mkdir(parents=True)
+        (staging_dir / "old_file.txt").write_text("old content")
+        
+        # Should remove and recreate
+        result = prepare_staging_directory("test_env", "test:latest", str(staging_root))
+        
+        assert result.exists()
+        assert not (result / "old_file.txt").exists()
+        assert (result / "src" / "core").exists()
 
 
 class TestCopyEnvironmentFiles:
@@ -438,5 +455,73 @@ class TestPrepareReadme:
             assert "environment-specific content" in content
             # Should not duplicate the title - original "# Test Environment" appears once (from appended content)
             assert content.count("# Test Environment") == 1
+        finally:
+            os.chdir(old_cwd)
+
+
+class TestCopyEnvironmentFilesErrorCases:
+    """Tests for copy_environment_files error cases."""
+
+    def test_copy_environment_files_env_not_found(self, repo_root, tmp_path, monkeypatch):
+        """Test copy_environment_files when environment doesn't exist."""
+        from openenv_cli.core.builder import copy_environment_files, prepare_staging_directory
+        
+        staging_dir = prepare_staging_directory("nonexistent", "test:latest", str(tmp_path / "hf-staging"))
+        
+        old_cwd = os.getcwd()
+        try:
+            os.chdir(repo_root)
+            with pytest.raises(FileNotFoundError, match="Environment not found"):
+                copy_environment_files("nonexistent", staging_dir)
+        finally:
+            os.chdir(old_cwd)
+
+
+class TestPrepareDockerfileDefault:
+    """Tests for prepare_dockerfile default creation."""
+
+    def test_prepare_dockerfile_creates_default(self, tmp_path, monkeypatch):
+        """Test that default Dockerfile is created when env has no Dockerfile."""
+        from openenv_cli.core.builder import prepare_dockerfile, prepare_staging_directory
+        
+        # Create a fresh repo root without using repo_root fixture (which includes Dockerfile)
+        repo_root = tmp_path / "repo"
+        env_dir = repo_root / "src" / "envs" / "test_env"
+        env_dir.mkdir(parents=True)
+        (env_dir / "models.py").write_text("# Test")
+        # Don't create server/Dockerfile - this should trigger default creation
+        
+        # Create core directory
+        core_dir = repo_root / "src" / "core"
+        core_dir.mkdir(parents=True)
+        (core_dir / "__init__.py").write_text("# Core")
+        
+        staging_dir = prepare_staging_directory("test_env", "test:latest", str(tmp_path / "hf-staging"))
+        
+        old_cwd = os.getcwd()
+        try:
+            os.chdir(repo_root)
+            base_image = "ghcr.io/meta-pytorch/openenv-base:latest"
+            
+            # Verify Dockerfile doesn't exist before
+            env_dockerfile = Path("src/envs") / "test_env" / "server" / "Dockerfile"
+            assert not env_dockerfile.exists(), "Dockerfile should not exist for this test"
+            
+            prepare_dockerfile("test_env", staging_dir, base_image)
+            
+            dockerfile_path = staging_dir / "Dockerfile"
+            assert dockerfile_path.exists()
+            
+            content = dockerfile_path.read_text()
+            # Check for default Dockerfile structure (lines 101-121)
+            # Default template includes HEALTHCHECK, FROM, COPY, CMD
+            assert f"FROM {base_image}" in content
+            assert "COPY src/core/" in content
+            assert "COPY src/envs/test_env/" in content
+            # HEALTHCHECK should be in default template
+            assert "HEALTHCHECK" in content
+            # ENABLE_WEB_INTERFACE is added after default template (line 129)
+            assert "ENV ENABLE_WEB_INTERFACE=true" in content
+            assert "CMD [\"uvicorn\", \"envs.test_env.server.app:app\"" in content
         finally:
             os.chdir(old_cwd)
