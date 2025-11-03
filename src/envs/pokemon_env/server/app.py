@@ -18,7 +18,8 @@ Usage:
 Environment variables:
     POKEMON_BATTLE_FORMAT: Battle format (default: "gen9randombattle")
     POKEMON_PLAYER_USERNAME: Player username (default: "player")
-    POKEMON_SERVER_URL: Pokemon Showdown server URL (default: "localhost:8000")
+    POKEMON_REWARD_MODE: Reward mode - "sparse" or "dense" (default: "sparse")
+    POKEMON_MAX_TURNS: Maximum turns per battle (default: "1000")
 """
 
 import os
@@ -28,13 +29,24 @@ from core.env_server import create_app
 from ..models import PokemonAction, PokemonObservation
 from .pokemon_environment import PokemonEnvironment
 
-battle_format = os.getenv("POKEMON_BATTLE_FORMAT", "gen8randombattle")
+import logging
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+
+battle_format = os.getenv("POKEMON_BATTLE_FORMAT", "gen9randombattle")
 player_username = os.getenv("POKEMON_PLAYER_USERNAME", "player")
-server_url = os.getenv("POKEMON_SERVER_URL", "localhost:8000")
+reward_mode = os.getenv("POKEMON_REWARD_MODE", "sparse")
+max_turns = int(os.getenv("POKEMON_MAX_TURNS", "1000"))
 
 env = PokemonEnvironment(
     battle_format=battle_format,
     player_username=player_username,
+    reward_mode=reward_mode,
+    max_turns=max_turns,
 )
 
 app = create_app(env, PokemonAction, PokemonObservation, env_name="pokemon_env")
