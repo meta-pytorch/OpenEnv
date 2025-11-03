@@ -55,4 +55,22 @@ class TestInitCommand:
             init_cmd(env_name=env_name, path=None, force=True)
             assert (target / "openenv.yaml").exists()
 
+    def test_init_non_empty_without_force_errors(self, tmp_path, monkeypatch):
+        monkeypatch.chdir(tmp_path)
+        env_name = "my_env"
+        target = tmp_path / env_name
+        target.mkdir(parents=True)
+        (target / "EXISTING").write_text("x")
+
+        with pytest.raises(FileExistsError):
+            init_cmd(env_name=env_name, path=None, force=False)
+
+    def test_init_git_failure_raises(self, tmp_path, monkeypatch):
+        monkeypatch.chdir(tmp_path)
+        env_name = "fail_env"
+        from subprocess import CalledProcessError
+        with patch("subprocess.run", side_effect=CalledProcessError(1, ["git", "init"])):
+            with pytest.raises(CalledProcessError):
+                init_cmd(env_name=env_name, path=None, force=False)
+
 

@@ -114,7 +114,7 @@ class ChatEnvironment(Environment):
         if self._state.history_tokens:
             # Flatten all tokens into a single 1D tensor
             flattened_tokens = torch.cat(
-                (t.flatten() for t in self._state.history_tokens), dim=0
+                [t.flatten() for t in self._state.history_tokens], dim=0
             )
         else:
             flattened_tokens = torch.tensor([])

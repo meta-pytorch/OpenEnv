@@ -85,19 +85,19 @@ def resolve_environment(env_name: Optional[str] = None, env_path: Optional[str] 
     3) Otherwise, assume current working directory is the environment root (env_name = cwd name)
     """
     if env_path is not None:
-        root = Path(env_path)
+        root = Path(env_path).resolve()
         validate_environment_at(root)
         name = env_name if env_name is not None else root.name
         return name, root
 
     if env_name is not None:
         # Try repo structure
-        repo_env = Path("src/envs") / env_name
+        repo_env = (Path("src/envs") / env_name).resolve()
         if repo_env.exists() and repo_env.is_dir():
             return env_name, repo_env
 
     # Fallback: assume cwd is env root
-    cwd = Path.cwd()
+    cwd = Path.cwd().resolve()
     validate_environment_at(cwd)
     name = env_name if env_name is not None else cwd.name
     return name, cwd

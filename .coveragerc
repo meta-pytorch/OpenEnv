@@ -1,0 +1,6 @@
+[run]
+omit =
+    src/openenv_cli/templates/*
+    src/openenv_cli/__main__.py
+
+
