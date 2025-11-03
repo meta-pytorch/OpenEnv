@@ -78,4 +78,7 @@ def login_interactive() -> str:
             raise Exception("Login failed: unable to verify authentication")
         return username
     except Exception as e:
+        # Re-raise our custom exceptions, wrap others
+        if isinstance(e, Exception) and str(e).startswith("Login failed"):
+            raise
         raise Exception(f"Login failed: {str(e)}")

@@ -64,21 +64,49 @@ def main():
     if args.command == "push":
         try:
             # Authenticate first (before status spinner) to allow interactive login if needed
-            console.print(f"[bold cyan]Authenticating...[/bold cyan]")
+            # Note: login() may print ASCII art to stdout - we clean up after
             username, token = ensure_authenticated()
+            # Print a newline to separate login output from our status message
+            console.print()  # Clean separator after login output
             
             if args.dry_run:
                 status_message = f"[bold yellow]Preparing dry run for '{args.env_name}'...[/bold yellow]"
+                with console.status(status_message):
+                    push_environment(
+                        env_name=args.env_name,
+                        repo_id=args.repo_id,
+                        private=args.private,
+                        base_image=args.base_image,
+                        dry_run=args.dry_run,
+                    )
             else:
-                status_message = f"[bold cyan]Pushing environment '{args.env_name}'...[/bold cyan]"
-
-            with console.status(status_message):
-                push_environment(
+                # Use status spinner for preparation steps
+                with console.status(f"[bold cyan]Preparing '{args.env_name}'...[/bold cyan]"):
+                    from openenv_cli.commands.push import _prepare_environment
+                    staging_dir = _prepare_environment(
+                        env_name=args.env_name,
+                        repo_id=args.repo_id,
+                        private=args.private,
+                        base_image=args.base_image,
+                        username=username,
+                        token=token,
+                    )
+                
+                # Determine repo_id for upload
+                if args.repo_id is None:
+                    from openenv_cli.core.space import get_space_repo_id
+                    repo_id = get_space_repo_id(args.env_name)
+                else:
+                    repo_id = args.repo_id
+                
+                # Upload without spinner so messages from huggingface_hub appear cleanly
+                from openenv_cli.commands.push import _upload_environment
+                _upload_environment(
                     env_name=args.env_name,
-                    repo_id=args.repo_id,
-                    private=args.private,
-                    base_image=args.base_image,
-                    dry_run=args.dry_run,
+                    repo_id=repo_id,
+                    staging_dir=staging_dir,
+                    username=username,
+                    token=token,
                 )
 
             if args.dry_run:

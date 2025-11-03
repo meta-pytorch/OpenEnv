@@ -6,6 +6,7 @@
 
 """Push command for deploying environments to Hugging Face Spaces."""
 
+from pathlib import Path
 from typing import Optional
 
 from huggingface_hub import HfApi
@@ -79,6 +80,75 @@ def push_environment(
         
     finally:
         # Cleanup staging directory after upload or dry run
+        if staging_dir.exists():
+            import shutil
+            shutil.rmtree(staging_dir)
+
+
+def _prepare_environment(
+    env_name: str,
+    repo_id: Optional[str],
+    private: bool,
+    base_image: Optional[str],
+    username: str,
+    token: str,
+) -> Path:
+    """
+    Internal function to prepare environment staging directory.
+    
+    Returns:
+        Path to staging directory (must be cleaned up by caller).
+    """
+    # Validate environment exists
+    validate_environment(env_name)
+    
+    # Determine target space repo ID
+    if repo_id is None:
+        repo_id = get_space_repo_id(env_name)
+    
+    # Create HfApi instance
+    api = HfApi(token=token)
+    
+    # Check if space exists, create if needed
+    create_space(api, repo_id, private=private)
+    
+    # Set default base image if not provided
+    if base_image is None:
+        base_image = "ghcr.io/meta-pytorch/openenv-base:latest"
+    
+    # Prepare staging directory
+    staging_dir = prepare_staging_directory(env_name, base_image)
+    
+    # Copy files
+    copy_environment_files(env_name, staging_dir)
+    
+    # Prepare Dockerfile
+    prepare_dockerfile(env_name, staging_dir, base_image)
+    
+    # Prepare README
+    prepare_readme(env_name, staging_dir)
+    
+    return staging_dir
+
+
+def _upload_environment(
+    env_name: str,
+    repo_id: str,
+    staging_dir: Path,
+    username: str,
+    token: str,
+) -> None:
+    """
+    Internal function to upload environment staging directory.
+    
+    The staging directory will be cleaned up after upload.
+    """
+    api = HfApi(token=token)
+    
+    try:
+        upload_to_space(api, repo_id, staging_dir, token)
+    finally:
+        # Cleanup staging directory after upload
         if staging_dir.exists():
             import shutil
             shutil.rmtree(staging_dir)
