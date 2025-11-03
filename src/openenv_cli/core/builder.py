@@ -134,9 +134,9 @@ CMD ["uvicorn", "envs.{env_name}.server.app:app", "--host", "0.0.0.0", "--port",
 
 def prepare_readme(env_name: str, staging_dir: Path) -> None:
     """
-    Prepare README.md with HuggingFace front matter.
+    Prepare README.md with Hugging Face front matter.
     
-    If the environment README already has HuggingFace front matter (starts and ends with `---`),
+    If the environment README already has Hugging Face front matter (starts and ends with `---`),
     use it as-is. Otherwise, generate front matter with random emoji and colors.
     
     Args:
@@ -149,7 +149,7 @@ def prepare_readme(env_name: str, staging_dir: Path) -> None:
         Path("src/envs") / env_name / "server" / "README.md",
     ]
     
-    # Check if any README has HuggingFace front matter
+    # Check if any README has Hugging Face front matter
     existing_readme_content = None
     for readme_path in readme_paths:
         if readme_path.exists():

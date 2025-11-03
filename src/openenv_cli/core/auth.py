@@ -4,7 +4,7 @@
 # This source code is licensed under the BSD-style license found in the
 # LICENSE file in the root directory of this source tree.
 
-"""Authentication module for HuggingFace."""
+"""Authentication module for Hugging Face."""
 
 import os
 from typing import Optional, Tuple
@@ -15,7 +15,7 @@ from huggingface_hub.utils import get_token
 
 def check_authentication() -> Optional[str]:
     """
-    Check if user is authenticated with HuggingFace.
+    Check if user is authenticated with Hugging Face.
     
     Returns:
         Username if authenticated, None otherwise.
@@ -78,7 +78,7 @@ def ensure_authenticated() -> Tuple[str, str]:
 
 def login_interactive() -> str:
     """
-    Perform interactive login to HuggingFace.
+    Perform interactive login to Hugging Face.
     
     Returns:
         Username after successful login.

@@ -4,7 +4,7 @@
 # This source code is licensed under the BSD-style license found in the
 # LICENSE file in the root directory of this source tree.
 
-"""Push command for deploying environments to HuggingFace Spaces."""
+"""Push command for deploying environments to Hugging Face Spaces."""
 
 from typing import Optional
 
@@ -31,7 +31,7 @@ def push_environment(
     dry_run: bool = False,
 ) -> None:
     """
-    Push an environment to HuggingFace Spaces.
+    Push an environment to Hugging Face Spaces.
     
     Args:
         env_name: Name of the environment to push.
@@ -45,7 +45,7 @@ def push_environment(
     # Validate environment exists
     validate_environment(env_name)
     
-    # Authenticate with HuggingFace
+    # Authenticate with Hugging Face
     _, token = ensure_authenticated()
     
     # Determine target space repo ID

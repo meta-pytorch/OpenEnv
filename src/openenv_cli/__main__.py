@@ -31,7 +31,7 @@ def main():
     # Push command
     push_parser = subparsers.add_parser(
         "push",
-        help="Push an environment to HuggingFace Spaces",
+        help="Push an environment to Hugging Face Spaces",
     )
     push_parser.add_argument(
         "env_name",
@@ -39,12 +39,12 @@ def main():
     )
     push_parser.add_argument(
         "--namespace",
-        help="HuggingFace namespace (organization or user). "
+        help="Hugging Face namespace (organization or user). "
              "If not provided, uses authenticated user's username.",
     )
     push_parser.add_argument(
         "--space-name",
-        help="Custom name for the HuggingFace Space. "
+        help="Custom name for the Hugging Face Space. "
              "If not provided, uses the environment name.",
     )
     push_parser.add_argument(
@@ -60,7 +60,7 @@ def main():
     push_parser.add_argument(
         "--dry-run",
         action="store_true",
-        help="Prepare files but don't upload to HuggingFace",
+        help="Prepare files but don't upload to Hugging Face",
     )
     
     args = parser.parse_args()

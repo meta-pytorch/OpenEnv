@@ -4,7 +4,7 @@
 # This source code is licensed under the BSD-style license found in the
 # LICENSE file in the root directory of this source tree.
 
-"""Space management module for HuggingFace Spaces."""
+"""Space management module for Hugging Face Spaces."""
 
 from typing import Optional
 
@@ -15,7 +15,7 @@ from .auth import ensure_authenticated
 
 def create_space(api: HfApi, repo_id: str, private: bool = False) -> None:
     """
-    Create a Docker Space on HuggingFace.
+    Create a Docker Space on Hugging Face.
     
     Args:
         api: HfApi instance to use for API calls.
@@ -39,7 +39,7 @@ def create_space(api: HfApi, repo_id: str, private: bool = False) -> None:
         if any(keyword in error_str for keyword in ["unauthorized", "authentication", "401", "invalid token", "token"]):
             raise Exception(
                 f"Authentication failed when creating space {repo_id}. "
-                f"Please check your HuggingFace token and ensure it has write permissions. "
+                f"Please check your Hugging Face token and ensure it has write permissions. "
                 f"Original error: {e}"
             ) from e
         

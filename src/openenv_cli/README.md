@@ -1,10 +1,10 @@
 # OpenEnv CLI
 
-Command-line tool for managing and deploying OpenEnv environments to HuggingFace Spaces.
+Command-line tool for managing and deploying OpenEnv environments to Hugging Face Spaces.
 
 ## Overview
 
-The OpenEnv CLI provides a self-service workflow for publishing environments to HuggingFace Spaces, enabling community members to share environments without requiring GitHub PRs. The CLI handles authentication, space provisioning, building, and deployment automatically.
+The OpenEnv CLI provides a self-service workflow for publishing environments to Hugging Face Spaces, enabling community members to share environments without requiring GitHub PRs. The CLI handles authentication, space provisioning, building, and deployment automatically.
 
 ## Installation
 
@@ -24,7 +24,7 @@ pip install -e ".[dev]"
 
 ### Push Environment
 
-Push an environment to HuggingFace Spaces:
+Push an environment to Hugging Face Spaces:
 
 ```bash
 openenv push <env_name> [options]
@@ -34,11 +34,11 @@ openenv push <env_name> [options]
 - `env_name`: Name of the environment to push (e.g., `echo_env`, `coding_env`)
 
 **Options:**
-- `--namespace <namespace>`: HuggingFace namespace (organization or user). If not provided, uses authenticated user's username.
-- `--space-name <space_name>`: Custom name for the HuggingFace Space. If not provided, uses the environment name.
+- `--namespace <namespace>`: Hugging Face namespace (organization or user). If not provided, uses authenticated user's username.
+- `--space-name <space_name>`: Custom name for the Hugging Face Space. If not provided, uses the environment name.
 - `--private`: Create a private space (default: public)
 - `--base-image <image>`: Base Docker image to use (default: `ghcr.io/meta-pytorch/openenv-base:latest`)
-- `--dry-run`: Prepare files but don't upload to HuggingFace
+- `--dry-run`: Prepare files but don't upload to Hugging Face
 
 **Examples:**
 
@@ -67,9 +67,9 @@ openenv push echo_env --dry-run
 
 ### Authentication
 
-The CLI uses HuggingFace authentication. You can authenticate in two ways:
+The CLI uses Hugging Face authentication. You can authenticate in two ways:
 
-1. **Environment Variable**: Set `HF_TOKEN` environment variable with your HuggingFace token
+1. **Environment Variable**: Set `HF_TOKEN` environment variable with your Hugging Face token
    ```bash
    export HF_TOKEN=your_token_here
    ```
@@ -90,14 +90,14 @@ To get a token:
 The `openenv push` command performs the following steps:
 
 1. **Validation**: Checks that the environment exists in `src/envs/<env_name>/`
-2. **Authentication**: Ensures you're authenticated with HuggingFace (prompts if needed)
+2. **Authentication**: Ensures you're authenticated with Hugging Face (prompts if needed)
 3. **Space Provisioning**: Determines the target Space name (uses `--space-name` if provided, otherwise `env_name`) and namespace (`--namespace` if provided, otherwise authenticated user). Checks if a Docker Space exists, creates it if needed
 4. **Build Process**:
    - Creates a staging directory
    - Copies core and environment files
    - Generates/modifies Dockerfile with web interface enabled
-   - Prepares README: If the environment's README already has HuggingFace front matter (starts and ends with `---`), uses it as-is. Otherwise, generates front matter with random emoji and colors from approved options
-5. **Deployment**: Uploads all files to the HuggingFace Space
+   - Prepares README: If the environment's README already has Hugging Face front matter (starts and ends with `---`), uses it as-is. Otherwise, generates front matter with random emoji and colors from approved options
+5. **Deployment**: Uploads all files to the Hugging Face Space
 6. **Cleanup**: Removes staging directory after successful upload
 
 ## Testing
@@ -132,7 +132,7 @@ pytest tests/test_cli/test_push_command.py
 
 ### Test Structure
 
-Tests follow pytest conventions and use mocking to avoid requiring actual HuggingFace API access:
+Tests follow pytest conventions and use mocking to avoid requiring actual Hugging Face API access:
 
 - **Unit Tests**: Each module (`auth`, `space`, `builder`, `uploader`) has dedicated tests
 - **Integration Tests**: `test_push_command.py` tests the full workflow with mocks
@@ -175,20 +175,20 @@ src/openenv_cli/
 ├── commands/
 │   └── push.py              # Push command implementation
 ├── core/
-│   ├── auth.py              # HuggingFace authentication
+│   ├── auth.py              # Hugging Face authentication
 │   ├── space.py             # Space management (create/check)
 │   ├── builder.py           # Build staging directory and files
-│   └── uploader.py          # Upload to HuggingFace Spaces
+│   └── uploader.py          # Upload to Hugging Face Spaces
 └── utils/
     └── env_loader.py         # Environment validation and metadata
 ```
 
 ### Module Responsibilities
 
-- **`auth.py`**: Handles HuggingFace authentication using `huggingface_hub`
+- **`auth.py`**: Handles Hugging Face authentication using `huggingface_hub`
 - **`space.py`**: Manages Docker Spaces (check existence, create)
 - **`builder.py`**: Prepares deployment package (copy files, generate Dockerfile/README)
-- **`uploader.py`**: Uploads files to HuggingFace using `upload_folder`
+- **`uploader.py`**: Uploads files to Hugging Face using `upload_folder`
 - **`env_loader.py`**: Validates environment structure and loads metadata
 
 ## Implementation Details
@@ -202,7 +202,7 @@ The CLI uses `huggingface_hub` Python modules directly (not the CLI), as specifi
 - `huggingface_hub.upload_folder()` for file uploads
 - `huggingface_hub.utils.get_token` for token management
 
-This ensures consistency with HuggingFace tooling and allows for better error handling and programmatic control.
+This ensures consistency with Hugging Face tooling and allows for better error handling and programmatic control.
 
 ### Web Interface
 
@@ -219,7 +219,7 @@ The builder creates a staging directory structure:
 ```
 hf-staging/<env_name>/
 ├── Dockerfile           # Generated/modified Dockerfile
-├── README.md            # With HuggingFace front matter
+├── README.md            # With Hugging Face front matter
 └── src/
     ├── core/            # Copied from src/core/
     └── envs/
@@ -361,12 +361,12 @@ validate_parser.add_argument("env_name")
 When adding new features:
 
 1. **Write Tests First**: Follow TDD approach, write tests before implementation
-2. **Use Mocks**: Mock external APIs (HuggingFace) to keep tests fast and isolated
+2. **Use Mocks**: Mock external APIs (Hugging Face) to keep tests fast and isolated
 3. **Follow Patterns**: Match existing code style and patterns
 4. **Update Documentation**: Update this README and add docstrings
 
 ## References
 
-- [HuggingFace Hub Python API](https://huggingface.co/docs/huggingface_hub/index)
+- [Hugging Face Hub Python API](https://huggingface.co/docs/huggingface_hub/index)
 - [OpenEnv Environment Structure](../envs/README.md)
 - [OpenEnv RFCs](../../rfcs/)

@@ -61,7 +61,7 @@ class TestCreateSpace:
         error_message = str(exc_info.value)
         assert "Authentication failed" in error_message
         assert "test_user/my-env" in error_message
-        assert "HuggingFace token" in error_message
+        assert "Hugging Face token" in error_message
         assert "write permissions" in error_message
 
     def test_create_space_permission_error(self, mock_hf_api):

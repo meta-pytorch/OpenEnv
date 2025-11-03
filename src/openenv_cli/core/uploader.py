@@ -4,7 +4,7 @@
 # This source code is licensed under the BSD-style license found in the
 # LICENSE file in the root directory of this source tree.
 
-"""Uploader module for deploying to HuggingFace Spaces."""
+"""Uploader module for deploying to Hugging Face Spaces."""
 
 from pathlib import Path
 
@@ -19,13 +19,13 @@ def upload_to_space(
     token: str,
 ) -> None:
     """
-    Upload staging directory contents to HuggingFace Space.
+    Upload staging directory contents to Hugging Face Space.
     
     Args:
         api: HfApi instance to use for API calls.
         repo_id: Repository ID in format 'namespace/repo-name'.
         staging_dir: Path to staging directory to upload.
-        token: HuggingFace token for authentication.
+        token: Hugging Face token for authentication.
         
     Raises:
         Exception: If upload fails.
