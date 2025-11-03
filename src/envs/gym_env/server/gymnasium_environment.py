@@ -9,17 +9,16 @@
 from __future__ import annotations
 
 import logging
-import math
 import uuid
 from typing import Any, Dict, Optional
 import numpy as np
 
 try:
     import gymnasium as gym
+    from gymnasium import spaces
 except ImportError:
     raise ValueError("Please install gymnasium with: pip install gymnasium")
-from gymnasium import spaces
-import numpy.typing as npt
+
 from core.env_server import Environment
 
 from ..models import GymAction, GymObservation, GymState
@@ -119,10 +118,6 @@ class GymnasiumEnvironment(Environment):
         """Execute an action and return the resulting observation."""
         gym_action = self._convert_action(action)
         obs, reward, terminated, truncated, info = self.env.step(gym_action)
-        if action.return_frame:
-            frame = self.env.render()
-        else:
-            frame = None
 
         self._state.step_count += 1
         self._state.episode_length += 1
@@ -141,7 +136,6 @@ class GymnasiumEnvironment(Environment):
             terminated=terminated,
             truncated=truncated,
             raw_reward=raw_reward,
-            frame=frame,
         )
 
         logger.debug(
@@ -259,7 +253,6 @@ class GymnasiumEnvironment(Environment):
         terminated: bool,
         truncated: bool,
         raw_reward: Any,
-        frame: Optional[npt.ArrayLike] = None,
     ) -> GymObservation:
         metadata = {
             "env_id": self.env_id,
@@ -285,7 +278,6 @@ class GymnasiumEnvironment(Environment):
             done=done,
             reward=reward,
             metadata=metadata,
-            frame=self._to_serializable(frame),
         )
 
     def _describe_space(self, space: spaces.Space) -> Dict[str, Any]:

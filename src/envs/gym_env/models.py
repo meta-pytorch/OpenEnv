@@ -14,7 +14,7 @@ used by the Gym environment integration.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, List, Optional
+from typing import Any, Optional
 
 from core.env_server import Action, Observation, State
 
@@ -24,7 +24,6 @@ class GymAction(Action):
     """Generic action wrapper for Gymnasium environments."""
 
     action: Any
-    return_frame: bool = False
 
 
 @dataclass
@@ -35,7 +34,6 @@ class GymObservation(Observation):
     legal_actions: Optional[Any] = None
     episode_length: int = 0
     total_reward: float = 0.0
-    frame: Optional[List] = None
 
 
 @dataclass

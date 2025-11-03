@@ -46,7 +46,7 @@ class GymEnvironment(HTTPEnvClient[GymAction, GymObservation]):
         Returns:
             Dictionary representation suitable for JSON encoding.
         """
-        payload: Dict[str, Any] = {"action": action.action, "return_frame": action.return_frame}
+        payload: Dict[str, Any] = {"action": action.action}
         if action.metadata:
             payload["metadata"] = action.metadata
         return payload
@@ -71,7 +71,6 @@ class GymEnvironment(HTTPEnvClient[GymAction, GymObservation]):
             done=bool(payload.get("done", False)),
             reward=payload.get("reward"),
             metadata=obs_data.get("metadata", {}),
-            frame= obs_data.get("frame", None)
         )
 
         return StepResult(

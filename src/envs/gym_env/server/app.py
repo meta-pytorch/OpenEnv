@@ -15,7 +15,7 @@ from .gymnasium_environment import GymnasiumEnvironment
 
 # Environment configuration via environment variables
 env_id = os.getenv("GYM_ENVIRONMENT_ID", "MountainCarContinuous-v0")
-render_mode = os.getenv("GYM_RENDER_MODE") or None
+render_mode = os.getenv("GYM_RENDER_MODE", "rgb_array")
 
 max_steps_str = os.getenv("GYM_MAX_STEPS")
 max_steps = int(max_steps_str) if max_steps_str else 1000
