@@ -84,7 +84,8 @@ src/openenv_cli/
 ├── __main__.py              # CLI entry point (creates typer app, registers commands)
 ├── _cli_utils.py            # CLI utilities (console, typer_factory)
 ├── commands/
-│   └── push.py              # Push command (typer command with all UI interaction)
+│   ├── push.py              # Push command (typer command with all UI interaction)
+│   └── init.py              # Init command (scaffold a new environment from templates)
 ├── core/
 │   ├── auth.py              # Hugging Face authentication (pure functions)
 │   ├── space.py             # Space management (pure functions)
@@ -156,27 +157,23 @@ hf-staging/<env_name>/
 
 The staging directory is cleaned up after successful upload.
 
-## Future Direction
+## Init Command
 
-The CLI architecture is designed to support additional commands for a complete environment management workflow:
-
-### Planned Commands
-
-#### `openenv init`
-
-Initialize a new environment with the standard OpenEnv structure:
+Initialize a new environment scaffold from bundled templates (FastAPI + Dockerfile):
 
 ```bash
-openenv init my_new_env --template coding
+openenv init <env_name> [--path <dir>] [--force]
+cd <env_name>
+uvicorn server.app:app --reload
 ```
 
-**Features:**
-- Create environment directory structure
-- Generate boilerplate files (models.py, client.py, server/)
-- Initialize Dockerfile and app.py
-- Create README template
+Notes:
+- Templates are stored in `src/openenv_cli/templates/openenv_env/` and shipped with the CLI.
+- The generated `openenv.yaml` uses `spec_version: 1`.
+- The Dockerfile uses `ARG BASE_IMAGE=ghcr.io/meta-pytorch/openenv-base:latest` and does not set `ENABLE_WEB_INTERFACE` (added during `openenv push`).
+- A git repo is always initialized with an initial commit.
 
-#### `openenv upgrade`
+## Future Direction: upgrade, test, validate
 
 Upgrade an existing environment to a new OpenEnv version:
 
@@ -190,7 +187,6 @@ openenv upgrade my_env --to-version 0.2.0
 - Migrate code to new API versions
 - Backup existing environment
 
-#### `openenv test`
 
 Run local tests before pushing:
 
@@ -206,7 +202,6 @@ openenv test my_env --docker
 - Validate environment structure
 - Check for common issues
 
-#### `openenv validate`
 
 Pre-submission validation:
 
