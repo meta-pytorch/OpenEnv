@@ -58,6 +58,7 @@ class PokemonEnv(HTTPEnvClient[PokemonAction, PokemonObservation]):
             "move_id": action.move_id,
             "switch_pokemon": action.switch_pokemon,
             "mega_evolve": action.mega_evolve,
+            "z_move": action.z_move,
             "dynamax": action.dynamax,
             "terastallize": action.terastallize,
         }

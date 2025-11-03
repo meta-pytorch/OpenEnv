@@ -6,9 +6,10 @@ via the OpenEnv Environment interface.
 """
 
 import asyncio
+import time
 import uuid
-from typing import Any, Dict, List, Optional
-from concurrent.futures import ThreadPoolExecutor
+from typing import Any, Dict, Optional
+from concurrent.futures import Future
 
 from core.env_server import Action, Environment, Observation
 
@@ -19,6 +20,7 @@ try:
     from poke_env.battle import Battle, Move
     from poke_env.data import GenData
     from poke_env import AccountConfiguration, ServerConfiguration, LocalhostServerConfiguration
+    from poke_env.concurrency import POKE_LOOP, create_in_poke_loop
 except ImportError as e:
     raise ImportError(
         "poke-env is not installed. "
@@ -37,13 +39,12 @@ class OpenEnvPokemonPlayer(Player):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self._next_action: Optional[PokemonAction] = None
-        self._action_ready = asyncio.Event()
-        self._executor = ThreadPoolExecutor(max_workers=1)
+        self._action_ready = create_in_poke_loop(asyncio.Event)
     
     def set_next_action(self, action: PokemonAction):
         """Set the next action to be executed in the battle."""
         self._next_action = action
-        self._action_ready.set()
+        POKE_LOOP.call_soon_threadsafe(self._action_ready.set)
     
     async def choose_move(self, battle: Battle):
         """
@@ -51,8 +52,10 @@ class OpenEnvPokemonPlayer(Player):
         
         This method waits for an action to be set via set_next_action(),
         then executes it in the battle.
+        
+        For a step-based environment, we wait indefinitely for the user to provide an action.
         """
-        await asyncio.wait_for(self._action_ready.wait(), timeout=60.0)
+        await self._action_ready.wait()
         
         action = self._next_action
         self._next_action = None
@@ -64,8 +67,11 @@ class OpenEnvPokemonPlayer(Player):
         if action.action_type == "move":
             if action.action_index < len(battle.available_moves):
                 move = battle.available_moves[action.action_index]
+                # Handle special battle mechanics (only one can be active at a time)
                 if action.mega_evolve and battle.can_mega_evolve:
                     return self.create_order(move, mega=True)
+                elif action.z_move and battle.can_z_move:
+                    return self.create_order(move, z_move=True)
                 elif action.dynamax and battle.can_dynamax:
                     return self.create_order(move, dynamax=True)
                 elif action.terastallize and battle.can_tera:
@@ -93,13 +99,13 @@ class PokemonEnvironment(Environment):
     interface for RL training with Pokemon battles.
 
     Args:
-        battle_format: Battle format to use (e.g., "gen8randombattle", "gen8ou")
+        battle_format: Battle format to use (e.g., "gen9randombattle", "gen9ou")
         player_username: Username for the player
         server_config: ServerConfiguration for Pokemon Showdown connection
         opponent: Opponent player (defaults to RandomPlayer)
 
     Example:
-        >>> env = PokemonEnvironment(battle_format="gen8randombattle")
+        >>> env = PokemonEnvironment(battle_format="gen9randombattle")
         >>> obs = env.reset()
         >>> print(obs.active_pokemon.species)
         >>> obs = env.step(PokemonAction(action_type="move", action_index=0))
@@ -112,6 +118,7 @@ class PokemonEnvironment(Environment):
         player_username: Optional[str] = None,
         server_config: Optional[ServerConfiguration] = None,
         opponent: Optional[Player] = None,
+        max_turns: Optional[int] = 50,
     ):
         """Initialize Pokemon battle environment."""
         super().__init__()
@@ -147,8 +154,162 @@ class PokemonEnvironment(Environment):
         )
         
         self._current_battle: Optional[Battle] = None
-        self._battle_task: Optional[asyncio.Task] = None
-        self._loop: Optional[asyncio.AbstractEventLoop] = None
+        self._battle_future: Optional[Future] = None
+        self._last_request_id: Optional[int] = None
+        self.max_turns = max_turns
+        self._forfeit_requested = False
+        self._forfeit_reason: Optional[str] = None
+        self._completed_battle_tags: set[str] = set()
+
+    def _start_battle_if_needed(self):
+        """Ensure a battle coroutine is scheduled on the poke-env loop."""
+        if self._battle_future is None or self._battle_future.done():
+            if self._battle_future is not None and self._battle_future.done():
+                # Propagate previous failure if any
+                try:
+                    self._battle_future.result()
+                except Exception as exc:  # pragma: no cover - surface upstream
+                    raise RuntimeError("Previous battle task failed") from exc
+
+            self._battle_future = asyncio.run_coroutine_threadsafe(
+                self.player.battle_against(self.opponent, n_battles=1),
+                POKE_LOOP,
+            )
+
+    def _wait_for_battle_ready(self, timeout_seconds: float = 10.0) -> bool:
+        """Wait until poke-env reports an active battle or timeout."""
+        start_time = time.time()
+
+        while time.time() - start_time < timeout_seconds:
+            if self._battle_future and self._battle_future.done():
+                # Battle coroutine ended before becoming ready – raise underlying issue
+                try:
+                    self._battle_future.result()
+                except Exception as exc:  # pragma: no cover
+                    raise RuntimeError("Battle setup failed") from exc
+
+            for battle_tag, battle in self.player.battles.items():
+                if battle_tag in self._completed_battle_tags:
+                    continue
+                battle_tag_full = getattr(battle, "battle_tag", battle_tag)
+                if battle_tag_full in self._completed_battle_tags:
+                    continue
+
+                last_request = getattr(battle, "last_request", None)
+                if last_request and (
+                    battle.available_moves
+                    or battle.available_switches
+                    or battle.force_switch
+                    or battle.finished
+                ):
+                    self._current_battle = battle
+                    return True
+
+            time.sleep(0.1)
+
+        return False
+
+    def _request_forfeit(self, reason: str):
+        """Send a /forfeit message to conclude the current battle."""
+        if self._current_battle is None or self._current_battle.finished:
+            return
+        if self._forfeit_requested:
+            return
+
+        self._forfeit_requested = True
+        self._forfeit_reason = reason
+        battle_tag = self._current_battle.battle_tag
+        self.player.logger.warning(
+            "Forfeiting battle %s due to %s", battle_tag, reason
+        )
+
+        async def _send_forfeit():
+            await self.player.ps_client.send_message("/forfeit", battle_tag)
+
+        try:
+            asyncio.run_coroutine_threadsafe(_send_forfeit(), POKE_LOOP)
+        except RuntimeError:
+            # If the loop is closed we cannot send a message, but the battle will end shortly anyway.
+            pass
+
+    def _wait_for_battle_completion(self, timeout_seconds: float = 5.0) -> bool:
+        """Wait briefly for the current battle to finish after a forfeit."""
+        if self._current_battle is None:
+            return True
+
+        start_time = time.time()
+        while time.time() - start_time < timeout_seconds:
+            if self._current_battle.finished:
+                return True
+            time.sleep(0.1)
+        return False
+
+    def _mark_battle_completed(self, battle: Optional[Battle]):
+        """Record a battle as finished so future resets skip it."""
+        if battle is None:
+            return
+
+        tag = battle.battle_tag
+        self._completed_battle_tags.add(tag)
+        alt_tag = tag.removeprefix("battle-")
+        if alt_tag != tag:
+            self._completed_battle_tags.add(alt_tag)
+
+        if self._current_battle is battle:
+            self._current_battle = None
+
+        self._forfeit_requested = False
+        self._forfeit_reason = None
+        self._last_request_id = None
+
+        if self._battle_future and not self._battle_future.done():
+            self._battle_future.cancel()
+        self._battle_future = None
+
+    def _wait_for_battle_progress(
+        self,
+        previous_request_id: Optional[int],
+        previous_turn: int,
+        timeout_seconds: float = 10.0,
+    ):
+        """Block until poke-env reports a fresh request or the battle ends."""
+        # poke-env runs the battle loop on a background thread. Sleeping briefly
+        # here allows the remote player and simulator to advance the state before
+        # we read the new observation.
+        elapsed = 0.0
+        while elapsed < timeout_seconds:
+            time.sleep(0.05)
+            elapsed += 0.05
+            if self._current_battle is None:
+                return
+            battle = self._current_battle
+            if battle.finished:
+                return
+            last_request = getattr(battle, "last_request", None)
+            current_request_id = None
+            if isinstance(last_request, dict):
+                current_request_id = last_request.get("rqid")
+
+            if previous_request_id is None and current_request_id is not None:
+                return
+
+            if (
+                current_request_id is not None
+                and previous_request_id is not None
+                and current_request_id != previous_request_id
+            ):
+                return
+
+            if current_request_id is None and previous_request_id is None:
+                # No request id yet, fall back to waiting for turn increments.
+                if battle.turn > previous_turn:
+                    return
+                if battle.available_moves or battle.available_switches:
+                    return
+                continue
+
+            if battle.turn > previous_turn:
+                return
         
     def _pokemon_to_data(self, pokemon) -> Optional[PokemonData]:
         """Convert poke-env Pokemon to PokemonData."""
@@ -236,7 +397,12 @@ class PokemonEnvironment(Environment):
             else:
                 reward = 0.0
         
-        return PokemonObservation(
+        last_request = getattr(battle, "last_request", None)
+        request_id = None
+        if isinstance(last_request, dict):
+            request_id = last_request.get("rqid")
+
+        observation = PokemonObservation(
             active_pokemon=active_pokemon,
             opponent_active_pokemon=opponent_active,
             team=team,
@@ -248,48 +414,83 @@ class PokemonEnvironment(Environment):
             turn=battle.turn,
             forced_switch=battle.force_switch,
             can_mega_evolve=battle.can_mega_evolve,
+            can_z_move=battle.can_z_move if hasattr(battle, 'can_z_move') else False,
             can_dynamax=battle.can_dynamax,
             can_terastallize=battle.can_tera if hasattr(battle, 'can_tera') else False,
             battle_format=self.battle_format,
             battle_id=battle.battle_tag,
             done=done,
             reward=reward,
+            metadata={
+                "request_id": request_id,
+                "waiting": getattr(battle, "_wait", False),
+                "forfeit_reason": self._forfeit_reason,
+            },
         )
 
+        self._last_request_id = request_id
+
+        return observation
+
     def reset(self) -> Observation:
-        """Reset the environment and start a new battle.
+        """Reset the environment and return initial observation.
+        
+        If there's an ongoing battle, returns the current state without starting a new battle.
+        Only starts a new battle if the current battle is finished or doesn't exist.
 
         Returns:
             Initial observation for the agent.
         """
-        if self._loop is None or self._loop.is_closed():
-            self._loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(self._loop)
+        # If there's an ongoing battle that's not finished, just return current observation
+        if self._current_battle is not None and not self._current_battle.finished:
+            # Check if turn limit reached
+            if (
+                self.max_turns is not None
+                and self._current_battle.turn >= self.max_turns
+                and not self._forfeit_requested
+            ):
+                self._request_forfeit("reset-turn-limit")
+                self._wait_for_battle_completion()
+            else:
+                # Check if team is fainted
+                team_members = list(self._current_battle.team.values())
+                team_fainted = bool(team_members) and all(
+                    getattr(pokemon, "fainted", False) for pokemon in team_members
+                )
+                if team_fainted and not self._forfeit_requested:
+                    self._request_forfeit("reset-team-fainted")
+                    self._wait_for_battle_completion()
+                else:
+                    # Battle is ongoing and valid - just return current state
+                    self._state.episode_id = str(uuid.uuid4())
+                    self._state.step_count = 0
+                    return self._battle_to_observation(self._current_battle, reward=None, done=False)
+
+        # If we have a finished battle, mark it as completed
+        if self._current_battle is not None and self._current_battle.finished:
+            self._mark_battle_completed(self._current_battle)
+            self._current_battle = None
         
-        async def start_battle():
-            await self.player.battle_against(self.opponent, n_battles=1)
-        
-        self._battle_task = self._loop.create_task(start_battle())
-        
-        try:
-            self._loop.run_until_complete(asyncio.sleep(0.5))
-        except RuntimeError:
-            pass
-        
-        if self.player.battles:
-            battle_tag = list(self.player.battles.keys())[0]
-            self._current_battle = self.player.battles[battle_tag]
-        else:
-            return PokemonObservation(
-                done=False,
-                reward=None,
-            )
-        
-        self._state.episode_id = str(uuid.uuid4())
-        self._state.step_count = 0
-        self._state.battle_id = self._current_battle.battle_tag
-        self._state.is_battle_finished = False
-        self._state.battle_winner = None
+        # Start a new battle only if we don't have one
+        if self._current_battle is None:
+            self._last_request_id = None
+            self._start_battle_if_needed()
+
+            if not self._wait_for_battle_ready():
+                raise RuntimeError("Timed out waiting for initial battle request")
+            
+            self._state.episode_id = str(uuid.uuid4())
+            self._state.step_count = 0
+            self._state.battle_id = self._current_battle.battle_tag
+            self._state.is_battle_finished = False
+            self._state.battle_winner = None
+            self._forfeit_requested = False
+            self._forfeit_reason = None
+            active_tag = self._current_battle.battle_tag
+            self._completed_battle_tags.discard(active_tag)
+            alt_active = active_tag.removeprefix("battle-")
+            if alt_active != active_tag:
+                self._completed_battle_tags.discard(alt_active)
         
         return self._battle_to_observation(self._current_battle, reward=None, done=False)
 
@@ -308,33 +509,67 @@ class PokemonEnvironment(Environment):
         
         if self._current_battle is None:
             raise RuntimeError("No active battle. Call reset() first.")
-        
+        if self._forfeit_requested:
+            raise RuntimeError("Battle is terminating; call reset() to start a new one.")
+
+        previous_request_id = self._last_request_id
+        previous_turn = self._current_battle.turn
+
         self.player.set_next_action(action)
-        
-        if self._loop and not self._loop.is_closed():
-            self._loop.run_until_complete(asyncio.sleep(0.1))
+
+        # Allow the asynchronous battle to process the submitted action
+        self._wait_for_battle_progress(previous_request_id, previous_turn)
         
         self._state.step_count += 1
+        battle = self._current_battle
+
+        if (
+            self.max_turns is not None
+            and self._state.step_count >= self.max_turns
+            and battle is not None
+            and not battle.finished
+        ):
+            self._request_forfeit("turn-limit")
+            self._wait_for_battle_completion()
+            battle = self._current_battle
+
+        if battle is not None and not battle.finished:
+            team_members = list(battle.team.values())
+            team_fainted = bool(team_members) and all(
+                getattr(pokemon, "fainted", False) for pokemon in team_members
+            )
+            if team_fainted:
+                self._request_forfeit("team-fainted")
+                self._wait_for_battle_completion()
+                battle = self._current_battle
         
-        done = self._current_battle.finished
+        done = False
+        if battle is not None:
+            done = battle.finished or self._forfeit_requested
         
         if done:
             self._state.is_battle_finished = True
-            if self._current_battle.won:
+            if battle is not None and battle.won:
                 self._state.battle_winner = self.player_username
-            elif self._current_battle.lost:
+            elif battle is not None and battle.lost:
                 self._state.battle_winner = "opponent"
-        
-        return self._battle_to_observation(self._current_battle, reward=None, done=done)
+
+        observation = self._battle_to_observation(self._current_battle, reward=None, done=done)
+
+        if done:
+            self._mark_battle_completed(battle)
+
+        return observation
     
     def close(self):
         """Clean up resources."""
-        if self._loop and not self._loop.is_closed():
-            self._loop.close()
-        
-        if self._battle_task and not self._battle_task.done():
-            self._battle_task.cancel()
+        if self._battle_future and not self._battle_future.done():
+            self._battle_future.cancel()
+        self._forfeit_requested = False
+        self._forfeit_reason = None
+        self._completed_battle_tags.clear()
     
+    @property
     def state(self) -> PokemonState:
         """Get current environment state."""
         return self._state

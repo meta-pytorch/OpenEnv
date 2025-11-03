@@ -23,9 +23,10 @@ class PokemonAction(Action):
         action_index: Index of the move (0-3) or switch target (0-5)
         move_id: Optional move identifier (e.g., "thunderbolt")
         switch_pokemon: Optional Pokemon to switch to (by species name or index)
-        mega_evolve: Whether to mega evolve this turn (if applicable)
-        dynamax: Whether to dynamax this turn (if applicable)
-        terastallize: Whether to terastallize this turn (if applicable)
+        mega_evolve: Whether to mega evolve this turn (Gen 6-8, if applicable)
+        dynamax: Whether to dynamax this turn (Gen 8, if applicable)
+        terastallize: Whether to terastallize this turn (Gen 9, if applicable)
+        z_move: Whether to use a Z-move this turn (Gen 7, if applicable)
     """
     action_type: Literal["move", "switch"] = "move"
     action_index: int = 0
@@ -34,6 +35,7 @@ class PokemonAction(Action):
     mega_evolve: bool = False
     dynamax: bool = False
     terastallize: bool = False
+    z_move: bool = False
 
 
 @dataclass
@@ -80,10 +82,11 @@ class PokemonObservation(Observation):
         field_conditions: Dict of field effects (weather, terrain, hazards, etc.)
         turn: Current turn number
         forced_switch: Whether you must switch (active Pokemon fainted)
-        can_mega_evolve: Whether mega evolution is possible this turn
-        can_dynamax: Whether dynamax is possible this turn
-        can_terastallize: Whether terastallization is possible this turn
-        battle_format: Battle format (e.g., "gen8randombattle", "gen8ou")
+        can_mega_evolve: Whether mega evolution is possible this turn (Gen 6-8)
+        can_z_move: Whether Z-move is possible this turn (Gen 7)
+        can_dynamax: Whether dynamax is possible this turn (Gen 8)
+        can_terastallize: Whether terastallization is possible this turn (Gen 9)
+        battle_format: Battle format (e.g., "gen9randombattle", "gen9ou")
     """
     active_pokemon: Optional[PokemonData] = None
     opponent_active_pokemon: Optional[PokemonData] = None
@@ -99,6 +102,7 @@ class PokemonObservation(Observation):
     forced_switch: bool = False
     
     can_mega_evolve: bool = False
+    can_z_move: bool = False
     can_dynamax: bool = False
     can_terastallize: bool = False
     
@@ -124,4 +128,5 @@ class PokemonState(State):
     server_url: str = "localhost:8000"
     battle_id: Optional[str] = None
     is_battle_finished: bool = False
+    battle_winner: Optional[str] = None
     battle_winner: Optional[str] = None

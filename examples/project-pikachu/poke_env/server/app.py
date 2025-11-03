@@ -16,7 +16,7 @@ Usage:
     python -m envs.pokemon_env.server.app
 
 Environment variables:
-    POKEMON_BATTLE_FORMAT: Battle format (default: "gen8randombattle")
+    POKEMON_BATTLE_FORMAT: Battle format (default: "gen9randombattle")
     POKEMON_PLAYER_USERNAME: Player username (default: "player")
     POKEMON_SERVER_URL: Pokemon Showdown server URL (default: "localhost:8000")
 """
