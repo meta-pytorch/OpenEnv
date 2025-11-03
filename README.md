@@ -252,7 +252,6 @@ For more details on the CLI architecture and development, see [`src/openenv_cli/
 **Problem**: "Failed to upload to space"
 
 **Solution**:
-- Check internet connection
 - Verify you're still authenticated (may need to log in again)
 - Try `--dry-run` first to check file preparation
 - Check staging directory exists and has files
