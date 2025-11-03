@@ -103,6 +103,7 @@ jobs:
         environment: ${{ fromJSON(needs.detect-new-envs.outputs.new_envs_json) }}
     env:
       HF_TOKEN: ${{ secrets.HF_PR_TOKEN }}
+      HUGGINGFACEHUB_API_TOKEN: ${{ secrets.HF_PR_TOKEN }}
       HF_NAMESPACE: ${{ vars.HF_PR_NAMESPACE }}
       SPACE_SUFFIX: -pr-${{ github.event.number }}
     steps:
@@ -127,18 +128,24 @@ jobs:
             exit 1
           fi
 
-      - name: Install Hugging Face CLI
-        shell: bash
-        run: |
-          curl -LsSf https://hf.co/cli/install.sh | bash
-          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
 
-      - name: Deploy environment to Hugging Face
+      - name: Install OpenEnv package
         shell: bash
         run: |
           set -euo pipefail
-          chmod +x scripts/deploy_to_hf.sh
-          ./scripts/deploy_to_hf.sh --env "${{ matrix.environment }}" --space-suffix "${SPACE_SUFFIX}" --hub-tag "openenv-pr"
+          python -m pip install --upgrade pip
+          pip install .
+
+      - name: Deploy environment with OpenEnv CLI
+        shell: bash
+        run: |
+          set -euo pipefail
+          repo_id="${HF_NAMESPACE}/${{ matrix.environment }}${SPACE_SUFFIX}"
+          openenv push "${{ matrix.environment }}" --repo-id "$repo_id"
 
       - name: Wait for deployment to stabilize
         shell: bash
@@ -161,6 +168,7 @@ jobs:
           health_url="https://${namespace_slug}-${space_slug}.hf.space/health"
           live_url="https://${namespace_slug}-${space_slug}.hf.space"
           space_repo_url="https://huggingface.co/spaces/${HF_NAMESPACE}/${space_name}"
+          space_repo_id="${HF_NAMESPACE}/${space_name}"
 
           echo "namespace_slug=${namespace_slug}" >> "$GITHUB_OUTPUT"
           echo "space_name=${space_name}" >> "$GITHUB_OUTPUT"
@@ -168,6 +176,7 @@ jobs:
           echo "health_url=${health_url}" >> "$GITHUB_OUTPUT"
           echo "live_url=${live_url}" >> "$GITHUB_OUTPUT"
           echo "space_repo_url=${space_repo_url}" >> "$GITHUB_OUTPUT"
+          echo "space_repo_id=${space_repo_id}" >> "$GITHUB_OUTPUT"
 
       - name: Perform environment health check
         id: health_check
@@ -216,7 +225,9 @@ jobs:
           SPACE_NAME: ${{ steps.urls.outputs.space_name }}
           LIVE_URL: ${{ steps.urls.outputs.live_url }}
           SPACE_REPO_URL: ${{ steps.urls.outputs.space_repo_url }}
+          SPACE_REPO_ID: ${{ steps.urls.outputs.space_repo_id }}
           ENV_NAME: ${{ matrix.environment }}
+          COMMENT_TAG: "<!-- openenv-pr-preview -->"
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
@@ -224,7 +235,9 @@ jobs:
             const spaceName = process.env.SPACE_NAME;
             const liveUrl = process.env.LIVE_URL;
             const repoUrl = process.env.SPACE_REPO_URL;
+            const repoId = process.env.SPACE_REPO_ID;
             const envName = process.env.ENV_NAME;
+            const marker = process.env.COMMENT_TAG;
 
             const header = status === 'success'
               ? `✅ Deployment succeeded for \`${envName}\``
@@ -235,6 +248,8 @@ jobs:
               : 'Please resolve your environment.';
 
             const body = [
+              marker,
+              '',
               header,
               '',
               `- Space repo: [${repoUrl}](${repoUrl})`,
@@ -242,15 +257,41 @@ jobs:
               '',
               summary,
               '',
-              'You can iterate locally or validate fixes by running `scripts/deploy_to_hf.sh --env "' + envName + '"`.'
+              '- CLI: `openenv push ' + envName + ' --repo-id ' + repoId + '`',
+              '- Auth: export `HUGGINGFACEHUB_API_TOKEN` before running'
             ].join('\n');
 
-            await github.rest.issues.createComment({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              issue_number: context.payload.pull_request.number,
-              body
-            });
+            const {owner, repo} = context.repo;
+            const issue_number = context.payload.pull_request.number;
+
+            const existing = await github.paginate(
+              github.rest.issues.listComments,
+              { owner, repo, issue_number, per_page: 100 },
+              (response, done) => {
+                const match = response.data.find(comment => comment.body && comment.body.includes(marker));
+                if (match) {
+                  done();
+                  return [match];
+                }
+                return [];
+              }
+            );
+
+            if (existing.length > 0) {
+              await github.rest.issues.updateComment({
+                owner,
+                repo,
+                comment_id: existing[0].id,
+                body,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner,
+                repo,
+                issue_number,
+                body,
+              });
+            }
 
       - name: Fail job if health check failed
         if: steps.health_check.conclusion == 'failure'
