@@ -82,7 +82,7 @@ This will automatically install:
 ## ✅ Test Your Setup
 
 Create a basic test script to verify installation.  
-Example output:
+Example script:
 
 ![Test Script Output](https://github.com/user-attachments/assets/c5cb5911-388b-4511-8d43-0a48f5e047a0)
 
