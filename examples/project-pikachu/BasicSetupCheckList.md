@@ -110,7 +110,3 @@ pip uninstall -y poke-env gymnasium pettingzoo stable-baselines3 trl torch
 ```bash
 pip install stable-baselines3>=2.4.0
 ```
-
----
-
-Let me know if you'd like this turned into a shareable README or setup script!
