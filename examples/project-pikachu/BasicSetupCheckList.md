@@ -78,7 +78,8 @@ This will automatically install:
 - `websockets==15.0.1` – WebSocket client  
 
 ---
-
+### Fork the Pokemon-Showdown Repo onto your main project folder
+- git clone https://github.com/smogon/pokemon-showdown.git
 ## ✅ Test Your Setup
 
 Create a basic test script to verify installation.  
@@ -93,12 +94,13 @@ Example script:
 - Compatibility issues between versions of:
   - `stable-baselines3` and `poke-env`
   - `gymnasium`, `pettingzoo`, and `stable-baselines3`
-
+  - `random battle generator doesn't load for gen9, due to ShadowException(still buggy)`
 ---
 
 ## 🛠️ Fixes Applied
 
 - Ensured Python 3.10 is selected for `venv`
+- Using gen8 for random battle generation
 - Uninstalled conflicting packages:
 
 ```bash
