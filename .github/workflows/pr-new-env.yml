@@ -176,7 +176,6 @@ jobs:
         env:
           HEALTH_URL: ${{ steps.urls.outputs.health_url }}
           SPACE_NAME: ${{ steps.urls.outputs.space_name }}
-          HF_TOKEN: ${{ env.HF_TOKEN }}
         run: |
           set -euo pipefail
 
