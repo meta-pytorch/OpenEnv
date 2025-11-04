@@ -176,6 +176,7 @@ jobs:
         env:
           HEALTH_URL: ${{ steps.urls.outputs.health_url }}
           SPACE_NAME: ${{ steps.urls.outputs.space_name }}
+          HF_TOKEN: ${{ env.HF_TOKEN }}
         run: |
           set -euo pipefail
 
@@ -207,50 +208,6 @@ jobs:
             fi
             exit 1
           fi
-
-      - name: Comment on PR with deployment status
-        if: always()
-        uses: actions/github-script@v7
-        env:
-          HEALTH_CONCLUSION: ${{ steps.health_check.conclusion }}
-          SPACE_NAME: ${{ steps.urls.outputs.space_name }}
-          LIVE_URL: ${{ steps.urls.outputs.live_url }}
-          SPACE_REPO_URL: ${{ steps.urls.outputs.space_repo_url }}
-          ENV_NAME: ${{ matrix.environment }}
-        with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          script: |
-            const status = process.env.HEALTH_CONCLUSION || 'failure';
-            const spaceName = process.env.SPACE_NAME;
-            const liveUrl = process.env.LIVE_URL;
-            const repoUrl = process.env.SPACE_REPO_URL;
-            const envName = process.env.ENV_NAME;
-
-            const header = status === 'success'
-              ? `✅ Deployment succeeded for \`${envName}\``
-              : `⚠️ Deployment failed for \`${envName}\``;
-
-            const summary = status === 'success'
-              ? 'Nice work! Wait for a code review and we\'re ready to go.'
-              : 'Please resolve your environment.';
-
-            const body = [
-              header,
-              '',
-              `- Space repo: [${repoUrl}](${repoUrl})`,
-              `- Live URL: [${liveUrl}](${liveUrl})`,
-              '',
-              summary,
-              '',
-              'You can iterate locally or validate fixes by running `scripts/deploy_to_hf.sh --env "' + envName + '"`.'
-            ].join('\n');
-
-            await github.rest.issues.createComment({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              issue_number: context.payload.pull_request.number,
-              body
-            });
 
       - name: Fail job if health check failed
         if: steps.health_check.conclusion == 'failure'
