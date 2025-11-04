@@ -5,9 +5,9 @@
 # LICENSE file in the root directory of this source tree.
 
 from abc import ABC, abstractmethod
-from typing import Any, Protocol, TypedDict
+from typing import Any, List, Protocol, TypedDict
 
-from .types import Action, Observation, State
+from .types import Action, Observation, State, ToolDefinition
 
 
 class Message(TypedDict):
@@ -116,3 +116,15 @@ class Environment(ABC):
         if self.transform is not None:
             return self.transform(observation)
         return observation
+
+    def actions(self) -> List[ToolDefinition]:
+        """Return list of available actions in this environment.
+
+        This method enables action discovery for any environment type.
+        Actions can represent tools, code execution, game moves, navigation,
+        or any domain-specific operations.
+
+        For backward compatibility, environments can return an empty list,
+        though implementing this method is strongly encouraged.
+        """
+        return []
