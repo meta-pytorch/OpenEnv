@@ -46,7 +46,7 @@ COPY src/envs/pokemon_env/ /app/src/envs/pokemon_env/
 COPY src/envs/pokemon_env/README.md /app/README.md
 
 # Pokemon environment variables
-ENV POKEMON_BATTLE_FORMAT=gen9randombattle
+ENV POKEMON_BATTLE_FORMAT=gen8randombattle
 ENV POKEMON_PLAYER_USERNAME=player
 ENV POKEMON_REWARD_MODE=sparse
 ENV POKEMON_MAX_TURNS=1000
