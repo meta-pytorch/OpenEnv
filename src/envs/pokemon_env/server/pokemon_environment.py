@@ -234,7 +234,7 @@ class PokemonEnvironment(Environment):
 
     def __init__(
         self,
-        battle_format: str = "gen9randombattle",
+        battle_format: str = "gen8randombattle",
         player_username: Optional[str] = None,
         opponent: Optional[Player] = None,
         reward_mode: str = "sparse",
@@ -254,7 +254,7 @@ class PokemonEnvironment(Environment):
         self.player = OpenEnvPokemonPlayer(
             account_configuration=AccountConfiguration(self.player_username, None),
             server_configuration=LocalhostServerConfiguration,
-            battle_format=battle_format,
+            battle_format=self.battle_format,
             max_concurrent_battles=1,  # One battle at a time
         )
 
@@ -265,7 +265,7 @@ class PokemonEnvironment(Environment):
             self.opponent = RandomPlayer(
                 account_configuration=AccountConfiguration(opponent_username, None),
                 server_configuration=LocalhostServerConfiguration,
-                battle_format=battle_format,
+                battle_format=self.battle_format,
                 max_concurrent_battles=1,
             )
         else:
@@ -537,6 +537,7 @@ class PokemonEnvironment(Environment):
             # Start battle on POKE_LOOP
             async def start_battle():
                 """Start a single battle and return when it's initialized."""
+                logger.info(self.battle_format)
                 logger.info("Starting battle...")
 
                 # Use battle_against which returns when battle is complete

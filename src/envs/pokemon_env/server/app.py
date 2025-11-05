@@ -16,7 +16,7 @@ Usage:
     python -m envs.pokemon_env.server.app
 
 Environment variables:
-    POKEMON_BATTLE_FORMAT: Battle format (default: "gen9randombattle")
+    POKEMON_BATTLE_FORMAT: Battle format (default: "gen8randombattle")
     POKEMON_PLAYER_USERNAME: Player username (default: "player")
     POKEMON_REWARD_MODE: Reward mode - "sparse" or "dense" (default: "sparse")
     POKEMON_MAX_TURNS: Maximum turns per battle (default: "1000")
@@ -37,7 +37,7 @@ logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 
-battle_format = os.getenv("POKEMON_BATTLE_FORMAT", "gen9randombattle")
+battle_format = os.getenv("POKEMON_BATTLE_FORMAT", "gen8randombattle")
 player_username = os.getenv("POKEMON_PLAYER_USERNAME", "player")
 reward_mode = os.getenv("POKEMON_REWARD_MODE", "sparse")
 max_turns = int(os.getenv("POKEMON_MAX_TURNS", "1000"))
