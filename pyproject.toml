@@ -12,11 +12,35 @@ dependencies = [
     "requests>=2.25.0",
     "fastapi>=0.104.0",
     "uvicorn>=0.24.0",
-    "smolagents>=1.22.0,<2"
+    "smolagents>=1.22.0,<2",
+    "typer>=0.9.0",
+    "rich>=13.0.0",
+    "pyyaml>=6.0",
+    "huggingface_hub>=0.20.0"
 ]
+
+[project.scripts]
+openenv = "openenv_cli.__main__:main"
 
 [tool.setuptools]
 package-dir = {"" = "src"}
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.coverage.run]
+omit = [
+    "openenv_cli/templates/**",
+    "**/templates/**",
+    "openenv_cli/__main__.py",
+]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+    "if TYPE_CHECKING:",
+]
