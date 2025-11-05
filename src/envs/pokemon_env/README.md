@@ -48,14 +48,21 @@ print(f"Reward: {result.reward}, Done: {result.done}")
 ### Docker
 
 ```bash
-# Build
-docker build -t pokemon-env:latest -f server/Dockerfile ../../../..
+# Build both images (run from project root directory)
+docker build -t pokemon-showdown:latest -f src/envs/pokemon_env/server/Dockerfile.showdown .
+docker build -t pokemon-env:latest -f src/envs/pokemon_env/server/Dockerfile.env .
 
-# Run
-docker run -d -p 8000:8000 -p 9980:9980 pokemon-env:latest
+# Create Docker network for container communication
+docker network create pokemon-network
+
+# Run Pokemon Showdown server
+docker run -d --name pokemon-showdown --network pokemon-network -p 8000:8000 pokemon-showdown:latest
+
+# Run OpenEnv server (pointing to the Showdown container)
+docker run -d --name pokemon-env --network pokemon-network -p 9980:9980 pokemon-env:latest
 
 # Test
-curl http://localhost:9980/health
+curl http://localhost:9980/health  # Test OpenEnv server
 ```
 
 ## Configuration
@@ -71,13 +78,14 @@ Environment variables:
 ### Battle Flow
 
 ```
-HTTP Client → FastAPI Server → PokemonEnvironment
+HTTP Client → FastAPI Server → PokemonEnvironment (Container 2)
                                       ↓
                               OpenEnvPokemonPlayer
                                       ↓
                               poke-env (POKE_LOOP)
                                       ↓
-                              Pokemon Showdown (WebSocket)
+                     Pokemon Showdown Server (Container 1)
+                              (WebSocket)
 ```
 
 ### Key Design Decisions
