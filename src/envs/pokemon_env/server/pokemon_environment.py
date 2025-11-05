@@ -15,6 +15,7 @@ Key Design:
 import asyncio
 import logging
 import uuid
+import os
 from dataclasses import asdict
 from threading import Event, Lock
 from typing import Any, Dict, List, Optional
@@ -25,7 +26,7 @@ from ..models import PokemonAction, PokemonObservation, PokemonData, PokemonStat
 
 try:
     # Import from top-level poke_env module
-    from poke_env import Player, RandomPlayer, AccountConfiguration, LocalhostServerConfiguration
+    from poke_env import Player, RandomPlayer, AccountConfiguration, ServerConfiguration
     # Import battle orders from player submodule
     from poke_env.player import BattleOrder, ForfeitBattleOrder
     # Import concurrency from concurrency submodule
@@ -247,13 +248,17 @@ class PokemonEnvironment(Environment):
         self.player_username = player_username or f"player_{uuid.uuid4().hex[:8]}"
         self.reward_mode = reward_mode
         self.max_turns = max_turns
+        self.showdown_server_url = os.getenv("SHOWDOWN_SERVER_URL", "localhost:8000")
 
         # Initialize player on POKE_LOOP
         logger.info(f"Creating player {self.player_username} for format {battle_format}")
 
         self.player = OpenEnvPokemonPlayer(
             account_configuration=AccountConfiguration(self.player_username, None),
-            server_configuration=LocalhostServerConfiguration,
+            server_configuration=ServerConfiguration(
+                f"ws://{self.showdown_server_url}/showdown/websocket",
+                "https://play.pokemonshowdown.com/action.php?"
+            ),
             battle_format=self.battle_format,
             max_concurrent_battles=1,  # One battle at a time
         )
@@ -264,7 +269,10 @@ class PokemonEnvironment(Environment):
             logger.info(f"Creating random opponent {opponent_username}")
             self.opponent = RandomPlayer(
                 account_configuration=AccountConfiguration(opponent_username, None),
-                server_configuration=LocalhostServerConfiguration,
+                server_configuration=ServerConfiguration(
+                    f"ws://{self.showdown_server_url}/showdown/websocket",
+                    "https://play.pokemonshowdown.com/action.php?"
+                ),
                 battle_format=self.battle_format,
                 max_concurrent_battles=1,
             )
@@ -275,7 +283,7 @@ class PokemonEnvironment(Environment):
         self._state = PokemonState(
             battle_format=battle_format,
             player_username=self.player_username,
-            server_url="localhost:8000",
+            server_url=self.showdown_server_url,
         )
 
         # Battle tracking
