@@ -50,7 +50,7 @@ print(f"Reward: {result.reward}, Done: {result.done}")
 ```bash
 # Build both images (run from project root directory)
 docker build -t pokemon-showdown:latest -f src/envs/pokemon_env/server/Dockerfile.showdown .
-docker build -t pokemon-env:latest -f src/envs/pokemon_env/server/Dockerfile.env .
+docker build -t pokemon-env:latest -f src/envs/pokemon_env/server/Dockerfile.pokemonenv .
 
 # Create Docker network for container communication
 docker network create pokemon-network
@@ -68,7 +68,7 @@ curl http://localhost:9980/health  # Test OpenEnv server
 ## Configuration
 
 Environment variables:
-- `POKEMON_BATTLE_FORMAT` - Battle format (default: `gen9randombattle`)
+- `POKEMON_BATTLE_FORMAT` - Battle format (default: `gen8randombattle`)
 - `POKEMON_REWARD_MODE` - Reward mode: `sparse` or `dense` (default: `sparse`)
 - `POKEMON_MAX_TURNS` - Maximum turns per battle (default: `1000`)
 - `POKEMON_PLAYER_USERNAME` - Player username (default: auto-generated)
