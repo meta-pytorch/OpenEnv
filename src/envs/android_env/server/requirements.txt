@@ -1,0 +1,12 @@
+# Server-side Python dependencies for Android Environment
+# This file is used by the Dockerfile to install necessary packages
+
+# Core android_env dependency
+android-env>=1.0.0
+
+# Image processing for screen encoding
+Pillow>=10.0.0
+
+# Additional dependencies that might be needed
+numpy>=1.24.0
+dm-env>=1.6
