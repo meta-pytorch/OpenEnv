@@ -24,7 +24,6 @@ Gymnasium includes numerous environments across different categories:
 - **Pendulum** - Swing up and balance an inverted pendulum
 - **Acrobot** - Swing up a two-link robotic arm
 - **MountainCar** - Drive up a mountain with limited power
-- **MountainCarContinuous** - Continuous version of MountainCar
 
 ### Box2D
 - **LunarLander** - Land a spacecraft safely
