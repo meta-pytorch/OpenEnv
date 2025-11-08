@@ -179,9 +179,6 @@ class GymnasiumEnvironment(Environment):
         raw_action = action.action
         space = self.env.action_space
 
-        if space.contains(raw_action):
-            return raw_action
-
         converted = self._convert_action_for_space(space, raw_action)
 
         if not space.contains(converted):
