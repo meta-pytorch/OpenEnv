@@ -50,7 +50,64 @@ The components we have are the following:
 
 Let's say I'm giving you a database containing a list of employees and as a single task, I'm giving you an ongoing task to stay alive over the course of months and maintain this database as events happen. This means querying for information, but it can totally also mean mutations. People get hired, people leave, and these mutations need to be performed.
 
-![Main components](components.png)
+```mermaid
+---
+config:
+  flowchart:
+    htmlLabels: false
+---
+%%{init: {'theme':'base', 'themeVariables': { 'primaryColor':'#e3f2fd','primaryTextColor':'#0d47a1','primaryBorderColor':'#1e88e5','lineColor':'#1e88e5','secondaryColor':'#f1f8e9','tertiaryColor':'#fff3e0'}}}%%
+
+graph TD
+    classDef tasks fill:#e3f2fd,stroke:#1e88e5,stroke-width:3px,color:#0d47a1
+    classDef agent fill:#f1f8e9,stroke:#7cb342,stroke-width:3px,color:#558b2f
+    classDef mcp fill:#fff3e0,stroke:#f57c00,stroke-width:3px,color:#e65100
+    classDef state fill:#f3e5f5,stroke:#8e24aa,stroke-width:3px,color:#4a148c
+    classDef sandbox fill:#eceff1,stroke:#455a64,stroke-width:2px,color:#263238
+
+    A["`**TASKS Data**
+    Add employee Alice
+    Query Engineering dept size`"]:::tasks
+    B["`**AGENT LLM + Policy**
+    Decides what tools to call
+    based on task & observations`"]:::agent
+
+    C["`**MCP SERVERS Interface**`"]:::mcp
+    C1["`**Database MCP**
+    - execute_sql
+    - query_schema
+    `"]:::mcp
+    C2["`**Search MCP**
+    - web_search
+    - semantic_search
+    `"]:::mcp
+    C3["`**File MCP**
+    - read_file
+    - write_file
+    `"]:::mcp
+
+    D["`**STATE Stateful World**
+    Database: employees table
+    File system state
+    Application state
+    Can reset in training
+    Cannot reset in production`"]:::state
+
+    E["`**SANDBOXING & DEPENDENCIES**
+    - Docker containers
+    - Binary distribution
+    - Version management`"]:::sandbox
+
+    A -->|Tasks| B
+    B -->|MCP Tool Calls| C
+    C --> C1
+    C --> C2
+    C --> C3
+    C1 -->|Mutates/Queries| D
+    C2 -->|Mutates/Queries| D
+    C3 -->|Mutates/Queries| D
+    D -.-> E
+```
 
 I call the initial snapshot of the database our **state**. I would like to zoom in on it:
 
@@ -115,7 +172,91 @@ We define an **Environment** as having two distinct layers:
 **In Training/Eval**: Full stack (both layers)
 **In Production**: Simulation layer removed, only MCP servers remain
 
-![Proposed abstraction](env.png)
+```mermaid
+---
+config:
+  flowchart:
+    htmlLabels: false
+---
+%%{init: {'theme':'base', 'themeVariables': { 'primaryColor':'#e3f2fd','secondaryColor':'#f1f8e9','tertiaryColor':'#fff3e0'}}}%%
+
+graph TB
+    subgraph TRAIN ["TRAINING / EVAL MODE"]
+        direction TB
+        TL["`**Training Loop**
+        Python`"]
+
+        TL -->|"HTTP: reset, step"| ENV
+
+        ENV["`**Environment Container**`"]
+
+        SIM["`**SIMULATION LAYER**
+        event_queue: EventQueue
+        data_loader: DataLoader
+        reward_functions
+        eval_functions
+        checkpoint_manager
+        `"]
+
+        CORE["`**PRODUCTION CORE**
+        mcp_servers: List[MCPServer]
+        - Database MCP Docker
+        - Search MCP Docker
+        - Custom MCP Docker
+        tool_registry: ToolRegistry
+        `"]
+
+        ENV -.contains.-> SIM
+        ENV -.contains.-> CORE
+
+        CORE -->|"MCP Protocol"| AT1["`**Agent Training**`"]
+    end
+
+    subgraph PROD ["PRODUCTION MODE"]
+        direction TB
+        MCP1["`**Database MCP**
+        Server Docker
+        execute_sql
+        query_schema
+        `"]
+
+        MCP2["`**Search MCP**
+        Server Docker
+        web_search
+        semantic_search
+        `"]
+
+        MCP3["`**Custom MCP Servers**
+        Docker`"]
+
+        MCP1 & MCP2 & MCP3 -->|"MCP Protocol"| AT2["`**Agent Production**
+        No reset access`"]
+    end
+
+    KEY["`**KEY INSIGHT:**
+    MCP interface identical in training and production
+    Only simulation layer HTTP disappears in prod`"]
+
+    classDef trainBox fill:#e8f5e9,stroke:#388e3c,stroke-width:3px
+    classDef prodBox fill:#ffebee,stroke:#c62828,stroke-width:3px
+    classDef blue fill:#e3f2fd,stroke:#1e88e5,stroke-width:2px
+    classDef green fill:#e8f5e9,stroke:#388e3c,stroke-width:2px
+    classDef lightgreen fill:#f1f8e9,stroke:#7cb342,stroke-width:2px
+    classDef orange fill:#fff3e0,stroke:#f57c00,stroke-width:2px
+    classDef orangeBox fill:#ffffff,stroke:#f57c00,stroke-width:2px
+    classDef purple fill:#f3e5f5,stroke:#8e24aa,stroke-width:2px
+    classDef keyBox fill:#c8e6c9,stroke:#43a047,stroke-width:3px
+
+    class TRAIN trainBox
+    class PROD prodBox
+    class TL blue
+    class ENV green
+    class SIM lightgreen
+    class CORE orange
+    class MCP1,MCP2,MCP3 orangeBox
+    class AT1,AT2 purple
+    class KEY keyBox
+```
 
 ### Two Protocols, Two Purposes
 
@@ -202,14 +343,14 @@ class ExpediaMCPServer:
 - Easy patterns/utilities for common cases (search, payments, email)
 - Build critical mass and prove value
 
-**Phase 2 (v0.6-v1.0)**: Mixed ownership
-- Early adopter tool providers ship dual-mode servers
-- Both patterns coexist (fallback + native dual-mode)
-- Show ROI: "Your tool is used in 50 environments"
+**Phase 2 (v0.6-v1.0)**: Mixed ownership via Hugging Face Hub
+- Community-contributed tool simulations on HF Hub
+- Tool providers start shipping dual-mode servers
+- Both patterns coexist (see HF Hub section below)
 
 **Phase 3 (v1.0+)**: Tool providers own duality
 - Standard practice in ecosystem
-- We deprecate environment-level simulation
+- Deprecate most environment-level simulations
 - Clean separation of concerns
 
 **Critical**: Design the abstraction NOW so migration is seamless.
@@ -237,11 +378,14 @@ class Environment:
         self.mode = mode
         self.tool_registry = tool_registry or ToolRegistry()
 
-        # Initialize MCP clients
-        self.mcp_clients = [
-            MCPClient(cfg.url)
+        # Initialize and manage MCP servers
+        self.mcp_servers = [
+            MCPServer.from_config(cfg)
             for cfg in mcp_servers
         ]
+        # Start servers (managed lifecycle)
+        for server in self.mcp_servers:
+            server.start()
 
     def call_tool(self, tool_name: str, params: dict):
         """Call MCP tool, using registry to resolve sim vs prod."""
@@ -250,14 +394,14 @@ class Environment:
         if self.mode == "sim" and self.tool_registry.has_mapping(tool_name):
             # Use sim version from registry
             sim_tool_name = self.tool_registry.get_sim_tool(tool_name)
-            mcp_client = self._find_mcp_client_for_tool(sim_tool_name)
-            return mcp_client.call_tool(sim_tool_name, params)
+            server = self._find_mcp_server_for_tool(sim_tool_name)
+            return server.call_tool(sim_tool_name, params)
 
         else:
             # Not in registry: assume dual-mode tool (same in prod and sim)
             # Or we're in prod mode: use production tool directly
-            mcp_client = self._find_mcp_client_for_tool(tool_name)
-            return mcp_client.call_tool(tool_name, params)
+            server = self._find_mcp_server_for_tool(tool_name)
+            return server.call_tool(tool_name, params)
 ```
 
 **Tool Registry**:
@@ -294,6 +438,25 @@ class ToolRegistry:
     def register(self, prod_tool: str, sim_tool: str):
         """Register a prod -> sim mapping."""
         self.mappings[prod_tool] = sim_tool
+
+    @classmethod
+    def from_hub(cls, hub_id: str) -> "ToolRegistry":
+        """Load tool registry from Hugging Face Hub.
+
+        Args:
+            hub_id: HF Hub repository ID (e.g., "openenv/tool-registry-v1")
+
+        Returns:
+            ToolRegistry with community-contributed mappings
+        """
+        from huggingface_hub import hf_hub_download
+        import json
+
+        config_path = hf_hub_download(repo_id=hub_id, filename="registry.json")
+        with open(config_path) as f:
+            mappings = json.load(f)
+
+        return cls(mappings=mappings)
 ```
 
 **Example usage**:
@@ -321,40 +484,8 @@ env = Environment(
     tool_registry=tool_registry,
 )
 
-# In sim mode:
-env.call_tool("expedia.search_flights", {...})  # → Uses expedia_sim.search_flights
-env.call_tool("database.execute_sql", {...})    # → Uses database.execute_sql (dual-mode)
-
-# In prod mode:
-env_prod = Environment(mode="prod", ...)
-env_prod.call_tool("expedia.search_flights", {...})  # → Uses expedia.search_flights
-env_prod.call_tool("database.execute_sql", {...})    # → Uses database.execute_sql
-```
-
-**Phase 2/3: Migration path**:
-
-```python
-# As Expedia ships dual-mode server, remove from registry
-tool_registry = ToolRegistry({
-    # Expedia now dual-mode - removed from registry!
-    # "expedia.search_flights": "expedia_sim.search_flights",  # No longer needed
-
-    # Stripe still needs mapping
-    "stripe.charge_card": "stripe_sim.mock_charge",
-})
-
-env = Environment(
-    mode="sim",
-    mcp_servers=[
-        MCPServerConfig("expedia", "http://expedia-mcp:8001"),      # Now dual-mode!
-        MCPServerConfig("stripe", "http://stripe-mcp:8003"),        # Prod only
-        MCPServerConfig("stripe_sim", "http://stripe-sim:8004"),    # Sim only
-    ],
-    tool_registry=tool_registry,
-)
-
-# Expedia tools work automatically in both modes now
-env.call_tool("expedia.search_flights", {...})  # Server handles mode internally
+# Or load from HF Hub (Phase 2)
+tool_registry = ToolRegistry.from_hub("openenv/tool-registry-v1")
 ```
 
 **Utilities we provide**:
@@ -380,6 +511,165 @@ expedia_sim_server = create_sim_mcp_server(
 )
 ```
 
+## Hugging Face Hub Integration: Community Tool Registries
+
+### Motivation
+
+Getting tool providers like Expedia to ship dual-mode servers requires critical mass. We need a chicken-and-egg solution: a way to share tool simulation mappings across environments before tool providers invest in dual-mode servers.
+
+**Key insight**: Tool simulators are just MCP servers - they should be published to standard MCP registries (whatever the MCP ecosystem uses). What we need to publish on HF Hub are the **mappings** (tool registries) that tell environments which sim tools to use for which prod tools.
+
+### Proposed HF Hub Structure
+
+```
+Hugging Face Hub
+├── openenv/environments/          # Existing: Environment packages
+│   ├── database-env
+│   ├── coding-env
+│   └── travel-booking-env
+│
+└── openenv/tool-registries/       # NEW: Community registries (mappings)
+    ├── standard-registry-v1       # Curated mappings for common tools
+    ├── finance-tools-registry     # Domain-specific (fintech)
+    └── saas-tools-registry        # Domain-specific (SaaS APIs)
+```
+
+**Note**: Tool simulations themselves (expedia-sim, stripe-sim, etc.) are published to standard MCP registries, not our Hub.
+
+### Tool Simulations (MCP Servers)
+
+Tool simulations are just MCP servers. They're published to standard MCP registries (whatever the MCP ecosystem provides). For example:
+
+- `expedia-sim` - Simulated Expedia flight search API
+- `stripe-sim` - Simulated Stripe payment API
+- `sendgrid-sim` - Simulated email service
+- `github-sim` - Simulated GitHub API
+
+These are discovered and installed via standard MCP tooling, not OpenEnv-specific infrastructure.
+
+**Usage** (using standard MCP discovery):
+
+```python
+env = Environment(
+    mode="sim",
+    mcp_servers=[
+        MCPServerConfig("expedia", "https://api.expedia.com"),     # Prod
+        MCPServerConfig("expedia_sim", "mcp://expedia-sim"),       # Sim (from MCP registry)
+        MCPServerConfig("stripe", "https://api.stripe.com"),
+        MCPServerConfig("stripe_sim", "mcp://stripe-sim"),
+    ],
+    tool_registry=ToolRegistry({
+        "expedia.search_flights": "expedia_sim.search_flights",
+        "stripe.charge_card": "stripe_sim.charge_card",
+    })
+)
+```
+
+### Tool Registries (Published to HF Hub)
+
+**This is what we publish to HF Hub**: Registries are JSON files mapping prod tools → sim tools.
+
+```json
+// openenv/standard-registry-v1/registry.json
+{
+  "expedia.search_flights": "expedia_sim.search_flights",
+  "expedia.book_flight": "expedia_sim.book_flight",
+  "stripe.charge_card": "stripe_sim.charge_card",
+  "stripe.create_customer": "stripe_sim.create_customer",
+  "sendgrid.send_email": "sendgrid_sim.send_email",
+  "github.create_pr": "github_sim.create_pr"
+}
+```
+
+**Usage**:
+
+```python
+# Load community registry from HF Hub
+registry = ToolRegistry.from_hub("openenv/standard-registry-v1")
+
+# Use in environment
+env = Environment(
+    mode="sim",
+    mcp_servers=[
+        # Prod and sim servers (from MCP registries)
+        MCPServerConfig("expedia", prod_url),
+        MCPServerConfig("expedia_sim", "mcp://expedia-sim"),
+        MCPServerConfig("stripe", prod_url),
+        MCPServerConfig("stripe_sim", "mcp://stripe-sim"),
+    ],
+    tool_registry=registry,  # Loaded from HF Hub
+)
+```
+
+### Contribution Workflow (Registry Focus)
+
+1. **Environment builder creates/finds sim tools**:
+   - Build MCP server for tool simulation (e.g., `expedia-sim`)
+   - Publish to MCP registry using standard MCP tooling
+
+2. **Contribute mapping to HF Hub registry**:
+   ```bash
+   openenv create-registry travel-tools
+   openenv registry add expedia.search_flights expedia_sim.search_flights
+   openenv registry add expedia.book_flight expedia_sim.book_flight
+   openenv push-registry openenv/travel-tools
+   ```
+
+3. **Others discover and reuse registries**:
+   ```bash
+   openenv search-registries "travel"
+   # Results: openenv/travel-tools, openenv/saas-tools
+   ```
+
+4. **Use community registry**:
+   ```python
+   registry = ToolRegistry.from_hub("openenv/travel-tools")
+   env = Environment(mode="sim", tool_registry=registry, ...)
+   ```
+
+### Benefits
+
+1. **Network effects**: Environment builders share tool mappings, reducing duplicate registry work
+2. **Discovery**: Search HF Hub for existing registries before creating your own
+3. **Quality**: Community curates and upvotes best registries
+4. **Versioning**: Semantic versioning for registries (standard-registry-v1, v2, etc.)
+5. **Incentive alignment**: Tool providers see which sim tools are popular → incentive to ship official dual-mode servers
+6. **Separation of concerns**: Sim tools live in MCP ecosystem, mappings live on HF Hub
+
+### Implementation Plan
+
+**Phase 2a (v0.4)**:
+- Add HF Hub integration for tool registries
+- CLI commands: `create-registry`, `push-registry`, `search-registries`
+- `ToolRegistry.from_hub()` for loading community mappings
+
+**Phase 2b (v0.5)**:
+- Advanced registry features (domain-specific, versioned, composable)
+- Usage analytics: track which sim tools are referenced in registries
+- Quality scoring and curation for registries
+
+**Phase 3 (v0.6+)**:
+- Tool provider feedback loop: show them registry usage data
+- Encourage official dual-mode server adoption
+- Namespace claiming for tool providers
+
+### Future Consideration: Direct Sim Tool Hosting (Under Discussion)
+
+While tool simulations are MCP servers that should live in MCP registries, there's a case for **also** hosting them on HF Hub:
+
+**Pros**:
+- **Tight integration**: One-stop shop for environments + registries + sim tools
+- **Quality control**: Curated sim tools alongside environments
+- **Discovery**: Unified search across all OpenEnv resources
+- **Bootstrapping**: Helps ecosystem get started before MCP registries mature
+
+**Cons**:
+- **Duplication**: MCP ecosystem already has/will have registries
+- **Maintenance burden**: We'd need to host and maintain sim tool infrastructure
+- **Fragmentation**: Creates competing discovery mechanisms
+
+**Open question**: Should we provide convenience features for hosting sim tools on HF Hub, or strictly delegate to MCP ecosystem?
+
 ## State Checkpointing and Transactionality
 
 ### Motivation
@@ -392,64 +682,108 @@ We need the ability to rollback to intermediate states, not just the initial sta
 
 ### Design: Git-Based Checkpointing
 
-Every `.step()` can create a checkpoint (like a git commit):
+**Decision**: Automatic checkpointing with git-like API (tree structure, disk storage).
+
+Every `.step()` automatically creates a checkpoint:
 
 ```python
 # Initial state (checkpoint 0)
 env.reset()
 
-# Step 1 (checkpoint 1)
+# Step 1 (checkpoint 1 - auto-created)
 obs1 = env.step(action1)
 
-# Step 2 (checkpoint 2)
+# Step 2 (checkpoint 2 - auto-created)
 obs2 = env.step(action2)
 
 # Rollback to checkpoint 1
 env.reset(checkpoint=1)
 
 # Try different action from checkpoint 1
-obs = env.step(action_alternative)  # Creates checkpoint 3
+obs = env.step(action_alternative)  # Creates checkpoint 3 (branches from 1)
 ```
 
-**Implementation**: Use git to track filesystem changes. For managed state (databases), we'll need transaction logs or snapshots.
+**Implementation**:
+- Use git to track filesystem changes
+- For managed state (databases), use transaction logs or snapshots
+- Async sidecar for performance (git operations don't block environment)
 
-### Known Limitations
+```python
+class CheckpointManager:
+    """Git-based checkpointing with async sidecar for performance."""
 
-**🚨 OPEN QUESTION: Transactionality of External Tools**
+    def __init__(self, state_path: str):
+        self.repo = git.Repo.init(state_path)
+        self.checkpoint_queue = Queue()
+        self.sidecar_thread = Thread(target=self._checkpoint_worker)
+        self.sidecar_thread.start()
 
-The ability to roll back to arbitrary intermediate states requires that not only the environment be able to roll back, but that tools also have this ability. Quick taxonomy of tools:
+    def create(self) -> str:
+        """Queue checkpoint creation (non-blocking)."""
+        checkpoint_id = str(uuid.uuid4())
+        self.checkpoint_queue.put(("create", checkpoint_id))
+        return checkpoint_id
 
+    def restore(self, checkpoint_id: str):
+        """Restore to checkpoint (blocking - must wait for queue)."""
+        self.checkpoint_queue.join()  # Wait for pending checkpoints
+        self.repo.head.reset(checkpoint_id, index=True, working_tree=True)
+
+    def _checkpoint_worker(self):
+        """Background worker that performs git operations."""
+        while True:
+            op, checkpoint_id = self.checkpoint_queue.get()
+            if op == "create":
+                self.repo.index.add_all()
+                self.repo.index.commit(f"Checkpoint {checkpoint_id}")
+            self.checkpoint_queue.task_done()
+```
+
+### Known Limitations: Transactionality
+
+**Challenge**: The ability to roll back to arbitrary intermediate states requires that tools also support rollback.
+
+**Tool taxonomy**:
 - **Transactional tools**: Database queries, filesystem operations (via git)
 - **Idempotent tools**: Search, read-only operations (no rollback needed)
 - **Non-transactional tools**: Send email, charge credit card, deploy to prod
 
-We can roll back for stateless and transactional tools, but many tools are just non-transactional: you can't recall an email after you sent it.
+**Proposed approach**: Non-transactional tools are typically simulated in training anyway.
 
-**Proposed approach**:
-Given that many tools are non-transactional, why bother? We use environments in simulation, and a key insight is that **non-transactional tools are the most likely ones to be simulated**.
-
-So, here's our blueprint:
-
-- Accept the general limitation and document clearly: some tools just might not allow us to do this.
-- In sim mode, tool providers should mock non-transactional operations
-- In prod mode, non-transactional tools that modify state should probably not exist in training scenarios
+Blueprint:
+- Accept limitation and document clearly
+- In sim mode, tool providers mock non-transactional operations
+- In prod mode, non-transactional tools shouldn't exist in training scenarios
 - We provide checkpointing for what we control (filesystem, managed databases)
 
-**TODO**: Figure out how to annotate tools for transactionality without adding cognitive burden to devs. If we have this, the env shell is always gonna be transactional, so we can easily propagate this signal and let people running training know if they can even do rollbacks. Can even decide at run time: you may have non-transactional tools in the env and never use them during a particular simulation, which can therefore be valid.
+**Optional: Tool transactionality annotations**:
 
-### API (Initial Design)
+```python
+@mcp_tool(transactional=False)
+def send_email(to: str, subject: str, body: str):
+    """Send email (non-transactional, cannot be rolled back)."""
+    ...
+
+# Environment can query and warn users
+if env.has_non_transactional_tools():
+    warnings.warn("Environment contains non-transactional tools. "
+                  "Checkpointing may not work as expected.")
+```
+
+### API
 
 ```python
 class Environment:
-    def reset(self, checkpoint: int | None = None) -> Observation:
-        """Reset to checkpoint (default: initial state)."""
+    def reset(self, checkpoint: str | None = None) -> Observation:
+        """Reset to checkpoint (default: initial state).
+
+        Args:
+            checkpoint: Checkpoint ID (git commit hash) or None for initial
+        """
         if checkpoint is None:
-            # Reset to initial state
             self._restore_initial_snapshot()
         else:
-            # Restore to specific checkpoint (git reset)
             self.checkpoint_manager.restore(checkpoint)
-
         return self._get_initial_observation()
 
     def step(self, action: Action) -> Observation:
@@ -457,7 +791,7 @@ class Environment:
         # Execute action via MCP
         result = self._call_mcp_tools(action)
 
-        # Create checkpoint (git commit)
+        # Create checkpoint (non-blocking, queued to sidecar)
         checkpoint_id = self.checkpoint_manager.create()
 
         # Process events from queue
@@ -466,55 +800,79 @@ class Environment:
         # Compute rewards
         reward = self._compute_rewards(result, events)
 
-        return Observation(reward=reward, ...)
+        return Observation(reward=reward, checkpoint=checkpoint_id, ...)
 
-    def get_checkpoints(self) -> List[int]:
-        """Get list of available checkpoints."""
-        return self.checkpoint_manager.list()
+    def get_checkpoints(self) -> List[str]:
+        """Get list of available checkpoint IDs (git commits)."""
+        return self.checkpoint_manager.list_commits()
+
+    def get_checkpoint_tree(self) -> Dict[str, List[str]]:
+        """Get checkpoint tree (branching structure)."""
+        return self.checkpoint_manager.get_tree()
 ```
 
-**🚨 OPEN QUESTION**:
-- Auto-checkpoint every step, or manual control?
-- How to handle branching trajectories (linear IDs vs tree structure)?
-- Storage efficiency (in-memory vs disk, delta snapshots)?
+## Environment Semantics: Data + Evals Included
 
-## Collapsing World into Environment
+**Change from previous design**: Environment now contains pointers to data and evals.
 
-**Previous idea**: `World = Data + Environment + Evals + Rewards`
-
-**Revised approach**: Absorb World into Environment. Everything that belongs to simulation lives in the Environment's simulation layer:
+**Rationale**: This is intentional and beneficial because:
+1. **Clear simulation boundary**: Everything needed for training lives in Environment
+2. **Reuse without fragmentation**: While data/evals can vary per task, having them in Environment doesn't prevent reuse - just instantiate Environment with different data loaders
+3. **Simpler lifecycle**: Production deployment just strips simulation layer, including data/evals
+4. **Gym API preserved**: Core `reset()`, `step()`, `state()` interface unchanged
 
 ```python
 class Environment:
-    # Production core (MCP)
-    mcp_clients: List[MCPClient]
+    # Production core (MCP) - Environment wraps and manages these servers
+    mcp_servers: List[MCPServer]
 
-    # Simulation layer (HTTP) - only in sim mode
+    # Simulation layer - only present in sim mode
     event_queue: EventQueue
-    data_loader: DataLoader | None
-    reward_functions: List[RewardFunction]
-    eval_functions: List[EvalFunction]
+    data_loader: DataLoader | None          # NEW: Data is part of env
+    reward_functions: List[RewardFunction]  # Environment-level rewards
+    eval_functions: List[EvalFunction]      # NEW: Evals are part of env
     checkpoint_manager: CheckpointManager
 ```
 
-**Rationale**: Clear boundary - everything in simulation disappears in production, everything in MCP core remains.
+**Usage**:
 
-**🚨 OPEN QUESTION**: This means we are changing the semantics of the Environment class. Previously, it did not contain a pointer to data and evals and now it does. We do retain the Gym API though.
+```python
+# Same environment, different tasks
+env_train = DatabaseEnv(
+    mode="sim",
+    data_loader=TaskLoader("train_tasks.json"),
+    reward_functions=[SQLCorrectness(), PerformanceScore()],
+)
 
-## MCP as Interface
+env_eval = DatabaseEnv(
+    mode="sim",
+    data_loader=TaskLoader("eval_tasks.json"),
+    reward_functions=[SQLCorrectness(), PerformanceScore()],
+)
 
-**MCP is our interface to/from agents.** Note that this means exposing every action as a tool, including actions that are not what you would normally call tool-based. For example: chess. You normally would not expose moves as MCP because it's not a "tool", but it is possible to do it, and you get the benefits of MCP:
+# Production: no data/evals
+env_prod = DatabaseEnv(mode="prod")
+```
+
+## MCP as Universal Interface
+
+**MCP is our interface to/from agents.** This includes exposing every action as a tool, even actions that aren't traditionally "tools":
 
 - **Action discovery**: `list_tools()` tells agents what actions are available
 - **Type safety**: JSON Schema for parameters
 - **Language independence**: MCP servers can be written in any language
 
-Every query and every mutation performed by the agent will come through MCP calls.
+**Examples**:
+- Chess: `move_piece` is exposed as MCP tool (not a "tool" conceptually, but uses tool interface)
+- Database: `execute_sql` is an MCP tool
+- Travel: `search_flights` is an MCP tool
+
+Every query and every mutation performed by the agent comes through MCP calls.
 
 ### Special Methods: Not Exposed via MCP
 
-We reserve special methods that the model cannot call:
-- `.reset()` - simulation reset (would teach agents that errors are always recoverable)
+We reserve special methods that the model cannot call (simulation control):
+- `.reset()` - simulation reset (would teach agents errors are always recoverable)
 - `.step()` - advance simulation time / compute rewards
 - `.get_state()` - introspect episode metadata
 
@@ -522,9 +880,12 @@ These are exposed via HTTP (simulation control protocol), not MCP (agent protoco
 
 ## CodeAct and ToolCall Paradigms
 
-If our users write everything based on MCP, we can programmatically switch between tool calling and CodeAct style. This will require a thin proxy layer.
+**Decision**: Create `CodeActEnv` wrapper that converts any environment to CodeAct mode.
 
-**Tool calling-style**: Each tool call is a discrete action
+### Tool Calling Style
+
+Each tool call is a discrete action:
+
 ```python
 # Agent generates
 action1 = ToolCallAction(tool_name="search_web", params={...})
@@ -534,7 +895,10 @@ action2 = ToolCallAction(tool_name="read_file", params={...})
 obs2 = env.step(action2)
 ```
 
-**CodeAct-style**: Write code that calls multiple tools
+### CodeAct Style
+
+Write code that calls multiple tools:
+
 ```python
 # Agent generates Python code
 code = """
@@ -548,7 +912,70 @@ print(content[:100])
 obs = env.step(CodeAction(code=code))
 ```
 
-**Implementation**: We make a `CodeActEnvironment` or something like this where the action space is defined only as `CodeAction` and nothing else. This actual bridges the gap with the Gym API since they normally want you to have a discrete, finite, enumerable action space and now we have this. Both in MCP mode and in CodeAct mode (maybe in a bit of a weaker sense since we do not taxonomize every possible input, but the action types themselves are, and their args are at least typechecked).
+### Implementation: CodeActEnv Wrapper
+
+```python
+class CodeActEnv:
+    """Wrapper that converts any Environment to CodeAct mode.
+
+    Takes an existing environment and exposes its MCP tools as
+    Python functions inside a code execution environment.
+    """
+
+    @classmethod
+    def from_env(cls, env: Environment) -> "CodeActEnv":
+        """Create CodeAct environment from existing environment.
+
+        Args:
+            env: Base environment with MCP tools
+
+        Returns:
+            CodeActEnv where agent writes code to call tools
+        """
+        # Introspect environment's action space (MCP tools)
+        tools = env.list_tools()  # Gets MCP tool definitions
+
+        # Create Python executor with tools pre-imported
+        executor = PythonExecutor()
+        for tool in tools:
+            # Wrap each MCP tool as Python function
+            executor.register_function(
+                name=tool.name,
+                func=lambda **kwargs: env.call_tool(tool.name, kwargs)
+            )
+
+        return cls(base_env=env, executor=executor)
+
+    def step(self, action: CodeAction) -> Observation:
+        """Execute code (calls MCP tools as Python functions)."""
+        result = self.executor.run(action.code)
+        return self._make_observation(result)
+```
+
+**Usage**:
+
+```python
+# Start with any MCP-based environment
+database_env = DatabaseEnv(...)
+
+# Convert to CodeAct
+codeact_env = CodeActEnv.from_env(database_env)
+
+# Agent now writes code instead of tool calls
+code = """
+result = execute_sql("SELECT * FROM employees WHERE dept='Engineering'")
+count = len(result)
+print(f"Found {count} engineers")
+"""
+
+obs = codeact_env.step(CodeAction(code=code))
+```
+
+**Benefits**:
+- Bridges Gym API (discrete action space = CodeAction type)
+- Action types are enumerable and typechecked
+- Seamless conversion: any Environment → CodeAct mode
+- Tools pre-imported, no import statements needed (security)
 
 ## Human-Agent Parity
 
@@ -558,18 +985,18 @@ Assume we expose the following tools via MCP:
 - `mouse(x, y, click=True)` - Mouse interaction
 
 Then we can build a Docker that both:
-- Agents can interact with via MCP tools (production interface)
+- Agents interact with via MCP tools (production interface)
 - Humans can remote desktop into (same environment, different interface)
 
 This validates that agents get the same interface humans would have.
 
-**🚨 OPEN QUESTION**: Should we actually support VNC/RDP, or just simulate with MCP tools?
+**Note**: Supporting actual VNC/RDP is optional - we provide the MCP tools for simulation. If someone wants to add VNC support, our architecture doesn't prevent it.
 
 ## Tool Discoverability
 
-Given limited context windows, we can't dump all tools to the agent. We need hierarchical discovery.
+Given limited context windows, we can't dump all tools to the agent. Hierarchical discovery is needed.
 
-**Approach**: Directory-like structure + `find_tools` utility
+**Our approach**: Directory-like structure + optional `find_tools` utility.
 
 ```
 database_environment/
@@ -582,83 +1009,168 @@ database_environment/
         semantic_search.py
 ```
 
-We'll provide a `find_tools(query)` convenience tool that helps agents discover relevant tools.
+We can provide a `find_tools(query)` convenience tool that helps agents discover relevant tools.
 
-More in general, I don't believe we need to solve this particular problem. Being all-in on MCP means that however you decide to solve this problem, we will be naturally compatible!
+**Key insight**: Being all-in on MCP means we're naturally compatible with however the MCP ecosystem solves discoverability (Gateway patterns, hierarchical servers, semantic search, etc.). We don't need to pick a winner.
 
 ## Convenience Features: Traits/Mixins
 
-Bundle common patterns as importable traits:
+**Decision**: Server-side mixins that bring pre-made MCP servers.
+
+Bundle common patterns as importable traits for environment builders:
 
 ```python
-class CompetitiveCodingEnv(HumanComputerInterfaceable, BashAccess, PythonAccess):
-    # Automatically includes screen/keyboard/mouse + bash + Python interpreter
-    ...
+from openenv.traits import HumanComputerInterfaceable, BashAccess, PythonAccess
+
+class CompetitiveCodingEnv(Environment, HumanComputerInterfaceable, BashAccess, PythonAccess):
+    """Competitive coding environment with common tools pre-configured.
+
+    Traits automatically:
+    - HumanComputerInterfaceable: Adds screen/keyboard/mouse MCP servers
+    - BashAccess: Adds bash execution MCP server
+    - PythonAccess: Adds Python interpreter MCP server
+    """
+
+    def __init__(self, mode: str):
+        # Traits inject their MCP servers
+        mcp_servers = self._get_trait_mcp_servers()
+
+        super().__init__(
+            mode=mode,
+            mcp_servers=mcp_servers,
+            ...
+        )
 ```
 
-**🚨 OPEN QUESTION**: How do traits interact with MCP server deployment? Are they:
-- Server-side mixins that pre-configure MCP servers?
-- Client-side mixins?
-- Configuration/deployment artifacts (docker-compose snippets)?
+**Implementation**:
 
-[Davide] I was thinking of server-side mixins. Basically, just a convenience feature to Env builders so that they don't have to rebuild the same things over and over.
+```python
+class BashAccess:
+    """Mixin that adds bash execution capability."""
+
+    def _get_trait_mcp_servers(self) -> List[MCPServerConfig]:
+        """Return MCP servers needed for this trait."""
+        return [
+            MCPServerConfig(
+                name="bash",
+                url="http://bash-mcp:8100",  # Pre-built server
+                docker_image="openenv/bash-mcp:latest"
+            )
+        ]
+```
+
+**Benefits**:
+- Environment builders don't rebuild common tools
+- Standardized implementations (same bash server used everywhere)
+- Easy to compose (multiple traits on one environment)
+- Traits can be published to HF Hub too
+
+## Dependency Management: Prod vs Sim
+
+**Challenge**: Production and simulation have different dependencies.
+
+**Example**:
+- **Prod Expedia MCP server**: Needs `requests`, `aiohttp` (to call real API)
+- **Sim Expedia MCP server**: Needs `faker`, `datasets` (to generate mock data)
+- **Environment in sim mode**: Needs eval dependencies, reward model libraries
+
+**Solution**: Separate Dockerfiles for each concern.
+
+```
+travel-booking-env/
+├── prod-mcp-servers/
+│   ├── expedia/
+│   │   ├── Dockerfile              # Only prod deps (requests, etc.)
+│   │   └── server.py
+│   └── stripe/
+│       ├── Dockerfile              # Only prod deps
+│       └── server.py
+│
+├── sim-mcp-servers/
+│   ├── expedia-sim/
+│   │   ├── Dockerfile              # Only sim deps (faker, etc.)
+│   │   └── server.py
+│   └── stripe-sim/
+│       ├── Dockerfile              # Only sim deps
+│       └── server.py
+│
+└── environment/
+    ├── Dockerfile                   # Sim-only deps (evals, rewards)
+    └── environment.py
+```
+
+**How it works**:
+
+1. **Prod mode**: Environment loads only prod MCP servers
+   ```python
+   env = Environment(
+       mode="prod",
+       mcp_servers=[
+           MCPServerConfig("expedia", prod_url),  # prod-mcp-servers/expedia
+           MCPServerConfig("stripe", prod_url),
+       ]
+   )
+   # Environment Dockerfile not even built (not needed in prod)
+   ```
+
+2. **Sim mode**: Environment loads sim MCP servers via registry
+   ```python
+   env = Environment(
+       mode="sim",
+       mcp_servers=[
+           MCPServerConfig("expedia", prod_url),      # For registry lookup
+           MCPServerConfig("expedia_sim", sim_url),   # sim-mcp-servers/expedia-sim
+           MCPServerConfig("stripe", prod_url),
+           MCPServerConfig("stripe_sim", sim_url),
+       ],
+       tool_registry=ToolRegistry({
+           "expedia.*": "expedia_sim.*",  # Maps to sim server
+           "stripe.*": "stripe_sim.*",
+       })
+   )
+   # Environment container built with sim deps (evals, rewards)
+   ```
+
+**Benefits**:
+- Prod containers are lean (no unnecessary deps)
+- Sim MCP servers don't need `requests` (won't bring it in)
+- Clear separation: prod deps in MCP server Dockerfile, sim deps in env or sim MCP server Dockerfile
+
+## What We've Decided
+
+- ✅ **Environment = MCP Servers + Simulation Layer**
+- ✅ **Dual protocol** (HTTP for sim control, MCP for agent interaction) is correct
+- ✅ **Event queue is first-class** citizen (empty = static, populated = dynamic)
+- ✅ **World abstraction absorbed into Environment** (data + evals included)
+- ✅ **Checkpointing via git API** (automatic, disk storage, tree structure, async sidecar)
+- ✅ **Time semantics differ** between simulation and production
+- ✅ **Rewards are environment-level** (env already has pointer to data)
+- ✅ **CodeActEnv wrapper pattern** (`CodeActEnv.from_env()` converts any env)
+- ✅ **Traits as server-side mixins** (bring pre-made MCP servers)
+- ✅ **Tool registry with HF Hub** integration for community simulations
+- ✅ **Dependency separation** via separate Dockerfiles (prod MCP, sim MCP, env)
 
 ## Open Questions
 
 ### High Priority
 
-1. **Tool transactionality**: How do we handle non-transactional tools in checkpointing? Require it? Document limitations? Provide best-effort?
-
-2. **Reward placement**: Environment-level (fixed per environment) or task-level (varies per task)?
-[Davide] Let's do Environment-level. Env already has a pointer to data anyway, so this distinction is no longer critical to call as it was in the previous design.
-
-3. **CodeAct proxy design**: Where does ToolCall ↔ CodeAct conversion happen exactly?
-[Davide] Every env needs to have specs for Observations and Actions. We can simply make a `CodeActEnv` that can have a constructor like `CodeActEnv.from_env(MySpecialEnv)`. It would go in, read the dataclasses for Actions that the provided env has, and make each action (already MCP) available as a MCP tool to be used _inside_ a CodeAction.
-
-4. **Checkpointing details**:
-   - Auto vs manual checkpoint creation?
-   - Storage strategy (in-memory, disk, hybrid)?
-   - Branching support (linear vs tree)?
-
-[Davide] Auto, at least for the env. We should do disk for storage, and we should do tree. So... Basically exactly the git API (may or may not use git behind the scenes). Performance is something we can figure out. We can have git in a sidecar and queue operations while the env runs -- no need for git snapshots to block the env.
+1. **Tool transactionality annotations**: Should we provide `@mcp_tool(transactional=False)` or just document limitations? How do we warn users at runtime?
 
 ### Medium Priority
 
-5. **Traits implementation**: How do convenience traits work with MCP deployment?
-[Davide] They could exist at the Env level, and all they do is bring pre-made MCP servers.
+2. **HF Hub curation**: Who maintains standard-registry? How do we handle quality/security of community-contributed sims?
 
-6. **MCP mode propagation**: Environment variable vs per-call context?
-[Davide] Explain this further? I don't understand the question
-
-7. **Streaming support**: How does hybrid MCP approach work with streaming tool calls?
-[Davide] In Prod mode, we don't care since we get out of the way so we can support. In Sim mode, maybe this is not as critical?
+3. **Streaming in sim mode**: Do we need to support streaming tool calls during training, or is request-response sufficient?
 
 ### Lower Priority
 
-8. **Human interface**: VNC/RDP or just MCP tool simulation?
-[Davide] No need for us to choose. Even if we do not implement VNC/RDP ourselves, someone else can. We are just talking about a convenience feature, not a critical part of our spec.
-
-9. **Tool provider incentives**: How do we convince Expedias of the world to ship dual-mode servers?
-[Davide] This is critical and a hard question. Maybe this is also the wrong question for us at this point because we do not control it. So, let us take a step back and ask a _different_ question that we have more control over. Let's look at the end state. We basically want to have a registry of (prod, sim) mapping available to everyone so that they can reuse the same tools in many different envs. So... Why don't we instead do this by hosting a public registry? We already have a Hub for environments, so it's not hard for us to add another hub for these. Please turn this into a more detailed proposal, leveraging HF hub.
-
-10. **Docker nesting**: Clean patterns for MCP servers inside environment containers?
-[Davide] I think now we do: deps that you need in Prod go inside the Dockerfile of the MCP server while deps that you only need in sim mode (e.g. evals, or other deps that you may need for mocked tools) go into the Env dockerfile. Open question: this assumes that Sim mode deps are a superset of Prod mode which is in fact not true. For example, the sim Expedia does not need `requests` since it mocks everything. One solution is that we first bring every dep from MCP servers so our mapping would have sent us a different Expedia tool in sim mode that would not have brought in requests. But do test it and flesh it out a bit more.
-
-## What We're NOT Undecided On
-
-- ✅ Environment = MCP Servers + Simulation Layer
-- ✅ Dual protocol (HTTP for sim control, MCP for agent interaction) is correct
-- ✅ Tool duality starts with us (Phase 1), migrates to tool providers (Phase 2-3)
-    - [Davide] Maybe the hub is really the answer here, so we don't make changes
-- ✅ Event queue is first-class citizen
-- ✅ World abstraction absorbed into Environment
-- ✅ Checkpointing via git for filesystem state
-- ✅ Time semantics differ between simulation and production
+4. **Tool provider migration incentives**: Besides usage metrics on Hub, what else can we offer to get official dual-mode servers?
 
 ## Next Steps
 
-1. Validate this design with concrete implementations (database env, travel booking env)
-2. Build Phase 1 simulation utilities (`mock_response`, `mock_from_dataset`, etc.)
-3. Define MCP server contract and best practices for dual-mode servers
-4. Resolve open questions through prototyping
-5. Update existing RFCs (001-004) to reflect this design
+1. **Prototype HF Hub integration** for tool simulations (v0.4)
+2. **Validate docker dependency separation** with real environment (travel booking)
+3. **Implement CodeActEnv wrapper** with existing environments
+4. **Build reference traits** (BashAccess, PythonAccess, HumanComputerInterfaceable)
+5. **Git-based checkpointing** with async sidecar
+6. **Update RFCs 001-004** to reflect this unified design
