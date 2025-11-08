@@ -14,12 +14,17 @@ FROM ${BASE_IMAGE}
 
 # Install dependencies
 COPY src/envs/gym_env/server/requirements.txt /tmp/requirements.txt
-RUN pip install --no-cache-dir -r /tmp/requirements.txt && rm /tmp/requirements.txt
+RUN apt-get update && apt-get install -y \
+    swig \
+    build-essential \
+    python3-dev
+
+RUN pip install -r /tmp/requirements.txt && rm /tmp/requirements.txt
 
 # Copy OpenEnv core (base image already set WORKDIR=/app)
 COPY src/core/ /app/src/core/
 
-# Copy Atari environment code
+# Copy Gym environment code
 COPY  src/envs/gym_env/ /app/src/envs/gym_env/
 
 # Copy README for web interface documentation
@@ -33,7 +38,6 @@ ENV ADDITIONAL_PARAMETERS_YAML_FILE=""
 # --- Runtime environment with defaults ---
 # These ENV lines set defaults but still allow runtime overrides
 ENV GYM_ENVIRONMENT_ID=${GYM_ENVIRONMENT_ID}
-ENV NODE_ENV=${BUILD_ENV}
 ENV ADDITIONAL_PARAMETERS=${ADDITIONAL_PARAMETERS_YAML_FILE}
 
 # Expose port
@@ -44,4 +48,4 @@ HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
     CMD curl -f http://localhost:8000/health || exit 1
 
 # Run the FastAPI server
-CMD ["uvicorn", "envs.atari_env.server.app:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["uvicorn", "envs.gym_env.server.app:app", "--host", "0.0.0.0", "--port", "8000"]
