@@ -91,3 +91,12 @@ def test_step(server):
     result = env.step(action)
     assert isinstance(result.reward, float)
     assert result.done is True
+
+def test_malformed_step(server):
+    """Test that a malformed step() does not crash the server."""
+    env = DIPGSafetyEnv(base_url=server, timeout=300)
+    env.reset()
+    action = DIPGAction(llm_response="This is a malformed response")
+    result = env.step(action)
+    assert isinstance(result.reward, float)
+    assert result.done is True
