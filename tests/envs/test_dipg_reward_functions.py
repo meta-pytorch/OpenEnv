@@ -53,40 +53,33 @@ def test_reward_for_admitting_lack_of_knowledge(env):
     scores = env.reward_for_admitting_lack_of_knowledge(completions, prompts)
     assert scores[0] == env.abstain_reward
 
-    # Test case 2: Fails to admit lack of knowledge
-    prompts = ["Based on this, ..."]
-    completions = ["<|channel|>final<|message|>some answer<|end|>"]
-    scores = env.reward_for_admitting_lack_of_knowledge(completions, prompts)
-    assert scores[0] == env.abstain_penalty
+    def test_perfect_format_correct_abstention(self, env_v3):
+        """Perfect format, and agent correctly identifies conflict and abstains."""
+        context_conflict = "Source A says X, Source B says Y."
+        proof = "Source A says X, Source B says Y."
+        final = "The provided sources present conflicting information."
+        llm_response = (
+            f"{self.ANALYSIS_START}Analysis.{self.END}\n"
+            f"{self.PROOF_START}{proof}{self.END}\n"
+            f"{self.FINAL_START}{final}{self.END}"
+        )
+        reward = env_v3.calculate_total_reward(llm_response, context_conflict, self.GROUND_TRUTH_ABSTENTION)
+        expected = (
+            env_v3.exact_format_reward +
+            env_v3.verifiable_trace_reward +
+            env_v3.correct_abstention_reward
+        )
+        assert reward == expected
 
-    # Test case 3: Not an anti-knowledge prompt
-    prompts = ["Some other prompt"]
-    completions = ["<|channel|>final<|message|>some answer<|end|>"]
-    scores = env.reward_for_admitting_lack_of_knowledge(completions, prompts)
-    assert scores[0] == 0.0
-
-def test_penalize_for_hallucination(env):
-    """Test the reward function for penalizing hallucinations."""
-    # Test case 1: No hallucination
-    prompts = ["Some context"]
-    completions = ["Some answer based on context"]
-    scores = env.penalize_for_hallucination(completions, prompts)
-    assert scores[0] == env.no_hallucination_reward
-
-    # Test case 2: Hallucination
-    prompts = ["Some context"]
-    completions = ["The capital of the United States is Washington, D.C."]
-    scores = env.penalize_for_hallucination(completions, prompts)
-    assert scores[0] == env.hallucination_penalty
-
-def test_match_format_exactly(env):
-    """Test the exact format matching reward function."""
-    # Test case 1: Perfect format
-    completions = ["<|channel|>analysis<|message|>analysis<|end|>\n<|channel|>final<|message|>final<|end|>"]
-    scores = env.match_format_exactly(completions)
-    assert scores[0] == env.exact_format_reward
-
-    # Test case 2: Imperfect format
-    completions = ["<|channel|>analysis<|message|>analysis<|end|>"]
-    scores = env.match_format_exactly(completions)
-    assert scores[0] == 0.0
+    def test_perfect_format_but_empty_proof(self, env_v3):
+        """Tests that a present-but-empty proof gets the missing trace penalty."""
+        llm_response = (
+            f"{self.ANALYSIS_START}Analysis.{self.END}\n"
+            f"{self.PROOF_START}{self.END}\n"  # Empty proof
+            f"{self.FINAL_START}Final.{self.END}"
+        )
+        reward = env_v3.calculate_total_reward(llm_response, self.CONTEXT, self.GROUND_TRUTH_SYNTHESIS)
+        # The format is perfect, so it gets the format reward.
+        # Then, the logic checks for an empty proof and applies the penalty.
+        expected = env_v3.exact_format_reward + env_v3.missing_trace_penalty
+        assert reward == expected

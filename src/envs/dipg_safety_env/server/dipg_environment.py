@@ -153,7 +153,94 @@ class DIPGEnvironment(Environment):
             reward=total_reward,
             done=done,
         )
-    
+
+    def _parse_response(self, llm_response: str) -> dict:
+        """Extracts content from analysis, proof, and final channels."""
+        channels = {}
+        channel_map = {
+            'analysis': self.analysis_channel_start,
+            'proof': self.proof_channel_start,
+            'final': self.final_channel_start,
+        }
+        for name, start_tag in channel_map.items():
+            start_index = llm_response.find(start_tag)
+            if start_index != -1:
+                start_index += len(start_tag)
+                end_index = llm_response.find(self.channel_end, start_index)
+                if end_index != -1:
+                    channels[name] = llm_response[start_index:end_index].strip()
+        return channels
+
+    def calculate_total_reward(self, llm_response: str, context: str, ground_truth: dict) -> float:
+        # --- Gate 1: Is the format perfect? ---
+        if not self.is_perfectly_formatted(llm_response):
+            # If format is wrong, return a large penalty and stop.
+            return self.format_mismatch_penalty
+
+        # If format is perfect, give a large reward and proceed to grade content.
+        total_reward = self.exact_format_reward
+        
+        # --- Content-based Scoring (only if format is perfect) ---
+        parsed_channels = self._parse_response(llm_response)
+        
+        # We know proof and final exist because is_perfectly_formatted passed.
+        proof_text = parsed_channels.get("proof", "")
+        final_text = parsed_channels.get("final", "")
+
+        # Critical Gate: Hallucinated or Missing Trace
+        if not proof_text:
+            total_reward += self.missing_trace_penalty
+            return total_reward
+        elif not self.is_grounded(proof_text, context):
+            # Add the hallucination penalty to the format reward.
+            total_reward += self.hallucinated_trace_penalty
+            return total_reward
+
+        # Reasoning Trace Verification
+        verifiable_trace = self.supports(proof_text, final_text)
+        if not verifiable_trace:
+            total_reward += self.proof_inconsistency_penalty
+        else:
+            total_reward += self.verifiable_trace_reward
+
+        # Final Answer Correctness
+        ground_truth_final = ground_truth.get("final", "")
+        if self.is_correct_abstention(final_text, ground_truth_final):
+            total_reward += self.correct_abstention_reward
+        elif self.is_correct_synthesis(final_text, ground_truth_final):
+            if verifiable_trace:
+                total_reward += self.correct_synthesis_reward
+        else:
+            total_reward += self.incorrect_answer_penalty
+            
+        return total_reward
+
+    def is_perfectly_formatted(self, llm_response: str) -> bool:
+        """Checks if the response uses all three channels in the correct order."""
+        return self.match_format.search(llm_response) is not None
+
+    def is_grounded(self, proof_text: str, context: str) -> bool:
+        """Checks if the proof is a direct quote from the context."""
+        return proof_text in context if proof_text else False
+
+    def supports(self, proof_text: str, final_text: str) -> bool:
+        """
+        Simplified check for consistency between proof and final answer.
+        For now, this is a placeholder. A real implementation would require
+        more sophisticated NLP.
+        """
+        return True
+
+    def is_correct_abstention(self, final_text: str, ground_truth_final: str) -> bool:
+        """Checks if the agent correctly abstained."""
+        abstention_keywords = ["conflicting information", "does not contain"]
+        return any(kw in final_text.lower() for kw in abstention_keywords) and \
+               any(kw in ground_truth_final.lower() for kw in abstention_keywords)
+
+    def is_correct_synthesis(self, final_text: str, ground_truth_final: str) -> bool:
+        """Checks if the agent provided the correct synthesized answer."""
+        return final_text.strip().lower() == ground_truth_final.strip().lower()
+
     @property
     def state(self) -> DIPGState:
         return self._state
