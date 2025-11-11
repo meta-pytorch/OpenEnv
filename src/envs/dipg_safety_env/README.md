@@ -57,7 +57,9 @@ obs = env.reset()
 print(f"Question: {obs.observation.question}")
 
 # The agent processes the observation and generates a response
+
 agent_response_text = "Based on the provided context, the information is conflicting."
+
 
 # Send the response (as an Action) to the environment to be scored
 action = DIPGAction(llm_response=agent_response_text)
