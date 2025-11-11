@@ -12,7 +12,13 @@ The Echo environment is a simple test environment that echoes back messages.
 
 from dataclasses import dataclass
 
-from core.env_server.types import Action, Observation
+# Support both in-repo and standalone imports
+try:
+    # In-repo imports (when running from OpenEnv repository)
+    from core.env_server.types import Action, Observation
+except ImportError:
+    # Standalone imports (when environment is standalone with openenv-core from pip)
+    from openenv_core.env_server.types import Action, Observation
 
 
 @dataclass(kw_only=True)

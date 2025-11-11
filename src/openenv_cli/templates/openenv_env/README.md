@@ -186,12 +186,13 @@ __ENV_NAME__/
 ├── __init__.py            # Module exports
 ├── README.md              # This file
 ├── openenv.yaml           # OpenEnv manifest
+├── pyproject.toml         # Project metadata and dependencies
+├── uv.lock                # Locked dependencies (generated)
 ├── client.py              # __ENV_CLASS_NAME__Env client implementation
 ├── models.py              # Action and Observation models
 └── server/
     ├── __init__.py        # Server module exports
     ├── __ENV_NAME___environment.py  # Core environment logic
     ├── app.py             # FastAPI application
-    ├── Dockerfile         # Container image definition
-    └── requirements.txt  # Python dependencies
+    └── Dockerfile         # Container image definition
 ```

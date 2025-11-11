@@ -4,19 +4,25 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "openenv"
-version = "0.1.0"
+version = "0.1.1"
+description = "A unified framework for reinforcement learning environments"
+readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
-    "torch>=1.9.0",
-    "numpy>=1.19.0",
-    "requests>=2.25.0",
+    # Core shared dependencies - minimal set required for all environments
+    # Heavy dependencies (torch, numpy, smolagents, etc.) should be in
+    # individual environment pyproject.toml files
     "fastapi>=0.104.0",
+    "pydantic>=2.0.0",
     "uvicorn>=0.24.0",
-    "smolagents>=1.22.0,<2",
+    "requests>=2.25.0",
+    # CLI dependencies
     "typer>=0.9.0",
     "rich>=13.0.0",
     "pyyaml>=6.0",
-    "huggingface_hub>=0.20.0"
+    "huggingface_hub>=0.20.0",
+    "tomli>=2.3.0",
+    "tomli-w>=1.2.0",
 ]
 
 [project.scripts]

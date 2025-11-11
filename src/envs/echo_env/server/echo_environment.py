@@ -13,10 +13,17 @@ Perfect for testing HTTP server infrastructure.
 
 from uuid import uuid4
 
-from core.env_server.interfaces import Environment
-from core.env_server.types import State
-
-from ..models import EchoAction, EchoObservation
+# Support both in-repo and standalone imports
+try:
+    # In-repo imports (when running from OpenEnv repository)
+    from core.env_server.interfaces import Environment
+    from core.env_server.types import State
+    from ..models import EchoAction, EchoObservation
+except ImportError:
+    # Standalone imports (when environment is standalone with openenv-core from pip)
+    from openenv_core.env_server.interfaces import Environment
+    from openenv_core.env_server.types import State
+    from models import EchoAction, EchoObservation
 
 
 class EchoEnvironment(Environment):

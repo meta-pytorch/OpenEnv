@@ -134,11 +134,44 @@ my_env/
 ├── client.py             # Implement YourEnv(HTTPEnvClient)
 ├── README.md             # Document your environment
 ├── openenv.yaml          # Environment manifest
+├── pyproject.toml        # Dependencies and package configuration
+├── outputs/              # Runtime outputs (logs, evals) - gitignored
+│   ├── logs/
+│   └── evals/
 └── server/
     ├── your_environment.py  # Implement YourEnvironment(Environment)
     ├── app.py               # Create FastAPI app
+    ├── requirements.txt     # Dependencies for Docker (can be generated)
     └── Dockerfile           # Define container image
 ```
+
+#### Dependency Management
+
+OpenEnv uses `pyproject.toml` as the primary dependency specification:
+
+- **Environment-level `pyproject.toml`**: Each environment defines its own dependencies
+- **Root-level `pyproject.toml`**: Contains shared core dependencies (fastapi, pydantic, uvicorn)
+- **Server `requirements.txt`**: Can be auto-generated from `pyproject.toml` for Docker builds
+
+**Development Workflow:**
+
+```bash
+# Install environment in editable mode
+cd my_env
+pip install -e .
+
+# Or using uv (faster)
+uv pip install -e .
+
+# Run server locally without Docker
+uv run server --host 0.0.0.0 --port 8000
+```
+
+**Benefits:**
+- ✅ **Client-side extensions**: Modify client classes locally without repo changes
+- ✅ **Better dependency management**: Clear separation between environments
+- ✅ **Flexible workflows**: Use pip, uv, or Docker for different scenarios
+- ✅ **CI/CD ready**: Automated dependency generation and validation
 
 See [`src/envs/README.md`](src/envs/README.md) for a complete guide on building environments.
 
