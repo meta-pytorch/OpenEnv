@@ -18,7 +18,7 @@ from uuid import uuid4
 from models import WebSearchAction, WebSearchObservation
 from openenv_core.env_server.interfaces import Environment
 from openenv_core.env_server.types import State
-from websearch_tool import WebSearchTool
+from .websearch_tool import WebSearchTool
 
 
 class WebSearchEnvironment(Environment):
