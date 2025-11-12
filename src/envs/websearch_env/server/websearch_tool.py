@@ -25,7 +25,7 @@ from ..models import WebContent, WebSearchAction, WebSearchObservation
 
 
 class WebSearchTool:
-    """A tool for searching the web using Google Search API (via Serper API)."""
+    """A tool for searching the web using Google Search API (via Serper.dev)."""
 
     def __init__(
         self,

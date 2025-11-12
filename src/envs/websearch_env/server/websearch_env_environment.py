@@ -7,7 +7,7 @@
 """
 WebSearch Env Environment Implementation (inspired by Search-R1).
 
-A web search environment that uses the google search API (via Serper API) to search the web.
+A web search environment that uses the google search API (via Serper.dev) to search the web.
 It maintains minimal state and simply returns the search results.
 """
 
