@@ -8,7 +8,7 @@ def test_websearch_environment():
     api_key = os.environ.get("SERPER_API_KEY")
     if not api_key:
         import pytest
-        pytest.skip("Skipping websearch environment test: SERPER_API_KEY not set.")
+        pytest.skip("Skipping websearch environment test because SERPER_API_KEY is not set.")
 
     # Create the environment
     env = WebSearchEnvironment()
