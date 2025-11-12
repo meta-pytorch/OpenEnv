@@ -5,10 +5,10 @@
 # LICENSE file in the root directory of this source tree.
 
 """
-Searchr1 Env Environment Implementation.
+WebSearch Env Environment Implementation (inspired by Search-R1).
 
-A simple test environment that echoes back messages sent to it.
-Perfect for testing HTTP server infrastructure.
+A web search environment that uses the google search API (via Serper API) to search the web.
+It maintains minimal state and simply returns the search results.
 """
 
 from __future__ import annotations
@@ -24,19 +24,18 @@ from .web_search import WebSearchTool
 
 class WebSearchEnvironment(Environment):
     """
-    A simple echo environment that echoes back messages.
+    A web search environment that uses the google search API (via Serper API) to search the web.
 
     This environment is designed for testing the HTTP server infrastructure.
-    It maintains minimal state and simply echoes back whatever message it receives.
+    It maintains minimal state and simply returns the search results.
 
     Example:
-        >>> env = Searchr1Environment()
+        >>> env = WebSearchEnvironment()
         >>> obs = env.reset()
-        >>> print(obs.echoed_message)  # "Searchr1 Env environment ready!"
+        >>> print(obs.web_contents)  # []
         >>>
-        >>> obs = env.step(Searchr1Action(message="Hello"))
-        >>> print(obs.echoed_message)  # "Hello"
-        >>> print(obs.message_length)  # 5
+        >>> obs = env.step(WebSearchAction(query="What is the capital of France?"))
+        >>> print(obs.web_contents)  # [WebContent(title="Capital of France", content="The capital of France is Paris", url="https://en.wikipedia.org/wiki/Paris")]
     """
 
     def __init__(self):
