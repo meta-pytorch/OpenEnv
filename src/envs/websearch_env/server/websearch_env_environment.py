@@ -12,6 +12,7 @@ It maintains minimal state and simply returns the search results.
 """
 
 from __future__ import annotations
+import asyncio
 import os
 from uuid import uuid4
 
@@ -19,7 +20,7 @@ from core.env_server.interfaces import Environment
 from core.env_server.types import State
 
 from ..models import WebSearchAction, WebSearchObservation
-from .web_search import WebSearchTool
+from .websearch_tool import WebSearchTool
 
 
 class WebSearchEnvironment(Environment):
@@ -78,19 +79,7 @@ class WebSearchEnvironment(Environment):
         """
         self._state.step_count += 1
 
-        message = action.message
-        length = len(message)
-
-        # Simple reward: longer messages get higher rewards
-        reward = length * 0.1
-
-        return WebSearchObservation(
-            echoed_message=message,
-            message_length=length,
-            done=False,
-            reward=reward,
-            metadata={"original_message": message, "step": self._state.step_count},
-        )
+        return asyncio.run(self._web_search_tool.execute(action))
 
     @property
     def state(self) -> State:
