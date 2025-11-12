@@ -5,10 +5,9 @@
 # LICENSE file in the root directory of this source tree.
 
 """
-WebSearch Env Environment Implementation (inspired by Search-R1).
+Websearch Env Environment Implementation.
 
-A web search environment that uses the google search API (via Serper.dev) to search the web.
-It maintains minimal state and simply returns the search results.
+A web search environment that uses the google search API (via Serper API) to search the web.
 """
 
 from __future__ import annotations
@@ -16,11 +15,10 @@ import asyncio
 import os
 from uuid import uuid4
 
-from core.env_server.interfaces import Environment
-from core.env_server.types import State
-
-from ..models import WebSearchAction, WebSearchObservation
-from .websearch_tool import WebSearchTool
+from models import WebSearchAction, WebSearchObservation
+from openenv_core.env_server.interfaces import Environment
+from openenv_core.env_server.types import State
+from websearch_tool import WebSearchTool
 
 
 class WebSearchEnvironment(Environment):

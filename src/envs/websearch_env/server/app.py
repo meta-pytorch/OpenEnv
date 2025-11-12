@@ -5,7 +5,7 @@
 # LICENSE file in the root directory of this source tree.
 
 """
-FastAPI application for the WebSearch Env Environment.
+FastAPI application for the Websearch Env Environment.
 
 This module creates an HTTP server that exposes the WebSearchEnvironment
 over HTTP endpoints, making it compatible with HTTPEnvClient.
@@ -22,24 +22,49 @@ Usage:
 """
 
 try:
-    from core.env_server.http_server import create_app
+    from openenv_core.env_server.http_server import create_app
 except Exception as e:  # pragma: no cover
     raise ImportError(
-        "openenv_core is required for the web interface. Install template deps with '\n"
-        "    pip install -r server/requirements.txt\n'"
+        "openenv_core is required for the web interface. Install dependencies with '\n"
+        "    uv sync\n'"
     ) from e
 
 from .websearch_env_environment import WebSearchEnvironment
-from ..models import WebSearchAction, WebSearchObservation
+from models import WebSearchAction, WebSearchObservation
 
 # Create the environment instance
 env = WebSearchEnvironment()
 
 # Create the app with web interface and README integration
-app = create_app(env, WebSearchAction, WebSearchObservation, env_name="websearch_env")
+app = create_app(
+    env,
+    WebSearchAction,
+    WebSearchObservation,
+    env_name="websearch_env",
+)
+
+
+def main(host: str = "0.0.0.0", port: int = 8000):
+    """
+    Entry point for direct execution via uv run or python -m.
+
+    This function enables running the server without Docker:
+        uv run --project . server
+        uv run --project . server --port 8001
+        python -m websearch_env.server.app
+
+    Args:
+        host: Host address to bind to (default: "0.0.0.0")
+        port: Port number to listen on (default: 8000)
+
+    For production deployments, consider using uvicorn directly with
+    multiple workers:
+        uvicorn websearch_env.server.app:app --workers 4
+    """
+    import uvicorn
+
+    uvicorn.run(app, host=host, port=port)
 
 
 if __name__ == "__main__":
-    import uvicorn
-
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    main()

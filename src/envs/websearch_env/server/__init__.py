@@ -4,9 +4,8 @@
 # This source code is licensed under the BSD-style license found in the
 # LICENSE file in the root directory of this source tree.
 
-"""WebSearch Env environment server components."""
+"""WebSearch Env Environment server components."""
 
 from .websearch_env_environment import WebSearchEnvironment
 
 __all__ = ["WebSearchEnvironment"]
-

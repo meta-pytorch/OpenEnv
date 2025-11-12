@@ -20,7 +20,7 @@ import random
 import aiohttp
 import chardet
 
-from ..models import WebContent, WebSearchAction, WebSearchObservation
+from models import WebContent, WebSearchAction, WebSearchObservation
 
 
 class WebSearchTool:

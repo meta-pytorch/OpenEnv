@@ -7,7 +7,7 @@
 """
 Data models for the WebSearch Env Environment.
 
-The WebSearch_env environment is a simple test environment that echoes back messages.
+The WebSearch Env environment is an environment that searches the web with Google Search API (via Serper API).
 """
 
 from __future__ import annotations
@@ -15,7 +15,7 @@ from __future__ import annotations
 # Use pydantic dataclass for validation
 from pydantic.dataclasses import dataclass
 from pydantic import Field
-from core.env_server.types import Action, Observation
+from openenv_core.env_server.types import Action, Observation
 
 
 @dataclass(kw_only=True)
