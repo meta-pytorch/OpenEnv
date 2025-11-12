@@ -6,8 +6,8 @@
 
 """Searchr1 Env Environment - A simple test environment for HTTP server."""
 
-from .client import Searchr1Env
-from .models import Searchr1Action, Searchr1Observation
+from .client import WebSearchEnv
+from .models import WebSearchAction, WebSearchObservation
 
-__all__ = ["Searchr1Action", "Searchr1Observation", "Searchr1Env"]
+__all__ = ["WebSearchAction", "WebSearchObservation", "WebSearchEnv"]
 

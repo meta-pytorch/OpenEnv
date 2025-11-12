@@ -17,10 +17,10 @@ from core.client_types import StepResult
 from core.env_server.types import State
 from core.http_env_client import HTTPEnvClient
 
-from .models import Searchr1Action, Searchr1Observation
+from .models import WebSearchAction, WebSearchObservation
 
 
-class Searchr1Env(HTTPEnvClient[Searchr1Action, Searchr1Observation]):
+class WebSearchEnv(HTTPEnvClient[WebSearchAction, WebSearchObservation]):
     """
     HTTP client for the Searchr1 Env Environment.
 
@@ -45,7 +45,7 @@ class Searchr1Env(HTTPEnvClient[Searchr1Action, Searchr1Observation]):
         >>> result = client.step(Searchr1Action(message="Test"))
     """
 
-    def _step_payload(self, action: Searchr1Action) -> Dict:
+    def _step_payload(self, action: WebSearchAction) -> Dict:
         """
         Convert Searchr1Action to JSON payload for step request.
 
@@ -56,10 +56,10 @@ class Searchr1Env(HTTPEnvClient[Searchr1Action, Searchr1Observation]):
             Dictionary representation suitable for JSON encoding
         """
         return {
-            "message": action.message,
+            "query": action.query,
         }
 
-    def _parse_result(self, payload: Dict) -> StepResult[Searchr1Observation]:
+    def _parse_result(self, payload: Dict) -> StepResult[WebSearchObservation]:
         """
         Parse server response into StepResult[Searchr1Observation].
 
@@ -70,11 +70,9 @@ class Searchr1Env(HTTPEnvClient[Searchr1Action, Searchr1Observation]):
             StepResult with Searchr1Observation
         """
         obs_data = payload.get("observation", {})
-        observation = Searchr1Observation(
-            echoed_message=obs_data.get("echoed_message", ""),
-            message_length=obs_data.get("message_length", 0),
-            done=payload.get("done", False),
-            reward=payload.get("reward"),
+        observation = WebSearchObservation(
+            content=obs_data.get("content", ""),
+            web_contents=obs_data.get("web_contents", []),
             metadata=obs_data.get("metadata", {}),
         )
 
