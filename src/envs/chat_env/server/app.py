@@ -29,7 +29,7 @@ import os
 from core.env_server import create_app
 from core.env_server.web_interface import create_web_interface_app
 
-from ..models import ChatAction, ChatObservation
+from ..env_types import ChatAction, ChatObservation
 from .chat_environment import ChatEnvironment
 
 

@@ -130,7 +130,7 @@ This creates the following structure:
 ```
 my_env/
 ├── __init__.py           # Export YourAction, YourObservation, YourEnv
-├── models.py             # Define Action, Observation, State dataclasses
+├── env_types.py          # Define Action, Observation, State dataclasses
 ├── client.py             # Implement YourEnv(HTTPEnvClient)
 ├── README.md             # Document your environment
 ├── openenv.yaml          # Environment manifest
