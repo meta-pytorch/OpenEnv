@@ -16,7 +16,6 @@
 from __future__ import annotations
 import asyncio
 import random
-from typing import Any
 
 import aiohttp
 import chardet
@@ -56,7 +55,7 @@ class WebSearchTool:
             )
             if web_contents:
                 return WebSearchObservation(
-                    content=self.format_results(web_contents, query),
+                    content=self.format_web_contents(web_contents, query),
                     web_contents=web_contents,
                     done=False,
                     metadata={"query": query},
@@ -70,11 +69,13 @@ class WebSearchTool:
                 )
 
         except Exception as e:
+            import traceback
+            tb_str = traceback.format_exc()
             return WebSearchObservation(
-                content=f"[ERROR] Search failed due to: {str(e)}",
+                content=f"[ERROR] Search failed due to: {str(e)}\nTraceback:\n{tb_str}",
                 web_contents=[],
                 done=False,
-                metadata={"query": query, "error": str(e)},
+                metadata={"query": query, "error": str(e), "traceback": tb_str},
             )
 
     async def google_search(
@@ -137,14 +138,14 @@ class WebSearchTool:
         else:
             # Deep mode: fetch full page content
             links = [item.get("link", "") for item in items if "link" in item]
-            web_contents = await self.fetch_web_contents(links)
+            raw_contents = await self.fetch_web_contents(links)
 
             for i, item in enumerate(items):
                 title = item.get("title", "")
                 snippet = item.get("snippet", "")
 
                 # Extract relevant context from the full page
-                context = self.expand_search_snippet(snippet, web_contents[i]) if web_contents[i] else snippet
+                context = self.expand_search_snippet(snippet, raw_contents[i]) if i < len(raw_contents) and raw_contents[i] else snippet
 
                 if title or context:
                     title = title or "No title."
@@ -247,7 +248,7 @@ class WebSearchTool:
         return "\n".join(ctx_paras)
 
     @staticmethod
-    def format_results(results: list[dict[str, Any]], query: str) -> str:
+    def format_web_contents(web_contents: list[WebContent], query: str) -> str:
         """
         Format search results into a readable string.
 
@@ -260,10 +261,10 @@ class WebSearchTool:
         """
         lines = [f"Search results for: {query}\n"]
 
-        for i, result in enumerate(results, 1):
-            lines.append(f"[{i}] {result['title']}")
-            lines.append(f"    URL: {result.get('url', 'N/A')}")
-            lines.append(f"    {result['content'][:500]}{'...' if len(result['content']) > 500 else ''}")
+        for i, result in enumerate(web_contents, 1):
+            lines.append(f"[{i}] {result.title}")
+            lines.append(f"    URL: {result.url or 'N/A'}")
+            lines.append(f"    {result.content[:500]}{'...' if len(result.content) > 500 else ''}")
             lines.append("")
 
         return "\n".join(lines)
