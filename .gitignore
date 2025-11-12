@@ -106,6 +106,7 @@ outputs/
 
 # UV root lock file (env lock files should be committed)
 /uv.lock
+**uv.lock
 .uv/
 
 *.backup*/
