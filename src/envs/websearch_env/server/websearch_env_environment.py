@@ -62,6 +62,7 @@ class WebSearchEnvironment(Environment):
         self._reset_count += 1
 
         return WebSearchObservation(
+            content="",
             web_contents=[],
             done=False,
             reward=0.0,
