@@ -5,7 +5,7 @@ from __future__ import annotations
 import re
 from typing import Dict, List, Protocol, Tuple
 
-from .models import TextArenaAction, TextArenaObservation
+from models import TextArenaAction, TextArenaObservation
 
 
 class RewardProvider(Protocol):

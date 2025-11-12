@@ -14,10 +14,15 @@ from uuid import uuid4
 
 import nltk
 
-from core.env_server.interfaces import Environment
+from openenv_core.env_server.interfaces import Environment
 
-from ..models import TextArenaAction, TextArenaMessage, TextArenaObservation, TextArenaState
-from ..rewards import RewardProvider, build_reward_providers
+from models import (
+    TextArenaAction,
+    TextArenaMessage,
+    TextArenaObservation,
+    TextArenaState,
+)
+from rewards import RewardProvider, build_reward_providers
 
 
 _TEXTARENA_MODULE: Any | None = None
@@ -128,13 +133,18 @@ class TextArenaEnvironment(Environment):
         observation.reward = reward
         self._state.last_reward = reward
 
-        reward_signals = self._compute_reward_signals(action=action, observation=observation)
+        reward_signals = self._compute_reward_signals(
+            action=action, observation=observation
+        )
         if reward_signals:
             observation.info.setdefault("reward_signals", {}).update(reward_signals)
             observation.metadata.setdefault("reward_signals", {}).update(reward_signals)
         self._last_reward_signals = reward_signals
         if reward_signals:
-            self._state.last_info = {**(self._state.last_info or {}), "reward_signals": reward_signals}
+            self._state.last_info = {
+                **(self._state.last_info or {}),
+                "reward_signals": reward_signals,
+            }
         self._state.raw_state = self._snapshot_state()
 
         return observation
@@ -182,7 +192,9 @@ class TextArenaEnvironment(Environment):
 
     def _legal_players(self) -> List[int]:
         role_mapping = getattr(self._ta_env.state, "role_mapping", {}) or {}
-        players = [pid for pid in role_mapping.keys() if isinstance(pid, int) and pid >= 0]
+        players = [
+            pid for pid in role_mapping.keys() if isinstance(pid, int) and pid >= 0
+        ]
         return sorted(players)
 
     def _convert_messages(self, messages: Iterable[Any]) -> List[TextArenaMessage]:
@@ -249,4 +261,3 @@ class TextArenaEnvironment(Environment):
             for key, value in result.items():
                 aggregated[key] = float(value)
         return aggregated
-
