@@ -11,15 +11,18 @@ A simple test environment that echoes back messages sent to it.
 Perfect for testing HTTP server infrastructure.
 """
 
+from __future__ import annotations
+import os
 from uuid import uuid4
 
-from openenv_core.env_server.interfaces import Environment
-from openenv_core.env_server.types import State
+from core.env_server.interfaces import Environment
+from core.env_server.types import State
 
-from searchr1_env.models import Searchr1Action, Searchr1Observation
+from ..models import WebSearchAction, WebSearchObservation
+from .web_search import WebSearchTool
 
 
-class Searchr1Environment(Environment):
+class WebSearchEnvironment(Environment):
     """
     A simple echo environment that echoes back messages.
 
@@ -40,33 +43,39 @@ class Searchr1Environment(Environment):
         """Initialize the searchr1_env environment."""
         self._state = State(episode_id=str(uuid4()), step_count=0)
         self._reset_count = 0
+        self._web_search_tool = WebSearchTool(
+            api_key=os.environ.get("SERPER_API_KEY"),
+            top_k=5,
+            timeout=60,
+            snippet_only=False,
+            proxy=None,
+        )
 
-    def reset(self) -> Searchr1Observation:
+    def reset(self) -> WebSearchObservation:
         """
         Reset the environment.
 
         Returns:
-            Searchr1Observation with a ready message
+            WebSearchObservation with empty web contents
         """
         self._state = State(episode_id=str(uuid4()), step_count=0)
         self._reset_count += 1
 
-        return Searchr1Observation(
-            echoed_message="Searchr1 Env environment ready!",
-            message_length=0,
+        return WebSearchObservation(
+            web_contents=[],
             done=False,
             reward=0.0,
         )
 
-    def step(self, action: Searchr1Action) -> Searchr1Observation:  # type: ignore[override]
+    def step(self, action: WebSearchAction) -> WebSearchObservation:  # type: ignore[override]
         """
         Execute a step in the environment by echoing the message.
 
         Args:
-            action: Searchr1Action containing the message to echo
+            action: WebSearchAction containing the message to echo
 
         Returns:
-            Searchr1Observation with the echoed message and its length
+            WebSearchObservation with the echoed message and its length
         """
         self._state.step_count += 1
 
@@ -76,7 +85,7 @@ class Searchr1Environment(Environment):
         # Simple reward: longer messages get higher rewards
         reward = length * 0.1
 
-        return Searchr1Observation(
+        return WebSearchObservation(
             echoed_message=message,
             message_length=length,
             done=False,
@@ -93,4 +102,3 @@ class Searchr1Environment(Environment):
             Current State with episode_id and step_count
         """
         return self._state
-

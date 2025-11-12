@@ -29,14 +29,14 @@ except Exception as e:  # pragma: no cover
         "    pip install -r server/requirements.txt\n'"
     ) from e
 
-from .searchr1_env_environment import Searchr1Environment
-from ..models import Searchr1Action, Searchr1Observation
+from .websearch_env_environment import WebSearchEnvironment
+from ..models import WebSearchAction, WebSearchObservation
 
 # Create the environment instance
-env = Searchr1Environment()
+env = WebSearchEnvironment()
 
 # Create the app with web interface and README integration
-app = create_app(env, Searchr1Action, Searchr1Observation, env_name="searchr1_env")
+app = create_app(env, WebSearchAction, WebSearchObservation, env_name="websearch_env")
 
 
 if __name__ == "__main__":
