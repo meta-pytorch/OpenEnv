@@ -5,9 +5,9 @@
 # LICENSE file in the root directory of this source tree.
 
 """
-Data models for the Searchr1 Env Environment.
+Data models for the WebSearch Env Environment.
 
-The searchr1_env environment is a simple test environment that echoes back messages.
+The WebSearch_env environment is a simple test environment that echoes back messages.
 """
 
 from __future__ import annotations
@@ -20,14 +20,14 @@ from core.env_server.types import Action, Observation
 
 @dataclass(kw_only=True)
 class WebSearchAction(Action):
-    """Action for the Searchr1 Env environment - just a message to echo."""
+    """Action for the WebSearch Env environment - just a message to echo."""
 
     query: str = Field(..., description="The query to search the web for")
 
 
 @dataclass(kw_only=True)
 class WebSearchObservation(Observation):
-    """Observation from the Searchr1 Env environment - the echoed message."""
+    """Observation from the WebSearch Env environment - the echoed message."""
 
     content: str = Field(..., description="The formatted content of the search results or error message if the search failed")
     web_contents: list[WebContent] = Field(..., description="The web contents of the search results")

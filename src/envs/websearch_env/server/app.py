@@ -5,9 +5,9 @@
 # LICENSE file in the root directory of this source tree.
 
 """
-FastAPI application for the Searchr1 Env Environment.
+FastAPI application for the WebSearch Env Environment.
 
-This module creates an HTTP server that exposes the Searchr1Environment
+This module creates an HTTP server that exposes the WebSearchEnvironment
 over HTTP endpoints, making it compatible with HTTPEnvClient.
 
 Usage:

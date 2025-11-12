@@ -5,9 +5,9 @@
 # LICENSE file in the root directory of this source tree.
 
 """
-Searchr1 Env Environment HTTP Client.
+WebSearch Env Environment HTTP Client.
 
-This module provides the client for connecting to a Searchr1 Env Environment server
+This module provides the client for connecting to a WebSearch Env Environment server
 over HTTP.
 """
 
@@ -22,35 +22,35 @@ from .models import WebSearchAction, WebSearchObservation
 
 class WebSearchEnv(HTTPEnvClient[WebSearchAction, WebSearchObservation]):
     """
-    HTTP client for the Searchr1 Env Environment.
+    HTTP client for the WebSearch Env Environment.
 
-    This client connects to a Searchr1Environment HTTP server and provides
+    This client connects to a WebSearchEnvironment HTTP server and provides
     methods to interact with it: reset(), step(), and state access.
 
     Example:
         >>> # Connect to a running server
-        >>> client = Searchr1Env(base_url="http://localhost:8000")
+        >>> client = WebSearchEnv(base_url="http://localhost:8000")
         >>> result = client.reset()
         >>> print(result.observation.echoed_message)
         >>>
         >>> # Send a message
-        >>> result = client.step(Searchr1Action(message="Hello!"))
+        >>> result = client.step(WebSearchAction(message="Hello!"))
         >>> print(result.observation.echoed_message)
         >>> print(result.reward)
 
     Example with Docker:
         >>> # Automatically start container and connect
-        >>> client = Searchr1Env.from_docker_image("searchr1_env-env:latest")
+        >>> client = WebSearchEnv.from_docker_image("WebSearch_env-env:latest")
         >>> result = client.reset()
-        >>> result = client.step(Searchr1Action(message="Test"))
+        >>> result = client.step(WebSearchAction(message="Test"))
     """
 
     def _step_payload(self, action: WebSearchAction) -> Dict:
         """
-        Convert Searchr1Action to JSON payload for step request.
+        Convert WebSearchAction to JSON payload for step request.
 
         Args:
-            action: Searchr1Action instance
+            action: WebSearchAction instance
 
         Returns:
             Dictionary representation suitable for JSON encoding
@@ -61,13 +61,13 @@ class WebSearchEnv(HTTPEnvClient[WebSearchAction, WebSearchObservation]):
 
     def _parse_result(self, payload: Dict) -> StepResult[WebSearchObservation]:
         """
-        Parse server response into StepResult[Searchr1Observation].
+        Parse server response into StepResult[WebSearchObservation].
 
         Args:
             payload: JSON response from server
 
         Returns:
-            StepResult with Searchr1Observation
+            StepResult with WebSearchObservation
         """
         obs_data = payload.get("observation", {})
         observation = WebSearchObservation(
