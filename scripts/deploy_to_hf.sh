@@ -68,6 +68,7 @@ STAGING_DIR="hf-staging"
 SPACE_SUFFIX=""
 PRIVATE=false
 DRY_RUN=false
+HUB_TAG="openenv"
 
 while [[ $# -gt 0 ]]; do
     case "$1" in

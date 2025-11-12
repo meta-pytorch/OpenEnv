@@ -536,4 +536,4 @@ browsergym_env/
 - [WebArena Paper](https://arxiv.org/abs/2307.13854)
 - [WebArena Website](https://webarena.dev/)
 - [VisualWebArena Paper](https://jykoh.com/vwa)
-- [OpenEnv Documentation](https://github.com/openenv/openenv)
+- [OpenEnv Documentation](https://github.com/meta-pytorch/OpenEnv)

@@ -24,7 +24,7 @@ Building execution environments for AI agents, code execution, or computational 
 1. **Simplicity**: Simple APIs to interact with the environment from RL training code
 2. **Type Safety**: Strongly-typed actions, observations, and state
 3. **Isolation**: Each environment runs in its own Docker container
-4. **Observability**: Leverage side-car container pattern to observe actions, observation tuples for an RL training eposide.
+4. **Observability**: Leverage side-car container pattern to observe actions, observation tuples for an RL training episode.
 
 
 ## Design

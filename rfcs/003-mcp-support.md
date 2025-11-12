@@ -733,7 +733,7 @@ CMD ["python", "my_tools_server.py"]
 
 - [Model Context Protocol Specification](https://spec.modelcontextprotocol.io/)
 - [FastMCP Python Library](https://github.com/jlowin/fastmcp)
-- [mcp-use Python Library](https://github.com/ziplokk1/python-mcp)
+- [mcp-use Python Library](https://github.com/mcp-use/mcp-use)
 - RFC 000: OpenEnv Project Phases
 - RFC 001: OpenEnv Basic Abstractions
 - RFC 002: OpenEnv Framework Spec

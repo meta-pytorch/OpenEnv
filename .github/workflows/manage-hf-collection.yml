@@ -1,0 +1,54 @@
+name: Update HF Collection
+
+on:
+  # Run nightly at midnight UTC
+  schedule:
+    - cron: '0 0 * * *'
+  
+  # Trigger when the management script is updated
+  push:
+    branches:
+      - main
+    paths:
+      - 'scripts/manage_hf_collection.py'
+      - '.github/workflows/manage-hf-collection.yml'
+  
+  # Allow manual triggering
+  workflow_dispatch:
+
+jobs:
+  update-collection:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        run: |
+          pip install huggingface-hub>=0.20.0
+
+      - name: Run collection manager
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+        run: |
+          python scripts/manage_hf_collection.py
+
+      - name: Summary
+        if: success()
+        run: |
+          echo "## Collection Updated ✅" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Successfully ran the collection manager." >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Details:**" >> $GITHUB_STEP_SUMMARY
+          echo "- Scheduled to run daily at midnight UTC" >> $GITHUB_STEP_SUMMARY
+          echo "- Task: Discover and add openenv-tagged Docker Spaces" >> $GITHUB_STEP_SUMMARY
+          echo "- Collection: [openenv/environment-hub](https://huggingface.co/collections/openenv/environment-hub-68f16377abea1ea114fa0743)" >> $GITHUB_STEP_SUMMARY
