@@ -44,9 +44,10 @@ class WebSearchTool:
         Execute a web search based on the query.
         """
         query = web_search_action.query.strip()
+        api_key = web_search_action.temp_api_key or self.api_key
         try:
             web_contents = self.google_search(
-                api_key=self.api_key,
+                api_key=api_key,
                 query=query,
                 top_k=self.top_k,
                 timeout=self.timeout,

@@ -23,6 +23,7 @@ class WebSearchAction(Action):
     """Action for the WebSearch Env environment - just a message to echo."""
 
     query: str = Field(..., description="The query to search the web for")
+    temp_api_key: str | None = Field(None, description="The temporary API key to use for the Serper API (better to use the default API key from the environment variables)")
 
 
 @dataclass(kw_only=True)
