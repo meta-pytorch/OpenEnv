@@ -7,7 +7,7 @@
 """
 Data models for the WebSearch Env Environment.
 
-The WebSearch Env environment is an environment that searches the web with Google Search API (via Serper API).
+The WebSearch Env environment is an environment that searches the web with Google Search API (via Serper.dev).
 """
 
 from __future__ import annotations
