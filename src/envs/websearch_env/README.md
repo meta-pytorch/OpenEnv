@@ -15,6 +15,40 @@ tags:
 
 A web search environment that searches the web with Google Search API (via Serper.dev).
 
+## Prerequisites
+
+### API Key Setup
+
+This environment requires a Serper.dev API key to function. 
+
+1. **Get your API Key:**
+   - Visit [Serper.dev](https://serper.dev/) and sign up for an account
+   - Navigate to your dashboard to get your API key
+   - Free tier includes 2,500 free searches
+
+2. **Configure the API Key:**
+
+   **For Local Development:**
+   ```bash
+   export SERPER_API_KEY="your-api-key-here"
+   ```
+
+   **For Docker:**
+   ```bash
+   docker run -e SERPER_API_KEY="your-api-key-here" web_search-env:latest
+   ```
+
+   **For Hugging Face Spaces (after deployment):**
+   - Navigate to your Space's settings page: `https://huggingface.co/spaces/USERNAME/SPACE_NAME/settings`
+   - Scroll to the "Repository secrets" section
+   - Click "New secret"
+   - Name: `SERPER_API_KEY`
+   - Value: Your Serper.dev API key
+   - Click "Add"
+   - The Space will automatically restart and use your API key
+
+   > **Important:** Never commit your API key to code. Always use environment variables or secrets management.
+
 ## Quick Start
 
 The simplest way to use the Web Search environment is through the `WebSearchEnvironment` class:
@@ -108,6 +142,9 @@ openenv push --repo-id my-org/my-env --base-image custom-base:latest --private
 After deployment, your space will be available at:
 `https://huggingface.co/spaces/<repo-id>`
 
+**⚠️ Important: Configure your API key!**
+After deployment, you must add your Serper.dev API key as a secret in the Space settings (see [API Key Setup](#api-key-setup) above). The environment will not work without it.
+
 The deployed space includes:
 - **Web Interface** at `/web` - Interactive UI for exploring the environment
 - **API Documentation** at `/docs` - Full OpenAPI/Swagger interface
@@ -171,6 +208,10 @@ This verifies that:
 Run the server locally for development:
 
 ```bash
+# Make sure to set your API key first
+export SERPER_API_KEY="your-api-key-here"
+
+# Then run the server
 uvicorn server.app:app --reload
 ```
 

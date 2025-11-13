@@ -41,8 +41,11 @@ class WebSearchEnvironment(Environment):
         """Initialize the searchr1_env environment."""
         self._state = State(episode_id=str(uuid4()), step_count=0)
         self._reset_count = 0
+        
+        # Get API key from environment
+        api_key = os.environ.get("SERPER_API_KEY")        
         self._web_search_tool = WebSearchTool(
-            api_key=os.environ.get("SERPER_API_KEY"),
+            api_key=api_key,
             top_k=5,
             timeout=60,
             snippet_only=False,

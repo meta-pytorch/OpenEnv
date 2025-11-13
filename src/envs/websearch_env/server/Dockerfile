@@ -72,4 +72,7 @@ HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
 
 # Run the FastAPI server
 # The module path is constructed to work with the /app/env structure
+# Note: This environment requires SERPER_API_KEY environment variable to be set.
+# For local development: docker run -e SERPER_API_KEY="your-key" ...
+# For Hugging Face Spaces: Add SERPER_API_KEY as a secret in the Space settings
 CMD ["sh", "-c", "cd /app/env && uvicorn server.app:app --host 0.0.0.0 --port 8000"]
