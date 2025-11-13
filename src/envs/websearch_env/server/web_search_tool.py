@@ -14,10 +14,9 @@
 # Inspired by: https://github.com/THUDM/slime/tree/main/examples/search-r1
 
 from __future__ import annotations
-import asyncio
 import random
 
-import aiohttp
+import requests
 import chardet
 
 from models import WebContent, WebSearchAction, WebSearchObservation
@@ -40,13 +39,13 @@ class WebSearchTool:
         self.snippet_only = snippet_only
         self.proxy = proxy
 
-    async def execute(self, web_search_action: WebSearchAction) -> WebSearchObservation:
+    def execute(self, web_search_action: WebSearchAction) -> WebSearchObservation:
         """
         Execute a web search based on the query.
         """
         query = web_search_action.query.strip()
         try:
-            web_contents = await self.google_search(
+            web_contents = self.google_search(
                 api_key=self.api_key,
                 query=query,
                 top_k=self.top_k,
@@ -78,7 +77,7 @@ class WebSearchTool:
                 metadata={"query": query, "error": str(e), "traceback": tb_str},
             )
 
-    async def google_search(
+    def google_search(
         self,
         api_key: str,
         query: str,
@@ -99,29 +98,26 @@ class WebSearchTool:
         Returns:
             list[dict[str, Any]]: List of search results with titles and content.
         """
-        timeout_obj = aiohttp.ClientTimeout(total=timeout)
-        session_kwargs = {}
-        if self.proxy:
-            session_kwargs["proxy"] = self.proxy
+        proxies = {"http": self.proxy, "https": self.proxy} if self.proxy else None
 
-        async with aiohttp.ClientSession(**session_kwargs) as session:
-            async with session.post(
-                "https://google.serper.dev/search",
-                json={
-                    "q": query,
-                    "num": top_k,
-                    "gl": "us",
-                    "hl": "en",
-                },
-                headers={
-                    "Content-Type": "application/json",
-                    "X-API-KEY": api_key,
-                },
-                timeout=timeout_obj,
-            ) as resp:
-                resp.raise_for_status()
-                response = await resp.json()
-                items = response.get("organic", [])
+        resp = requests.post(
+            "https://google.serper.dev/search",
+            json={
+                "q": query,
+                "num": top_k,
+                "gl": "us",
+                "hl": "en",
+            },
+            headers={
+                "Content-Type": "application/json",
+                "X-API-KEY": api_key,
+            },
+            timeout=timeout,
+            proxies=proxies,
+        )
+        resp.raise_for_status()
+        response = resp.json()
+        items = response.get("organic", [])
 
         web_contents = []
         if snippet_only:
@@ -138,7 +134,7 @@ class WebSearchTool:
         else:
             # Deep mode: fetch full page content
             links = [item.get("link", "") for item in items if "link" in item]
-            raw_contents = await self.fetch_web_contents(links)
+            raw_contents = self.fetch_web_contents(links)
 
             for i, item in enumerate(items):
                 title = item.get("title", "")
@@ -155,7 +151,7 @@ class WebSearchTool:
         return web_contents
 
     @staticmethod
-    async def fetch_web_contents(urls: list[str], limit: int = 8) -> list[str]:
+    def fetch_web_contents(urls: list[str], limit: int = 8) -> list[str]:
         """
         Fetch multiple web contents concurrently with rate limiting.
 
@@ -167,7 +163,7 @@ class WebSearchTool:
             list[str]: List of page contents (empty string for failed requests).
         """
 
-        async def _fetch(url: str, session: aiohttp.ClientSession, semaphore: asyncio.Semaphore) -> str:
+        def _fetch(url: str) -> str:
             if url == "":
                 return ""
 
@@ -178,24 +174,22 @@ class WebSearchTool:
             ]
             headers = {"User-Agent": random.choice(user_agents)}
 
-            async with semaphore:
-                try:
-                    async with session.get(url, headers=headers, timeout=aiohttp.ClientTimeout(total=10)) as response:
-                        raw = await response.read()
-                        detected = chardet.detect(raw)
-                        encoding = detected.get("encoding") or "utf-8"
-                        return raw.decode(encoding, errors="ignore")
-                except (aiohttp.ClientError, asyncio.TimeoutError, Exception):
-                    # Silently fail for individual pages
-                    return ""
+            try:
+                response = requests.get(url, headers=headers, timeout=10)
+                raw = response.content
+                detected = chardet.detect(raw)
+                encoding = detected.get("encoding") or "utf-8"
+                return raw.decode(encoding, errors="ignore")
+            except Exception:
+                # Silently fail for individual pages
+                return ""
 
-        semaphore = asyncio.Semaphore(limit)
-        timeout = aiohttp.ClientTimeout(total=10)
-        connector = aiohttp.TCPConnector(limit_per_host=limit, force_close=True)
-
-        async with aiohttp.ClientSession(timeout=timeout, connector=connector) as session:
-            tasks = [_fetch(url, session, semaphore) for url in urls]
-            return await asyncio.gather(*tasks)
+        # Fetch URLs sequentially
+        results = []
+        for url in urls:
+            results.append(_fetch(url))
+        
+        return results
 
     @staticmethod
     def parse_search_snippet(snippet: str) -> list[str]:

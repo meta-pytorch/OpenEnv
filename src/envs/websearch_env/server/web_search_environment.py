@@ -11,7 +11,6 @@ A web search environment that uses the google search API (via Serper API) to sea
 """
 
 from __future__ import annotations
-import asyncio
 import os
 from uuid import uuid4
 
@@ -81,7 +80,7 @@ class WebSearchEnvironment(Environment):
         """
         self._state.step_count += 1
 
-        return asyncio.run(self._web_search_tool.execute(action))
+        return self._web_search_tool.execute(action)
 
     @property
     def state(self) -> State:
