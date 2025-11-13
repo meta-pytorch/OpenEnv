@@ -13,39 +13,37 @@ tags:
 
 # Web Search Environment
 
-A simple test environment that echoes back messages. Perfect for testing the env APIs as well as demonstrating environment usage patterns.
+A web search environment that searches the web with Google Search API (via Serper.dev).
 
 ## Quick Start
 
-The simplest way to use the Web Search environment is through the `WebSearchEnv` class:
+The simplest way to use the Web Search environment is through the `WebSearchEnvironment` class:
 
 ```python
-from web_search import WebSearchAction, WebSearchEnv
+from envs.websearch_env.server.websearch_env_environment import WebSearchEnvironment
+from envs.websearch_env import WebSearchAction
 
 try:
     # Create environment from Docker image
-    web_searchenv = WebSearchEnv.from_docker_image("web_search-env:latest")
+    web_search_env = WebSearchEnvironment.from_docker_image("web_search-env:latest")
 
     # Reset
-    result = web_searchenv.reset()
-    print(f"Reset: {result.observation.echoed_message}")
+    result = web_search_env.reset()
+    print(f"Reset: {result.observation.content}")
 
-    # Send multiple messages
-    messages = ["Hello, World!", "Testing echo", "Final message"]
+    # Send a search query
+    query = "What is the capital of China?"
 
-    for msg in messages:
-        result = web_searchenv.step(WebSearchAction(message=msg))
-        print(f"Sent: '{msg}'")
-        print(f"  → Echoed: '{result.observation.echoed_message}'")
-        print(f"  → Length: {result.observation.message_length}")
-        print(f"  → Reward: {result.reward}")
+    result = web_search_env.step(WebSearchAction(query=query))
+    print(f"Formatted search result:", result.observation.content)
+    print(f"Individual web contents:", result.observation.web_contents)
 
 finally:
     # Always clean up
-    web_searchenv.close()
+    web_search_env.close()
 ```
 
-That's it! The `WebSearchEnv.from_docker_image()` method handles:
+That's it! The `WebSearchEnvironment.from_docker_image()` method handles:
 - Starting the Docker container
 - Waiting for the server to be ready
 - Connecting to the environment
@@ -119,21 +117,18 @@ The deployed space includes:
 
 ### Action
 **WebSearchAction**: Contains a single field
-- `message` (str) - The message to echo back
+- `query` (str) - The query to search for
 
 ### Observation
 **WebSearchObservation**: Contains the echo response and metadata
-- `echoed_message` (str) - The message echoed back
-- `message_length` (int) - Length of the message
-- `reward` (float) - Reward based on message length (length × 0.1)
-- `done` (bool) - Always False for echo environment
+- `content` (str) - The formatted prompt that aggregates both query and web contents
+- `web_contents` (list) - List of web contents for top ranked web pages
+- `reward` (float) - Reward is not defined in this scenario
+- `done` (bool) - Always False for search environment
 - `metadata` (dict) - Additional info like step count
 
 ### Reward
-The reward is calculated as: `message_length × 0.1`
-- "Hi" → reward: 0.2
-- "Hello, World!" → reward: 1.3
-- Empty message → reward: 0.0
+The reward is undefined here.
 
 ## Advanced Usage
 
@@ -142,17 +137,17 @@ The reward is calculated as: `message_length × 0.1`
 If you already have a Web Search environment server running, you can connect directly:
 
 ```python
-from web_search import WebSearchEnv
+from envs.websearch_env import WebSearchEnvironment
 
 # Connect to existing server
-web_searchenv = WebSearchEnv(base_url="<ENV_HTTP_URL_HERE>")
+web_search_env = WebSearchEnvironment(base_url="<ENV_HTTP_URL_HERE>")
 
 # Use as normal
-result = web_searchenv.reset()
-result = web_searchenv.step(WebSearchAction(message="Hello!"))
+result = web_search_env.reset()
+result = web_search_env.step(WebSearchAction(query="What is the capital of China?"))
 ```
 
-Note: When connecting to an existing server, `web_searchenv.close()` will NOT stop the server.
+Note: When connecting to an existing server, `web_search_env.close()` will NOT stop the server.
 
 ## Development & Testing
 
@@ -192,7 +187,7 @@ web_search/
 ├── models.py              # Action and Observation models
 └── server/
     ├── __init__.py        # Server module exports
-    ├── web_search_environment.py  # Core environment logic
+    ├── websearch_env_environment.py  # Core environment logic
     ├── app.py             # FastAPI application
     └── Dockerfile         # Container image definition
 ```
