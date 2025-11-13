@@ -1,0 +1,5 @@
+name: connect4_env
+version: "0.1.0"
+description: "Connect4 environment for OpenEnv"
+action: Connect4Action
+observation: Connect4Observation

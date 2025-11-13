@@ -13,15 +13,11 @@ over HTTP.
 
 from __future__ import annotations
 
-from typing import Any, Dict, TYPE_CHECKING
+from typing import Any, Dict
 
-from core.client_types import StepResult
-from core.http_env_client import HTTPEnvClient
+from openenv_core.http_env_client import HTTPEnvClient, StepResult
 
 from .models import Connect4Action, Connect4Observation, Connect4State
-
-if TYPE_CHECKING:
-    from core.containers.runtime import ContainerProvider
 
 
 class Connect4Env(HTTPEnvClient[Connect4Action, Connect4Observation]):
@@ -68,7 +64,7 @@ class Connect4Env(HTTPEnvClient[Connect4Action, Connect4Observation]):
         obs_data = payload.get("observation", {})
 
         observation = Connect4Observation(
-            board=obs_data.get("board", [[0]*7 for _ in range(6)]),
+            board=obs_data.get("board", [[0] * 7 for _ in range(6)]),
             legal_actions=obs_data.get("legal_actions", []),
             done=payload.get("done", False),
             reward=payload.get("reward", 0.0),
@@ -93,7 +89,7 @@ class Connect4Env(HTTPEnvClient[Connect4Action, Connect4Observation]):
         """
         return Connect4State(
             episode_id=payload.get("episode_id", ""),
-            board=payload.get("board", [[0]*7 for _ in range(6)]),
+            board=payload.get("board", [[0] * 7 for _ in range(6)]),
             next_player=payload.get("next_player", 1),
             step_count=payload.get("step_count", 0),
         )
