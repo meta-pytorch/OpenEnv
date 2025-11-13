@@ -6,6 +6,6 @@
 
 """WebSearch Env Environment server components."""
 
-from .websearch_env_environment import WebSearchEnvironment
+from .web_search_environment import WebSearchEnvironment
 
 __all__ = ["WebSearchEnvironment"]
