@@ -1,18 +1,21 @@
-ARG BASE_IMAGE=openenv-base:latest
-FROM ${BASE_IMAGE}
+# syntax=docker/dockerfile:1.6
 
-# Install any additional dependencies
-RUN pip install --no-cache-dir \
-    gymnasium>=0.29.0 \
-    ale-py>=0.8.0 \
-    numpy>=1.24.0
-# Copy environment code
-COPY src/core/ /app/src/core/
-COPY src/envs/connect4_env/ /app/src/envs/connect4_env/
+FROM python:3.11-slim AS runtime
 
-# Health check
-HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-    CMD curl -f http://localhost:8000/health || exit 1
+WORKDIR /app/env
 
-# Run server
-CMD ["uvicorn", "envs.connect4_env.server.app:app", "--host", "0.0.0.0", "--port", "8000"]
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    git \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY . .
+
+RUN pip install --upgrade pip && \
+    pip install --no-cache-dir -e .
+
+EXPOSE 8000
+
+ENV PYTHONUNBUFFERED=1 \
+    ENABLE_WEB_INTERFACE=true
+
+CMD ["python", "-m", "uvicorn", "connect4_env.server.app:app", "--host", "0.0.0.0", "--port", "8000"]
