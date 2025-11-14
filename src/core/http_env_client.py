@@ -17,10 +17,10 @@ from typing import Any, Dict, Generic, Optional, Type, TYPE_CHECKING, TypeVar
 import requests
 
 from .client_types import StepResult
-from .containers.runtime import LocalDockerProvider
+from .containers.runtime import LocalDockerProvider, UVProvider
 
 if TYPE_CHECKING:
-    from .containers.runtime import ContainerProvider
+    from .containers.runtime import ContainerProvider, RuntimeProvider
 
 ActT = TypeVar("ActT")
 ObsT = TypeVar("ObsT")
@@ -106,22 +106,35 @@ class HTTPEnvClient(ABC, Generic[ActT, ObsT]):
         return cls(base_url=base_url, provider=provider)
 
     @classmethod
-    def from_hub(cls: Type[EnvClientT], repo_id: str, provider: Optional["ContainerProvider"] = None, **kwargs: Any) -> EnvClientT:
+    def from_hub(
+        cls: Type[EnvClientT],
+        repo_id: str,
+        *,
+        use_docker: bool = True,
+        provider: Optional["ContainerProvider" | "RuntimeProvider"] = None,
+        **provider_kwargs: Any,
+    ) -> EnvClientT:
+        """Create a client from a Hugging Face Space.
+
+        Set ``use_docker=True`` to launch the registry image with a container
+        provider. The default ``use_docker=False`` runs the Space locally using
+        ``uv run`` through :class:`UVProvider`.
         """
-        Create an environment client by pulling from a Hugging Face model hub.
-        """
-        
-        if provider is None:
-            provider = LocalDockerProvider()
-        
-        if "tag" in kwargs:
-            tag = kwargs["tag"]
+
+        if use_docker:
+            tag = provider_kwargs.pop("tag", "latest")
+            image = f"registry.hf.space/{repo_id.replace('/', '-')}:{tag}"
+            return cls.from_docker_image(image, provider=provider, **provider_kwargs)
         else:
-            tag = "latest"
-        
-        base_url = f"registry.hf.space/{repo_id.replace('/', '-')}:{tag}"
-        
-        return cls.from_docker_image(image=base_url, provider=provider)
+            provider: RuntimeProvider = UVProvider(
+                repo_id=repo_id,
+                **provider_kwargs,
+            )
+            base_url = provider.start()
+            timeout_s = provider_kwargs.pop("timeout_s", 60.0)
+            provider.wait_for_ready(base_url=provider.base_url, timeout_s=timeout_s)
+
+            return cls(base_url=base_url, provider=provider)
 
     @abstractmethod
     def _step_payload(self, action: ActT) -> dict:

@@ -7,9 +7,11 @@
 """Container runtime providers."""
 
 from .providers import ContainerProvider, KubernetesProvider, LocalDockerProvider
+from .uv_provider import UVProvider
 
 __all__ = [
     "ContainerProvider",
     "LocalDockerProvider",
     "KubernetesProvider",
+    "UVProvider",
 ]
