@@ -73,11 +73,13 @@ class BrowserGymEnvironment(Environment):
             "webarena": "browsergym.envs.webarena",
             "visualwebarena": "browsergym.envs.visualwebarena",
             "workarena": "browsergym.envs.workarena",
+            "custom": "src.envs.browsergym_env.server.custom"
         }
         module_path = benchmark_modules.get(benchmark)
         try:
             if module_path:
                 importlib.import_module(module_path)
+                importlib.import_module(module_path + ".register")
             else:
                 importlib.import_module("browsergym")
         except ModuleNotFoundError as import_error:

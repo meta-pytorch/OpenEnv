@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Copy Paste Task</title>
+  <script src="core.js"></script>
+  <script>
+    function startTask() {
+      core.setGoal("Copy the text from the first box and paste it into the second.");
+
+      const box1 = document.createElement("input");
+      box1.value = "Hello BrowserGym";
+      const box2 = document.createElement("input");
+      box2.placeholder = "Paste here";
+      const btn = document.createElement("button");
+      btn.textContent = "Submit";
+
+      btn.onclick = () => {
+        if (box2.value.trim() === box1.value.trim()) {
+          core.endEpisode(1.0, "Correct! Text copied successfully.");
+        } else {
+          core.endEpisode(0.0, "Incorrect. Try again.");
+        }
+      };
+
+      document.body.append(box1, box2, btn);
+    }
+
+    window.onload = startTask;
+  </script>
+</head>
+<body></body>
+</html>
