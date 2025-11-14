@@ -14,15 +14,15 @@ from uuid import uuid4
 
 import nltk
 
-from core.env_server.interfaces import Environment
+from openenv_core.env_server.interfaces import Environment
 
-from ..models import (
+from models import (
     TextArenaAction,
     TextArenaMessage,
     TextArenaObservation,
     TextArenaState,
 )
-from ..rewards import RewardProvider, build_reward_providers
+from rewards import RewardProvider, build_reward_providers
 
 
 _TEXTARENA_MODULE: Any | None = None
