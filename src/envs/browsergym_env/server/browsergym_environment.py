@@ -9,6 +9,7 @@ with OpenEnv's Environment ABC. BrowserGym includes multiple benchmarks:
 """
 
 import importlib
+import os
 from typing import Any, Dict, Optional
 from uuid import uuid4
 
@@ -19,6 +20,17 @@ from envs.browsergym_env.models import (
     BrowserGymAction,
     BrowserGymObservation,
     BrowserGymState,
+)
+
+
+_MINIWOB_LOAD_HELP = (
+    "MiniWoB tasks require the MiniWoB HTML bundle to be served over HTTP. "
+    "The official BrowserGym Docker image handles this automatically by "
+    "serving the bundle on port 8888. For custom or non-Docker deployments, "
+    "clone the MiniWoB++ repository, start a static server inside "
+    "`miniwob-plusplus/miniwob/html` (e.g. `python -m http.server 8888`), and "
+    "set the MINIWOB_URL environment variable to the served base URL such as "
+    "`http://localhost:8888/miniwob/`."
 )
 
 
@@ -59,7 +71,7 @@ class BrowserGymEnvironment(Environment):
         self.viewport_width = viewport_width
         self.viewport_height = viewport_height
         self.timeout = timeout
-        self.gym_kwargs = gym_kwargs
+        self.gym_kwargs = dict(gym_kwargs)
 
         # Build environment ID
         if task_name:
@@ -69,10 +81,10 @@ class BrowserGymEnvironment(Environment):
 
         # force import the benchmark module
         benchmark_modules = {
-            "miniwob": "browsergym.envs.miniwob",
-            "webarena": "browsergym.envs.webarena",
-            "visualwebarena": "browsergym.envs.visualwebarena",
-            "workarena": "browsergym.envs.workarena",
+            "miniwob": "browsergym.miniwob",
+            "webarena": "browsergym.webarena",
+            "visualwebarena": "browsergym.visualwebarena",
+            "workarena": "browsergym.workarena",
         }
         module_path = benchmark_modules.get(benchmark)
         try:
@@ -81,10 +93,13 @@ class BrowserGymEnvironment(Environment):
             else:
                 importlib.import_module("browsergym")
         except ModuleNotFoundError as import_error:
-            raise ValueError(
-                f"Failed to import BrowserGym benchmark '{benchmark}': {import_error}\n"
-                f"Make sure the package browsergym-{benchmark} is installed."
-            ) from import_error
+            message = (
+                "Failed to import BrowserGym benchmark "
+                f"'{benchmark}': {import_error}\n"
+                "Install the matching browsergym package "
+                f"(e.g., browsergym-{benchmark})."
+            )
+            raise ValueError(message) from import_error
 
         # Create the BrowserGym environment
         try:
@@ -93,13 +108,16 @@ class BrowserGymEnvironment(Environment):
                 headless=headless,
                 viewport={"width": viewport_width, "height": viewport_height},
                 timeout=timeout,
-                **gym_kwargs,
+                **self.gym_kwargs,
             )
-        except Exception as e:
-            raise ValueError(
-                f"Failed to create BrowserGym environment '{self.env_id}': {e}\n"
-                f"Make sure the benchmark is installed (e.g., pip install browsergym-{benchmark})"
+        except Exception as e:  # noqa: BLE001 - gym.make
+            message = (
+                "Failed to create BrowserGym environment "
+                f"'{self.env_id}': {e}\n"
+                "Make sure the benchmark package is installed "
+                f"(e.g., pip install browsergym-{benchmark})."
             )
+            raise ValueError(message) from e
 
         # State tracking
         self._state = BrowserGymState(
@@ -140,7 +158,21 @@ class BrowserGymEnvironment(Environment):
             reset_options["seed"] = seed
 
         # Reset the gym environment
-        obs, info = self.gym_env.reset(**reset_options)
+        try:
+            obs, info = self.gym_env.reset(**reset_options)
+        except AttributeError as err:
+            if "context" in str(err) and hasattr(self.gym_env, "close"):
+                # BrowserGym can leave partially initialized state after a
+                # failed reset. Close the hanging resources and try once more.
+                self.gym_env.close()
+                obs, info = self.gym_env.reset(**reset_options)
+            else:
+                raise
+        except Exception as err:  # noqa: BLE001 - browsergym
+            message = str(err)
+            if self.benchmark == "miniwob" and "core is not defined" in message:
+                raise ValueError(_MINIWOB_LOAD_HELP) from err
+            raise
 
         self._last_obs = obs
         self._last_info = info

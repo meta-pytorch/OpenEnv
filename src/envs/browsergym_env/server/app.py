@@ -16,6 +16,7 @@ headless = os.environ.get("BROWSERGYM_HEADLESS", "true").lower() == "true"
 viewport_width = int(os.environ.get("BROWSERGYM_VIEWPORT_WIDTH", "1280"))
 viewport_height = int(os.environ.get("BROWSERGYM_VIEWPORT_HEIGHT", "720"))
 timeout = float(os.environ.get("BROWSERGYM_TIMEOUT", "10000"))
+port = int(os.environ.get("BROWSERGYM_PORT", "8000"))
 
 # Create the environment instance
 env = BrowserGymEnvironment(
@@ -38,4 +39,4 @@ app = create_app(
 if __name__ == "__main__":
     import uvicorn
 
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    uvicorn.run(app, host="0.0.0.0", port=port)
