@@ -1,0 +1,49 @@
+site_name: OpenEnv Documentation
+site_description: Official documentation for the OpenEnv agentic execution framework
+site_url: https://meta-pytorch.github.io/OpenEnv
+repo_url: https://github.com/meta-pytorch/OpenEnv
+repo_name: meta-pytorch/OpenEnv
+
+theme:
+  name: material
+  palette:
+    - scheme: default
+      primary: blue
+      accent: indigo
+  features:
+    - navigation.expand
+    - navigation.sections
+    - navigation.top
+    - toc.integrate
+    - content.code.copy
+
+plugins:
+  - search
+  - include-markdown:
+      rewrite_relative_urls: true
+
+markdown_extensions:
+  - admonition
+  - attr_list
+  - def_list
+  - footnotes
+  - tables
+  - toc:
+      permalink: true
+
+nav:
+  - Home: index.md
+  - Core: core.md
+  - Environments:
+      - Overview: environments.md
+      - Echo Environment: environments/echo.md
+      - Coding Environment: environments/coding.md
+      - Chat Environment: environments/chat.md
+      - Atari Environment: environments/atari.md
+      - OpenSpiel Environment: environments/openspiel.md
+      - SUMO-RL Environment: environments/sumo.md
+      - FinRL Environment: environments/finrl.md
+      - TextArena Environment: environments/textarena.md
+      - Git Environment: environments/git.md
+      - DIPG Safety Environment: environments/dipg.md
+
