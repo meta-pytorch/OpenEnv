@@ -9,7 +9,9 @@ with OpenEnv's Environment ABC. BrowserGym includes multiple benchmarks:
 """
 
 import importlib
-from typing import Any, Dict, Optional
+import os
+import sys
+from typing import Any, Dict, Optional, TYPE_CHECKING
 from uuid import uuid4
 
 import gymnasium as gym
@@ -20,6 +22,39 @@ from envs.browsergym_env.models import (
     BrowserGymObservation,
     BrowserGymState,
 )
+
+# Add the server directory to sys.path to allow custom module imports
+_SERVER_DIR = os.path.dirname(os.path.abspath(__file__))
+if _SERVER_DIR not in sys.path:
+    sys.path.insert(0, _SERVER_DIR)
+
+# Import custom models for custom benchmark
+# Use TYPE_CHECKING to avoid runtime import issues with type hints
+if TYPE_CHECKING:
+    from custom.custom_models import (
+        CustomGymAction,
+        CustomGymObservation,
+        CustomGymState,
+    )
+
+try:
+    from custom.custom_models import (
+        CustomGymAction as _CustomGymAction,
+        CustomGymObservation as _CustomGymObservation,
+        CustomGymState as _CustomGymState,
+    )
+    CUSTOM_AVAILABLE = True
+    CustomGymAction = _CustomGymAction
+    CustomGymObservation = _CustomGymObservation
+    CustomGymState = _CustomGymState
+    _CUSTOM_IMPORT_ERROR = None
+except ImportError as e:
+    CUSTOM_AVAILABLE = False
+    CustomGymAction = None  # type: ignore
+    CustomGymObservation = None  # type: ignore
+    CustomGymState = None  # type: ignore
+    _CUSTOM_IMPORT_ERROR = str(e)
+
 
 
 class BrowserGymEnvironment(Environment):
@@ -61,53 +96,99 @@ class BrowserGymEnvironment(Environment):
         self.timeout = timeout
         self.gym_kwargs = gym_kwargs
 
-        # Build environment ID
-        if task_name:
-            self.env_id = f"browsergym/{benchmark}.{task_name}"
+        # Check if this is a custom benchmark
+        self.is_custom = benchmark == "custom"
+
+        if self.is_custom:
+            # Handle custom benchmark differently
+            if not CUSTOM_AVAILABLE:
+                raise ValueError(
+                    f"Custom benchmark requested but custom models not available.\n"
+                    f"Import error: {_CUSTOM_IMPORT_ERROR}\n"
+                    f"Make sure custom/custom_models.py exists in {_SERVER_DIR}/custom/"
+                )
+            
+            if not task_name:
+                raise ValueError("task_name is required for custom benchmark")
+            
+            # Import and instantiate custom environment
+            try:
+                from custom.custom_tasks import get_custom_task
+                self.custom_env = get_custom_task(
+                    task_name=task_name,
+                    headless=headless,
+                    viewport_width=viewport_width,
+                    viewport_height=viewport_height,
+                    timeout=timeout,
+                    **gym_kwargs
+                )
+            except ImportError as e:
+                raise ValueError(
+                    f"Failed to import custom task '{task_name}': {e}\n"
+                    f"Make sure the task is registered in custom/custom_tasks.py"
+                ) from e
+            
+            self.gym_env = None
+            self.env_id = f"custom/{task_name}"
+            
+            # Use CustomGymState for custom benchmarks
+            self._state = CustomGymState(
+                episode_id=str(uuid4()),
+                step_count=0,
+                benchmark="custom",
+                task_name=task_name,
+            )
         else:
-            self.env_id = f"browsergym/{benchmark}"
-
-        # force import the benchmark module
-        benchmark_modules = {
-            "miniwob": "browsergym.envs.miniwob",
-            "webarena": "browsergym.envs.webarena",
-            "visualwebarena": "browsergym.envs.visualwebarena",
-            "workarena": "browsergym.envs.workarena",
-        }
-        module_path = benchmark_modules.get(benchmark)
-        try:
-            if module_path:
-                importlib.import_module(module_path)
+            # Original BrowserGym benchmark handling
+            # Build environment ID
+            if task_name:
+                self.env_id = f"browsergym/{benchmark}.{task_name}"
             else:
-                importlib.import_module("browsergym")
-        except ModuleNotFoundError as import_error:
-            raise ValueError(
-                f"Failed to import BrowserGym benchmark '{benchmark}': {import_error}\n"
-                f"Make sure the package browsergym-{benchmark} is installed."
-            ) from import_error
+                self.env_id = f"browsergym/{benchmark}"
 
-        # Create the BrowserGym environment
-        try:
-            self.gym_env = gym.make(
-                self.env_id,
-                headless=headless,
-                viewport={"width": viewport_width, "height": viewport_height},
-                timeout=timeout,
-                **gym_kwargs,
-            )
-        except Exception as e:
-            raise ValueError(
-                f"Failed to create BrowserGym environment '{self.env_id}': {e}\n"
-                f"Make sure the benchmark is installed (e.g., pip install browsergym-{benchmark})"
-            )
+            # force import the benchmark module
+            benchmark_modules = {
+                "miniwob": "browsergym.envs.miniwob",
+                "webarena": "browsergym.envs.webarena",
+                "visualwebarena": "browsergym.envs.visualwebarena",
+                "workarena": "browsergym.envs.workarena",
+            }
+            module_path = benchmark_modules.get(benchmark)
+            try:
+                if module_path:
+                    importlib.import_module(module_path)
+                else:
+                    importlib.import_module("browsergym")
+            except ModuleNotFoundError as import_error:
+                raise ValueError(
+                    f"Failed to import BrowserGym benchmark '{benchmark}': {import_error}\n"
+                    f"Make sure the package browsergym-{benchmark} is installed."
+                ) from import_error
 
-        # State tracking
-        self._state = BrowserGymState(
-            episode_id=str(uuid4()),
-            step_count=0,
-            benchmark=benchmark,
-            task_name=task_name or "",
-        )
+            # Create the BrowserGym environment
+            try:
+                self.gym_env = gym.make(
+                    self.env_id,
+                    headless=headless,
+                    viewport={"width": viewport_width, "height": viewport_height},
+                    timeout=timeout,
+                    **gym_kwargs,
+                )
+            except Exception as e:
+                raise ValueError(
+                    f"Failed to create BrowserGym environment '{self.env_id}': {e}\n"
+                    f"Make sure the benchmark is installed (e.g., pip install browsergym-{benchmark})"
+                ) from e
+
+            # State tracking for standard benchmarks
+            self._state = BrowserGymState(
+                episode_id=str(uuid4()),
+                step_count=0,
+                benchmark=benchmark,
+                task_name=task_name or "",
+            )
+            
+            self.custom_env = None
 
         self._last_obs: Optional[Dict[str, Any]] = None
         self._last_info: Optional[Dict[str, Any]] = None
@@ -126,6 +207,14 @@ class BrowserGymEnvironment(Environment):
         Returns:
             Initial observation for the task
         """
+        if self.is_custom:
+            # Handle custom environment reset
+            obs = self.custom_env.reset(seed=seed)
+            self._state = self.custom_env.state
+            # Convert CustomGymObservation to BrowserGymObservation
+            return self._convert_custom_observation(obs)
+        
+        # Original BrowserGym handling
         # Generate new episode ID
         self._state = BrowserGymState(
             episode_id=str(uuid4()),
@@ -157,6 +246,15 @@ class BrowserGymEnvironment(Environment):
         Returns:
             Observation after executing the action
         """
+        if self.is_custom:
+            # Convert BrowserGymAction to CustomGymAction
+            custom_action = CustomGymAction(action_str=action.action_str)
+            obs = self.custom_env.step(custom_action)
+            self._state = self.custom_env.state
+            # Convert CustomGymObservation to BrowserGymObservation
+            return self._convert_custom_observation(obs)
+        
+        # Original BrowserGym handling
         self._state.step_count += 1
 
         # Execute action in gym environment
@@ -260,6 +358,34 @@ class BrowserGymEnvironment(Environment):
             metadata=browsergym_metadata,
         )
 
+    def _convert_custom_observation(
+        self, custom_obs: "CustomGymObservation"  # type: ignore
+    ) -> BrowserGymObservation:
+        """Convert CustomGymObservation to BrowserGymObservation.
+
+        Args:
+            custom_obs: Custom observation to convert
+
+        Returns:
+            BrowserGymObservation
+        """
+        return BrowserGymObservation(
+            text=custom_obs.text,
+            url=custom_obs.url,
+            screenshot=custom_obs.screenshot,
+            goal=custom_obs.goal,
+            axtree_txt=custom_obs.axtree_txt,
+            pruned_html=custom_obs.pruned_html,
+            error=custom_obs.error,
+            last_action_error=custom_obs.last_action_error,
+            done=custom_obs.done,
+            reward=custom_obs.reward,
+            metadata={
+                "custom_data": custom_obs.custom_data,
+                **(custom_obs.metadata or {}),
+            },
+        )
+
     @property
     def state(self) -> BrowserGymState:
         """Get the current environment state."""
@@ -267,5 +393,9 @@ class BrowserGymEnvironment(Environment):
 
     def close(self) -> None:
         """Clean up environment resources."""
-        if hasattr(self, "gym_env"):
-            self.gym_env.close()
+        if self.is_custom:
+            if self.custom_env:
+                self.custom_env.close()
+        else:
+            if hasattr(self, "gym_env"):
+                self.gym_env.close()
