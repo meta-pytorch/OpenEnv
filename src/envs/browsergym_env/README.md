@@ -25,7 +25,7 @@ BrowserGym provides a complete pipeline for developing web agents: train on simp
 
 ## Quick Start - Training (MiniWoB)
 
-### No Setup Required! 🎉
+### No Setup Required! 
 
 ```python
 from envs.browsergym_env import BrowserGymEnv, BrowserGymAction
@@ -58,7 +58,350 @@ for episode in range(1000):
 env.close()
 ```
 
-### Available Tasks by Benchmark
+## Custom Tasks - Create Your Own Benchmarks
+
+In addition to official BrowserGym benchmarks (MiniWoB, WebArena, etc.), you can create **custom tasks** for domain-specific training or prototyping.
+
+### Why Custom Tasks?
+
+**Official Benchmarks** (miniwob, webarena):
+-  Established, well-tested tasks
+-  Standardized evaluation
+-  Community benchmarks
+-  Fixed task set - can't add your own
+-  Requires BrowserGym package installation
+-  Must integrate with BrowserGym's registration system
+
+**Custom Tasks**:
+-  Create unlimited domain-specific tasks
+-  No BrowserGym package needed
+-  No registration complexity
+-  Full control over HTML, rewards, termination
+-  Rapid prototyping and iteration
+-  Not standardized (for research/training only)
+
+### Quick Start - Custom Tasks
+
+```python
+from envs.browsergym_env import BrowserGymEnv, BrowserGymAction
+
+# Use a custom task (no BrowserGym installation needed!)
+env = BrowserGymEnv.from_docker_image(
+    "ghcr.io/openenv/browsergym-env:latest",
+    environment={
+        "BROWSERGYM_BENCHMARK": "custom",
+        "BROWSERGYM_TASK_NAME": "copy-paste",  # or "copy-paste-multitab"
+    }
+)
+
+# Train on your custom task
+result = env.reset()
+print(f"Goal: {result.observation.goal}")
+
+action = BrowserGymAction(action_str="click('#source-text')")
+result = env.step(action)
+print(f"Reward: {result.reward}")
+
+env.close()
+```
+
+### Available Custom Tasks
+
+| Task Name | Description | Difficulty | Multi-Page |
+|-----------|-------------|------------|------------|
+| `copy-paste` | Copy text from one field to another | Easy | No |
+| `copy-paste-multitab` | Copy text across two pages | Medium | Yes |
+
+### Action Format Reference
+
+Custom tasks support BrowserGym-style action strings:
+
+- **Click**: `click('button')` or `click('#submit')` or `click('.classname')`
+- **Fill**: `fill('input[name="username"]', 'john@example.com')`
+- **Navigate**: `goto('https://example.com')` or `goto('file:///path/to/page.html')`
+- **Press key**: `press('Enter')` or `press('Control+C')`
+- **Scroll**: `scroll('down')` or `scroll('up')`
+- **Custom JavaScript**: Any other string is executed as JavaScript in the browser context
+
+**Examples:**
+```python
+# Click actions
+BrowserGymAction(action_str="click('#submit-btn')")
+BrowserGymAction(action_str="click('button.primary')")
+
+# Fill forms
+BrowserGymAction(action_str="fill('#email', 'user@example.com')")
+BrowserGymAction(action_str="fill('input[name=\"password\"]', 'secret123')")
+
+# Keyboard
+BrowserGymAction(action_str="press('Tab')")
+BrowserGymAction(action_str="press('Control+A')")
+
+# Navigation
+BrowserGymAction(action_str="goto('https://example.com')")
+
+# JavaScript (for complex interactions)
+BrowserGymAction(action_str="document.querySelector('#dropdown').value = 'option2'")
+```
+
+### Creating Custom Tasks
+
+Custom tasks are defined in `server/custom/custom_tasks.py`. Each task needs:
+
+1. **Task HTML** - Minimal HTML page(s) with your UI
+2. **Python Task Class** - Defines behavior, rewards, termination
+3. **Registration** - Add to task registry
+
+**File Structure:**
+```
+server/custom/
+ custom_models.py       # CustomGymAction, CustomGymObservation, CustomGymState
+ custom_base.py         # Base class for custom environments
+ custom_tasks.py        # Task registry and implementations
+ tasks/                 # HTML files for tasks
+     copy-paste.html
+     copy-paste-source.html
+     copy-paste-target.html
+```
+
+**Design Philosophy** (Following Official Benchmarks):
+
+ **DO:**
+- Keep HTML minimal and functional (like MiniWoB)
+- Let agents figure out what to do from task description
+- Use simple, clean styling
+- Focus on task logic, not visual appeal
+
+ **DON'T:**
+- Add step-by-step instructions in HTML
+- Use fancy animations or gradients
+- Add visual hints or progress indicators
+- Use emojis or decorative elements
+
+**Example: Single-Page Task**
+
+```python
+# In server/custom/custom_tasks.py
+from custom_base import CustomBrowserGymEnvironment
+
+class MyCustomTask(CustomBrowserGymEnvironment):
+    def _get_task_url(self) -> str:
+        """Return path to your HTML file."""
+        import os
+        task_html = os.path.join(
+            os.path.dirname(__file__),
+            "tasks",
+            "my-task.html"
+        )
+        return f"file://{task_html}"
+    
+    def _get_goal_description(self) -> str:
+        """Return task instruction for the agent."""
+        return "Click the submit button after filling the form"
+    
+    async def _extract_observation(self, page) -> dict:
+        """Extract state from the page."""
+        content = await page.content()
+        form_valid = await page.evaluate(
+            "document.querySelector('form')?.checkValidity() || false"
+        )
+        
+        return {
+            "text": content,  # Full HTML for agent
+            "pruned_html": content[:1000],  # Truncated version
+            "custom_data": {
+                "form_valid": form_valid,
+            }
+        }
+    
+    def _calculate_reward(self, page_data, action, error=None) -> float:
+        """Calculate reward based on page state."""
+        if error:
+            return -0.1  # Small penalty for errors
+        
+        custom_data = page_data.get("custom_data", {})
+        if custom_data.get("form_valid"):
+            return 1.0  # Success!
+        
+        return 0.0  # No progress
+    
+    def _check_done(self, page_data) -> bool:
+        """Check if task is complete."""
+        custom_data = page_data.get("custom_data", {})
+        return custom_data.get("form_valid", False)
+
+# Register your task in server/custom/custom_tasks.py
+register_custom_task("my-task", MyCustomTask)
+```
+
+**Step-by-Step Registration:**
+1. Create your task class in `server/custom/custom_tasks.py` (or import it)
+2. Call `register_custom_task("task-name", YourTaskClass)` at the bottom of the file
+3. Create HTML file(s) in `server/custom/tasks/` directory if needed
+4. Use with `BROWSERGYM_TASK_NAME="task-name"`
+
+**Example: Multi-Page Task**
+
+```python
+class MyMultiPageTask(CustomBrowserGymEnvironment):
+    async def _extract_observation(self, page) -> dict:
+        content = await page.content()
+        current_url = page.url
+        
+        # Determine which page we're on
+        if "page1" in current_url:
+            data = await page.evaluate("getPage1Data()")
+            return {
+                "text": content,
+                "custom_data": {"current_page": "page1", **data}
+            }
+        elif "page2" in current_url:
+            data = await page.evaluate("getPage2Data()")
+            return {
+                "text": content,
+                "custom_data": {"current_page": "page2", **data}
+            }
+        
+        return {"text": content, "custom_data": {}}
+    
+    def _calculate_reward(self, page_data, action, error=None) -> float:
+        """Reward for navigation and completion."""
+        custom_data = page_data.get("custom_data", {})
+        current_page = custom_data.get("current_page")
+        
+        # Reward for successfully navigating to page2
+        if current_page == "page2" and "goto" in action.lower():
+            return 0.3
+        
+        # Reward for task completion on page2
+        if current_page == "page2" and custom_data.get("task_complete"):
+            return 1.0
+        
+        return 0.0
+
+register_custom_task("my-multitab-task", MyMultiPageTask)
+```
+
+### Custom Task HTML Guidelines
+
+Follow official benchmark style (MiniWoB, WebArena):
+
+```html
+<!DOCTYPE html>
+<html>
+<head>
+    <title>My Task</title>
+    <style>
+        /* Minimal, functional styling only */
+        body { font-family: Arial, sans-serif; padding: 20px; }
+        input { padding: 5px; margin: 10px 0; }
+        button { padding: 8px 20px; }
+    </style>
+</head>
+<body>
+    <!-- No instructions! Agent learns from goal description -->
+    <input type="text" id="name" placeholder="Name">
+    <input type="email" id="email" placeholder="Email">
+    <button id="submit">Submit</button>
+    
+    <div id="success" style="display:none;">Success!</div>
+    <div id="error" style="display:none;">Error: Please fill all fields.</div>
+    
+    <script>
+        document.getElementById('submit').onclick = function() {
+            var name = document.getElementById('name').value;
+            var email = document.getElementById('email').value;
+            
+            if (name && email) {
+                document.getElementById('success').style.display = 'block';
+            } else {
+                document.getElementById('error').style.display = 'block';
+            }
+        };
+    </script>
+</body>
+</html>
+```
+
+**Key Principles:**
+- No visual hints or progress bars
+- No step-by-step instructions in HTML
+- No emojis or decorative elements
+- Simple, clean, functional UI
+- Agent figures out task from goal description
+
+### Custom vs Official Benchmarks
+
+| Aspect | Official (miniwob, webarena) | Custom |
+|--------|----------------------------|--------|
+| **Installation** | Requires browsergym-{benchmark} | No packages needed |
+| **Task Creation** | Fixed task set | Unlimited custom tasks |
+| **Registration** | gym.make() system | Simple Python registry |
+| **Browser Control** | BrowserGym internals | Playwright directly |
+| **HTML Location** | BrowserGym package | Local server/custom/ directory |
+| **Use Case** | Standardized evaluation | Rapid prototyping, domain-specific training |
+| **Community** | Established benchmarks | Your own tasks |
+
+### When to Use Custom Tasks
+
+ **Use Custom Tasks For:**
+- Rapid prototyping of new task ideas
+- Domain-specific training (e.g., corporate workflows, specialized forms)
+- Testing new agent architectures quickly
+- Educational purposes
+- Tasks not covered by official benchmarks
+
+ **Use Official Benchmarks For:**
+- Publishing research results
+- Comparing with other papers
+- Standardized evaluation
+- Established task benchmarks
+
+### Advanced: Custom Task Features
+
+**Dynamic Task Generation:**
+```python
+class DynamicFormTask(CustomBrowserGymEnvironment):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.num_fields = self.custom_params.get("num_fields", 3)
+    
+    def _get_task_url(self) -> str:
+        # Generate HTML dynamically
+        html = self._generate_form_html(self.num_fields)
+        # Use data: URL
+        return f"data:text/html,{html}"
+
+# Use with custom parameters
+env = BrowserGymEnv(environment={
+    "BROWSERGYM_BENCHMARK": "custom",
+    "BROWSERGYM_TASK_NAME": "dynamic-form",
+    "num_fields": "5"  # Custom parameter
+})
+```
+
+**State Persistence Across Pages:**
+```python
+class MultiPageWithState(CustomBrowserGymEnvironment):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.task_state = {}  # Persistent state
+    
+    def _calculate_reward(self, page_data, action, error=None) -> float:
+        # Access state from previous pages
+        if self.task_state.get("collected_item"):
+            return 1.0
+        return 0.0
+```
+
+**See also:**
+- `server/custom/README.md` - Detailed custom task documentation
+- `server/custom/custom_tasks.py` - Example implementations
+- `examples/browsergym_custom_example.py` - Usage examples
+
+---
+
+## Evaluation (WebArena)
 
 #### MiniWoB++ Tasks (Training - 100+ tasks)
 
@@ -67,72 +410,72 @@ MiniWoB tasks are organized by difficulty and type. Here are the main categories
 **Click Tasks** (Basic interaction)
 | Task Name | Description | Difficulty |
 |-----------|-------------|------------|
-| `click-test` | Click a single button | ⭐ Easy |
-| `click-button` | Click button with specific text | ⭐ Easy |
-| `click-button-sequence` | Click buttons in order | ⭐⭐ Medium |
-| `click-checkboxes` | Select specific checkboxes | ⭐⭐ Medium |
-| `click-checkboxes-soft` | Select checkboxes (multiple valid) | ⭐⭐ Medium |
-| `click-checkboxes-large` | Many checkboxes to select from | ⭐⭐ Medium |
-| `click-checkboxes-transfer` | Transfer learning variation | ⭐⭐ Medium |
-| `click-dialog` | Click correct button in dialog | ⭐ Easy |
-| `click-dialog-2` | More complex dialog | ⭐⭐ Medium |
-| `click-link` | Click on a link | ⭐ Easy |
-| `click-option` | Select from dropdown | ⭐⭐ Medium |
-| `click-pie` | Click on pie chart slice | ⭐⭐ Medium |
-| `click-scroll-list` | Click item in scrollable list | ⭐⭐⭐ Hard |
-| `click-shades` | Click on specific color shade | ⭐⭐ Medium |
-| `click-shape` | Click on specific shape | ⭐⭐ Medium |
-| `click-tab` | Switch between tabs | ⭐⭐ Medium |
-| `click-tab-2` | More complex tab switching | ⭐⭐⭐ Hard |
-| `click-widget` | Click on UI widget | ⭐⭐ Medium |
+| `click-test` | Click a single button |  Easy |
+| `click-button` | Click button with specific text |  Easy |
+| `click-button-sequence` | Click buttons in order |  Medium |
+| `click-checkboxes` | Select specific checkboxes |  Medium |
+| `click-checkboxes-soft` | Select checkboxes (multiple valid) |  Medium |
+| `click-checkboxes-large` | Many checkboxes to select from |  Medium |
+| `click-checkboxes-transfer` | Transfer learning variation |  Medium |
+| `click-dialog` | Click correct button in dialog |  Easy |
+| `click-dialog-2` | More complex dialog |  Medium |
+| `click-link` | Click on a link |  Easy |
+| `click-option` | Select from dropdown |  Medium |
+| `click-pie` | Click on pie chart slice |  Medium |
+| `click-scroll-list` | Click item in scrollable list |  Hard |
+| `click-shades` | Click on specific color shade |  Medium |
+| `click-shape` | Click on specific shape |  Medium |
+| `click-tab` | Switch between tabs |  Medium |
+| `click-tab-2` | More complex tab switching |  Hard |
+| `click-widget` | Click on UI widget |  Medium |
 
 **Text Entry Tasks** (Typing and forms)
 | Task Name | Description | Difficulty |
 |-----------|-------------|------------|
-| `enter-text` | Type text into input field | ⭐ Easy |
-| `enter-text-dynamic` | Dynamic text entry | ⭐⭐ Medium |
-| `enter-text-2` | Multiple text fields | ⭐⭐ Medium |
-| `enter-password` | Fill password field | ⭐ Easy |
-| `enter-date` | Enter a date | ⭐⭐ Medium |
-| `enter-time` | Enter a time | ⭐⭐ Medium |
-| `login-user` | Complete login form | ⭐⭐ Medium |
-| `login-user-popup` | Login via popup | ⭐⭐⭐ Hard |
+| `enter-text` | Type text into input field |  Easy |
+| `enter-text-dynamic` | Dynamic text entry |  Medium |
+| `enter-text-2` | Multiple text fields |  Medium |
+| `enter-password` | Fill password field |  Easy |
+| `enter-date` | Enter a date |  Medium |
+| `enter-time` | Enter a time |  Medium |
+| `login-user` | Complete login form |  Medium |
+| `login-user-popup` | Login via popup |  Hard |
 
 **Navigation Tasks** (Multi-step interaction)
 | Task Name | Description | Difficulty |
 |-----------|-------------|------------|
-| `navigate-tree` | Navigate through tree structure | ⭐⭐⭐ Hard |
-| `search-engine` | Use search interface | ⭐⭐ Medium |
-| `use-autocomplete` | Interact with autocomplete | ⭐⭐⭐ Hard |
-| `book-flight` | Book a flight (complex form) | ⭐⭐⭐⭐ Very Hard |
-| `choose-date` | Pick date from calendar | ⭐⭐⭐ Hard |
-| `choose-date-easy` | Simplified date picker | ⭐⭐ Medium |
-| `choose-date-medium` | Medium difficulty date picker | ⭐⭐⭐ Hard |
-| `choose-list` | Select from long list | ⭐⭐ Medium |
+| `navigate-tree` | Navigate through tree structure |  Hard |
+| `search-engine` | Use search interface |  Medium |
+| `use-autocomplete` | Interact with autocomplete |  Hard |
+| `book-flight` | Book a flight (complex form) |  Very Hard |
+| `choose-date` | Pick date from calendar |  Hard |
+| `choose-date-easy` | Simplified date picker |  Medium |
+| `choose-date-medium` | Medium difficulty date picker |  Hard |
+| `choose-list` | Select from long list |  Medium |
 
 **Visual/Spatial Tasks** (Requires visual understanding)
 | Task Name | Description | Difficulty |
 |-----------|-------------|------------|
-| `count-sides` | Count sides of shape | ⭐⭐ Medium |
-| `count-shape` | Count specific shapes | ⭐⭐ Medium |
-| `find-word` | Find word in text | ⭐⭐ Medium |
-| `focus-text` | Focus on text element | ⭐ Easy |
-| `focus-text-2` | More complex focus task | ⭐⭐ Medium |
-| `grid-coordinate` | Click grid coordinate | ⭐⭐ Medium |
-| `guess-number` | Guess a number game | ⭐⭐⭐ Hard |
-| `identify-shape` | Identify shape type | ⭐⭐ Medium |
-| `read-table` | Extract info from table | ⭐⭐⭐ Hard |
-| `read-table-2` | More complex table reading | ⭐⭐⭐ Hard |
+| `count-sides` | Count sides of shape |  Medium |
+| `count-shape` | Count specific shapes |  Medium |
+| `find-word` | Find word in text |  Medium |
+| `focus-text` | Focus on text element |  Easy |
+| `focus-text-2` | More complex focus task |  Medium |
+| `grid-coordinate` | Click grid coordinate |  Medium |
+| `guess-number` | Guess a number game |  Hard |
+| `identify-shape` | Identify shape type |  Medium |
+| `read-table` | Extract info from table |  Hard |
+| `read-table-2` | More complex table reading |  Hard |
 
 **Email/Social Tasks** (Realistic scenarios)
 | Task Name | Description | Difficulty |
 |-----------|-------------|------------|
-| `email-inbox` | Manage email inbox | ⭐⭐⭐⭐ Very Hard |
-| `email-inbox-forward` | Forward emails | ⭐⭐⭐⭐ Very Hard |
-| `email-inbox-nl` | Natural language email task | ⭐⭐⭐⭐ Very Hard |
-| `email-inbox-star-reply` | Star and reply to emails | ⭐⭐⭐⭐ Very Hard |
-| `social-media` | Social media interaction | ⭐⭐⭐⭐ Very Hard |
-| `social-media-some` | Partial social media task | ⭐⭐⭐ Hard |
+| `email-inbox` | Manage email inbox |  Very Hard |
+| `email-inbox-forward` | Forward emails |  Very Hard |
+| `email-inbox-nl` | Natural language email task |  Very Hard |
+| `email-inbox-star-reply` | Star and reply to emails |  Very Hard |
+| `social-media` | Social media interaction |  Very Hard |
+| `social-media-some` | Partial social media task |  Hard |
 
 **Total:** 100+ tasks across all categories
 
@@ -416,7 +759,26 @@ Environment variables:
 
 ## Supported Benchmarks
 
-### 1. MiniWoB++ (Training) ✅ Recommended for Training
+### 1. Custom Tasks (Rapid Prototyping)  For Development
+
+- **Unlimited tasks**: Create domain-specific tasks
+- **No dependencies**: No BrowserGym package needed
+- **Instant iteration**: Modify HTML and logic quickly
+- **Full control**: Define rewards, termination, UI
+- **Fast setup**: Just add Python class and HTML file
+
+**Use Case**: Rapid prototyping, domain-specific training, testing new ideas
+
+**Tasks**: `copy-paste`, `copy-paste-multitab`, *[your tasks here]*
+
+```python
+env = BrowserGymEnv(environment={
+    "BROWSERGYM_BENCHMARK": "custom",
+    "BROWSERGYM_TASK_NAME": "copy-paste"
+})
+```
+
+### 2. MiniWoB++ (Training)  Recommended for Training
 
 - **100+ tasks** ranging from simple (click buttons) to complex (form filling, navigation)
 - **Fast**: Instant resets, quick episodes
@@ -426,7 +788,7 @@ Environment variables:
 
 **Use Case**: Train agents on fundamental web navigation skills
 
-### 2. WebArena (Evaluation) 📊 Benchmark
+### 3. WebArena (Evaluation)  Benchmark
 
 - **812 realistic tasks** across 6 websites
 - **Complex**: Multi-step reasoning, real web interfaces
@@ -436,7 +798,7 @@ Environment variables:
 
 **Use Case**: Evaluate agents on realistic web tasks
 
-### 3. VisualWebArena (Evaluation) 👁️ Visual Benchmark
+### 4. VisualWebArena (Evaluation)  Visual Benchmark
 
 - **910 tasks** requiring visual understanding
 - **Multimodal**: Both text and visual observations
@@ -445,7 +807,7 @@ Environment variables:
 
 **Use Case**: Test visual web navigation capabilities
 
-### 4. WorkArena (Evaluation) 💼 Enterprise Benchmark
+### 5. WorkArena (Evaluation)  Enterprise Benchmark
 
 - **Enterprise tasks**: CRM, project management, etc.
 - **Realistic workflows**: Real enterprise software
@@ -517,16 +879,16 @@ python app.py
 
 ```
 browsergym_env/
-├── __init__.py              # Module exports
-├── models.py                # Action, Observation, State dataclasses
-├── client.py                # HTTPEnvClient implementation
-├── README.md                # This file
-└── server/
-    ├── __init__.py
-    ├── app.py               # FastAPI application
-    ├── browsergym_environment.py  # Environment implementation
-    ├── Dockerfile           # Container specification
-    └── requirements.txt     # Python dependencies
+ __init__.py              # Module exports
+ models.py                # Action, Observation, State dataclasses
+ client.py                # HTTPEnvClient implementation
+ README.md                # This file
+ server/
+     __init__.py
+     app.py               # FastAPI application
+     browsergym_environment.py  # Environment implementation
+     Dockerfile           # Container specification
+     requirements.txt     # Python dependencies
 ```
 
 ## References
