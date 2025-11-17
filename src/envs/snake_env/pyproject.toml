@@ -18,7 +18,7 @@ dependencies = [
     "openenv-core>=0.1.0",
     "fastapi>=0.115.0",
     "pydantic>=2.0.0",
-    "uvicorn>=0.24.0",
+    "uvicorn[standard]>=0.24.0",
     "requests>=2.31.0",
     # Snake environment specific dependencies
     "marlenv>=1.0.0",  # Multi-agent snake game environment
@@ -34,10 +34,8 @@ dev = [
 ]
 
 [project.scripts]
-# Server entry point - enables running via: uv run --project . server
-# or: python -m server.app
-server = "server.app:main"
+server = "snake_env.server.app:main"
 
 [tool.setuptools]
-py-modules = ["models", "client"]
-packages = ["server"]
+packages = ["snake_env", "snake_env.server"]
+package-dir = { "snake_env" = ".", "snake_env.server" = "server" }
