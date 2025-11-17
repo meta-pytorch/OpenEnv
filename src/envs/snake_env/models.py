@@ -45,6 +45,10 @@ class SnakeAction(Action):
 
     action: int
 
+    def __post_init__(self):
+        """Ensure action is converted to int (handles string inputs from web interface)."""
+        self.action = int(self.action)
+
 
 @dataclass(kw_only=True)
 class SnakeObservation(Observation):
