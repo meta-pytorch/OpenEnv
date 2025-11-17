@@ -95,3 +95,10 @@ Desktop.ini
 *claude*
 *Claude*
 *CLAUDE*
+
+# Exclude generated dataset files
+examples/dipg/dipg_sft_dataset_sharegpt_format.jsonl
+examples/dipg/dipg_sft_dataset_metadata.jsonl
+
+# Exclude Hugging Face upload script
+examples/dipg/upload_to_hf.py
