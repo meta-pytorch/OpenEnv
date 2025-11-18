@@ -1,9 +1,30 @@
-# RFC: OpenEnv layering
+# RFC: Design Principles and Broad Roadmap
 
 **Status**: In Review
 **Created**: 10/17/2025
+**Amended**: November 12, 2025
 **Authors**: @Darktex, @pankit-eng, @jspisak, @zkwentz
 **RFC ID:** 000
+
+## Amendment History
+
+**November 12, 2025**: Added design principles, target audience, and updated roadmap to reference RFCs 005-007.
+
+## Design Principles
+
+These principles guide every decision in OpenEnv:
+
+1. **Minimize deltas across lifecycle**: Training → Evals → Production should use identical tool interfaces
+2. **Minimize human-agent divergence**: Tools that work for humans should work for agents
+3. **Be hands-on**: Provide ready-to-use implementations, not just specs
+4. **Design for LLMs**: Optimize for context efficiency, in-distribution behavior, and token costs
+
+## Target Audience
+
+- **Environment builders**: Get reach across projects without custom adapters
+- **Model builders**: Access massive inventory of environments and tools
+- **Researchers**: Reproducible setups with versioned tools, rewards, and evals
+- **Infrastructure engineers**: Clear contracts enabling backend optimization
 
 ## Summary
 Before jumping into the actual concrete proposals, this RFC introduces how we are going to approach this problem space, what problems we want to solve with this project, and how we plan to prioritize and solve them systematically.
@@ -27,9 +48,14 @@ We will group development from now till version 1.0 into three phases.
 In the **first phase** of this project, we will focus **exclusively** on the narrowest definition of environments, without even worrying about rewards nor evals. Instead, the focus in this phase (and in the RFCs you find in this directory) is going to be on:
 1. Establishing a convention on what is an environment and where we draw the "environment" box (RFC 001).
 2. Landing the basics of _sandboxing_, _versioning_, _binary distribution_, _dependency management_ (RFC 002).
-3. Nailing our tools support through MCP (Model Context Protocol) integration for both remote and local tools (RFC 003).
-4. Defining a unified action interface for all environment types (RFC 004).
-5. Exploring RPC communication patterns beyond HTTP for long-running sessions (particularly for interpreted languages like Python, Bash, Ruby, etc.). Coming in an upcoming RFC.
+3. Nailing our tools support through MCP (Model Context Protocol) integration:
+   - RFC 003: Traditional tool calling (ListToolsAction, CallToolAction)
+   - RFC 004: CodeAct support (agents write executable code)
+   - RFC 005: MCP as the universal interface (policy and rationale)
+4. Establishing tool registry and distribution patterns via Hugging Face Hub (upcoming RFC).
+5. Enabling production performance simulation to minimize training-production delta (RFC 006).
+6. Exploring MCP protocol interception for observability (RFC 007).
+7. Exploring RPC communication patterns beyond HTTP for long-running sessions (particularly for interpreted languages like Python, Bash, Ruby, etc.). Coming in an upcoming RFC.
 
 We will conclude this phase with version 0.3.
 
