@@ -222,6 +222,20 @@ wheels = [
 ]
 
 [[package]]
+name = "openenv-core"
+version = "0.1.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "fastapi" },
+    { name = "requests" },
+    { name = "uvicorn" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/7f/18/74d2aedbf099a86de772364260827a12b4b4a56711db4caa3caa078588d7/openenv_core-0.1.0.tar.gz", hash = "sha256:3a4e8bf4f2f3b7eba1c3a212e6e2dc7d980b8350015ae6c250a3ce93000f1d7c", size = 26512, upload-time = "2025-10-21T20:00:24.29Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/3a/48/85afcd090eeaadf00e6f88ac92a866cb9238eaf6246820d1bc6564f5bc97/openenv_core-0.1.0-py3-none-any.whl", hash = "sha256:8d02513f26518f98ab1f35a875f7493d2983cf87f8b0e4b0af6634ec63edfd4b", size = 30607, upload-time = "2025-10-21T20:00:22.183Z" },
+]
+
+[[package]]
 name = "packaging"
 version = "25.0"
 source = { registry = "https://pypi.org/simple" }
@@ -528,6 +542,7 @@ version = "1.0.0"
 source = { editable = "." }
 dependencies = [
     { name = "fastapi" },
+    { name = "openenv-core" },
     { name = "pydantic" },
     { name = "requests" },
     { name = "uvicorn" },
@@ -545,6 +560,7 @@ dev = [
 requires-dist = [
     { name = "black", marker = "extra == 'dev'", specifier = ">=23.0.0" },
     { name = "fastapi", specifier = ">=0.104.1" },
+    { name = "openenv-core" },
     { name = "pydantic", specifier = ">=2.5.0" },
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=7.0.0" },
     { name = "pytest-asyncio", marker = "extra == 'dev'", specifier = ">=0.21.0" },
