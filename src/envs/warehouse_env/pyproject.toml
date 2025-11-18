@@ -28,11 +28,15 @@ classifiers = [
 ]
 
 dependencies = [
+    "openenv-core",
     "fastapi>=0.104.1",
     "uvicorn>=0.24.0",
-    "pydantic>=2.5.0",
     "requests>=2.31.0",
+    "pydantic>=2.5.0",
 ]
+
+[project.scripts]
+warehouse-server = "envs.warehouse_env.server.app:main"
 
 [project.optional-dependencies]
 dev = [
