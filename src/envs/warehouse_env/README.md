@@ -1,10 +1,27 @@
+---
+title: Warehouse Env Environment Server
+emoji: 🏭
+colorFrom: blue
+colorTo: indigo
+sdk: docker
+pinned: false
+app_port: 8000
+base_path: /demo
+tags:
+  - openenv
+  - reinforcement-learning
+  - logistics
+  - warehouse
+  - robotics
+---
+
 # Warehouse Optimization Environment
 
 A grid-based warehouse logistics optimization environment for reinforcement learning. This environment simulates a warehouse robot that must navigate through obstacles, pick up packages from pickup zones, and deliver them to designated dropoff zones while optimizing for time and efficiency.
 
 ## Overview
 
-The Warehouse Environment is designed for training RL agents on logistics and pathfinding tasks. It features:
+The Warehouse Environment is designed for training reinforcement learning agents on logistics and pathfinding tasks. It features:
 
 - **Grid-based navigation** with walls and obstacles
 - **Package pickup and delivery** mechanics

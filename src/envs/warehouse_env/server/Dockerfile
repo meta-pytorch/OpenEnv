@@ -2,11 +2,8 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
-# Copy core dependencies
-COPY src/core /app/core
-
-# Copy warehouse environment
-COPY src/envs/warehouse_env /app/envs/warehouse_env
+# Copy all warehouse environment files (for HF Spaces deployment)
+COPY . /app/
 
 # Install Python dependencies
 RUN pip install --no-cache-dir \
@@ -26,5 +23,8 @@ ENV NUM_PACKAGES=0
 ENV MAX_STEPS=0
 ENV RANDOM_SEED=0
 
+# Set Python path to include current directory
+ENV PYTHONPATH=/app
+
 # Run the server
-CMD ["python", "-m", "uvicorn", "envs.warehouse_env.server.app:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["python", "-m", "uvicorn", "server.app:app", "--host", "0.0.0.0", "--port", "8000"]

@@ -449,3 +449,123 @@ class WarehouseEnvironment(Environment):
         )
 
         return "\n".join(lines)
+
+    def render_html(self) -> str:
+        """Render warehouse as HTML with CSS styling for web interface."""
+        cell_size = 40  # pixels
+        colors = {
+            EMPTY: "#f0f0f0",
+            WALL: "#333333",
+            SHELF: "#8B4513",
+            PICKUP_ZONE: "#4CAF50",
+            DROPOFF_ZONE: "#2196F3",
+        }
+
+        html_parts = []
+        html_parts.append('<div style="font-family: Arial, sans-serif; padding: 20px;">')
+        html_parts.append(f'<h3>Warehouse Environment - Step {self.step_count}/{self.max_steps}</h3>')
+        html_parts.append(f'<p><strong>Delivered:</strong> {self.packages_delivered}/{self.num_packages} | ')
+        html_parts.append(f'<strong>Reward:</strong> {self.cum_reward:.1f}</p>')
+
+        # Grid visualization
+        html_parts.append(f'<div style="display: inline-block; border: 2px solid #333; margin: 10px 0;">')
+        html_parts.append(f'<svg width="{self.grid_width * cell_size}" height="{self.grid_height * cell_size}">')
+
+        # Draw cells
+        for y in range(self.grid_height):
+            for x in range(self.grid_width):
+                cell_type = self.grid[y][x]
+                color = colors.get(cell_type, "#ffffff")
+
+                # Draw cell
+                html_parts.append(
+                    f'<rect x="{x * cell_size}" y="{y * cell_size}" '
+                    f'width="{cell_size}" height="{cell_size}" '
+                    f'fill="{color}" stroke="#666" stroke-width="1"/>'
+                )
+
+                # Add labels for special cells
+                text_color = "#fff" if cell_type in [WALL, SHELF] else "#333"
+                if cell_type == PICKUP_ZONE:
+                    html_parts.append(
+                        f'<text x="{x * cell_size + cell_size/2}" y="{y * cell_size + cell_size/2}" '
+                        f'text-anchor="middle" dominant-baseline="middle" '
+                        f'fill="{text_color}" font-size="16" font-weight="bold">P</text>'
+                    )
+                elif cell_type == DROPOFF_ZONE:
+                    html_parts.append(
+                        f'<text x="{x * cell_size + cell_size/2}" y="{y * cell_size + cell_size/2}" '
+                        f'text-anchor="middle" dominant-baseline="middle" '
+                        f'fill="{text_color}" font-size="16" font-weight="bold">D</text>'
+                    )
+
+        # Draw robot
+        robot_x, robot_y = self.robot_position
+        robot_color = "#FF5722" if self.robot_carrying is not None else "#FFC107"
+        robot_label = "R" if self.robot_carrying is not None else "r"
+
+        html_parts.append(
+            f'<circle cx="{robot_x * cell_size + cell_size/2}" cy="{robot_y * cell_size + cell_size/2}" '
+            f'r="{cell_size/3}" fill="{robot_color}" stroke="#000" stroke-width="2"/>'
+        )
+        html_parts.append(
+            f'<text x="{robot_x * cell_size + cell_size/2}" y="{robot_y * cell_size + cell_size/2}" '
+            f'text-anchor="middle" dominant-baseline="middle" '
+            f'fill="#fff" font-size="20" font-weight="bold">{robot_label}</text>'
+        )
+
+        html_parts.append('</svg>')
+        html_parts.append('</div>')
+
+        # Legend
+        html_parts.append('<div style="margin: 20px 0;">')
+        html_parts.append('<h4>Legend:</h4>')
+        html_parts.append('<div style="display: flex; gap: 20px; flex-wrap: wrap;">')
+
+        legend_items = [
+            ("r", "#FFC107", "Robot (empty)"),
+            ("R", "#FF5722", "Robot (carrying)"),
+            ("P", colors[PICKUP_ZONE], "Pickup Zone"),
+            ("D", colors[DROPOFF_ZONE], "Dropoff Zone"),
+            ("#", colors[SHELF], "Shelf"),
+            ("█", colors[WALL], "Wall"),
+        ]
+
+        for symbol, color, label in legend_items:
+            html_parts.append(f'<div style="display: flex; align-items: center; gap: 5px;">')
+            html_parts.append(f'<div style="width: 30px; height: 30px; background: {color}; border: 1px solid #666; display: flex; align-items: center; justify-content: center; color: #fff; font-weight: bold;">{symbol}</div>')
+            html_parts.append(f'<span>{label}</span>')
+            html_parts.append('</div>')
+
+        html_parts.append('</div>')
+        html_parts.append('</div>')
+
+        # Package status
+        html_parts.append('<div style="margin: 20px 0;">')
+        html_parts.append('<h4>Packages:</h4>')
+        for package in self.packages:
+            status_color = {
+                "waiting": "#FFA726",
+                "picked": "#42A5F5",
+                "delivered": "#66BB6A"
+            }.get(package.status, "#999")
+
+            status_icon = {
+                "waiting": "○",
+                "picked": "↻",
+                "delivered": "✓"
+            }.get(package.status, "")
+
+            html_parts.append(
+                f'<div style="padding: 5px; margin: 5px 0; background: {status_color}22; border-left: 3px solid {status_color};">'
+            )
+            html_parts.append(
+                f'{status_icon} Package #{package.id}: <strong>{package.status}</strong> '
+                f'(Pickup: {package.pickup_location} → Dropoff: {package.dropoff_location})'
+            )
+            html_parts.append('</div>')
+
+        html_parts.append('</div>')
+        html_parts.append('</div>')
+
+        return "".join(html_parts)
