@@ -45,8 +45,8 @@ class EchoEnvironment(Environment):
 
     def __init__(self):
         """Initialize the echo environment."""
-        self._state = State(episode_id=str(uuid4()), step_count=0)
-        self._reset_count = 0
+        self._state: State = State(episode_id=str(uuid4()), step_count=0)
+        self._reset_count: int = 0
 
     def reset(self) -> EchoObservation:
         """
@@ -55,7 +55,7 @@ class EchoEnvironment(Environment):
         Returns:
             EchoObservation with a ready message
         """
-        self._state = State(episode_id=str(uuid4()), step_count=0)
+        self._state: State = State(episode_id=str(uuid4()), step_count=0)
         self._reset_count += 1
 
         return EchoObservation(
@@ -77,11 +77,11 @@ class EchoEnvironment(Environment):
         """
         self._state.step_count += 1
 
-        message = action.message
-        length = len(message)
+        message: str = action.message
+        length: int = len(message)
 
         # Simple reward: longer messages get higher rewards
-        reward = length * 0.1
+        reward: float = length * 0.1
 
         return EchoObservation(
             echoed_message=message,

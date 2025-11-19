@@ -5,9 +5,9 @@
 # LICENSE file in the root directory of this source tree.
 
 from abc import ABC, abstractmethod
-from typing import Any, Protocol, TypedDict
+from typing import Any, Optional, Protocol, TypedDict
 
-from .types import Action, Observation, State
+from .types import Action, Observation, State, EnvironmentMetadata
 
 
 class Message(TypedDict):
@@ -96,12 +96,22 @@ class Environment(ABC):
         self.transform = transform
 
     @abstractmethod
-    def reset(self) -> Observation:
+    def reset(
+        self,
+        seed: Optional[int] = None,
+        episode_id: Optional[str] = None,
+        **kwargs: Any,
+    ) -> Observation:
         """Reset the environment and return initial observation."""
         pass
 
     @abstractmethod
-    def step(self, action: Action) -> Observation:
+    def step(
+        self,
+        action: Action,
+        timeout_s: Optional[float] = None,
+        **kwargs: Any,
+    ) -> Observation:
         """Take a step in the environment."""
         pass
 
@@ -110,6 +120,22 @@ class Environment(ABC):
     def state(self) -> State:
         """Get the current environment state."""
         pass
+
+    def get_metadata(self) -> EnvironmentMetadata:
+        """
+        Get metadata about this environment.
+
+        Override this method to provide custom metadata for the environment.
+        Default implementation returns basic metadata derived from class name.
+
+        Returns:
+            EnvironmentMetadata with environment information
+        """
+        return EnvironmentMetadata(
+            name=self.__class__.__name__,
+            description=f"{self.__class__.__name__} environment",
+            version="1.0.0",
+        )
 
     def _apply_transform(self, observation: Observation) -> Observation:
         """Apply transform if one is provided."""

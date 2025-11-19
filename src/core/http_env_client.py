@@ -106,21 +106,26 @@ class HTTPEnvClient(ABC, Generic[ActT, ObsT]):
         return cls(base_url=base_url, provider=provider)
 
     @classmethod
-    def from_hub(cls: Type[EnvClientT], repo_id: str, provider: Optional["ContainerProvider"] = None, **kwargs: Any) -> EnvClientT:
+    def from_hub(
+        cls: Type[EnvClientT],
+        repo_id: str,
+        provider: Optional["ContainerProvider"] = None,
+        **kwargs: Any,
+    ) -> EnvClientT:
         """
         Create an environment client by pulling from a Hugging Face model hub.
         """
-        
+
         if provider is None:
             provider = LocalDockerProvider()
-        
+
         if "tag" in kwargs:
             tag = kwargs["tag"]
         else:
             tag = "latest"
-        
+
         base_url = f"registry.hf.space/{repo_id.replace('/', '-')}:{tag}"
-        
+
         return cls.from_docker_image(image=base_url, provider=provider)
 
     @abstractmethod
@@ -139,11 +144,24 @@ class HTTPEnvClient(ABC, Generic[ActT, ObsT]):
         raise NotImplementedError
 
     # ---------- Environment Server Interface Methods ----------
-    def reset(self) -> StepResult[ObsT]:
-        body: Dict[str, Any] = {}
-        # TODO: later:
-        # body["seed"] = seed
-        # body["episode_id"] = episode_id
+    def reset(self, **kwargs: Any) -> StepResult[ObsT]:
+        """
+        Reset the environment with optional parameters.
+        
+        Args:
+            **kwargs: Optional parameters passed to the environment's reset method.
+                     Common parameters include:
+                     - seed: Random seed for reproducibility
+                     - episode_id: Custom episode identifier
+                     - Any environment-specific reset parameters
+        
+        Returns:
+            StepResult containing initial observation
+        
+        Example:
+            >>> env.reset(seed=42, episode_id="ep-001")
+        """
+        body: Dict[str, Any] = kwargs.copy()
         r = self._http.post(
             f"{self._base}/reset",
             json=body,
@@ -153,14 +171,29 @@ class HTTPEnvClient(ABC, Generic[ActT, ObsT]):
         r.raise_for_status()
         return self._parse_result(r.json())
 
-    def step(self, action: ActT) -> StepResult[ObsT]:
+    def step(self, action: ActT, **kwargs: Any) -> StepResult[ObsT]:
+        """
+        Execute an action in the environment with optional parameters.
+        
+        Args:
+            action: The action to execute
+            **kwargs: Optional parameters passed to the environment's step method.
+                     Common parameters include:
+                     - timeout_s: Execution timeout in seconds
+                     - request_id: Request identifier for tracking
+                     - render: Whether to render the environment
+                     - Any environment-specific step parameters
+        
+        Returns:
+            StepResult containing observation, reward, and done status
+        
+        Example:
+            >>> env.step(action, timeout_s=30.0, request_id="req-123", render=True)
+        """
         body: Dict[str, Any] = {
             "action": self._step_payload(action),
-            "timeout_s": int(self._timeout),
+            **kwargs  # Forward all additional parameters
         }
-        # TODO: later:
-        # body["request_id"] = str(uuid.uuid4())
-        # body["episode_id"] = current_episode_id
         r = self._http.post(
             f"{self._base}/step",
             json=body,

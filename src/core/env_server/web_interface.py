@@ -14,54 +14,53 @@ including a two-pane layout for HumanAgent interaction and state observation.
 from __future__ import annotations
 
 import json
-import time
-from dataclasses import asdict, dataclass
 from typing import Any, Dict, List, Optional, Type
 from datetime import datetime
 
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Request
-from fastapi.responses import HTMLResponse, FileResponse
-from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi.responses import HTMLResponse
+from pydantic import BaseModel, Field, ConfigDict
 
 from .interfaces import Environment
 from .types import Action, Observation, State, EnvironmentMetadata
 
 
-def load_environment_metadata(env: Environment, env_name: Optional[str] = None) -> EnvironmentMetadata:
+def load_environment_metadata(
+    env: Environment, env_name: Optional[str] = None
+) -> EnvironmentMetadata:
     """
     Load environment metadata including README content.
-    
+
     Args:
         env: The environment instance
         env_name: Optional environment name for README file lookup
-        
+
     Returns:
         EnvironmentMetadata with loaded information
     """
     # Try to get metadata from environment if it has a method for it
-    if hasattr(env, 'get_metadata'):
+    if hasattr(env, "get_metadata"):
         return env.get_metadata()
-    
+
     # Default metadata
     metadata = EnvironmentMetadata(
         name=env_name or env.__class__.__name__,
         description=f"{env.__class__.__name__} environment",
-        version="1.0.0"
+        version="1.0.0",
     )
-    
+
     # Try to load README from file system
     readme_content = _load_readme_from_filesystem(env_name)
     if readme_content:
         metadata.readme_content = readme_content
-    
+
     return metadata
 
 
 def _load_readme_from_filesystem(env_name: Optional[str]) -> Optional[str]:
     """
     Load README content from the filesystem.
-    
+
     Tries multiple locations:
     1. Container filesystem: /app/README.md
     2. Local development: src/envs/{env_name}/README.md
@@ -69,59 +68,71 @@ def _load_readme_from_filesystem(env_name: Optional[str]) -> Optional[str]:
     """
     import os
     from pathlib import Path
-    
+
     # Try container filesystem first
     container_readme = Path("/app/README.md")
     if container_readme.exists():
         try:
-            return container_readme.read_text(encoding='utf-8')
+            return container_readme.read_text(encoding="utf-8")
         except Exception:
             pass
-    
+
     # Try environment variable path
     custom_path = os.environ.get("ENV_README_PATH")
     if custom_path and Path(custom_path).exists():
         try:
-            return Path(custom_path).read_text(encoding='utf-8')
+            return Path(custom_path).read_text(encoding="utf-8")
         except Exception:
             pass
-    
+
     # Try local development path
     if env_name:
         local_readme = Path(f"src/envs/{env_name}/README.md")
         if local_readme.exists():
             try:
-                return local_readme.read_text(encoding='utf-8')
+                return local_readme.read_text(encoding="utf-8")
             except Exception:
                 pass
-    
+
     return None
 
 
-@dataclass
-class ActionLog:
+class ActionLog(BaseModel):
     """Log entry for an action taken."""
-    timestamp: str
-    action: Dict[str, Any]
-    observation: Dict[str, Any]
-    reward: Optional[float]
-    done: bool
-    step_count: int
+
+    model_config = ConfigDict(extra="forbid", validate_assignment=True)
+
+    timestamp: str = Field(description="Timestamp when action was taken")
+    action: Dict[str, Any] = Field(description="Action that was taken")
+    observation: Dict[str, Any] = Field(description="Observation returned from action")
+    reward: Optional[float] = Field(
+        default=None, description="Reward received from action"
+    )
+    done: bool = Field(description="Whether the episode is done after this action")
+    step_count: int = Field(description="Step count when this action was taken")
 
 
-@dataclass
-class EpisodeState:
+class EpisodeState(BaseModel):
     """Current episode state for the web interface."""
-    episode_id: Optional[str]
-    step_count: int
-    current_observation: Optional[Dict[str, Any]]
-    action_logs: List[ActionLog]
-    is_reset: bool = True
+
+    model_config = ConfigDict(extra="forbid", validate_assignment=True)
+
+    episode_id: Optional[str] = Field(default=None, description="Current episode ID")
+    step_count: int = Field(description="Current step count in episode")
+    current_observation: Optional[Dict[str, Any]] = Field(
+        default=None, description="Current observation"
+    )
+    action_logs: List[ActionLog] = Field(
+        default_factory=list, description="List of action logs"
+    )
+    is_reset: bool = Field(
+        default=True, description="Whether the episode has been reset"
+    )
 
 
 class WebInterfaceManager:
     """Manages the web interface for an environment."""
-    
+
     def __init__(
         self,
         env: Environment,
@@ -134,116 +145,119 @@ class WebInterfaceManager:
         self.observation_cls = observation_cls
         self.metadata = metadata or EnvironmentMetadata(
             name=env.__class__.__name__,
-            description=f"{env.__class__.__name__} environment"
+            description=f"{env.__class__.__name__} environment",
         )
         self.episode_state = EpisodeState(
-            episode_id=None,
-            step_count=0,
-            current_observation=None,
-            action_logs=[]
+            episode_id=None, step_count=0, current_observation=None, action_logs=[]
         )
         self.connected_clients: List[WebSocket] = []
-    
+
     async def connect_websocket(self, websocket: WebSocket):
         """Connect a new WebSocket client."""
         await websocket.accept()
         self.connected_clients.append(websocket)
-        
+
         # Send current state to the new client
         await self._send_state_update()
-    
+
     async def disconnect_websocket(self, websocket: WebSocket):
         """Disconnect a WebSocket client."""
         if websocket in self.connected_clients:
             self.connected_clients.remove(websocket)
-    
+
     async def _send_state_update(self):
         """Send current state to all connected clients."""
         if not self.connected_clients:
             return
-            
+
         state_data = {
             "type": "state_update",
-            "episode_state": asdict(self.episode_state)
+            "episode_state": self.episode_state.model_dump(),
         }
-        
+
         # Send to all connected clients
         disconnected_clients = []
         for client in self.connected_clients:
             try:
                 await client.send_text(json.dumps(state_data))
-            except:
+            except Exception:
                 disconnected_clients.append(client)
-        
+
         # Remove disconnected clients
         for client in disconnected_clients:
             self.connected_clients.remove(client)
-    
+
     async def reset_environment(self) -> Dict[str, Any]:
         """Reset the environment and update state."""
-        observation = self.env.reset()
-        state = self.env.state
-        
+        observation: Observation = self.env.reset()
+        state: State = self.env.state
+
         # Update episode state
         self.episode_state.episode_id = state.episode_id
         self.episode_state.step_count = 0
-        self.episode_state.current_observation = asdict(observation)
+        self.episode_state.current_observation = observation.model_dump(
+            exclude={"reward", "done", "metadata"}
+        )
         self.episode_state.action_logs = []
         self.episode_state.is_reset = True
-        
+
         # Send state update
         await self._send_state_update()
-        
+
         return {
-            "observation": asdict(observation),
+            "observation": observation.model_dump(
+                exclude={"reward", "done", "metadata"}
+            ),
             "reward": observation.reward,
             "done": observation.done,
         }
-    
+
     async def step_environment(self, action_data: Dict[str, Any]) -> Dict[str, Any]:
         """Execute a step in the environment and update state."""
         # Deserialize action
-        action = self._deserialize_action(action_data)
-        
+        action: Action = self._deserialize_action(action_data)
+
         # Execute step
-        observation = self.env.step(action)
-        state = self.env.state
-        
+        observation: Observation = self.env.step(action)
+        state: State = self.env.state
+
         # Create action log
         action_log = ActionLog(
             timestamp=datetime.now().isoformat(),
-            action=asdict(action),
-            observation=asdict(observation),
+            action=action.model_dump(exclude={"metadata"}),
+            observation=observation.model_dump(exclude={"reward", "done", "metadata"}),
             reward=observation.reward,
             done=observation.done,
-            step_count=state.step_count
+            step_count=state.step_count,
         )
-        
+
         # Update episode state
         self.episode_state.episode_id = state.episode_id
         self.episode_state.step_count = state.step_count
-        self.episode_state.current_observation = asdict(observation)
+        self.episode_state.current_observation = observation.model_dump(
+            exclude={"reward", "done", "metadata"}
+        )
         self.episode_state.action_logs.append(action_log)
         self.episode_state.is_reset = False
-        
+
         # Send state update
         await self._send_state_update()
-        
+
         return {
-            "observation": asdict(observation),
+            "observation": observation.model_dump(
+                exclude={"reward", "done", "metadata"}
+            ),
             "reward": observation.reward,
             "done": observation.done,
         }
-    
+
     def get_state(self) -> Dict[str, Any]:
         """Get current environment state."""
-        state = self.env.state
-        return asdict(state)
-    
+        state: State = self.env.state
+        return state.model_dump()
+
     def _deserialize_action(self, action_data: Dict[str, Any]) -> Action:
-        """Convert JSON dict to Action instance."""
-        metadata = action_data.pop("metadata", {})
-        
+        """Convert JSON dict to Action instance using Pydantic validation."""
         # Handle tensor fields that come from JSON as lists
         processed_data = {}
         for key, value in action_data.items():
@@ -253,12 +267,14 @@ class WebInterfaceManager:
                     # If it's a string, try to parse it as a list of numbers
                     try:
                         import json
+
                         value = json.loads(value)
-                    except:
+                    except Exception:
                         # If parsing fails, treat as empty list
                         value = []
                 if isinstance(value, list):
                     import torch
+
                     processed_data[key] = torch.tensor(value, dtype=torch.long)
                 else:
                     processed_data[key] = value
@@ -271,9 +287,9 @@ class WebInterfaceManager:
                     processed_data[key] = value
             else:
                 processed_data[key] = value
-        
-        action = self.action_cls(**processed_data)
-        action.metadata = metadata
+
+        # Use Pydantic's model_validate for automatic validation
+        action = self.action_cls.model_validate(processed_data)
         return action
 
 
@@ -285,38 +301,38 @@ def create_web_interface_app(
 ) -> FastAPI:
     """
     Create a FastAPI application with web interface for the given environment.
-    
+
     Args:
         env: The Environment instance to serve
         action_cls: The Action subclass this environment expects
         observation_cls: The Observation subclass this environment returns
         env_name: Optional environment name for README loading
-        
+
     Returns:
         FastAPI application instance with web interface
     """
     from .http_server import create_fastapi_app
-    
+
     # Create the base environment app
     app = create_fastapi_app(env, action_cls, observation_cls)
-    
+
     # Load environment metadata
     metadata = load_environment_metadata(env, env_name)
-    
+
     # Create web interface manager
     web_manager = WebInterfaceManager(env, action_cls, observation_cls, metadata)
-    
+
     # Add web interface routes
     @app.get("/web", response_class=HTMLResponse)
     async def web_interface():
         """Serve the web interface."""
         return get_web_interface_html(action_cls, web_manager.metadata)
-    
+
     @app.get("/web/metadata")
     async def web_metadata():
         """Get environment metadata."""
-        return asdict(web_manager.metadata)
-    
+        return web_manager.metadata.model_dump()
+
     @app.websocket("/ws")
     async def websocket_endpoint(websocket: WebSocket):
         """WebSocket endpoint for real-time updates."""
@@ -327,12 +343,12 @@ def create_web_interface_app(
                 await websocket.receive_text()
         except WebSocketDisconnect:
             await web_manager.disconnect_websocket(websocket)
-    
+
     @app.post("/web/reset")
     async def web_reset():
         """Reset endpoint for web interface."""
         return await web_manager.reset_environment()
-    
+
     @app.post("/web/step")
     async def web_step(request: Dict[str, Any]):
         """Step endpoint for web interface."""
@@ -344,31 +360,37 @@ def create_web_interface_app(
             action_data = {"tokens": action.tokens.tolist()}
         else:
             action_data = request.get("action", {})
-        
+
         return await web_manager.step_environment(action_data)
-    
+
     @app.get("/web/state")
     async def web_state():
         """State endpoint for web interface."""
         return web_manager.get_state()
-    
+
     return app
 
 
-def get_web_interface_html(action_cls: Type[Action], metadata: Optional[EnvironmentMetadata] = None) -> str:
+def get_web_interface_html(
+    action_cls: Type[Action], metadata: Optional[EnvironmentMetadata] = None
+) -> str:
     """Generate the HTML for the web interface."""
-    
+
     # Check if this is a chat environment by looking for tokens field
     is_chat_env = False
-    if hasattr(action_cls, '__dataclass_fields__'):
-        for field_name, field_info in action_cls.__dataclass_fields__.items():
-            if field_name == 'tokens' and hasattr(field_info.type, '__name__') and 'Tensor' in field_info.type.__name__:
+    if hasattr(action_cls, "model_fields"):
+        for field_name, field_info in action_cls.model_fields.items():
+            if (
+                field_name == "tokens"
+                and hasattr(field_info.annotation, "__name__")
+                and "Tensor" in field_info.annotation.__name__
+            ):
                 is_chat_env = True
                 break
-    
+
     # Get action fields for dynamic form generation with enhanced metadata
     action_fields = _extract_action_fields(action_cls)
-    
+
     return f"""
 <!DOCTYPE html>
 <html lang="en">
@@ -1259,19 +1281,20 @@ def get_web_interface_html(action_cls: Type[Action], metadata: Optional[Environm
     </script>
 </body>
 </html>
-    """.replace('{_generate_action_form_fields(action_fields)}', _generate_action_form_fields(action_fields))
+    """.replace(
+        "{_generate_action_form_fields(action_fields)}",
+        _generate_action_form_fields(action_fields),
+    )
 
 
 def _generate_instructions_section(metadata: Optional[EnvironmentMetadata]) -> str:
     """Generate the instructions section with environment documentation."""
     if not metadata or not metadata.readme_content:
-        return ''
-    
-    # Convert markdown to HTML (basic conversion)
-    import re
+        return ""
+
     html_content = _markdown_to_html(metadata.readme_content)
-    
-    return f'''
+
+    return f"""
                 <!-- Instructions Section -->
                 <div class="instructions-section">
                     <div class="instructions-header">
@@ -1284,194 +1307,178 @@ def _generate_instructions_section(metadata: Optional[EnvironmentMetadata]) -> s
                         </div>
                     </div>
                 </div>
-    '''
+    """
 
 
 def _extract_action_fields(action_cls: Type[Action]) -> List[Dict[str, Any]]:
     """Extract enhanced field metadata from Action class for form generation."""
-    import typing
-    from typing import get_origin, get_args
-    
+    # Use Pydantic's JSON schema generation for robust metadata extraction
+    try:
+        schema = action_cls.model_json_schema()
+    except AttributeError:
+        # Fallback for non-Pydantic v2 models or if something goes wrong
+        return []
+
+    properties = schema.get("properties", {})
+    required_fields = schema.get("required", [])
+
     action_fields = []
-    if not hasattr(action_cls, '__dataclass_fields__'):
-        return action_fields
-    
-    for field_name, field_info in action_cls.__dataclass_fields__.items():
-        if field_name == 'metadata':
+
+    for field_name, field_info in properties.items():
+        if field_name == "metadata":
             continue
-            
-        field_type = field_info.type
-        field_metadata = _extract_field_metadata(field_name, field_info)
-        
-        # Determine input type based on field type
-        input_type = _determine_input_type(field_type)
-        
-        # Check if field is required
-        is_required = field_info.default is field_info.default_factory
-        
-        action_fields.append({
-            'name': field_name,
-            'type': input_type,
-            'required': is_required,
-            'description': field_metadata.get('description', ''),
-            'default_value': field_metadata.get('default_value'),
-            'choices': field_metadata.get('choices', []),
-            'min_value': field_metadata.get('min_value'),
-            'max_value': field_metadata.get('max_value'),
-            'placeholder': field_metadata.get('placeholder', ''),
-            'help_text': field_metadata.get('help_text', ''),
-        })
-    
+
+        # JSON schema "type" can be a string or list/undefined
+        # Determine our internal input type
+        input_type = _determine_input_type_from_schema(field_info, field_name)
+
+        is_required = field_name in required_fields
+
+        action_fields.append(
+            {
+                "name": field_name,
+                "type": input_type,
+                "required": is_required,
+                "description": field_info.get("description", ""),
+                "default_value": field_info.get("default"),
+                "choices": field_info.get("enum"),
+                "min_value": field_info.get("minimum"),
+                "max_value": field_info.get("maximum"),
+                "min_length": field_info.get("minLength"),
+                "max_length": field_info.get("maxLength"),
+                "pattern": field_info.get("pattern"),
+                "placeholder": _generate_placeholder(field_name, field_info),
+                "help_text": _generate_help_text(field_name, field_info),
+            }
+        )
+
     return action_fields
 
 
-def _extract_field_metadata(field_name: str, field_info) -> Dict[str, Any]:
-    """Extract metadata from dataclass field including docstring and type hints."""
-    import typing
-    from typing import get_origin, get_args, Literal, Union, Optional
-    
-    metadata = {}
-    
-    # Extract description from field docstring or annotation
-    if hasattr(field_info, 'metadata') and field_info.metadata:
-        # Check for custom metadata
-        for meta in field_info.metadata:
-            if isinstance(meta, dict):
-                metadata.update(meta)
-    
-    # Extract type information
-    field_type = field_info.type
-    origin = get_origin(field_type)
-    
-    # Handle Literal types for dropdown choices
-    if origin is Literal:
-        args = get_args(field_type)
-        metadata['choices'] = list(args)
-    
-    # Handle Optional types
-    if origin is Union:
-        args = get_args(field_type)
-        if len(args) == 2 and type(None) in args:
-            # This is Optional[SomeType]
-            non_none_type = args[0] if args[1] is type(None) else args[1]
-            metadata['optional'] = True
-            # Recursively check the non-None type for choices
-            if get_origin(non_none_type) is Literal:
-                metadata['choices'] = list(get_args(non_none_type))
-        else:
-            # Regular Union type
-            metadata['choices'] = [str(arg) for arg in args if arg is not type(None)]
-    
-    # Handle numeric constraints
-    if field_type in (int, float):
-        # Check for common constraint patterns in field name
-        if 'count' in field_name.lower() or 'num' in field_name.lower():
-            metadata['min_value'] = 0
-        if 'id' in field_name.lower():
-            metadata['min_value'] = 0
-    
-    # Generate placeholder text
-    if 'message' in field_name.lower():
-        metadata['placeholder'] = f'Enter {field_name.replace("_", " ")}...'
-    elif 'code' in field_name.lower():
-        metadata['placeholder'] = 'Enter Python code here...'
-    elif 'tokens' in field_name.lower():
-        metadata['placeholder'] = 'Enter comma-separated token IDs (e.g., 1,2,3,4,5)'
-    else:
-        metadata['placeholder'] = f'Enter {field_name.replace("_", " ")}...'
-    
-    # Generate help text based on field name and type
-    if 'action_id' in field_name.lower():
-        metadata['help_text'] = 'The action ID to execute in the environment'
-    elif 'game_name' in field_name.lower():
-        metadata['help_text'] = 'Name of the game or environment'
-    elif 'tokens' in field_name.lower():
-        metadata['help_text'] = 'Token IDs as a comma-separated list of integers'
-    elif 'code' in field_name.lower():
-        metadata['help_text'] = 'Python code to execute in the environment'
-    elif 'message' in field_name.lower():
-        metadata['help_text'] = 'Text message to send'
-    
-    return metadata
+def _determine_input_type_from_schema(
+    field_info: Dict[str, Any], field_name: str
+) -> str:
+    """Determine the appropriate HTML input type from JSON schema info."""
+    schema_type = field_info.get("type")
 
-
-def _determine_input_type(field_type) -> str:
-    """Determine the appropriate HTML input type for a field type."""
-    import typing
-    from typing import get_origin, get_args, Literal, Union
-    
-    # Handle direct types
-    if field_type == str:
-        return "text"
-    elif field_type == int:
-        return "number"
-    elif field_type == float:
-        return "number"
-    elif field_type == bool:
-        return "checkbox"
-    
-    # Handle complex types
-    origin = get_origin(field_type)
-    
-    if origin is Literal:
-        return "select"
-    elif origin is Union:
-        args = get_args(field_type)
-        if len(args) == 2 and type(None) in args:
-            # Optional type - use the non-None type
-            non_none_type = args[0] if args[1] is type(None) else args[1]
-            return _determine_input_type(non_none_type)
-        elif all(isinstance(arg, str) for arg in args if arg is not type(None)):
-            return "select"
-        else:
-            return "text"
-    elif hasattr(field_type, '__name__') and 'Tensor' in field_type.__name__:
+    # Check for specific tensor field convention
+    if "tokens" in field_name.lower():
         return "tensor"
-    else:
+
+    if "enum" in field_info:
+        return "select"
+
+    if schema_type == "boolean":
+        return "checkbox"
+
+    if schema_type == "integer" or schema_type == "number":
+        return "number"
+
+    if schema_type == "string":
+        # Check if it should be a textarea
+        if (
+            field_info.get("maxLength", 0) > 100
+            or "message" in field_name.lower()
+            or "code" in field_name.lower()
+        ):
+            return "textarea"
         return "text"
+
+    # Default fallback
+    return "text"
+
+
+def _generate_placeholder(field_name: str, field_info: Dict[str, Any]) -> str:
+    """Generate placeholder text."""
+    if "message" in field_name.lower():
+        return f"Enter {field_name.replace('_', ' ')}..."
+    elif "code" in field_name.lower():
+        return "Enter Python code here..."
+    elif "tokens" in field_name.lower():
+        return "Enter comma-separated token IDs (e.g., 1,2,3,4,5)"
+    else:
+        return f"Enter {field_name.replace('_', ' ')}..."
+
+
+def _generate_help_text(field_name: str, field_info: Dict[str, Any]) -> str:
+    """Generate help text."""
+    description = field_info.get("description", "")
+    if description:
+        return description
+
+    if "action_id" in field_name.lower():
+        return "The action ID to execute in environment"
+    elif "game_name" in field_name.lower():
+        return "Name of game or environment"
+    elif "tokens" in field_name.lower():
+        return "Token IDs as a comma-separated list of integers"
+    elif "code" in field_name.lower():
+        return "Python code to execute in environment"
+    elif "message" in field_name.lower():
+        return "Text message to send"
+
+    return ""
 
 
 def _markdown_to_html(markdown: str) -> str:
     """Convert basic markdown to HTML for README display."""
     import html
     import re
-    
+
     # Escape HTML first
     html_content = html.escape(markdown)
-    
+
     # Convert headers
-    html_content = re.sub(r'^# (.*?)$', r'<h1>\1</h1>', html_content, flags=re.MULTILINE)
-    html_content = re.sub(r'^## (.*?)$', r'<h2>\1</h2>', html_content, flags=re.MULTILINE)
-    html_content = re.sub(r'^### (.*?)$', r'<h3>\1</h3>', html_content, flags=re.MULTILINE)
-    
+    html_content = re.sub(
+        r"^# (.*?)$", r"<h1>\1</h1>", html_content, flags=re.MULTILINE
+    )
+    html_content = re.sub(
+        r"^## (.*?)$", r"<h2>\1</h2>", html_content, flags=re.MULTILINE
+    )
+    html_content = re.sub(
+        r"^### (.*?)$", r"<h3>\1</h3>", html_content, flags=re.MULTILINE
+    )
+
     # Convert code blocks
-    html_content = re.sub(r'```(.*?)\n(.*?)\n```', r'<pre><code>\2</code></pre>', html_content, flags=re.DOTALL)
-    html_content = re.sub(r'`([^`]+)`', r'<code>\1</code>', html_content)
-    
+    html_content = re.sub(
+        r"```(.*?)\n(.*?)\n```",
+        r"<pre><code>\2</code></pre>",
+        html_content,
+        flags=re.DOTALL,
+    )
+    html_content = re.sub(r"`([^`]+)`", r"<code>\1</code>", html_content)
+
     # Convert bold and italic
-    html_content = re.sub(r'\*\*(.*?)\*\*', r'<strong>\1</strong>', html_content)
-    html_content = re.sub(r'\*(.*?)\*', r'<em>\1</em>', html_content)
-    
+    html_content = re.sub(r"\*\*(.*?)\*\*", r"<strong>\1</strong>", html_content)
+    html_content = re.sub(r"\*(.*?)\*", r"<em>\1</em>", html_content)
+
     # Convert lists
-    html_content = re.sub(r'^- (.*?)$', r'<li>\1</li>', html_content, flags=re.MULTILINE)
-    html_content = re.sub(r'(<li>.*</li>)', r'<ul>\1</ul>', html_content, flags=re.DOTALL)
-    
+    html_content = re.sub(
+        r"^- (.*?)$", r"<li>\1</li>", html_content, flags=re.MULTILINE
+    )
+    html_content = re.sub(
+        r"(<li>.*</li>)", r"<ul>\1</ul>", html_content, flags=re.DOTALL
+    )
+
     # Convert line breaks
-    html_content = html_content.replace('\n', '<br>')
-    
+    html_content = html_content.replace("\n", "<br>")
+
     return html_content
 
 
-def _generate_action_interface(action_fields: List[Dict[str, Any]], is_chat_env: bool) -> str:
+def _generate_action_interface(
+    action_fields: List[Dict[str, Any]], is_chat_env: bool
+) -> str:
     """Generate either a chat interface or action form based on environment type."""
     if is_chat_env:
         return _generate_chat_interface()
     else:
         return _generate_action_form(action_fields)
 
+
 def _generate_chat_interface() -> str:
     """Generate a chat-style interface for chat environments."""
-    return '''
+    return """
                 <!-- Chat Interface -->
                 <div class="chat-interface">
                     <h3>Chat Interface</h3>
@@ -1495,11 +1502,12 @@ def _generate_chat_interface() -> str:
                         </div>
                     </div>
                 </div>
-    '''
+    """
+
 
 def _generate_action_form(action_fields: List[Dict[str, Any]]) -> str:
     """Generate a traditional action form for non-chat environments."""
-    return f'''
+    return f"""
                 <!-- Action Form -->
                 <div class="action-form">
                     <h3>Take Action</h3>
@@ -1508,106 +1516,119 @@ def _generate_action_form(action_fields: List[Dict[str, Any]]) -> str:
                         <button type="submit" class="btn" id="step-btn">Step</button>
                     </form>
                 </div>
-    '''
+    """
+
 
 def _generate_action_form_fields(action_fields: List[Dict[str, Any]]) -> str:
     """Generate HTML form fields for action input with enhanced metadata."""
     if not action_fields:
-        return '<p>No action fields available</p>'
-    
+        return "<p>No action fields available</p>"
+
     fields_html = []
     for field in action_fields:
         field_html = _generate_single_field(field)
         fields_html.append(field_html)
-    
-    return '\n'.join(fields_html)
+
+    return "\n".join(fields_html)
 
 
 def _generate_single_field(field: Dict[str, Any]) -> str:
     """Generate HTML for a single form field with enhanced metadata."""
-    field_name = field['name']
-    field_type = field['type']
-    required = field['required']
-    placeholder = field.get('placeholder', '')
-    help_text = field.get('help_text', '')
-    choices = field.get('choices', [])
-    min_value = field.get('min_value')
-    max_value = field.get('max_value')
-    default_value = field.get('default_value')
-    
+    field_name = field["name"]
+    field_type = field["type"]
+    required = field["required"]
+    placeholder = field.get("placeholder", "")
+    help_text = field.get("help_text", "")
+    choices = field.get("choices", [])
+    min_value = field.get("min_value")
+    max_value = field.get("max_value")
+    default_value = field.get("default_value")
+    min_length = field.get("min_length")
+    max_length = field.get("max_length")
+    pattern = field.get("pattern")
+
     # Build label with required indicator
-    label_text = field_name.replace('_', ' ').title()
+    label_text = field_name.replace("_", " ").title()
     if required:
         label_text += ' <span style="color: red;">*</span>'
-    
+
     # Build input attributes
     input_attrs = []
     if required:
-        input_attrs.append('required')
+        input_attrs.append("required")
     if placeholder:
         input_attrs.append(f'placeholder="{placeholder}"')
     if min_value is not None:
         input_attrs.append(f'min="{min_value}"')
     if max_value is not None:
         input_attrs.append(f'max="{max_value}"')
+    if min_length is not None:
+        input_attrs.append(f'minlength="{min_length}"')
+    if max_length is not None:
+        input_attrs.append(f'maxlength="{max_length}"')
+    if pattern is not None:
+        input_attrs.append(f'pattern="{pattern}"')
     if default_value is not None:
         input_attrs.append(f'value="{default_value}"')
-    
-    attrs_str = ' '.join(input_attrs)
-    
-    if field_type == 'checkbox':
+
+    attrs_str = " ".join(input_attrs)
+
+    if field_type == "checkbox":
+        checked = "checked" if default_value is True else ""
         return f'''
             <div class="form-group">
                 <label>
-                    <input type="checkbox" name="{field_name}" value="true" {attrs_str}>
+                    <input type="checkbox" name="{field_name}" value="true" {checked}>
                     {label_text}
                 </label>
-                {f'<small class="help-text">{help_text}</small>' if help_text else ''}
+                {f'<small class="help-text">{help_text}</small>' if help_text else ""}
             </div>
         '''
-    
-    elif field_type == 'select':
+
+    elif field_type == "select":
         options_html = []
         if not required:
             options_html.append(f'<option value="">-- Select {label_text} --</option>')
-        
+
         for choice in choices:
-            selected = 'selected' if str(choice) == str(default_value) else ''
-            options_html.append(f'<option value="{choice}" {selected}>{choice}</option>')
-        
+            selected = "selected" if str(choice) == str(default_value) else ""
+            options_html.append(
+                f'<option value="{choice}" {selected}>{choice}</option>'
+            )
+
         return f'''
             <div class="form-group">
                 <label for="{field_name}">{label_text}:</label>
                 <select name="{field_name}" id="{field_name}" {attrs_str}>
-                    {''.join(options_html)}
+                    {"".join(options_html)}
                 </select>
-                {f'<small class="help-text">{help_text}</small>' if help_text else ''}
+                {f'<small class="help-text">{help_text}</small>' if help_text else ""}
             </div>
         '''
-    
-    elif field_type == 'tensor':
+
+    elif field_type == "tensor":
         return f'''
             <div class="form-group">
                 <label for="{field_name}">{label_text} (comma-separated integers):</label>
                 <input type="text" name="{field_name}" id="{field_name}" {attrs_str}>
-                <small class="help-text">{help_text or 'Enter token IDs as comma-separated integers (e.g., 1,2,3,4,5)'}</small>
+                <small class="help-text">{help_text or "Enter token IDs as comma-separated integers (e.g., 1,2,3,4,5)"}</small>
             </div>
         '''
-    
-    elif field_type == 'text' and ('message' in field_name.lower() or 'code' in field_name.lower()):
+
+    elif field_type == "textarea":
         return f'''
             <div class="form-group">
                 <label for="{field_name}">{label_text}:</label>
-                <textarea name="{field_name}" id="{field_name}" rows="3" {attrs_str}></textarea>
-                {f'<small class="help-text">{help_text}</small>' if help_text else ''}
+                <textarea name="{field_name}" id="{field_name}" rows="3" {attrs_str}>{default_value if default_value is not None else ""}</textarea>
+                {f'<small class="help-text">{help_text}</small>' if help_text else ""}
             </div>
         '''
-    
+
     else:
         return f'''
             <div class="form-group">
                 <label for="{field_name}">{label_text}:</label>
                 <input type="{field_type}" name="{field_name}" id="{field_name}" {attrs_str}>
-                {f'<small class="help-text">{help_text}</small>' if help_text else ''}
+                {f'<small class="help-text">{help_text}</small>' if help_text else ""}
             </div>
         '''
