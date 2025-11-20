@@ -1,0 +1,456 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Warehouse Optimization Demo</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+        .container {
+            background: white;
+            border-radius: 15px;
+            padding: 30px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.3);
+        }
+        h1 {
+            color: #333;
+            text-align: center;
+            margin-bottom: 10px;
+        }
+        .subtitle {
+            text-align: center;
+            color: #666;
+            margin-bottom: 30px;
+        }
+        .controls {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+        button {
+            padding: 12px 24px;
+            font-size: 16px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s;
+            font-weight: 600;
+        }
+        .btn-primary {
+            background: #4CAF50;
+            color: white;
+        }
+        .btn-primary:hover {
+            background: #45a049;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(76, 175, 80, 0.4);
+        }
+        .btn-secondary {
+            background: #2196F3;
+            color: white;
+        }
+        .btn-secondary:hover {
+            background: #0b7dda;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(33, 150, 243, 0.4);
+        }
+        .btn-danger {
+            background: #f44336;
+            color: white;
+        }
+        .btn-danger:hover {
+            background: #da190b;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(244, 67, 54, 0.4);
+        }
+        button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none !important;
+        }
+        .difficulty-selector {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 20px;
+        }
+        .difficulty-selector label {
+            font-weight: 600;
+            color: #333;
+        }
+        .difficulty-selector select {
+            padding: 8px 16px;
+            border-radius: 6px;
+            border: 2px solid #ddd;
+            font-size: 14px;
+        }
+        #visualization {
+            border: 3px solid #333;
+            border-radius: 10px;
+            padding: 20px;
+            margin-bottom: 20px;
+            min-height: 400px;
+            background: #fafafa;
+        }
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+        .stat-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 15px;
+            border-radius: 8px;
+            text-align: center;
+        }
+        .stat-card h3 {
+            margin: 0 0 5px 0;
+            font-size: 14px;
+            opacity: 0.9;
+        }
+        .stat-card p {
+            margin: 0;
+            font-size: 24px;
+            font-weight: bold;
+        }
+        .mode-toggle {
+            text-align: center;
+            margin-bottom: 20px;
+            padding: 15px;
+            background: #f0f0f0;
+            border-radius: 8px;
+        }
+        .manual-controls {
+            display: grid;
+            grid-template-columns: repeat(3, 80px);
+            gap: 10px;
+            justify-content: center;
+            margin-top: 15px;
+        }
+        .manual-controls button {
+            width: 80px;
+            height: 80px;
+            font-size: 24px;
+        }
+        .hidden {
+            display: none;
+        }
+        #message {
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            text-align: center;
+            font-weight: 500;
+        }
+        .success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        .info {
+            background: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+        .speed-control {
+            text-align: center;
+            margin-bottom: 15px;
+        }
+        .speed-control label {
+            margin-right: 10px;
+            font-weight: 600;
+        }
+        .speed-control input {
+            width: 200px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🏭 Warehouse Optimization Environment</h1>
+        <p class="subtitle">Watch an AI agent navigate a warehouse to pick up and deliver packages!</p>
+
+        <div class="difficulty-selector">
+            <label for="difficulty">Difficulty Level:</label>
+            <select id="difficulty">
+                <option value="1">Level 1 - Simple (5×5, 1 package)</option>
+                <option value="2" selected>Level 2 - Easy (8×8, 2 packages)</option>
+                <option value="3">Level 3 - Medium (10×10, 3 packages)</option>
+                <option value="4">Level 4 - Hard (15×15, 5 packages)</option>
+                <option value="5">Level 5 - Expert (20×20, 8 packages)</option>
+            </select>
+            <button class="btn-secondary" id="applyDifficulty">Apply</button>
+        </div>
+
+        <div class="stats">
+            <div class="stat-card">
+                <h3>Steps</h3>
+                <p id="steps">0 / 0</p>
+            </div>
+            <div class="stat-card">
+                <h3>Packages Delivered</h3>
+                <p id="delivered">0 / 0</p>
+            </div>
+            <div class="stat-card">
+                <h3>Cumulative Reward</h3>
+                <p id="reward">0.0</p>
+            </div>
+        </div>
+
+        <div id="message" class="hidden"></div>
+
+        <div class="mode-toggle">
+            <label>
+                <input type="radio" name="mode" value="auto" checked> Auto-Play Mode
+            </label>
+            <label style="margin-left: 20px;">
+                <input type="radio" name="mode" value="manual"> Manual Control
+            </label>
+        </div>
+
+        <div id="auto-controls" class="controls">
+            <button class="btn-primary" id="startBtn">▶️ Start Auto-Play</button>
+            <button class="btn-danger" id="stopBtn" disabled>⏸️ Stop</button>
+            <button class="btn-secondary" id="resetBtn">🔄 Reset</button>
+            <div class="speed-control">
+                <label for="speed">Speed:</label>
+                <input type="range" id="speed" min="100" max="2000" value="500" step="100">
+                <span id="speedLabel">500ms</span>
+            </div>
+        </div>
+
+        <div id="manual-controls" class="hidden">
+            <div class="controls">
+                <button class="btn-secondary" id="resetManualBtn">🔄 Reset</button>
+            </div>
+            <div class="manual-controls">
+                <div></div>
+                <button class="btn-primary" onclick="manualAction(0)">⬆️</button>
+                <div></div>
+                <button class="btn-primary" onclick="manualAction(2)">⬅️</button>
+                <button class="btn-primary" onclick="manualAction(4)">📦 Pick</button>
+                <button class="btn-primary" onclick="manualAction(3)">➡️</button>
+                <div></div>
+                <button class="btn-primary" onclick="manualAction(1)">⬇️</button>
+                <button class="btn-primary" onclick="manualAction(5)">📤 Drop</button>
+            </div>
+        </div>
+
+        <div id="visualization">
+            <p style="text-align: center; color: #999;">Click "Start Auto-Play" or "Reset" to begin!</p>
+        </div>
+    </div>
+
+    <script>
+        let autoPlayInterval = null;
+        let currentMode = 'auto';
+        const baseUrl = window.location.origin;
+
+        // Mode switching
+        document.querySelectorAll('input[name="mode"]').forEach(radio => {
+            radio.addEventListener('change', (e) => {
+                currentMode = e.target.value;
+                if (currentMode === 'auto') {
+                    document.getElementById('auto-controls').classList.remove('hidden');
+                    document.getElementById('manual-controls').classList.add('hidden');
+                } else {
+                    document.getElementById('auto-controls').classList.add('hidden');
+                    document.getElementById('manual-controls').classList.remove('hidden');
+                    stopAutoPlay();
+                }
+            });
+        });
+
+        // Speed control
+        document.getElementById('speed').addEventListener('input', (e) => {
+            const speed = e.target.value;
+            document.getElementById('speedLabel').textContent = speed + 'ms';
+            if (autoPlayInterval) {
+                stopAutoPlay();
+                startAutoPlay();
+            }
+        });
+
+        async function reset() {
+            try {
+                showMessage('Resetting environment...', 'info');
+                const response = await fetch(`${baseUrl}/reset`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({})
+                });
+                const data = await response.json();
+                updateStats(data.observation);
+                await refreshVisualization();
+                showMessage('Environment reset successfully!', 'success');
+            } catch (error) {
+                showMessage('Error resetting environment: ' + error.message, 'error');
+            }
+        }
+
+        async function startAutoPlay() {
+            const startBtn = document.getElementById('startBtn');
+            const stopBtn = document.getElementById('stopBtn');
+
+            startBtn.disabled = true;
+            stopBtn.disabled = false;
+
+            const speed = parseInt(document.getElementById('speed').value);
+
+            autoPlayInterval = setInterval(async () => {
+                try {
+                    const response = await fetch(`${baseUrl}/auto-step`, {
+                        method: 'POST'
+                    });
+                    const data = await response.json();
+
+                    if (data.done) {
+                        stopAutoPlay();
+                        showMessage(`Episode complete! Delivered ${data.packages_delivered} packages. Final reward: ${data.reward}`, 'success');
+                        return;
+                    }
+
+                    updateStatsFromStep(data);
+                    await refreshVisualization();
+                    showMessage(`Action: ${data.action} - ${data.message}`, 'info');
+                } catch (error) {
+                    stopAutoPlay();
+                    showMessage('Error during auto-play: ' + error.message, 'error');
+                }
+            }, speed);
+        }
+
+        function stopAutoPlay() {
+            if (autoPlayInterval) {
+                clearInterval(autoPlayInterval);
+                autoPlayInterval = null;
+            }
+            document.getElementById('startBtn').disabled = false;
+            document.getElementById('stopBtn').disabled = true;
+        }
+
+        async function manualAction(actionId) {
+            try {
+                const response = await fetch(`${baseUrl}/step`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action: { action_id: actionId } })
+                });
+                const data = await response.json();
+                updateStats(data.observation);
+                await refreshVisualization();
+
+                if (data.observation.message) {
+                    showMessage(data.observation.message, data.observation.action_success ? 'success' : 'error');
+                }
+
+                if (data.done) {
+                    showMessage(`Episode complete! Delivered ${data.observation.packages_delivered} packages.`, 'success');
+                }
+            } catch (error) {
+                showMessage('Error: ' + error.message, 'error');
+            }
+        }
+
+        async function refreshVisualization() {
+            try {
+                // Add cache-busting parameter to ensure fresh render
+                const timestamp = new Date().getTime();
+                const response = await fetch(`${baseUrl}/render/html?t=${timestamp}`, {
+                    cache: 'no-store'
+                });
+                const html = await response.text();
+                document.getElementById('visualization').innerHTML = html;
+            } catch (error) {
+                console.error('Error refreshing visualization:', error);
+            }
+        }
+
+        function updateStats(obs) {
+            document.getElementById('steps').textContent = `${obs.step_count} / ${obs.time_remaining + obs.step_count}`;
+            document.getElementById('delivered').textContent = `${obs.packages_delivered} / ${obs.total_packages}`;
+
+            // Get cumulative reward from state endpoint
+            fetch(`${baseUrl}/state`)
+                .then(r => r.json())
+                .then(state => {
+                    document.getElementById('reward').textContent = state.cum_reward.toFixed(1);
+                });
+        }
+
+        function updateStatsFromStep(data) {
+            const maxSteps = parseInt(document.getElementById('steps').textContent.split('/')[1].trim());
+            document.getElementById('steps').textContent = `${data.step_count} / ${maxSteps}`;
+            document.getElementById('delivered').textContent = data.packages_delivered + ' / ' + document.getElementById('delivered').textContent.split('/')[1].trim();
+
+            // Get cumulative reward from state endpoint
+            fetch(`${baseUrl}/state`)
+                .then(r => r.json())
+                .then(state => {
+                    document.getElementById('reward').textContent = state.cum_reward.toFixed(1);
+                });
+        }
+
+        function showMessage(text, type) {
+            const messageDiv = document.getElementById('message');
+            messageDiv.textContent = text;
+            messageDiv.className = type;
+            messageDiv.classList.remove('hidden');
+        }
+
+        // Event listeners
+        document.getElementById('startBtn').addEventListener('click', startAutoPlay);
+        document.getElementById('stopBtn').addEventListener('click', stopAutoPlay);
+        document.getElementById('resetBtn').addEventListener('click', reset);
+        document.getElementById('resetManualBtn').addEventListener('click', reset);
+        document.getElementById('applyDifficulty').addEventListener('click', async () => {
+            stopAutoPlay();
+            const difficulty = parseInt(document.getElementById('difficulty').value);
+            showMessage(`Changing to difficulty level ${difficulty}...`, 'info');
+
+            try {
+                const response = await fetch(`${baseUrl}/set-difficulty`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ difficulty: difficulty })
+                });
+                const data = await response.json();
+
+                if (data.success) {
+                    showMessage(
+                        `Difficulty changed! Grid: ${data.grid_size[0]}×${data.grid_size[1]}, ` +
+                        `Packages: ${data.num_packages}, Max Steps: ${data.max_steps}`,
+                        'success'
+                    );
+                    updateStats(data.observation);
+                    await refreshVisualization();
+                } else {
+                    showMessage('Failed to change difficulty: ' + data.error, 'error');
+                }
+            } catch (error) {
+                showMessage('Error changing difficulty: ' + error.message, 'error');
+            }
+        });
+
+        // Initialize on load
+        reset();
+    </script>
+</body>
+</html>

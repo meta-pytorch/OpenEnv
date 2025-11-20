@@ -1,0 +1,57 @@
+---
+name: warehouse_env
+version: "1.0.0"
+description: "Grid-based warehouse logistics optimization environment for reinforcement learning"
+author: "OpenEnv Contributors"
+tags:
+  - reinforcement-learning
+  - logistics
+  - pathfinding
+  - grid-world
+  - warehouse
+  - robotics
+
+environment:
+  type: "discrete"
+  action_space:
+    type: "Discrete"
+    n: 6
+  observation_space:
+    type: "Dict"
+    spaces:
+      grid: "Box"
+      robot_position: "Tuple"
+      packages: "List"
+
+difficulty_levels:
+  - level: 1
+    name: "Simple"
+    description: "5x5 grid, 1 package, no obstacles"
+  - level: 2
+    name: "Easy"
+    description: "8x8 grid, 2 packages, 3 obstacles"
+  - level: 3
+    name: "Medium"
+    description: "10x10 grid, 3 packages, 8 obstacles"
+  - level: 4
+    name: "Hard"
+    description: "15x15 grid, 5 packages, 20 obstacles"
+  - level: 5
+    name: "Expert"
+    description: "20x20 grid, 8 packages, 40 obstacles"
+
+configuration:
+  default_difficulty: 2
+  environment_variables:
+    - DIFFICULTY_LEVEL
+    - GRID_WIDTH
+    - GRID_HEIGHT
+    - NUM_PACKAGES
+    - MAX_STEPS
+    - RANDOM_SEED
+
+docker:
+  image_name: "warehouse-env"
+  default_port: 8000
+  build_context: "../../../"
+  dockerfile: "src/envs/warehouse_env/server/Dockerfile"
