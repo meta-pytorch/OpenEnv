@@ -96,16 +96,9 @@ Desktop.ini
 *Claude*
 *CLAUDE*
 
-# OpenEnv-specific
-# Environment outputs (logs, evaluations, etc.)
-**/outputs/
-outputs/
+# Exclude generated dataset files
+examples/dipg/dipg_sft_dataset_sharegpt_format.jsonl
+examples/dipg/dipg_sft_dataset_metadata.jsonl
 
-# Generated requirements files from pyproject.toml
-**/server/requirements.txt.generated
-
-# UV root lock file (env lock files should be committed)
-/uv.lock
-.uv/
-
-*.backup*/
+# Exclude Hugging Face upload script
+examples/dipg/upload_to_hf.py
