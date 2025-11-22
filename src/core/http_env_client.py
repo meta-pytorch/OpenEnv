@@ -17,10 +17,10 @@ from typing import Any, Dict, Generic, Optional, Type, TYPE_CHECKING, TypeVar
 import requests
 
 from .client_types import StepResult
-from .containers.runtime import LocalDockerProvider
+from .containers.runtime import LocalDockerProvider, UVProvider
 
 if TYPE_CHECKING:
-    from .containers.runtime import ContainerProvider
+    from .containers.runtime import ContainerProvider, RuntimeProvider
 
 ActT = TypeVar("ActT")
 ObsT = TypeVar("ObsT")
@@ -40,6 +40,11 @@ class HTTPEnvClient(ABC, Generic[ActT, ObsT]):
         self._http = requests.Session()
         self._headers = default_headers or {}
         self._provider = provider
+
+    @property
+    def base_url(self) -> str:
+        """Base URL of the connected environment server."""
+        return self._base
 
     @classmethod
     def from_docker_image(
@@ -106,22 +111,59 @@ class HTTPEnvClient(ABC, Generic[ActT, ObsT]):
         return cls(base_url=base_url, provider=provider)
 
     @classmethod
-    def from_hub(cls: Type[EnvClientT], repo_id: str, provider: Optional["ContainerProvider"] = None, **kwargs: Any) -> EnvClientT:
+    def from_hub(
+        cls: Type[EnvClientT],
+        repo_id: str,
+        *,
+        use_docker: bool = True,
+        provider: Optional["ContainerProvider" | "RuntimeProvider"] = None,
+        **provider_kwargs: Any,
+    ) -> EnvClientT:
+        """Create a client from a Hugging Face Space.
+
+        Args:
+            repo_id: Hugging Face space identifier ``{org}/{space}``.
+            use_docker: When ``True`` (default) pull from the HF registry and
+                launch via :class:`LocalDockerProvider`. When ``False`` run the
+                space locally with :class:`UVProvider`.
+            provider: Optional provider instance to reuse. Must be a
+                :class:`ContainerProvider` when ``use_docker=True`` and a
+                :class:`RuntimeProvider`` otherwise.
+            provider_kwargs: Additional keyword arguments forwarded to either the
+                container provider's ``start_container`` (docker) or to the
+                ``UVProvider`` constructor/start (uv). When ``use_docker=False``,
+                the ``project_path`` argument can be used to override the default
+                git URL (``git+https://huggingface.co/spaces/{repo_id}``).
         """
-        Create an environment client by pulling from a Hugging Face model hub.
-        """
-        
-        if provider is None:
-            provider = LocalDockerProvider()
-        
-        if "tag" in kwargs:
-            tag = kwargs["tag"]
+
+        start_args = {}
+        for key in ("port", "env_vars", "workers"):
+            if key in provider_kwargs:
+                start_args[key] = provider_kwargs.pop(key)
+
+        if use_docker:
+            docker_provider = provider or LocalDockerProvider()
+            tag = provider_kwargs.pop("tag", "latest")
+            image = f"registry.hf.space/{repo_id.replace('/', '-')}:{tag}"
+            base_url = docker_provider.start_container(image, **start_args, **provider_kwargs)
+            docker_provider.wait_for_ready(base_url)
+            return cls(base_url=base_url, provider=docker_provider)
         else:
-            tag = "latest"
-        
-        base_url = f"registry.hf.space/{repo_id.replace('/', '-')}:{tag}"
-        
-        return cls.from_docker_image(image=base_url, provider=provider)
+            if provider is None:
+                uv_kwargs = dict(provider_kwargs)
+                project_path = uv_kwargs.pop("project_path", None)
+                if project_path is None:
+                    project_path = f"git+https://huggingface.co/spaces/{repo_id}"
+
+                provider = UVProvider(project_path=project_path, **uv_kwargs)
+            else:
+                if provider_kwargs:
+                    raise ValueError("provider_kwargs cannot be used when supplying a provider instance")
+
+            base_url = provider.start(**start_args)
+            provider.wait_for_ready()
+
+            return cls(base_url=base_url, provider=provider)
 
     @abstractmethod
     def _step_payload(self, action: ActT) -> dict:
