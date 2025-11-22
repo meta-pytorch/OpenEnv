@@ -4,14 +4,18 @@
 # This source code is licensed under the BSD-style license found in the
 # LICENSE file in the root directory of this source tree.
 
-"""Common data models for the TextArena environment wrapper."""
+"""
+Data models for the TextArena Environment.
+
+The textarena environment is a simple test environment that echoes back messages.
+"""
 
 from __future__ import annotations
 
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
 
-from core.env_server.types import Action, Observation, State
+from openenv_core.env_server.types import Action, Observation, State
 
 
 @dataclass
@@ -52,4 +56,3 @@ class TextArenaState(State):
     last_reward: float = 0.0
     last_info: Dict[str, Any] = field(default_factory=dict)
     raw_state: Dict[str, Any] = field(default_factory=dict)
-
