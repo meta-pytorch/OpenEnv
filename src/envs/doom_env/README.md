@@ -73,13 +73,14 @@ That's it! The `DoomEnv.from_docker_image()` method handles:
 Before using the environment, you need to build the Docker image:
 
 ```bash
-# From the doom_env directory
-cd src/envs/doom_env
-docker build -t doom-env:latest -f server/Dockerfile .
+# First, build the base image (if not already built)
+docker build -t openenv-base:latest -f src/core/containers/images/Dockerfile .
 
-# Or from project root
-docker build -t doom-env:latest -f src/envs/doom_env/server/Dockerfile src/envs/doom_env
+# Then build the doom environment image from project root
+docker build -t doom-env:latest -f src/envs/doom_env/server/Dockerfile .
 ```
+
+The Dockerfile installs all necessary system dependencies for ViZDoom including SDL2, Boost, OpenGL libraries, and more.
 
 ## Environment Details
 
