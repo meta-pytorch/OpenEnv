@@ -14,19 +14,18 @@ ViZDoom is a Doom-based AI research platform for visual RL.
 import uuid
 from typing import List, Literal, Optional
 
+from models import DoomAction, DoomObservation
+
 from openenv_core.env_server.interfaces import Environment
 from openenv_core.env_server.types import State
 
-from models import DoomAction, DoomObservation
-
 # Import ViZDoom
 try:
-    import vizdoom as vzd
     import numpy as np
+    import vizdoom as vzd
 except ImportError as e:
     raise ImportError(
-        "ViZDoom is not installed. "
-        "Please install it with: pip install vizdoom"
+        "ViZDoom is not installed. " "Please install it with: pip install vizdoom"
     ) from e
 
 
@@ -102,7 +101,7 @@ class DoomEnvironment(Environment):
     def _load_scenario(self, scenario: str) -> None:
         """Load scenario configuration."""
         # Check if scenario is a path to .cfg file
-        if scenario.endswith('.cfg'):
+        if scenario.endswith(".cfg"):
             self.game.load_config(scenario)
         else:
             # Try to load built-in scenario
@@ -122,10 +121,7 @@ class DoomEnvironment(Environment):
                     ) from e
 
     def _configure_visuals(
-        self,
-        screen_resolution: str,
-        screen_format: str,
-        window_visible: bool
+        self, screen_resolution: str, screen_format: str, window_visible: bool
     ) -> None:
         """Configure visual settings."""
         # Set screen resolution
@@ -141,7 +137,9 @@ class DoomEnvironment(Environment):
         else:
             # Try to use it directly as a ViZDoom resolution
             try:
-                self.game.set_screen_resolution(getattr(vzd.ScreenResolution, screen_resolution))
+                self.game.set_screen_resolution(
+                    getattr(vzd.ScreenResolution, screen_resolution)
+                )
             except AttributeError:
                 raise ValueError(f"Invalid screen resolution: {screen_resolution}")
 
@@ -213,7 +211,9 @@ class DoomEnvironment(Environment):
             # Get resolution from settings
             res_str = self.screen_resolution.replace("RES_", "").replace("X", "x")
             width, height = map(int, res_str.lower().split("x"))
-            self.screen_shape = [height, width, channels] if channels > 1 else [height, width]
+            self.screen_shape = (
+                [height, width, channels] if channels > 1 else [height, width]
+            )
         else:
             state = self.game.get_state()
             if state is not None and state.screen_buffer is not None:
@@ -321,8 +321,12 @@ class DoomEnvironment(Environment):
                 screen_flat = [0] * int(np.prod(self.screen_shape))
 
             # Get game variables
-            if hasattr(state, 'game_variables'):
-                game_vars = state.game_variables.tolist() if state.game_variables is not None else []
+            if hasattr(state, "game_variables"):
+                game_vars = (
+                    state.game_variables.tolist()
+                    if state.game_variables is not None
+                    else []
+                )
             else:
                 game_vars = []
 
@@ -352,7 +356,7 @@ class DoomEnvironment(Environment):
 
     def close(self) -> None:
         """Clean up resources."""
-        if hasattr(self, 'game') and self.game is not None:
+        if hasattr(self, "game") and self.game is not None:
             self.game.close()
 
     def __del__(self):

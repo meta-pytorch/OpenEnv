@@ -108,4 +108,8 @@ outputs/
 /uv.lock
 .uv/
 
+# ViZDoom generated files
+**/_vizdoom.ini
+_vizdoom.ini
+
 *.backup*/
