@@ -4,9 +4,9 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "openenv-core"
-version = "0.1.0"
-description = "Core components for OpenEnv - HTTP-based agentic environments"
-readme = "README.md"
+version = "0.1.1"
+description = "Core components and cli for OpenEnv - HTTP-based agentic environments"
+readme = "./core/README.md"
 requires-python = ">=3.10"
 license = {text = "BSD-3-Clause"}
 authors = [
@@ -19,6 +19,12 @@ dependencies = [
     "pydantic>=2.0.0",
     "uvicorn[standard]>=0.24.0",
     "requests>=2.25.0",
+    "typer>=0.12.0",
+    "pyyaml>=6.0.0",
+    "huggingface_hub>=0.24.0",
+    "rich>=13.0.0",
+    "tomli>=2.0.1",
+    "tomli-w>=1.0.0",
 ]
 
 [project.optional-dependencies]
@@ -29,6 +35,9 @@ dev = [
     "mypy>=1.0.0",
 ]
 
+[project.scripts]
+openenv = "openenv_cli.__main__:main"
+
 [project.urls]
 Homepage = "https://github.com/facebookresearch/OpenEnv"
 Repository = "https://github.com/facebookresearch/OpenEnv"
@@ -36,12 +45,17 @@ Documentation = "https://github.com/facebookresearch/OpenEnv/blob/main/README.md
 "Bug Tracker" = "https://github.com/facebookresearch/OpenEnv/issues"
 
 [tool.setuptools]
-py-modules = ["openenv_core.__init__", "openenv_core.http_env_client", "openenv_core.client_types"]
+package-dir = { "openenv_core" = "core", "openenv_cli" = "openenv_cli"}
 packages = [
     "openenv_core",
     "openenv_core.containers",
     "openenv_core.containers.runtime",
     "openenv_core.env_server",
-    "openenv_core.tools"
+    "openenv_core.tools",
+    "openenv_cli",
+    "openenv_cli.commands",
+    "openenv_cli.templates"
 ]
-package-dir = {"openenv_core" = "."}
+
+[tool.setuptools.package-data]
+"openenv_cli" = ["templates/**/*"]
