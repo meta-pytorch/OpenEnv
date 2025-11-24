@@ -46,10 +46,12 @@ try:
         # Use discrete action (e.g., 0=no-op, 1-7=various actions)
         result = doom_env.step(DoomAction(action_id=1))
 
+        # Optional: Render the game
+        doom_env.render()  # Shows visualization window
+
         print(f"Step {i}:")
         print(f"  Reward: {result.reward}")
         print(f"  Done: {result.observation.done}")
-        print(f"  Game variables: {result.observation.game_variables}")
 
         if result.observation.done:
             print("Episode finished!")
@@ -181,6 +183,81 @@ screen = np.array(obs.screen_buffer).reshape(obs.screen_shape)
 # You can visualize it, pass to a neural network, etc.
 ```
 
+### Rendering
+
+The Doom environment supports rendering in both Docker and local modes:
+
+#### Docker Mode
+
+```python
+from doom_env import DoomAction, DoomEnv
+
+env = DoomEnv.from_docker_image("doom-env:latest")
+result = env.reset()
+
+for _ in range(100):
+    result = env.step(DoomAction(action_id=1))
+    env.render()  # Display using cv2 or matplotlib
+
+env.close()
+```
+
+**Note**: Docker mode rendering uses the screen buffer from observations. For best performance, consider local mode with native ViZDoom window.
+
+#### Local Mode
+
+```python
+from server.doom_env_environment import DoomEnvironment
+from models import DoomAction
+
+# Option 1: Native ViZDoom window (most efficient)
+env = DoomEnvironment(
+    scenario="basic",
+    window_visible=True,  # Enable native window
+)
+
+# Option 2: Python rendering (cv2/matplotlib)
+env = DoomEnvironment(
+    scenario="basic",
+    window_visible=False,
+)
+
+obs = env.reset()
+for _ in range(100):
+    obs = env.step(DoomAction(action_id=1))
+    if not env.window_visible:
+        env.render()  # Only needed if not using native window
+
+env.close()
+```
+
+#### Rendering Dependencies
+
+Install optional rendering dependencies:
+
+```bash
+# Using pip
+pip install -e ".[rendering]"
+
+# Or install individually
+pip install opencv-python  # Preferred for rendering
+# or
+pip install matplotlib     # Fallback option
+```
+
+#### Render Modes
+
+Both environments support two render modes:
+
+- **`mode="human"`** (default): Display in a window
+- **`mode="rgb_array"`**: Return numpy array for custom processing
+
+```python
+# Get frame as numpy array
+frame = env.render(mode="rgb_array")
+print(frame.shape)  # e.g., (240, 320, 3)
+```
+
 ## Development & Testing
 
 ### Local Development
@@ -220,6 +297,27 @@ for i in range(10):
     obs = env.step(DoomAction(action_id=1))
     print(f'Step {i}: reward={obs.reward}, done={obs.done}')
 "
+```
+
+### Running the Example Script
+
+The `example.py` script demonstrates both Docker and local usage with rendering:
+
+```bash
+# Run with Docker (no rendering)
+python example.py
+
+# Run with Docker and rendering
+python example.py --render
+
+# Run locally without Docker
+python example.py --local
+
+# Run locally with rendering (uses native ViZDoom window)
+python example.py --local --render
+
+# Run for more steps
+python example.py --local --render --steps 300
 ```
 
 ## Deploying to Hugging Face Spaces

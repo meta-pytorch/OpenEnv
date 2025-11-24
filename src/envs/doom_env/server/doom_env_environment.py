@@ -98,6 +98,9 @@ class DoomEnvironment(Environment):
         # Initialize state
         self._state = State(episode_id=str(uuid.uuid4()), step_count=0)
 
+        # Rendering state
+        self._render_window = None
+
     def _load_scenario(self, scenario: str) -> None:
         """Load scenario configuration."""
         # Check if scenario is a path to .cfg file
@@ -354,8 +357,102 @@ class DoomEnvironment(Environment):
 
         return obs
 
+    def render(self, mode: str = "human") -> Optional[np.ndarray]:
+        """
+        Render the environment.
+
+        Args:
+            mode: Render mode - "human" for window display, "rgb_array" for array return.
+
+        Returns:
+            RGB array if mode is "rgb_array", None otherwise.
+        """
+        if self.game.is_episode_finished():
+            # Can't render if episode is finished
+            if mode == "rgb_array":
+                return np.zeros(self.screen_shape, dtype=np.uint8)
+            return None
+
+        state = self.game.get_state()
+        if state is None or state.screen_buffer is None:
+            if mode == "rgb_array":
+                return np.zeros(self.screen_shape, dtype=np.uint8)
+            return None
+
+        screen = state.screen_buffer
+
+        if mode == "rgb_array":
+            # Return the screen buffer as numpy array
+            return screen
+        elif mode == "human":
+            # Display using matplotlib or cv2
+            try:
+                import cv2
+
+                # Create window if it doesn't exist
+                if self._render_window is None:
+                    self._render_window = "ViZDoom - Doom Environment"
+                    cv2.namedWindow(self._render_window, cv2.WINDOW_NORMAL)
+
+                # Convert to BGR for OpenCV (if RGB)
+                if len(screen.shape) == 3 and screen.shape[2] == 3:
+                    screen_bgr = cv2.cvtColor(screen, cv2.COLOR_RGB2BGR)
+                else:
+                    screen_bgr = screen
+
+                # Display
+                cv2.imshow(self._render_window, screen_bgr)
+                cv2.waitKey(1)  # Small delay to update window
+
+            except ImportError:
+                # Fallback to matplotlib if cv2 not available
+                try:
+                    import matplotlib.pyplot as plt
+
+                    if self._render_window is None:
+                        plt.ion()  # Enable interactive mode
+                        self._render_window = plt.figure(figsize=(8, 6))
+                        self._render_window.canvas.manager.set_window_title(
+                            "ViZDoom - Doom Environment"
+                        )
+
+                    plt.clf()
+                    if len(screen.shape) == 3:
+                        plt.imshow(screen)
+                    else:
+                        plt.imshow(screen, cmap="gray")
+                    plt.axis("off")
+                    plt.pause(0.001)  # Small delay to update window
+
+                except ImportError:
+                    print(
+                        "Warning: Neither cv2 nor matplotlib available for rendering. "
+                        "Install with: pip install opencv-python or pip install matplotlib"
+                    )
+            return None
+        else:
+            raise ValueError(
+                f"Invalid render mode: {mode}. Use 'human' or 'rgb_array'."
+            )
+
     def close(self) -> None:
         """Clean up resources."""
+        # Close render window if it exists
+        if self._render_window is not None:
+            try:
+                import cv2
+
+                cv2.destroyAllWindows()
+            except ImportError:
+                try:
+                    import matplotlib.pyplot as plt
+
+                    plt.close("all")
+                except ImportError:
+                    pass
+            self._render_window = None
+
+        # Close the game
         if hasattr(self, "game") and self.game is not None:
             self.game.close()
 
