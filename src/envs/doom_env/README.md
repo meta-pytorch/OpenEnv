@@ -85,6 +85,8 @@ This environment wraps ViZDoom scenarios and exposes them through the OpenEnv AP
 - **Flexible action space**: Discrete actions or button combinations
 - **Multiple scenarios**: Built-in scenarios like "basic", "deadly_corridor", "defend_the_center", etc.
 
+![Basic Scenario](assets/basic.gif) ![Deadly Corridor](assets/deadly_corridor.gif) ![Defend the Center](assets/defend_the_center.gif) ![Health Gathering](assets/health_gathering.gif)
+
 ## Quick Start
 
 The simplest way to use the Doom environment is through the `DoomEnv` class:
@@ -149,28 +151,20 @@ ViZDoom comes with multiple built-in scenarios for different research tasks:
 ### Basic Scenario
 Simple environment for learning basic movement and shooting mechanics.
 
-![Basic Scenario](assets/basic.gif)
-
 *Agent learning to navigate and shoot in the basic scenario*
 
 ### Deadly Corridor
 Navigate through a corridor while avoiding or eliminating monsters.
-
-![Deadly Corridor](assets/deadly_corridor.gif)
 
 *Agent navigating the deadly corridor*
 
 ### Defend the Center
 Stay alive as long as possible while defending the center position.
 
-![Defend the Center](assets/defend_the_center.gif)
-
 *Agent defending the center against waves of enemies*
 
 ### Health Gathering
 Collect health packs scattered around the environment to survive.
-
-![Health Gathering](assets/health_gathering.gif)
 
 *Agent collecting health packs for survival*
 
