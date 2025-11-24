@@ -85,7 +85,7 @@ This environment wraps ViZDoom scenarios and exposes them through the OpenEnv AP
 - **Flexible action space**: Discrete actions or button combinations
 - **Multiple scenarios**: Built-in scenarios like "basic", "deadly_corridor", "defend_the_center", etc.
 
-![Basic Scenario](assets/basic.gif) ![Deadly Corridor](assets/deadly_corridor.gif) ![Defend the Center](assets/defend_the_center.gif) ![Health Gathering](assets/health_gathering.gif)
+![Basic Scenario](assets/basic.gif) ![Deadly Corridor](assets/deadly_corridor.gif) ![Defend the Center](assets/defend_the_center.gif) ![Health Gathering](assets/health_gathering.gif) ![Line Attach](assets/defend_the_line.gif) ![Predict Position](assets/predict_position.gif)
 
 ## Quick Start
 
