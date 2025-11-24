@@ -37,9 +37,9 @@ def generate_scenario_gif(
         screen_resolution: Screen resolution to use
     """
     try:
-        from server.doom_env_environment import DoomEnvironment
-        from models import DoomAction
         import imageio
+        from models import DoomAction
+        from server.doom_env_environment import DoomEnvironment
     except ImportError as e:
         print(f"Error: Missing dependencies. Install with:")
         print(f"  pip install imageio vizdoom")
@@ -151,7 +151,16 @@ Available scenarios:
         "--scenario",
         "-s",
         nargs="+",
-        default=["basic", "deadly_corridor", "defend_the_center", "health_gathering"],
+        default=[
+            "basic",
+            "deadly_corridor",
+            "defend_the_center",
+            "health_gathering",
+            "my_way_home",
+            "predict_position",
+            "take_cover",
+            "defend_the_line",
+        ],
         help="Scenario(s) to generate GIFs for",
     )
     parser.add_argument(
