@@ -142,6 +142,45 @@ docker build -t doom-env:latest -f src/envs/doom_env/server/Dockerfile .
 
 The Dockerfile installs all necessary system dependencies for ViZDoom including SDL2, Boost, OpenGL libraries, and more.
 
+## Scenarios Gallery
+
+ViZDoom comes with multiple built-in scenarios for different research tasks:
+
+### Basic Scenario
+Simple environment for learning basic movement and shooting mechanics.
+
+![Basic Scenario](assets/basic.gif)
+
+*Agent learning to navigate and shoot in the basic scenario*
+
+### Deadly Corridor
+Navigate through a corridor while avoiding or eliminating monsters.
+
+![Deadly Corridor](assets/deadly_corridor.gif)
+
+*Agent navigating the deadly corridor*
+
+### Defend the Center
+Stay alive as long as possible while defending the center position.
+
+![Defend the Center](assets/defend_the_center.gif)
+
+*Agent defending the center against waves of enemies*
+
+### Health Gathering
+Collect health packs scattered around the environment to survive.
+
+![Health Gathering](assets/health_gathering.gif)
+
+*Agent collecting health packs for survival*
+
+> **Note**: To generate these GIFs yourself, run:
+> ```bash
+> cd src/envs/doom_env
+> pip install numpy imageio vizdoom
+> python generate_gifs.py
+> ```
+
 ## Environment Details
 
 ### Action Space

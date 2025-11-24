@@ -35,6 +35,9 @@ rendering = [
     "opencv-python>=4.5.0",
     "matplotlib>=3.3.0",
 ]
+gif_generation = [
+    "imageio>=2.9.0",
+]
 
 [project.scripts]
 # Server entry point - enables running via: uv run --project . server

@@ -1,0 +1,2 @@
+# This file ensures the assets directory is tracked by git
+# GIFs will be generated using generate_gifs.py
