@@ -17,14 +17,19 @@ Both modes support rendering if the appropriate libraries are installed.
 """
 
 import argparse
+import sys
 import time
+from pathlib import Path
 
 import numpy as np
+
+# Add src to path
+sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
 
 def run_with_docker(render: bool = False, num_steps: int = 100):
     """Run Doom environment using Docker container."""
-    from doom_env import DoomAction, DoomEnv
+    from envs.doom_env import DoomAction, DoomEnv
 
     print("Starting Doom environment with Docker...")
     try:
@@ -86,8 +91,8 @@ def run_with_docker(render: bool = False, num_steps: int = 100):
 def run_local(render: bool = False, num_steps: int = 100):
     """Run Doom environment locally without Docker."""
     try:
-        from server.doom_env_environment import DoomEnvironment
-        from models import DoomAction
+        from envs.doom_env.models import DoomAction
+        from envs.doom_env.server.doom_env_environment import DoomEnvironment
     except ImportError as e:
         print(f"Error: Could not import environment components: {e}")
         print("Make sure ViZDoom is installed: pip install vizdoom")

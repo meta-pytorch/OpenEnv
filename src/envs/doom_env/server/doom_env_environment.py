@@ -14,7 +14,10 @@ ViZDoom is a Doom-based AI research platform for visual RL.
 import uuid
 from typing import List, Literal, Optional
 
-from models import DoomAction, DoomObservation
+try:
+    from ..models import DoomAction, DoomObservation
+except ImportError:
+    from models import DoomAction, DoomObservation
 
 from openenv_core.env_server.interfaces import Environment
 from openenv_core.env_server.types import State
