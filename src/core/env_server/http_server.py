@@ -14,14 +14,17 @@ over HTTP endpoints that HTTPEnvClient can consume.
 from __future__ import annotations
 
 import asyncio
+import json
 import os
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import asdict
-from typing import Any, Dict, Type
+from typing import Any, Dict, Optional, Type
+
+from fastapi import Body, FastAPI, Request
 
 from .interfaces import Environment
-from .types import Action, Observation
-from fastapi import Body, FastAPI
+from .types import Action, CallToolAction, ListToolsAction, Observation
+
 
 class HTTPEnvServer:
     """
@@ -64,6 +67,7 @@ class HTTPEnvServer:
         self.env = env
         self.action_cls = action_cls
         self.observation_cls = observation_cls
+
         # Create thread pool for running sync code in async context
         # This is needed for environments using sync libraries (e.g., Playwright sync API)
         self._executor = ThreadPoolExecutor(max_workers=1)
@@ -95,14 +99,23 @@ class HTTPEnvServer:
             action_data = request.get("action", request)
             # TODO: Handle timeout_s, request_id, episode_id from request if provided
 
-            # Deserialize action
+            # Deserialize action (handle MCP actions specially)
             action = self._deserialize_action(action_data)
 
-            # Execute step in thread pool to avoid blocking asyncio loop
-            loop = asyncio.get_event_loop()
-            observation = await loop.run_in_executor(
-                self._executor, self.env.step, action
-            )
+            # Handle MCP actions asynchronously (don't use thread pool for async operations)
+            if isinstance(action, (ListToolsAction, CallToolAction)):
+                if not isinstance(self.env, MCPEnvironment):
+                    raise RuntimeError(
+                        f"Environment {type(self.env).__name__} received MCP action "
+                        f"but is not a MCP environment."
+                    )
+                observation = await self.env._handle_mcp_action(action)
+            else:
+                # Execute regular step in thread pool to avoid blocking asyncio loop
+                loop = asyncio.get_event_loop()
+                observation = await loop.run_in_executor(
+                    self._executor, self.env.step, action
+                )
 
             # Return serialized observation
             return self._serialize_observation(observation)
@@ -118,6 +131,93 @@ class HTTPEnvServer:
             """Health check endpoint."""
             return {"status": "healthy"}
 
+        @app.post("/mcp")
+        async def mcp_endpoint(request: Request) -> Dict[str, Any]:
+            """
+            MCP JSON-RPC endpoint for direct tool access (production/inference).
+
+            This endpoint provides direct access to the MCP server without going
+            through the step() wrapper. Used for production agents that want to
+            call tools directly.
+
+            Accepts JSON-RPC 2.0 requests:
+            - method: "tools/list" or "tools/call"
+            - params: method-specific parameters
+            - id: request ID (echoed in response)
+
+            Returns:
+                JSON-RPC 2.0 response
+            """
+            if self.env.mcp_client is None:
+                return {
+                    "jsonrpc": "2.0",
+                    "error": {
+                        "code": -32600,
+                        "message": "MCP server not configured for this environment",
+                    },
+                    "id": None,
+                }
+
+            body = await request.json()
+            method = body.get("method")
+            params = body.get("params", {})
+            request_id = body.get("id")
+
+            try:
+                # Reuse MCP client from environment (avoids creating duplicate client)
+                async with self.env.mcp_client:
+                    if method == "tools/list":
+                        tools = await self.env.mcp_client.list_tools()
+                        return {
+                            "jsonrpc": "2.0",
+                            "result": {
+                                "tools": [
+                                    {
+                                        "name": tool.name,
+                                        "description": tool.description,
+                                        "inputSchema": tool.inputSchema,
+                                    }
+                                    for tool in tools
+                                ]
+                            },
+                            "id": request_id,
+                        }
+
+                    elif method == "tools/call":
+                        tool_name = params.get("name")
+                        arguments = params.get("arguments", {})
+                        result = await self.env.mcp_client.call_tool(
+                            tool_name, arguments
+                        )
+
+                        # Extract data from CallToolResult (FastMCP wraps results)
+                        result_data = result.data if hasattr(result, "data") else result
+
+                        return {
+                            "jsonrpc": "2.0",
+                            "result": result_data,
+                            "id": request_id,
+                        }
+
+                    else:
+                        return {
+                            "jsonrpc": "2.0",
+                            "error": {
+                                "code": -32601,
+                                "message": f"Method not found: {method}",
+                            },
+                            "id": request_id,
+                        }
+
+            except Exception as e:
+                return {
+                    "jsonrpc": "2.0",
+                    "error": {
+                        "code": -32603,
+                        "message": f"Internal error: {str(e)}",
+                    },
+                    "id": request_id,
+                }
 
     def _deserialize_action(self, action_data: Dict[str, Any]) -> Action:
         """
@@ -130,12 +230,27 @@ class HTTPEnvServer:
             Action instance
 
         Note:
-            This is a simple implementation. Subclasses may need to override
-            for more complex deserialization logic.
+            This handles both environment-specific actions and MCP actions
+            (ListToolsAction, CallToolAction).
         """
-        # Remove metadata if present (it will be set via kw_only field)
-        metadata = action_data.pop("metadata", {})
-        action = self.action_cls(**action_data)
+        # Check if this is an MCP action by looking at the action type
+        action_type = action_data.get("type") or action_data.get("action_type")
+
+        if action_type == "ListToolsAction":
+            return ListToolsAction()
+
+        elif action_type == "CallToolAction":
+            return CallToolAction(
+                tool_name=action_data["tool_name"],
+                parameters=action_data.get("parameters", {}),
+            )
+
+        # Otherwise, use the environment-specific action class
+        # Get metadata if present (don't mutate input dict)
+        metadata = action_data.get("metadata", {})
+        action = self.action_cls(
+            **{k: v for k, v in action_data.items() if k != "metadata"}
+        )
         action.metadata = metadata
         return action
 
@@ -161,7 +276,7 @@ class HTTPEnvServer:
         # Convert numpy arrays to lists for JSON serialization
         def _convert_numpy(obj):
             """Recursively convert numpy arrays to lists."""
-            if hasattr(obj, '__array__'):  # numpy array
+            if hasattr(obj, "__array__"):  # numpy array
                 return obj.tolist()
             elif isinstance(obj, dict):
                 return {k: _convert_numpy(v) for k, v in obj.items()}
@@ -174,7 +289,6 @@ class HTTPEnvServer:
         # Extract reward and done (these are part of StepResult on client side)
         reward = obs_dict.pop("reward", None)
         done = obs_dict.pop("done", False)
-        obs_dict.pop("metadata", None)  # Remove metadata from observation
 
         # Return in HTTPEnvClient expected format
         return {
@@ -182,6 +296,7 @@ class HTTPEnvServer:
             "reward": reward,
             "done": done,
         }
+
 
 def create_app(
     env: Environment,
@@ -191,33 +306,36 @@ def create_app(
 ) -> Any:
     """
     Create a FastAPI application with or without web interface.
-    
+
     This function creates a FastAPI app with the web interface enabled by default,
     including README integration for better user experience.
-    
+
     Args:
         env: The Environment instance to serve
         action_cls: The Action subclass this environment expects
         observation_cls: The Observation subclass this environment returns
         env_name: Optional environment name for README loading
-        
+
     Returns:
         FastAPI application instance with or without web interface and README integration
     """
     # Check if web interface should be enabled
     # This can be controlled via environment variable or build argument
-    enable_web = (
-        os.getenv("ENABLE_WEB_INTERFACE", "false").lower() in ("true", "1", "yes")
+    enable_web = os.getenv("ENABLE_WEB_INTERFACE", "false").lower() in (
+        "true",
+        "1",
+        "yes",
     )
 
     if enable_web:
         # Import web interface only when needed
         from .web_interface import create_web_interface_app
+
         return create_web_interface_app(env, action_cls, observation_cls, env_name)
     else:
         # Use standard FastAPI app without web interface
         return create_fastapi_app(env, action_cls, observation_cls)
-    
+
 
 def create_fastapi_app(
     env: Environment,

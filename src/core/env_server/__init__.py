@@ -9,18 +9,32 @@
 from .base_transforms import CompositeTransform, NullTransform
 from .http_server import HTTPEnvServer, create_app, create_fastapi_app
 from .interfaces import Environment, Message, ModelTokenizer, Transform
-from .types import Action, Observation, State
+from .mcp_environment import MCPEnvironment
+from .types import (
+    Action,
+    CallToolAction,
+    CallToolObservation,
+    ListToolsAction,
+    ListToolsObservation,
+    Observation,
+    State,
+)
 from .web_interface import create_web_interface_app, WebInterfaceManager
 
 __all__ = [
     # Core interfaces
     "Environment",
+    "MCPEnvironment",
     "Transform",
     "Message",
     "ModelTokenizer",
     # Types
     "Action",
+    "ListToolsAction",
+    "CallToolAction",
     "Observation",
+    "ListToolsObservation",
+    "CallToolObservation",
     "State",
     # Base transforms
     "CompositeTransform",

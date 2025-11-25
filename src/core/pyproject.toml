@@ -19,6 +19,8 @@ dependencies = [
     "pydantic>=2.0.0",
     "uvicorn[standard]>=0.24.0",
     "requests>=2.25.0",
+    "mcp>=1.0.0",
+    "fastmcp>=0.1.0",
 ]
 
 [project.optional-dependencies]
@@ -42,6 +44,7 @@ packages = [
     "openenv_core.containers",
     "openenv_core.containers.runtime",
     "openenv_core.env_server",
-    "openenv_core.tools"
+    "openenv_core.tools",
+    "openenv_core.mcp"
 ]
 package-dir = {"openenv_core" = "."}
