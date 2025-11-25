@@ -14,7 +14,6 @@ over HTTP endpoints that HTTPEnvClient can consume.
 from __future__ import annotations
 
 import asyncio
-import json
 import os
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import asdict
@@ -23,6 +22,7 @@ from typing import Any, Dict, Optional, Type
 from fastapi import Body, FastAPI, Request
 
 from .interfaces import Environment
+from .mcp_environment import MCPEnvironment
 from .types import Action, CallToolAction, ListToolsAction, Observation
 
 
@@ -148,17 +148,28 @@ class HTTPEnvServer:
             Returns:
                 JSON-RPC 2.0 response
             """
-            if self.env.mcp_client is None:
+            if not hasattr(self.env, "mcp_client") or self.env.mcp_client is None:
                 return {
                     "jsonrpc": "2.0",
                     "error": {
-                        "code": -32600,
+                        "code": -32603,
                         "message": "MCP server not configured for this environment",
                     },
                     "id": None,
                 }
 
-            body = await request.json()
+            try:
+                body = await request.json()
+            except Exception:
+                return {
+                    "jsonrpc": "2.0",
+                    "error": {
+                        "code": -32700,
+                        "message": "Parse error: Invalid JSON",
+                    },
+                    "id": None,
+                }
+
             method = body.get("method")
             params = body.get("params", {})
             request_id = body.get("id")
@@ -240,8 +251,11 @@ class HTTPEnvServer:
             return ListToolsAction()
 
         elif action_type == "CallToolAction":
+            tool_name = action_data.get("tool_name")
+            if tool_name is None:
+                raise ValueError("Missing required field 'tool_name' for CallToolAction")
             return CallToolAction(
-                tool_name=action_data["tool_name"],
+                tool_name=tool_name,
                 parameters=action_data.get("parameters", {}),
             )
 

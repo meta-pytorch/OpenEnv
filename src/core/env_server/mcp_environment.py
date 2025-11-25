@@ -67,7 +67,7 @@ class MCPEnvironment(Environment):
 
         self.mcp_server = mcp_server
         self.mcp_client = Client(mcp_server)
-        super().__init__(mcp_client=self.mcp_client)
+        super().__init__()
 
     def reset(self) -> Observation:
         """

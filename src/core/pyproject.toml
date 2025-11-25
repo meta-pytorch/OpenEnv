@@ -44,7 +44,6 @@ packages = [
     "openenv_core.containers",
     "openenv_core.containers.runtime",
     "openenv_core.env_server",
-    "openenv_core.tools",
-    "openenv_core.mcp"
+    "openenv_core.tools"
 ]
 package-dir = {"openenv_core" = "."}

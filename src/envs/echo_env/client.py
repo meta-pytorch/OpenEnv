@@ -11,14 +11,11 @@ This module provides the client for connecting to an Echo Environment server
 over HTTP using MCP actions.
 """
 
-from typing import Any, Dict, List
-
 try:
     from core.client_types import StepResult
     from core.env_server.types import (
         CallToolAction,
         CallToolObservation,
-        ListToolsAction,
         ListToolsObservation,
         Observation,
         State,
@@ -29,12 +26,13 @@ except ImportError:
     from openenv_core.env_server.types import (
         CallToolAction,
         CallToolObservation,
-        ListToolsAction,
         ListToolsObservation,
         Observation,
         State,
     )
     from openenv_core.http_env_client import HTTPEnvClient
+
+from typing import Any, Dict, List
 
 
 class EchoEnv(HTTPEnvClient[CallToolAction, Observation]):
@@ -136,3 +134,35 @@ class EchoEnv(HTTPEnvClient[CallToolAction, Observation]):
             episode_id=payload.get("episode_id"),
             step_count=payload.get("step_count", 0),
         )
+
+    def list_tools(self) -> List[Dict[str, Any]]:
+        """
+        List available tools from the MCP server.
+
+        Returns:
+            List of tool dictionaries with name, description, and inputSchema
+        """
+        # Send action via step with correct payload format
+        payload = {"type": "ListToolsAction"}
+        response = self._session.post(f"{self.base_url}/step", json={"action": payload})
+        response.raise_for_status()
+        result = self._parse_result(response.json())
+        if isinstance(result.observation, ListToolsObservation):
+            return result.observation.tools
+        return []
+
+    def echo_message(self, message: str) -> Dict[str, Any]:
+        """
+        Call the echo_message tool.
+
+        Args:
+            message: The message to echo
+
+        Returns:
+            Dictionary containing the echoed message result
+        """
+        action = CallToolAction(tool_name="echo_message", parameters={"message": message})
+        result = self.step(action)
+        if isinstance(result.observation, CallToolObservation):
+            return result.observation.result or {}
+        return {}
