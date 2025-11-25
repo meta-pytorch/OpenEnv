@@ -1,8 +1,8 @@
 ---
 title: Doom Environment Server
 emoji: 🎮
-colorFrom: red
-colorTo: orange
+colorFrom: blue
+colorTo: green
 sdk: docker
 pinned: false
 app_port: 8000
