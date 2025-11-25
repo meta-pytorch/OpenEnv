@@ -49,6 +49,10 @@ def run_with_docker(render: bool = False, num_steps: int = 100):
             print(
                 f"  For best performance, consider using local mode with window_visible=True"
             )
+            print(f"  Alternative: Use the web interface at http://localhost:8000/web")
+            print(
+                f"  Make sure opencv-python or matplotlib is installed locally for rendering"
+            )
 
         # Run for a few steps
         print(f"\nRunning episode for {num_steps} steps...")
@@ -56,7 +60,9 @@ def run_with_docker(render: bool = False, num_steps: int = 100):
             # Take a random action from available actions
             available_actions = result.observation.available_actions
             if available_actions:
-                action_id = int(np.random.choice(available_actions))  # Convert to Python int
+                action_id = int(
+                    np.random.choice(available_actions)
+                )  # Convert to Python int
             else:
                 action_id = 0
 
@@ -130,7 +136,9 @@ def run_local(render: bool = False, num_steps: int = 100):
         for i in range(num_steps):
             # Take a random action
             if obs.available_actions:
-                action_id = int(np.random.choice(obs.available_actions))  # Convert to Python int
+                action_id = int(
+                    np.random.choice(obs.available_actions)
+                )  # Convert to Python int
             else:
                 action_id = 0
 

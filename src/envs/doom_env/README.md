@@ -317,9 +317,29 @@ screen = np.array(obs.screen_buffer).reshape(obs.screen_shape)
 
 ### Rendering
 
-The Doom environment supports rendering in both Docker and local modes:
+The Doom environment supports multiple rendering options depending on your use case:
 
-#### Docker Mode
+#### Option 1: Web Interface (Recommended for Docker)
+
+The easiest way to visualize the game when using Docker:
+
+```bash
+# Start the container with web interface
+docker run -p 8000:8000 doom-env:latest
+
+# Open in your browser:
+# http://localhost:8000/web
+```
+
+**Advantages:**
+- No local dependencies needed
+- Works in browser
+- Interactive controls
+- Real-time visualization
+
+#### Option 2: Client-Side Rendering (Docker Mode)
+
+Render on your local machine using the screen buffer from Docker:
 
 ```python
 from doom_env import DoomAction, DoomEnv
@@ -334,34 +354,41 @@ for _ in range(100):
 env.close()
 ```
 
-**Note**: Docker mode rendering uses the screen buffer from observations. For best performance, consider local mode with native ViZDoom window.
+**Requirements:** Install rendering library on your **local machine** (not in Docker):
+```bash
+pip install opencv-python
+# or
+pip install matplotlib
+```
 
-#### Local Mode
+**Note:** This downloads the screen buffer from Docker via HTTP and renders it locally. Works well but has some network overhead.
+
+#### Option 3: Local Mode with Native Window (Best Performance)
+
+For the fastest rendering, run locally with ViZDoom's native window:
 
 ```python
-from server.doom_env_environment import DoomEnvironment
-from models import DoomAction
+from envs.doom_env.server.doom_env_environment import DoomEnvironment
+from envs.doom_env.models import DoomAction
 
-# Option 1: Native ViZDoom window (most efficient)
+# Native ViZDoom window (most efficient)
 env = DoomEnvironment(
     scenario="basic",
-    window_visible=True,  # Enable native window
-)
-
-# Option 2: Python rendering (cv2/matplotlib)
-env = DoomEnvironment(
-    scenario="basic",
-    window_visible=False,
+    window_visible=True,  # Enable native SDL2 window
 )
 
 obs = env.reset()
 for _ in range(100):
     obs = env.step(DoomAction(action_id=1))
-    if not env.window_visible:
-        env.render()  # Only needed if not using native window
+    # No render() call needed - native window updates automatically
 
 env.close()
 ```
+
+**Advantages:**
+- Native SDL2 rendering (fastest)
+- No network overhead
+- Smooth real-time gameplay
 
 #### Rendering Dependencies
 
