@@ -65,8 +65,23 @@ def visualize_with_cv2(env):
 
     result = env.reset()
     window_name = "Doom Environment - Press Q to quit"
+
+    # Get game resolution
+    height, width = result.observation.screen_shape[:2]
+    print(f"Game resolution: {width}x{height}")
+
+    # Calculate window size - make it much larger for better visibility
+    # Target at least 800 pixels wide
+    target_width = 1024
+    scale_factor = max(1, target_width // width)
+    window_width = width * scale_factor
+    window_height = height * scale_factor
+
+    print(f"Window size: {window_width}x{window_height} (scaled {scale_factor}x)")
+
+    # Create window and set size
     cv2.namedWindow(window_name, cv2.WINDOW_NORMAL)
-    cv2.resizeWindow(window_name, 640, 480)
+    cv2.resizeWindow(window_name, window_width, window_height)
 
     # Action mapping for keyboard
     # For basic scenario: [0=noop, 1=left, 2=right, 3=attack]
@@ -82,6 +97,13 @@ def visualize_with_cv2(env):
             screen_bgr = cv2.cvtColor(screen, cv2.COLOR_RGB2BGR)
         else:
             screen_bgr = screen
+
+        # Resize the image for better display (use interpolation)
+        screen_bgr = cv2.resize(
+            screen_bgr,
+            (window_width, window_height),
+            interpolation=cv2.INTER_NEAREST,  # Use INTER_NEAREST to preserve pixel art look
+        )
 
         # Add info overlay
         info_text = [
@@ -226,6 +248,11 @@ Requirements:
         action="store_true",
         help="Use matplotlib instead of OpenCV for visualization",
     )
+    parser.add_argument(
+        "--resolution-info",
+        action="store_true",
+        help="Show current server resolution and exit",
+    )
 
     args = parser.parse_args()
 
@@ -254,6 +281,22 @@ Requirements:
         print("\nMake sure the server is running:")
         print("  docker run -p 8000:8000 doom-env:latest")
         sys.exit(1)
+
+    # Show resolution info if requested
+    if args.resolution_info:
+        result = env.reset()
+        height, width = result.observation.screen_shape[:2]
+        print(f"\nServer Information:")
+        print(f"  Screen resolution: {width}x{height}")
+        print(f"  Screen shape: {result.observation.screen_shape}")
+        print(f"\nTo change resolution, restart Docker with:")
+        print(
+            f"  docker run -p 8000:8000 -e DOOM_SCREEN_RESOLUTION=RES_640X480 doom-env:latest"
+        )
+        print(f"\nAvailable resolutions:")
+        print(f"  RES_160X120, RES_320X240, RES_640X480, RES_800X600, RES_1024X768")
+        env.close()
+        return
 
     try:
         # Choose visualization method

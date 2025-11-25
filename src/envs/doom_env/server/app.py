@@ -35,9 +35,28 @@ except ImportError:
     from doom_env.doom_env_environment import DoomEnvironment
     from models import DoomAction, DoomObservation
 
+import os
 
-# Create the environment instance
-env = DoomEnvironment()
+# Read configuration from environment variables
+scenario = os.getenv("DOOM_SCENARIO", "basic")
+screen_resolution = os.getenv("DOOM_SCREEN_RESOLUTION", "RES_160X120")
+screen_format = os.getenv("DOOM_SCREEN_FORMAT", "RGB24")
+window_visible = os.getenv("DOOM_WINDOW_VISIBLE", "false").lower() in ("true", "1", "yes")
+
+print(f"Doom Environment Configuration:")
+print(f"  Scenario: {scenario}")
+print(f"  Resolution: {screen_resolution}")
+print(f"  Format: {screen_format}")
+print(f"  Window Visible: {window_visible}")
+
+# Create the environment instance with configuration
+env = DoomEnvironment(
+    scenario=scenario,
+    screen_resolution=screen_resolution,
+    screen_format=screen_format,
+    window_visible=window_visible,
+    use_discrete_actions=True,
+)
 
 # Create the app with web interface and README integration
 app = create_app(
