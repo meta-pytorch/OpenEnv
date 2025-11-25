@@ -32,8 +32,8 @@ try:
     from ..models import DoomAction, DoomObservation
     from .doom_env_environment import DoomEnvironment
 except ImportError:
-    from doom_env.doom_env_environment import DoomEnvironment
-    from models import DoomAction, DoomObservation
+    from doom_env.server.doom_env_environment import DoomEnvironment
+    from doom_env.models import DoomAction, DoomObservation
 
 import os
 
@@ -42,12 +42,6 @@ scenario = os.getenv("DOOM_SCENARIO", "basic")
 screen_resolution = os.getenv("DOOM_SCREEN_RESOLUTION", "RES_160X120")
 screen_format = os.getenv("DOOM_SCREEN_FORMAT", "RGB24")
 window_visible = os.getenv("DOOM_WINDOW_VISIBLE", "false").lower() in ("true", "1", "yes")
-
-print(f"Doom Environment Configuration:")
-print(f"  Scenario: {scenario}")
-print(f"  Resolution: {screen_resolution}")
-print(f"  Format: {screen_format}")
-print(f"  Window Visible: {window_visible}")
 
 # Create the environment instance with configuration
 env = DoomEnvironment(
@@ -67,32 +61,29 @@ app = create_app(
 )
 
 
-def main(host: str = "0.0.0.0", port: int = 8000):
+def main():
     """
     Entry point for direct execution via uv run or python -m.
 
     This function enables running the server without Docker:
         uv run --project . server
-        uv run --project . server --port 8001
-        python -m doom_env.server.app
+        python -m envs.doom_env.server.app
+        openenv serve doom_env
 
-    Args:
-        host: Host address to bind to (default: "0.0.0.0")
-        port: Port number to listen on (default: 8000)
-
-    For production deployments, consider using uvicorn directly with
-    multiple workers:
-        uvicorn doom_env.server.app:app --workers 4
+    For production deployments, use uvicorn directly:
+        uvicorn envs.doom_env.server.app:app --workers 4
     """
     import uvicorn
 
-    uvicorn.run(app, host=host, port=port)
+    print(f"Doom Environment Configuration:")
+    print(f"  Scenario: {scenario}")
+    print(f"  Resolution: {screen_resolution}")
+    print(f"  Format: {screen_format}")
+    print(f"  Window Visible: {window_visible}")
+    print(f"\nStarting server on http://0.0.0.0:8000")
+
+    uvicorn.run(app, host="0.0.0.0", port=8000)
 
 
 if __name__ == "__main__":
-    import argparse
-
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--port", type=int, default=8000)
-    args = parser.parse_args()
-    main(port=args.port)
+    main()
