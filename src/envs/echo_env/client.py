@@ -11,6 +11,8 @@ This module provides the client for connecting to an Echo Environment server
 over HTTP using MCP actions.
 """
 
+from typing import Any, Dict, List
+
 try:
     from core.client_types import StepResult
     from core.env_server.types import (
@@ -31,8 +33,6 @@ except ImportError:
         State,
     )
     from openenv_core.http_env_client import HTTPEnvClient
-
-from typing import Any, Dict, List
 
 
 class EchoEnv(HTTPEnvClient[CallToolAction, Observation]):

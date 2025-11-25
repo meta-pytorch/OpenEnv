@@ -160,7 +160,7 @@ class HTTPEnvServer:
 
             try:
                 body = await request.json()
-            except Exception:
+            except (ValueError, TypeError):
                 return {
                     "jsonrpc": "2.0",
                     "error": {
