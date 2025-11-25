@@ -12,20 +12,46 @@ This script connects to a running Doom environment server and provides
 real-time visualization of the game. Use this to see what the agent sees
 when the container is running.
 
+Prerequisites:
+    1. Build the Docker image:
+       docker build -t doom-env:latest -f src/envs/doom_env/server/Dockerfile .
+
+    2. Install visualization library locally:
+       pip install opencv-python  # Recommended (supports keyboard controls)
+       # or
+       pip install matplotlib     # Fallback (no keyboard controls)
+
 Usage:
     # Terminal 1: Start the Docker container
     docker run -p 8000:8000 doom-env:latest
 
     # Terminal 2: Run this visualizer
+    cd examples
     python doom_visualizer.py
 
-    # Or connect to a different server
+    # With higher resolution (recommended for better visibility)
+    docker run -p 8000:8000 -e DOOM_SCREEN_RESOLUTION=RES_640X480 doom-env:latest
+    python doom_visualizer.py
+
+    # Check what resolution the server is using
+    python doom_visualizer.py --resolution-info
+
+    # Connect to a different server
     python doom_visualizer.py --url http://localhost:8000
 
-Controls:
-    - Arrow keys or WASD: Control the agent
+    # Use matplotlib instead of OpenCV
+    python doom_visualizer.py --matplotlib
+
+Controls (OpenCV mode):
+    - Arrow keys or A/D: Move left/right
     - Space: Shoot
     - Q or ESC: Quit
+
+Notes:
+    - The visualizer displays the game in real-time with health/reward info
+    - Docker resolution determines image quality (change with -e DOOM_SCREEN_RESOLUTION)
+    - Window automatically scales based on game resolution
+    - For best quality: Use RES_640X480 or RES_800X600 on Docker side
 """
 
 import argparse
@@ -53,7 +79,28 @@ except ImportError:
 
 
 def visualize_with_cv2(env):
-    """Visualize using OpenCV (supports keyboard controls)."""
+    """
+    Visualize using OpenCV with keyboard controls.
+
+    This function creates an interactive window where you can control the Doom agent
+    using keyboard inputs. The window displays the game screen with overlaid info
+    (reward, health, episode status).
+
+    Controls:
+        - A or Left Arrow: Move left (action_id=1)
+        - D or Right Arrow: Move right (action_id=2)
+        - Space: Shoot/Attack (action_id=3)
+        - Q or ESC: Quit visualizer
+
+    Args:
+        env: Connected DoomEnv client instance
+
+    Notes:
+        - Window size automatically scales based on game resolution
+        - For 160x120 game: Window is ~1024x768 (6x scale)
+        - For 640x480 game: Window is ~1024x768 (1.6x scale)
+        - Uses INTER_NEAREST interpolation to preserve pixel art aesthetic
+    """
     from doom_env import DoomAction
 
     print("\nControls:")
@@ -163,7 +210,26 @@ def visualize_with_cv2(env):
 
 
 def visualize_with_matplotlib(env):
-    """Visualize using Matplotlib (no keyboard controls)."""
+    """
+    Visualize using Matplotlib (automatic random actions).
+
+    This function creates a matplotlib figure that displays the game in real-time.
+    The agent takes random actions automatically. Good for demonstration or if
+    OpenCV is not available.
+
+    Controls:
+        - Ctrl+C: Stop visualizer
+        - Close window: Stop visualizer
+
+    Args:
+        env: Connected DoomEnv client instance
+
+    Notes:
+        - No keyboard controls (random actions only)
+        - Slower than OpenCV
+        - Updates every 30ms
+        - Shows step count, reward, health in title
+    """
     from doom_env import DoomAction
 
     print("\nStarting visualization (matplotlib mode - no keyboard controls)...")
@@ -217,20 +283,74 @@ def visualize_with_matplotlib(env):
 
 
 def main():
-    """Main entry point."""
+    """
+    Main entry point for the Doom environment visualizer.
+
+    This function:
+    1. Parses command-line arguments
+    2. Checks for required visualization libraries (cv2 or matplotlib)
+    3. Connects to the Doom environment server
+    4. Launches the appropriate visualization mode
+    5. Handles cleanup on exit
+
+    Command-line arguments:
+        --url: Server URL (default: http://localhost:8000)
+        --matplotlib: Use matplotlib instead of OpenCV
+        --resolution-info: Show server resolution and exit
+
+    Examples:
+        # Basic usage (connects to localhost:8000)
+        python doom_visualizer.py
+
+        # Check server resolution
+        python doom_visualizer.py --resolution-info
+
+        # Use matplotlib
+        python doom_visualizer.py --matplotlib
+
+        # Connect to remote server
+        python doom_visualizer.py --url http://remote-server:8000
+
+    Requirements:
+        - Running Doom environment server
+        - opencv-python OR matplotlib installed locally
+    """
     parser = argparse.ArgumentParser(
         description="Visualize Doom environment in real-time",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  # Connect to local Docker container
+  # Basic usage - connect to local Docker container
   python doom_visualizer.py
+
+  # Check what resolution the server is running
+  python doom_visualizer.py --resolution-info
 
   # Connect to custom URL
   python doom_visualizer.py --url http://localhost:8000
 
   # Use matplotlib instead of OpenCV
   python doom_visualizer.py --matplotlib
+
+Complete workflow:
+  # 1. Rebuild Docker image (if you updated server code)
+  docker build -t doom-env:latest -f src/envs/doom_env/server/Dockerfile .
+
+  # 2. Start container with higher resolution (recommended)
+  docker run -p 8000:8000 -e DOOM_SCREEN_RESOLUTION=RES_640X480 doom-env:latest
+
+  # 3. Install visualization library locally
+  pip install opencv-python
+
+  # 4. Run visualizer
+  python doom_visualizer.py
+
+Available resolutions for Docker:
+  RES_160X120   - 160×120  (default, very small)
+  RES_320X240   - 320×240  (small)
+  RES_640X480   - 640×480  (recommended for visualization)
+  RES_800X600   - 800×600  (large)
+  RES_1024X768  - 1024×768 (very large)
 
 Requirements:
   pip install opencv-python  # Recommended (supports keyboard controls)
