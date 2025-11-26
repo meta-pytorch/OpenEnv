@@ -456,26 +456,26 @@ After deployment, your space will include:
 
 ```
 doom_env/
-├── .dockerignore         # Docker build exclusions
-├── __init__.py            # Module exports (DoomAction, DoomObservation, DoomEnv)
-├── README.md              # This file
-├── GIF_GENERATION.md      # Guide for generating scenario GIFs
-├── openenv.yaml           # OpenEnv manifest
-├── pyproject.toml         # Dependencies (vizdoom, numpy, etc.)
-├── uv.lock                # Locked dependencies
-├── client.py              # DoomEnv HTTP client
-├── models.py              # DoomAction and DoomObservation dataclasses
-├── example.py             # Example usage script
-├── generate_gifs.py       # Script to generate GIFs of scenarios
-├── assets/                # Directory for generated GIFs
+├── .dockerignore                # Docker build exclusions
+├── __init__.py                  # Module exports (DoomAction, DoomObservation, DoomEnv)
+├── README.md                    # This file
+├── GIF_GENERATION.md            # Guide for generating scenario GIFs
+├── openenv.yaml                 # OpenEnv manifest
+├── pyproject.toml               # Dependencies (vizdoom, numpy, etc.)
+├── uv.lock                      # Locked dependencies
+├── client.py                    # DoomEnv HTTP client
+├── models.py                    # DoomAction and DoomObservation dataclasses
+├── example.py                   # Example usage script
+├── generate_gifs.py             # Script to generate GIFs of scenarios
+├── assets/                      # Directory for generated GIFs
 │   ├── .gitkeep
-│   └── README.md          # Assets directory documentation
+│   └── README.md                # Assets directory documentation
 └── server/
-    ├── __init__.py        # Server module exports
+    ├── __init__.py              # Server module exports
     ├── doom_env_environment.py  # Core ViZDoom wrapper
-    ├── app.py             # FastAPI application
-    ├── requirements.txt   # Python dependencies for Docker
-    └── Dockerfile         # Container with ViZDoom dependencies
+    ├── app.py                   # FastAPI application
+    ├── requirements.txt         # Python dependencies for Docker
+    └── Dockerfile               # Container with ViZDoom dependencies
 ```
 
 ## Dependencies
