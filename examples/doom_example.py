@@ -56,7 +56,7 @@ def run_with_docker(render: bool = False, num_steps: int = 100):
             # Take a random action from available actions
             available_actions = result.observation.available_actions
             if available_actions:
-                action_id = np.random.choice(available_actions)
+                action_id = int(np.random.choice(available_actions))  # Convert to Python int
             else:
                 action_id = 0
 
@@ -130,7 +130,7 @@ def run_local(render: bool = False, num_steps: int = 100):
         for i in range(num_steps):
             # Take a random action
             if obs.available_actions:
-                action_id = np.random.choice(obs.available_actions)
+                action_id = int(np.random.choice(obs.available_actions))  # Convert to Python int
             else:
                 action_id = 0
 

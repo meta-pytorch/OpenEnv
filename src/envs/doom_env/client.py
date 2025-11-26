@@ -73,12 +73,27 @@ class DoomEnv(HTTPEnvClient[DoomAction, DoomObservation]):
         Returns:
             Dictionary representation suitable for JSON encoding
         """
-        payload = {}
-        if action.action_id is not None:
-            payload["action_id"] = action.action_id
-        if action.buttons is not None:
-            payload["buttons"] = action.buttons
-        return payload
+        # Use dataclasses.asdict to ensure proper serialization
+        from dataclasses import asdict
+
+        # Convert to dict and filter out None values
+        action_dict = asdict(action)
+
+        # Convert numpy types to native Python types for JSON serialization
+        result = {}
+        for k, v in action_dict.items():
+            if v is None:
+                continue
+            # Handle numpy integers and floats
+            if hasattr(v, 'item'):  # numpy scalar types
+                result[k] = v.item()
+            # Handle numpy arrays/lists
+            elif isinstance(v, (list, tuple)):
+                result[k] = [x.item() if hasattr(x, 'item') else x for x in v]
+            else:
+                result[k] = v
+
+        return result
 
     def _parse_result(self, payload: Dict) -> StepResult[DoomObservation]:
         """

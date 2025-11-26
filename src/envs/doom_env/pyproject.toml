@@ -15,7 +15,6 @@ description = "Doom environment for OpenEnv - wraps ViZDoom for RL research"
 requires-python = ">=3.10"
 dependencies = [
     # Core OpenEnv dependencies (required for server functionality)
-    # "openenv-core @ git+https://github.com/meta-pytorch/OpenEnv.git@main#subdirectory=src/core",
     "openenv-core>=0.1.0",
     "fastapi>=0.115.0",
     "pydantic>=2.0.0",

@@ -130,19 +130,57 @@ That's it! The `DoomEnv.from_docker_image()` method handles:
 - Connecting to the environment
 - Container cleanup when you call `close()`
 
-## Building the Docker Image
+## Web Interface
 
-Before using the environment, you need to build the Docker image:
+The Doom environment includes a built-in web interface for interactive testing and exploration. The web interface is **enabled by default** in the Docker image.
 
 ```bash
-# First, build the base image (if not already built)
-docker build -t openenv-base:latest -f src/core/containers/images/Dockerfile .
+# Start the container with web interface (default)
+docker run -p 8000:8000 doom-env:latest
 
-# Then build the doom environment image from project root
+# Or explicitly enable it
+docker run -p 8000:8000 -e ENABLE_WEB_INTERFACE=true doom-env:latest
+
+# Disable web interface (API only)
+docker run -p 8000:8000 -e ENABLE_WEB_INTERFACE=false doom-env:latest
+
+# Access the web interface in your browser:
+# - Interactive UI: http://localhost:8000/web
+# - API Documentation: http://localhost:8000/docs
+# - Health Check: http://localhost:8000/health
+```
+
+The web interface provides:
+- **Interactive gameplay**: Control the agent through a web UI
+- **Real-time visualization**: See what the agent sees
+- **API explorer**: Test all endpoints with OpenAPI/Swagger
+- **Environment info**: View available actions, scenarios, and configuration
+
+**Note**: When `ENABLE_WEB_INTERFACE=false`, only the core API endpoints are available (no `/web` interface).
+
+## Building the Docker Image
+
+The Doom environment Docker image can be built in standalone mode using only public base images. This makes it suitable for CI/CD, GitHub, and HuggingFace deployments.
+
+```bash
+# Build from project root (standalone mode - recommended)
 docker build -t doom-env:latest -f src/envs/doom_env/server/Dockerfile .
 ```
 
-The Dockerfile installs all necessary system dependencies for ViZDoom including SDL2, Boost, OpenGL libraries, and more.
+**What gets installed:**
+
+The Dockerfile uses the `pyproject.toml` to install all dependencies:
+- **OpenEnv core**: Installed as a dependency
+- **Core packages**: FastAPI, Uvicorn, Pydantic, Requests (from pyproject.toml)
+- **ViZDoom**: Installed with all system dependencies (SDL2, Boost, OpenGL, etc.)
+- **NumPy**: For array operations
+- **Web interface support**: Enabled by default via `ENABLE_WEB_INTERFACE=true`
+
+**Build details:**
+- Base image: `python:3.11-slim` (public)
+- Installation: Uses `pip install -e` with pyproject.toml
+- System deps: ViZDoom build tools and runtime libraries
+- Size: ~1.5-2GB (includes ViZDoom system dependencies)
 
 ## Scenarios Gallery
 
@@ -469,6 +507,32 @@ doom_env/
 - **OpenEnv Core**: Base framework
 - **FastAPI/Uvicorn**: HTTP server
 - **System libraries**: SDL2, Boost, OpenGL, etc. (handled in Dockerfile)
+
+All dependencies are defined in `pyproject.toml` and automatically installed during Docker build.
+
+## Configuration
+
+### Environment Variables
+
+The Docker container supports several environment variables for configuration:
+
+**Web Interface:**
+- `ENABLE_WEB_INTERFACE` (default: `true`) - Enable/disable the web UI at `/web`
+
+**Doom Environment:**
+- `DOOM_SCENARIO` (default: `basic`) - Which scenario to load
+- `DOOM_SCREEN_RESOLUTION` (default: `RES_160X120`) - Screen resolution
+- `DOOM_SCREEN_FORMAT` (default: `RGB24`) - Screen format (RGB24, GRAY8, etc.)
+- `DOOM_WINDOW_VISIBLE` (default: `false`) - Show native ViZDoom window
+
+**Example:**
+```bash
+docker run -p 8000:8000 \
+  -e ENABLE_WEB_INTERFACE=true \
+  -e DOOM_SCENARIO=deadly_corridor \
+  -e DOOM_SCREEN_RESOLUTION=RES_320X240 \
+  doom-env:latest
+```
 
 ## Troubleshooting
 
