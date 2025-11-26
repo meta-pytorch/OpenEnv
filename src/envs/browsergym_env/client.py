@@ -3,7 +3,7 @@
 from typing import Any, Dict
 
 from openenv_core.http_env_client import HTTPEnvClient, StepResult
-from browsergym_env.models import (
+from .models import (
     BrowserGymAction,
     BrowserGymObservation,
     BrowserGymState,
