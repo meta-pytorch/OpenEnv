@@ -79,7 +79,7 @@ jobs:
             dockerfile: src/envs/atari_env/server/Dockerfile
           - name: git-env
             dockerfile: src/envs/git_env/server/Dockerfile
-          - name: my-env  # Add your environment here
+          - name: connect4-env  # Add your environment here
             dockerfile: src/envs/connect4_env/server/Dockerfile
           - name: textarena-env
             dockerfile: src/envs/textarena_env/server/Dockerfile
@@ -87,6 +87,8 @@ jobs:
             dockerfile: src/envs/browsergym_env/server/Dockerfile
           - name: snake-env
             dockerfile: src/envs/snake_env/server/Dockerfile
+          - name: doom-env
+            dockerfile: src/envs/doom_env/server/Dockerfile
 
     steps:
       - name: Checkout code
