@@ -163,8 +163,12 @@ The web interface provides:
 The Doom environment Docker image can be built in standalone mode using only public base images. This makes it suitable for CI/CD, GitHub, and HuggingFace deployments.
 
 ```bash
-# Build from project root (standalone mode - recommended)
-docker build -t doom-env:latest -f src/envs/doom_env/server/Dockerfile .
+# Build from project root
+docker build -t doom-env:latest -f src/envs/doom_env/server/Dockerfile src/envs/doom_env
+
+# Or build from the doom_env directory
+cd src/envs/doom_env
+docker build -t doom-env:latest -f server/Dockerfile .
 ```
 
 **What gets installed:**

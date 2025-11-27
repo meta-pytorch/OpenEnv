@@ -7,13 +7,9 @@
 # Dockerfile for Doom Environment
 # This image provides ViZDoom for visual RL research with OpenEnv
 #
-# This Dockerfile works standalone with public images, suitable for:
-# - CI/CD pipelines
-# - GitHub deployments
-# - HuggingFace Spaces
-#
-# Build from project root:
-#   docker build -t doom-env:latest -f src/envs/doom_env/server/Dockerfile .
+# This Dockerfile works for both local builds and HuggingFace Spaces deployment:
+# - Local build from project root: docker build -t doom-env:latest -f src/envs/doom_env/server/Dockerfile src/envs/doom_env
+# - HuggingFace: Automatically deployed via `openenv push`
 #
 # Run with web interface:
 #   docker run -p 8000:8000 -e ENABLE_WEB_INTERFACE=true doom-env:latest
@@ -26,7 +22,7 @@ LABEL description="Doom RL Environment with ViZDoom and OpenEnv"
 LABEL org.opencontainers.image.source="https://github.com/meta-pytorch/OpenEnv"
 
 # Set working directory
-WORKDIR /app
+WORKDIR /app/env
 
 # Install system dependencies
 # - curl: for healthcheck
@@ -55,18 +51,14 @@ RUN apt-get update && \
     rm -rf /var/lib/apt/lists/*
 
 # Set environment variables
-ENV PYTHONPATH=/app/src
 ENV PYTHONUNBUFFERED=1
 
-# Copy OpenEnv core (required for server functionality)
-COPY src/core/ /app/src/core/
-
-# Copy entire doom_env directory
-COPY src/envs/doom_env/ /app/src/envs/doom_env/
+# Copy environment files
+COPY . .
 
 # Install doom_env and all its dependencies from pyproject.toml
 # This includes: openenv-core, fastapi, uvicorn, pydantic, requests, vizdoom, numpy
-RUN pip install --no-cache-dir -e /app/src/envs/doom_env
+RUN pip install --no-cache-dir -e .
 
 # Doom-specific environment variables (can be overridden at runtime)
 ENV DOOM_SCENARIO=basic
@@ -87,4 +79,4 @@ HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
 # Run the FastAPI server
 # Web interface will be available at /web if ENABLE_WEB_INTERFACE=true
 # API documentation available at /docs
-CMD ["uvicorn", "envs.doom_env.server.app:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["uvicorn", "doom_env.server.app:app", "--host", "0.0.0.0", "--port", "8000"]
