@@ -452,6 +452,8 @@ After deployment, your space will include:
 - **API Documentation** at `/docs` - OpenAPI/Swagger
 - **Health Check** at `/health` - Monitoring
 
+The doom-env space is already pushed and available at: [Huggingface Doom OpenEnv](https://huggingface.co/spaces/Crashbandicoote2/doom_env)
+
 ## Project Structure
 
 ```
