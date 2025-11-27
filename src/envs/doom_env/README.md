@@ -18,7 +18,11 @@ tags:
 
 A ViZDoom-based environment for OpenEnv. ViZDoom is a Doom-based AI research platform for visual reinforcement learning, allowing agents to play Doom using only visual information.
 
-![doom_slayer_at_openEnv_school](assets/doom_slayer_at_openEnv_school.png)
+<p align="center">
+  <img src="assets/doom_slayer_at_openEnv_school.png" width="680
+  " />
+</p>
+
 
 ## Overview
 
