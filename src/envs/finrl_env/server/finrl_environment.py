@@ -14,7 +14,7 @@ from uuid import uuid4
 
 import numpy as np
 from core.env_server.interfaces import Environment
-from core.env_server.types import State
+from core.env_server.mcp_types import State
 
 from ..models import FinRLAction, FinRLObservation
 

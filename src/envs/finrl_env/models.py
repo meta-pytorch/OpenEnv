@@ -13,7 +13,7 @@ based stock trading.
 
 from dataclasses import dataclass, field
 
-from core.env_server.types import Action, Observation
+from core.env_server.mcp_types import Action, Observation
 
 
 @dataclass(kw_only=True)

@@ -6,7 +6,7 @@ import sys
 sys.path.insert(0, 'src')
 
 from envs.echo_env.server.echo_environment import EchoEnvironment
-from core.env_server.types import ListToolsAction, CallToolAction
+from core.env_server.mcp_types import ListToolsAction, CallToolAction
 
 
 async def main():
@@ -26,7 +26,7 @@ async def main():
     print(f"   - Has 'tools' attribute: {hasattr(obs, 'tools')}")
     if hasattr(obs, "tools"):
         print(f"   - Number of tools: {len(obs.tools)}")
-        print(f"   - Tool names: {[t['name'] for t in obs.tools]}")
+        print(f"   - Tool names: {[t.name for t in obs.tools]}")
     else:
         print("   - ERROR: No 'tools' attribute!")
         return False

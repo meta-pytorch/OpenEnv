@@ -15,7 +15,7 @@ from typing import Any, Dict
 
 from core.client_types import StepResult
 
-from core.env_server.types import State
+from core.env_server.mcp_types import State
 from core.http_env_client import HTTPEnvClient
 
 from .models import FinRLAction, FinRLObservation

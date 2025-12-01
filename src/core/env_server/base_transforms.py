@@ -7,7 +7,7 @@
 """Base transform implementations for composing environment-specific transforms."""
 
 from .interfaces import Transform
-from .types import Observation
+from .mcp_types import Observation
 
 
 class CompositeTransform(Transform):

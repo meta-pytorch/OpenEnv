@@ -7,7 +7,7 @@
 from abc import ABC, abstractmethod
 from typing import Any, Protocol, TypedDict
 
-from .types import Action, Observation, State
+from .mcp_types import Action, Observation, State
 
 
 class Message(TypedDict):

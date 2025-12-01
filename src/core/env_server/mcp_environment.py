@@ -17,7 +17,7 @@ from __future__ import annotations
 from typing import Any
 
 from .interfaces import Environment
-from .types import Action, CallToolAction, ListToolsAction, Observation, State
+from .mcp_types import Action, CallToolAction, ListToolsAction, Observation, State
 
 
 class MCPEnvironment(Environment):
@@ -125,7 +125,13 @@ class MCPEnvironment(Environment):
         Raises:
             ValueError: If MCP client not configured or action type invalid
         """
-        from .types import CallToolObservation, ListToolsObservation
+        from .mcp_types import (
+            CallToolObservation,
+            ListToolsObservation,
+            Tool,
+            ToolError,
+            ToolErrorType,
+        )
 
         if self.mcp_client is None:
             raise ValueError("MCP client not configured for this environment")
@@ -136,11 +142,11 @@ class MCPEnvironment(Environment):
                 return ListToolsObservation(
                     done=False,
                     tools=[
-                        {
-                            "name": tool.name,
-                            "description": tool.description,
-                            "inputSchema": tool.inputSchema,
-                        }
+                        Tool(
+                            name=tool.name,
+                            description=tool.description or "",
+                            input_schema=tool.inputSchema,
+                        )
                         for tool in tools
                     ],
                 )
@@ -157,7 +163,13 @@ class MCPEnvironment(Environment):
                     )
                 except Exception as e:
                     return CallToolObservation(
-                        done=False, error=str(e), tool_name=action.tool_name
+                        done=False,
+                        result=None,
+                        tool_name=action.tool_name,
+                        error=ToolError(
+                            error_type=ToolErrorType.EXECUTION_ERROR,
+                            message=str(e),
+                        ),
                     )
 
             else:

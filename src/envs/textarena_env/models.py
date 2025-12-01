@@ -11,7 +11,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
 
-from core.env_server.types import Action, Observation, State
+from core.env_server.mcp_types import Action, Observation, State
 
 
 @dataclass

@@ -10,9 +10,9 @@ This example demonstrates:
 import asyncio
 
 try:
-    from core.env_server.types import CallToolAction, ListToolsAction
+    from core.env_server.mcp_types import CallToolAction, ListToolsAction
 except ImportError:
-    from openenv_core.env_server.types import CallToolAction, ListToolsAction
+    from openenv_core.env_server.mcp_types import CallToolAction, ListToolsAction
 
 from envs.echo_env import EchoEnv
 
@@ -34,7 +34,7 @@ async def main():
     list_action = ListToolsAction()
     list_result = client.step(list_action)
     for tool in list_result.observation.tools:
-        print(f"   - {tool['name']}: {tool['description']}")
+        print(f"   - {tool.name}: {tool.description}")
     print()
 
     # Call echo_message tool using step API

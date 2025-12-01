@@ -12,7 +12,7 @@ The __ENV_NAME__ environment is a simple test environment that echoes back messa
 
 from dataclasses import dataclass
 
-from openenv_core.env_server.types import Action, Observation
+from openenv_core.env_server.mcp_types import Action, Observation
 
 
 @dataclass(kw_only=True)

@@ -6,7 +6,7 @@ Tests the core MCP client/server integration and echo_env as reference.
 
 import pytest
 
-from core.env_server.types import CallToolAction, ListToolsAction
+from core.env_server.mcp_types import CallToolAction, ListToolsAction
 from fastmcp import Client, FastMCP
 
 
@@ -51,7 +51,7 @@ async def test_echo_env_mcp_integration():
     assert not obs.done
     assert hasattr(obs, "tools")
     assert len(obs.tools) == 1
-    assert obs.tools[0]["name"] == "echo_message"
+    assert obs.tools[0].name == "echo_message"
 
     # Test CallToolAction
     call_action = CallToolAction(

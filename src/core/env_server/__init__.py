@@ -10,7 +10,7 @@ from .base_transforms import CompositeTransform, NullTransform
 from .http_server import HTTPEnvServer, create_app, create_fastapi_app
 from .interfaces import Environment, Message, ModelTokenizer, Transform
 from .mcp_environment import MCPEnvironment
-from .types import (
+from .mcp_types import (
     Action,
     CallToolAction,
     CallToolObservation,
@@ -18,6 +18,9 @@ from .types import (
     ListToolsObservation,
     Observation,
     State,
+    Tool,
+    ToolError,
+    ToolErrorType,
 )
 from .web_interface import create_web_interface_app, WebInterfaceManager
 
@@ -36,6 +39,9 @@ __all__ = [
     "ListToolsObservation",
     "CallToolObservation",
     "State",
+    "Tool",
+    "ToolError",
+    "ToolErrorType",
     # Base transforms
     "CompositeTransform",
     "NullTransform",

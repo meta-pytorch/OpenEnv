@@ -16,7 +16,7 @@ from dataclasses import dataclass, field
 import torch
 
 from core.env_server.interfaces import Message
-from core.env_server.types import Action, Observation, State
+from core.env_server.mcp_types import Action, Observation, State
 
 
 @dataclass

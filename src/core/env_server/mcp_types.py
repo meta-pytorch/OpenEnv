@@ -5,11 +5,52 @@
 # LICENSE file in the root directory of this source tree.
 
 from dataclasses import dataclass, field
+from enum import Enum
 from typing import Any, Dict, List, Optional, Union
 
 
 # Type aliases
 Scalar = Union[int, float, bool]
+
+
+class ToolErrorType(Enum):
+    """Types of errors that can occur during tool execution."""
+
+    INVALID_ARGUMENTS = "invalid_arguments"
+    TOOL_NOT_FOUND = "tool_not_found"
+    TRANSPORT_ERROR = "transport_error"
+    EXECUTION_ERROR = "execution_error"
+    TIMEOUT = "timeout"
+    INTERNAL_ERROR = "internal_error"
+
+
+@dataclass
+class ToolError:
+    """
+    Structured error information for tool call failures.
+
+    This captures errors at the infrastructure/transport level, not errors
+    that are part of the tool's normal result (those should be in the result field).
+    """
+
+    error_type: ToolErrorType
+    message: str
+    details: Optional[Dict[str, Any]] = None
+
+
+@dataclass
+class Tool:
+    """
+    Strongly typed representation of an MCP tool.
+
+    Follows the MCP specification for tool definitions with JSON Schema
+    for input/output validation.
+    """
+
+    name: str
+    description: str
+    input_schema: Dict[str, Any]
+    output_schema: Optional[Dict[str, Any]] = None
 
 
 @dataclass(kw_only=True)
@@ -57,10 +98,11 @@ class ListToolsObservation(Observation):
     """
     Observation returned from ListToolsAction.
 
-    Contains the list of available tools with their schemas.
+    Contains the list of available tools with their schemas, following
+    the MCP specification format.
     """
 
-    tools: List[Dict[str, Any]] = field(default_factory=list)
+    tools: List[Tool] = field(default_factory=list)
 
 
 @dataclass(kw_only=True)
@@ -68,12 +110,14 @@ class CallToolObservation(Observation):
     """
     Observation returned from CallToolAction.
 
-    Contains the result of calling a tool, or an error if the call failed.
+    Contains the result of calling a tool. The result field contains the tool's
+    output (including any tool-level errors). The error field is used only for
+    infrastructure-level errors (invalid args, transport issues, etc.).
     """
 
-    result: Optional[Any] = None
-    error: Optional[str] = None
-    tool_name: Optional[str] = None
+    tool_name: str
+    result: Any
+    error: Optional[ToolError] = None
 
 
 @dataclass

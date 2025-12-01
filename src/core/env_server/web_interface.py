@@ -25,7 +25,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 from .interfaces import Environment
-from .types import Action, Observation, State, EnvironmentMetadata
+from .mcp_types import Action, Observation, State, EnvironmentMetadata
 
 
 def load_environment_metadata(env: Environment, env_name: Optional[str] = None) -> EnvironmentMetadata:

@@ -23,7 +23,7 @@ from fastapi import Body, FastAPI, Request
 
 from .interfaces import Environment
 from .mcp_environment import MCPEnvironment
-from .types import Action, CallToolAction, ListToolsAction, Observation
+from .mcp_types import Action, CallToolAction, ListToolsAction, Observation
 
 
 class HTTPEnvServer:

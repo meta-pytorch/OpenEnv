@@ -23,12 +23,12 @@ Usage:
 
 try:
     from core.env_server import create_app
-    from core.env_server.types import Action, Observation
+    from core.env_server.mcp_types import Action, Observation
 
     from .echo_environment import EchoEnvironment
 except ImportError:
     from openenv_core.env_server import create_app
-    from openenv_core.env_server.types import Action, Observation
+    from openenv_core.env_server.mcp_types import Action, Observation
     from server.echo_environment import EchoEnvironment
 
 

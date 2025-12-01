@@ -27,7 +27,7 @@ import traceback
 
 from smolagents import LocalPythonExecutor
 
-from openenv_core.env_server.types import CodeExecResult
+from openenv_core.env_server.mcp_types import CodeExecResult
 
 logger = logging.getLogger(__name__)
 logger.addHandler(logging.NullHandler())

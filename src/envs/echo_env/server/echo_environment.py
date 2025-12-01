@@ -30,7 +30,7 @@ class EchoEnvironment(MCPEnvironment):
     Example:
         >>> from envs.echo_env.server import EchoEnvironment
         >>> from core.env_server import create_fastapi_app
-        >>> from core.env_server.types import Action, Observation
+        >>> from core.env_server.mcp_types import Action, Observation
         >>>
         >>> env = EchoEnvironment()
         >>> app = create_fastapi_app(env, Action, Observation)

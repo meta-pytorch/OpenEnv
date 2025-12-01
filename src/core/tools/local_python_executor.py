@@ -28,7 +28,7 @@ from typing import Any
 
 from smolagents import LocalPythonExecutor
 
-from core.env_server.types import CodeExecResult
+from core.env_server.mcp_types import CodeExecResult
 
 logger = logging.getLogger(__name__)
 logger.addHandler(logging.NullHandler())
