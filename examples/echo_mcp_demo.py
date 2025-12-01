@@ -10,9 +10,9 @@ This example demonstrates:
 import asyncio
 
 try:
-    from core.env_server.types import CallToolAction, ListToolsAction
+    from core.env_server.types import CallToolAction, ListToolsAction, ListToolsObservation
 except ImportError:
-    from openenv_core.env_server.types import CallToolAction, ListToolsAction
+    from openenv_core.env_server.types import CallToolAction, ListToolsAction, ListToolsObservation
 
 from envs.echo_env import EchoEnv
 
@@ -33,7 +33,7 @@ async def main():
     print("2. Listing available tools...")
     list_action = ListToolsAction()
     list_result = client.step(list_action)
-    if hasattr(list_result.observation, "tools"):
+    if isinstance(list_result.observation, ListToolsObservation):
         for tool in list_result.observation.tools:
             print(f"   - {tool['name']}: {tool['description']}")
     print()

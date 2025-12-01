@@ -43,6 +43,7 @@ class EchoEnv(HTTPEnvClient[CallToolAction, Observation]):
     methods to interact with it using MCP actions.
 
     Example:
+        >>> from core.env_server.types import CallToolAction
         >>> # Connect to a running server
         >>> client = EchoEnv(base_url="http://localhost:8000")
         >>> result = client.reset()
@@ -53,6 +54,7 @@ class EchoEnv(HTTPEnvClient[CallToolAction, Observation]):
         >>> print(result.observation.result)  # {"echoed_message": "Hello!"}
 
     Example with Docker:
+        >>> from core.env_server.types import CallToolAction
         >>> # Automatically start container and connect
         >>> client = EchoEnv.from_docker_image("echo-env:latest")
         >>> result = client.reset()
