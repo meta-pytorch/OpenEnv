@@ -85,6 +85,8 @@ jobs:
             dockerfile: src/envs/textarena_env/server/Dockerfile
           - name: browsergym-env
             dockerfile: src/envs/browsergym_env/server/Dockerfile
+          - name: snake-env
+            dockerfile: src/envs/snake_env/server/Dockerfile
 
     steps:
       - name: Checkout code
@@ -109,7 +111,7 @@ jobs:
             type=raw,value=latest,enable={{is_default_branch}}
             type=sha
 
-      - name: Build and push environment image
+      - name: Build and push ${{ matrix.image.name }}
         uses: docker/build-push-action@v5
         with:
           context: .

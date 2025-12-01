@@ -17,7 +17,8 @@ from __future__ import annotations
 from typing import Any
 
 from .interfaces import Environment
-from .types import Action, CallToolAction, ListToolsAction, Observation, State
+from .mcp_types import CallToolAction, CallToolObservation, ListToolsAction, ListToolsObservation
+from .types import Action, Observation, State
 
 
 class MCPEnvironment(Environment):

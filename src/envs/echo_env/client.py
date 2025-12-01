@@ -15,23 +15,21 @@ from typing import Dict
 
 try:
     from core.client_types import StepResult
-    from core.env_server.types import (
+    from core.env_server.mcp_types import (
         CallToolAction,
         CallToolObservation,
         ListToolsObservation,
-        Observation,
-        State,
     )
+    from core.env_server.types import Observation, State
     from core.http_env_client import HTTPEnvClient
 except ImportError:
     from openenv_core.client_types import StepResult
-    from openenv_core.env_server.types import (
+    from openenv_core.env_server.mcp_types import (
         CallToolAction,
         CallToolObservation,
         ListToolsObservation,
-        Observation,
-        State,
     )
+    from openenv_core.env_server.types import Observation, State
     from openenv_core.http_env_client import HTTPEnvClient
 
 
@@ -43,7 +41,7 @@ class EchoEnv(HTTPEnvClient[CallToolAction, Observation]):
     methods to interact with it using MCP actions.
 
     Example:
-        >>> from core.env_server.types import CallToolAction
+        >>> from core.env_server.mcp_types import CallToolAction
         >>> # Connect to a running server
         >>> client = EchoEnv(base_url="http://localhost:8000")
         >>> result = client.reset()
@@ -54,7 +52,7 @@ class EchoEnv(HTTPEnvClient[CallToolAction, Observation]):
         >>> print(result.observation.result)  # {"echoed_message": "Hello!"}
 
     Example with Docker:
-        >>> from core.env_server.types import CallToolAction
+        >>> from core.env_server.mcp_types import CallToolAction
         >>> # Automatically start container and connect
         >>> client = EchoEnv.from_docker_image("echo-env:latest")
         >>> result = client.reset()
