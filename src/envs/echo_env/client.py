@@ -11,7 +11,7 @@ This module provides the client for connecting to an Echo Environment server
 over HTTP using MCP actions.
 """
 
-from typing import Any, Dict, List
+from typing import Dict
 
 try:
     from core.client_types import StepResult
@@ -47,19 +47,17 @@ class EchoEnv(HTTPEnvClient[CallToolAction, Observation]):
         >>> client = EchoEnv(base_url="http://localhost:8000")
         >>> result = client.reset()
         >>>
-        >>> # List available tools
-        >>> tools = client.list_tools()
-        >>> print(tools)  # [{"name": "echo_message", ...}]
-        >>>
-        >>> # Call echo_message tool
-        >>> result = client.echo_message("Hello!")
-        >>> print(result["echoed_message"])  # "Hello!"
+        >>> # Call echo_message tool using step API
+        >>> action = CallToolAction(tool_name="echo_message", parameters={"message": "Hello!"})
+        >>> result = client.step(action)
+        >>> print(result.observation.result)  # {"echoed_message": "Hello!"}
 
     Example with Docker:
         >>> # Automatically start container and connect
         >>> client = EchoEnv.from_docker_image("echo-env:latest")
         >>> result = client.reset()
-        >>> result = client.echo_message("Test")
+        >>> action = CallToolAction(tool_name="echo_message", parameters={"message": "Test"})
+        >>> result = client.step(action)
     """
 
     def _step_payload(self, action: CallToolAction) -> Dict:
@@ -134,35 +132,3 @@ class EchoEnv(HTTPEnvClient[CallToolAction, Observation]):
             episode_id=payload.get("episode_id"),
             step_count=payload.get("step_count", 0),
         )
-
-    def list_tools(self) -> List[Dict[str, Any]]:
-        """
-        List available tools from the MCP server.
-
-        Returns:
-            List of tool dictionaries with name, description, and inputSchema
-        """
-        # Send action via step with correct payload format
-        payload = {"type": "ListToolsAction"}
-        response = self._session.post(f"{self.base_url}/step", json={"action": payload})
-        response.raise_for_status()
-        result = self._parse_result(response.json())
-        if isinstance(result.observation, ListToolsObservation):
-            return result.observation.tools
-        return []
-
-    def echo_message(self, message: str) -> Dict[str, Any]:
-        """
-        Call the echo_message tool.
-
-        Args:
-            message: The message to echo
-
-        Returns:
-            Dictionary containing the echoed message result
-        """
-        action = CallToolAction(tool_name="echo_message", parameters={"message": message})
-        result = self.step(action)
-        if isinstance(result.observation, CallToolObservation):
-            return result.observation.result or {}
-        return {}
