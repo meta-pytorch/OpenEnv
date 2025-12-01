@@ -125,10 +125,13 @@ class EchoEnv(HTTPEnvClient[CallToolAction, Observation]):
             error_data = obs_data.get("error")
             if error_data:
                 if isinstance(error_data, dict):
+                    error_type_str = error_data.get("error_type", "internal_error")
+                    try:
+                        error_type = ToolErrorType(error_type_str)
+                    except ValueError:
+                        error_type = ToolErrorType.INTERNAL_ERROR
                     error = ToolError(
-                        error_type=ToolErrorType(
-                            error_data.get("error_type", "internal_error")
-                        ),
+                        error_type=error_type,
                         message=error_data.get("message", str(error_data)),
                         details=error_data.get("details"),
                     )
