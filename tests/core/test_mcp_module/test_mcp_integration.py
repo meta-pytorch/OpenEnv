@@ -33,8 +33,9 @@ async def test_mcp_client_with_local_server():
 
         # Test call_tool
         result = await client.call_tool("add", {"a": 5, "b": 3})
-        # FastMCP returns the raw result from the function
-        assert result == 8
+        # FastMCP wraps results in CallToolResult, access via .data
+        result_data = result.data if hasattr(result, "data") else result
+        assert result_data == 8
 
 
 @pytest.mark.asyncio
