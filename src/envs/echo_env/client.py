@@ -11,14 +11,13 @@ This module provides the client for connecting to an Echo Environment server
 over HTTP using MCP actions.
 """
 
-from typing import Any, Dict, List
+from typing import Dict
 
 try:
     from core.client_types import StepResult
     from core.env_server.types import (
         CallToolAction,
         CallToolObservation,
-        ListToolsAction,
         ListToolsObservation,
         Observation,
         State,
@@ -29,7 +28,6 @@ except ImportError:
     from openenv_core.env_server.types import (
         CallToolAction,
         CallToolObservation,
-        ListToolsAction,
         ListToolsObservation,
         Observation,
         State,
@@ -45,23 +43,23 @@ class EchoEnv(HTTPEnvClient[CallToolAction, Observation]):
     methods to interact with it using MCP actions.
 
     Example:
+        >>> from core.env_server.types import CallToolAction
         >>> # Connect to a running server
         >>> client = EchoEnv(base_url="http://localhost:8000")
         >>> result = client.reset()
         >>>
-        >>> # List available tools
-        >>> tools = client.list_tools()
-        >>> print(tools)  # [{"name": "echo_message", ...}]
-        >>>
-        >>> # Call echo_message tool
-        >>> result = client.echo_message("Hello!")
-        >>> print(result["echoed_message"])  # "Hello!"
+        >>> # Call echo_message tool using step API
+        >>> action = CallToolAction(tool_name="echo_message", parameters={"message": "Hello!"})
+        >>> result = client.step(action)
+        >>> print(result.observation.result)  # {"echoed_message": "Hello!"}
 
     Example with Docker:
+        >>> from core.env_server.types import CallToolAction
         >>> # Automatically start container and connect
         >>> client = EchoEnv.from_docker_image("echo-env:latest")
         >>> result = client.reset()
-        >>> result = client.echo_message("Test")
+        >>> action = CallToolAction(tool_name="echo_message", parameters={"message": "Test"})
+        >>> result = client.step(action)
     """
 
     def _step_payload(self, action: CallToolAction) -> Dict:

@@ -96,7 +96,7 @@ This journal tracks the implementation of RFC-003: MCP (Model Context Protocol) 
 
 #### Echo Env Conversion
 - [x] Deprecate `src/envs/echo_env/models.py` (EchoAction deprecated)
-- [x] Create `src/envs/echo_env/server/mcp_tools.py`
+- [x] Create `src/envs/echo_env/server/mcp_server.py`
 - [x] Define `echo_message` tool using FastMCP
 - [x] Update `src/envs/echo_env/server/echo_environment.py`
 - [x] Update `src/envs/echo_env/server/app.py` to initialize MCP
@@ -146,7 +146,7 @@ This journal tracks the implementation of RFC-003: MCP (Model Context Protocol) 
    - Added `mcp_server` parameter to `HTTPEnvServer` and `create_fastapi_app()`
 
 5. **Echo Env Conversion**:
-   - Created `mcp_tools.py` with `echo_message` tool using FastMCP decorators
+   - Created `mcp_server.py` with `echo_message` tool using FastMCP decorators
    - Rewrote `EchoEnvironment` to use MCP client instead of custom actions
    - Updated `app.py` to initialize MCP server, client, and wire them together
    - Deprecated `EchoAction` and `EchoObservation` in `models.py` with warnings
