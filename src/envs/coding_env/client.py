@@ -13,11 +13,17 @@ Talks HTTP to a single base_url exposing: /reset and /step.
 
 from __future__ import annotations
 
-from openenv_core.client_types import StepResult
-
-from openenv_core.http_env_client import HTTPEnvClient
-
-from coding_env.models import CodeAction, CodeObservation, CodeState
+# Support both standalone and in-repo imports
+try:
+    # Standalone imports (when installed from pip)
+    from openenv_core.client_types import StepResult
+    from openenv_core.http_env_client import HTTPEnvClient
+    from models import CodeAction, CodeObservation, CodeState
+except ImportError:
+    # In-repo imports (when running from OpenEnv repository)
+    from core.client_types import StepResult
+    from core.http_env_client import HTTPEnvClient
+    from .models import CodeAction, CodeObservation, CodeState
 
 
 class CodingEnv(HTTPEnvClient[CodeAction, CodeObservation]):

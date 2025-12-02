@@ -13,11 +13,19 @@ Python code actions using PyExecutor.
 
 import uuid
 
-from openenv_core.env_server.interfaces import Action, Environment, Observation
-from coding_env.server.python_executor import PyExecutor
-
-from coding_env.models import CodeAction, CodeObservation, CodeState
-from .transforms import create_safe_coding_transform
+# Support both standalone and in-repo imports
+try:
+    # Standalone imports (when installed from pip)
+    from openenv_core.env_server.interfaces import Action, Environment, Observation
+    from coding_env.server.python_executor import PyExecutor
+    from coding_env.models import CodeAction, CodeObservation, CodeState
+    from coding_env.server.transforms import create_safe_coding_transform
+except ImportError:
+    # In-repo imports (when running from OpenEnv repository)
+    from core.env_server.interfaces import Action, Environment, Observation
+    from envs.coding_env.server.python_executor import PyExecutor
+    from envs.coding_env.models import CodeAction, CodeObservation, CodeState
+    from envs.coding_env.server.transforms import create_safe_coding_transform
 
 
 class PythonCodeActEnv(Environment):

@@ -21,10 +21,17 @@ Usage:
     python -m envs.coding_env.server.app
 """
 
-from openenv_core.env_server import create_app
-
-from coding_env.models import CodeAction, CodeObservation
-from coding_env.server.python_codeact_env import PythonCodeActEnv
+# Support both standalone and in-repo imports
+try:
+    # Standalone imports (when installed from pip)
+    from openenv_core.env_server import create_app
+    from coding_env.models import CodeAction, CodeObservation
+    from coding_env.server.python_codeact_env import PythonCodeActEnv
+except ImportError:
+    # In-repo imports (when running from OpenEnv repository)
+    from core.env_server import create_app
+    from envs.coding_env.models import CodeAction, CodeObservation
+    from envs.coding_env.server.python_codeact_env import PythonCodeActEnv
 
 # Create the environment instance
 env = PythonCodeActEnv()

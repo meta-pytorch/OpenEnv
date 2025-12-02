@@ -9,11 +9,19 @@
 import ast
 import re
 
-from openenv_core.env_server.base_transforms import CompositeTransform
-from openenv_core.env_server.interfaces import Transform
-from openenv_core.env_server.types import Observation
-
-from coding_env.models import CodeObservation
+# Support both standalone and in-repo imports
+try:
+    # Standalone imports (when installed from pip)
+    from openenv_core.env_server.base_transforms import CompositeTransform
+    from openenv_core.env_server.interfaces import Transform
+    from openenv_core.env_server.types import Observation
+    from coding_env.models import CodeObservation
+except ImportError:
+    # In-repo imports (when running from OpenEnv repository)
+    from core.env_server.base_transforms import CompositeTransform
+    from core.env_server.interfaces import Transform
+    from core.env_server.types import Observation
+    from envs.coding_env.models import CodeObservation
 
 
 class CodeSafetyTransform(Transform):

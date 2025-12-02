@@ -27,7 +27,13 @@ import traceback
 
 from smolagents import LocalPythonExecutor
 
-from openenv_core.env_server.types import CodeExecResult
+# Support both standalone and in-repo imports
+try:
+    # Standalone imports (when installed from pip)
+    from openenv_core.env_server.types import CodeExecResult
+except ImportError:
+    # In-repo imports (when running from OpenEnv repository)
+    from core.env_server.types import CodeExecResult
 
 logger = logging.getLogger(__name__)
 logger.addHandler(logging.NullHandler())

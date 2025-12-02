@@ -8,7 +8,13 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from openenv_core.env_server.interfaces import Action, Observation, State
+# Support both standalone and in-repo imports
+try:
+    # Standalone imports (when installed from pip)
+    from openenv_core.env_server.types import Action, Observation, State
+except ImportError:
+    # In-repo imports (when running from OpenEnv repository)
+    from core.env_server.types import Action, Observation, State
 
 
 @dataclass
