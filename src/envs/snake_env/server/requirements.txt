@@ -1,0 +1,5 @@
+# Snake environment dependencies
+marlenv>=1.0.0
+gym==0.24.1
+numpy>=1.24.0
+Pillow>=10.0.0

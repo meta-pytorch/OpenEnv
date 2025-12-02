@@ -183,6 +183,7 @@ uvicorn server.app:app --reload
 
 ```
 __ENV_NAME__/
+├── .dockerignore         # Docker build exclusions
 ├── __init__.py            # Module exports
 ├── README.md              # This file
 ├── openenv.yaml           # OpenEnv manifest

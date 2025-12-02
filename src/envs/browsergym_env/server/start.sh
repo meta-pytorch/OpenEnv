@@ -25,5 +25,5 @@ cleanup() {
 
 trap cleanup EXIT INT TERM
 
-exec uvicorn envs.browsergym_env.server.app:app --host 0.0.0.0 --port "${BROWSERGYM_PORT}"
+exec python -m uvicorn browsergym_env.server.app:app --host 0.0.0.0 --port "${BROWSERGYM_PORT}"
 

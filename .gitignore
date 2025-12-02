@@ -89,7 +89,7 @@ ehthumbs.db
 Desktop.ini
 
 # Docker
-.dockerignore
+/.dockerignore
 
 # Exclude anything containing "claude" (case-insensitive)
 *claude*

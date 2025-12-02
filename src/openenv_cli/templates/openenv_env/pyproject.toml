@@ -43,9 +43,6 @@ dev = [
 server = "__ENV_NAME__.server.app:main"
 
 [tool.setuptools]
+include-package-data = true
 packages = ["__ENV_NAME__", "__ENV_NAME__.server"]
 package-dir = { "__ENV_NAME__" = ".", "__ENV_NAME__.server" = "server" }
-
-[tool.setuptools.packages.find]
-where = ["."]
-

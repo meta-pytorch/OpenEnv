@@ -2,8 +2,13 @@
 
 **Status**: In Review
 **Created**: 10/14/2025
+**Amended**: November 12, 2025
 **Authors**: @Darktex, @pankit-eng, @jspisak, @zkwentz
 **RFC ID:** 002
+
+## Amendment History
+
+**November 12, 2025**: Added tool duality (sim vs prod), Docker Compose patterns, positioning framework (OpenEnv vs systems built on top), and graceful degradation principles.
 
 ## Summary
 
@@ -51,6 +56,8 @@ Building execution environments for AI agents, code execution, or computational 
 │  └──────────────────────┘    └──────────────────────┘   │
 └─────────────────────────────────────────────────────────┘
 ```
+
+**Important**: This diagram shows the **HTTP interface** used by RL orchestration for simulation control (`reset()`, `step()`, `get_state()`). The **MCP interface** for agent-environment tool interaction is separate and runs alongside (see "Graceful Degradation to Production" section below and RFC 005).
 
 ### Core Abstractions(Already available on the master)
 
@@ -149,7 +156,7 @@ In this RFC, we want to align on four decisions that will shape the overall desi
 
 These three APIs establish the minimum viable interface for environment interaction and are sufficient for basic RL training workflows. They align with established patterns from Gymnasium and similar frameworks, making them immediately familiar to practitioners.
 
-**Scope**: This RFC focuses exclusively on these baseline APIs. Additional APIs (e.g., `render()`, `seed()`) will be explored in follow-up RFCs. The `actions()` method for action discovery is defined in RFC 004.
+**Scope**: This RFC focuses exclusively on these baseline APIs. Additional APIs (e.g., `render()`, `seed()`) will be explored in follow-up RFCs. The `actions()` method for action discovery is defined in RFC 005.
 
 #### Decision 2: Environment-Computed Rewards
 
@@ -218,3 +225,214 @@ print(result.observation.stdout)     # "Hello, World!\n"
 print(result.observation.exit_code)  # 0
 client.close()
 ```
+
+## Tool Duality: Simulation vs Production
+
+Many tools need different implementations in training vs production while maintaining identical interfaces:
+
+**Examples**:
+- **Search API**: Production calls actual search; training uses mock
+- **Email**: Production sends real emails; training logs to file
+- **Database**: Production hits real DB; training uses containerized instance
+
+**Key principle**: The **MCP interface must be identical** to maintain training/production parity (see RFC 005).
+
+### Three-Phase Ecosystem Evolution
+
+**Phase 1 (Current)**: Community provides sim-only tools
+- Environment builders create MCP servers for their simulated environments
+- Production deployment uses different tooling (acceptable for research)
+- Example: SQLite MCP for training, Postgres connector for production
+
+**Phase 2 (6-12 months)**: Tool registry emerges
+- Community-maintained mappings: "search_tool (sim) → Algolia (prod)"
+- Hugging Face Hub hosts these registries (see future tool registry RFC)
+- Still requires manual prod setup, but mapping is documented
+
+**See future tool registry RFC for detailed specification of tool registry format, HF Hub structure, and community contribution workflows.**
+
+**Phase 3 (12+ months)**: Tool providers participate
+- Major SaaS companies provide official sim/prod server pairs
+- One-line deployment: Specify registry entry, get both modes
+- Example: `search: algolia/search-mcp` pulls both sim and prod servers
+- Tool providers shipping dual-mode servers becomes standard practice
+
+### Dual-Mode Server Pattern
+
+Tool providers can ship servers that handle both modes:
+
+```python
+class SendGridMCPServer:
+    def __init__(self):
+        self.mode = os.getenv("MODE", "prod")  # "sim" or "prod"
+
+        if self.mode == "sim":
+            self.client = MockEmailClient()  # Logs to file
+        elif self.mode == "prod":
+            self.client = SendGridAPIClient()  # Real API
+
+    @mcp_tool
+    def send_email(self, to: str, subject: str, body: str):
+        # Same interface, different implementation
+        return self.client.send(to, subject, body)
+```
+
+**Benefits**:
+- Single package to maintain
+- Tool provider owns simulation quality
+- Realistic test data from source
+
+## Docker Compose: Dual-Mode Deployment
+
+Production and simulation may have different dependency requirements. We use Docker Compose to manage these cleanly:
+
+### Simulation Mode
+
+```yaml
+# docker-compose.sim.yml
+services:
+  env:
+    image: openenv/my-env:v1
+    environment:
+      MODE: sim
+    ports:
+      - "8080:8080"
+
+  # Lightweight mocks
+  mock-db:
+    image: postgres:15
+    environment:
+      POSTGRES_DB: testdb
+
+  mock-email:
+    image: openenv/mock-email:v1
+```
+
+**Characteristics**:
+- Mock services (in-memory database, fake email server)
+- Lightweight, fast startup
+- No external dependencies
+- No API keys required
+
+### Production Mode
+
+```yaml
+# docker-compose.prod.yml
+services:
+  env:
+    image: openenv/my-env:v1  # Same image!
+    environment:
+      MODE: prod
+      DB_CONNECTION: ${PROD_DB_URL}
+      EMAIL_API_KEY: ${SENDGRID_KEY}
+    ports:
+      - "8080:8080"
+```
+
+**Characteristics**:
+- Real services (Postgres, SendGrid)
+- API keys, credentials
+- Network access, higher latency
+- Production-grade reliability
+
+**Key insight**: The environment code is identical—only configuration differs.
+
+## Graceful Degradation to Production
+
+When deploying to production, OpenEnv environments **gracefully degrade** into pure MCP servers:
+
+**Training Mode**:
+```
+┌─────────────────────────────────────┐
+│  HTTP Layer (Simulation + Ops)      │
+│  - reset(), step(), get_state()     │
+│  - Health checks, metrics           │
+├─────────────────────────────────────┤
+│  MCP Layer (Agent Tools)            │
+│  - search(), execute_sql(), etc.    │
+│  - SAME as production               │
+└─────────────────────────────────────┘
+```
+
+**Production Mode**:
+```
+┌─────────────────────────────────────┐
+│  HTTP Layer (Ops Only)              │
+│  - Health checks, metrics, logs     │
+│  - NO reset/step (not simulation)   │
+├─────────────────────────────────────┤
+│  MCP Layer (Agent Tools)            │
+│  - search(), execute_sql(), etc.    │
+│  - IDENTICAL interface              │
+└─────────────────────────────────────┘
+```
+
+The agent sees the same MCP interface in both modes. The HTTP layer shifts from simulation control to operational monitoring.
+
+## Dependency Management: Sim vs Prod
+
+**Approach**: Use separate Docker Compose files for different modes
+
+**Training workflow**:
+```bash
+docker-compose -f docker-compose.sim.yml up
+# Fast startup, mock services, no credentials needed
+```
+
+**Production workflow**:
+```bash
+export PROD_DB_URL="postgresql://..."
+export SENDGRID_KEY="..."
+docker-compose -f docker-compose.prod.yml up
+# Real services, production credentials
+```
+
+The environment code remains unchanged. Only the orchestration layer differs.
+
+## Positioning: OpenEnv vs Systems Built on OpenEnv
+
+### OpenEnv: The Standard
+
+**Mission**: Source maximum high-quality environment contributions from community
+
+**Characteristics**:
+- **Flexible**: Supports both traditional tool calling (RFC 003) and CodeAct (RFC 004) paradigms
+- **Open**: Anyone can contribute environments
+- **Quality-focused**: High bar for useful, production-relevant environments
+- **MCP-native**: Universal interface for all environments (see RFC 005)
+
+**Design philosophy**: Make frontier practices (CodeAct, production-first, progressive disclosure) EASY, not MANDATORY.
+
+**What we optimize for**:
+- ✅ Environments that reflect real-world use cases
+- ✅ Environments with clear reward signals
+- ✅ Environments that work in both training and production
+- ❌ Toy environments with no production analog
+- ❌ Environments with made-up APIs that don't match real services
+
+This isn't about being exclusive—it's about maintaining a quality bar that makes the ecosystem valuable.
+
+### Systems Built on OpenEnv
+
+**Mission**: Build best-in-class agent training infrastructure for specific use cases
+
+**Characteristics**:
+- **Opinionated**: May choose CodeAct-only, specific training algorithms, specific toolsets
+- **Customized**: Optimized for particular workloads (e.g., reasoning, coding, customer service)
+- **Closed or open**: May be internal systems or community projects
+- **Add layers**: Build on OpenEnv foundation with additional infrastructure
+
+**Example**: Internal RL training stack
+- 100% CodeAct (no tool-calling mode)
+- Custom training infrastructure integration (e.g., TorchForge for async RL)
+- Production-first by default (no simulation-only quirks)
+- Advanced features (e.g., TimeWalk for tree search, tool-aware checkpointing)
+- Uses OpenEnv environments but adds opinionated layers
+
+**The relationship**:
+- **OpenEnv provides the foundation**: Environment standard, MCP interface, community contributions
+- **Systems add opinions**: Optimizations, integrations, constraints on top
+- **Both benefit**: OpenEnv gets community contributions, systems get ecosystem reach
+
+**Analogy**: OpenEnv is like Linux (flexible kernel), systems built on it are like Ubuntu or Red Hat (opinionated distributions).
+

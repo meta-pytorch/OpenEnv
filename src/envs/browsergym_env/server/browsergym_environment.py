@@ -15,8 +15,8 @@ from uuid import uuid4
 
 import gymnasium as gym
 
-from core.env_server.interfaces import Environment
-from envs.browsergym_env.models import (
+from openenv_core.env_server.interfaces import Environment
+from browsergym_env.models import (
     BrowserGymAction,
     BrowserGymObservation,
     BrowserGymState,

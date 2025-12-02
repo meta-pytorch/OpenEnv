@@ -1,3 +1,18 @@
+---
+title: BrowserGym Environment Server
+emoji: 🌐
+colorFrom: blue
+colorTo: purple
+sdk: docker
+pinned: false
+app_port: 8000
+base_path: /web
+tags:
+  - openenv
+  - browsergym
+  - web-automation
+  - reinforcement-learning
+---
 
 # BrowserGym Environment
 

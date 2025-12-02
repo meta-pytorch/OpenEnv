@@ -23,7 +23,7 @@ dependencies = [
     "huggingface_hub>=0.20.0",
     "openai>=2.7.2",
     "tomli>=2.3.0",
-    "tomli-w>=1.2.0",
+    "tomli-w>=1.2.0"
 ]
 
 [project.scripts]
@@ -31,6 +31,10 @@ openenv = "openenv_cli.__main__:main"
 
 [tool.setuptools]
 package-dir = {"" = "src"}
+include-package-data = true
+
+[tool.setuptools.package-data]
+"openenv_cli" = ["templates/**/*"]
 
 [tool.setuptools.packages.find]
 where = ["src"]

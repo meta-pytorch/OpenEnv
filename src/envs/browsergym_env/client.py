@@ -2,8 +2,8 @@
 
 from typing import Any, Dict
 
-from core.http_env_client import HTTPEnvClient, StepResult
-from envs.browsergym_env.models import (
+from openenv_core.http_env_client import HTTPEnvClient, StepResult
+from .models import (
     BrowserGymAction,
     BrowserGymObservation,
     BrowserGymState,

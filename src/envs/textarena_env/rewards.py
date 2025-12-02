@@ -65,7 +65,7 @@ def extract_feedback_counts(feedback: str) -> Tuple[int, int]:
     if len(lines) < 2:
         return (0, 0)
 
-    for line in lines:
+    for line in reversed(lines):
         normalized = line.replace(" ", "")
         if normalized and all(c in "GYX" for c in normalized):
             green = normalized.count("G")

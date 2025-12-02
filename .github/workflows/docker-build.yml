@@ -87,6 +87,8 @@ jobs:
             dockerfile: src/envs/browsergym_env/server/Dockerfile
           - name: warehouse-env
             dockerfile: src/envs/warehouse_env/server/Dockerfile
+          - name: snake-env
+            dockerfile: src/envs/snake_env/server/Dockerfile
 
     steps:
       - name: Checkout code

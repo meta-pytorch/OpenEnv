@@ -2,12 +2,9 @@
 
 import os
 
-from core.env_server.http_server import create_app
-from envs.browsergym_env.models import (
-    BrowserGymAction,
-    BrowserGymObservation,
-)
-from envs.browsergym_env.server.browsergym_environment import BrowserGymEnvironment
+from openenv_core.env_server.http_server import create_app
+from browsergym_env.models import BrowserGymAction, BrowserGymObservation
+from browsergym_env.server.browsergym_environment import BrowserGymEnvironment
 
 # Get configuration from environment variables
 benchmark = os.environ.get("BROWSERGYM_BENCHMARK", "miniwob")
@@ -36,7 +33,13 @@ app = create_app(
     env_name="browsergym_env",
 )
 
-if __name__ == "__main__":
+
+def main():
+    """Main entry point for running the server."""
     import uvicorn
 
     uvicorn.run(app, host="0.0.0.0", port=port)
+
+
+if __name__ == "__main__":
+    main()

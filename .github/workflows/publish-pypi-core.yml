@@ -35,17 +35,17 @@ jobs:
 
     - name: Build package
       run: |
-        cd src/core
+        cd src
         python -m build
 
     - name: Check package
       run: |
-        cd src/core
+        cd src
         twine check dist/*
 
     - name: List package contents
       run: |
-        cd src/core
+        cd src
         tar -tzf dist/*.tar.gz | head -20
 
     - name: Publish to Test PyPI
@@ -54,7 +54,7 @@ jobs:
         TWINE_USERNAME: __token__
         TWINE_PASSWORD: ${{ secrets.TEST_PYPI_API_TOKEN }}
       run: |
-        cd src/core
+        cd src
         twine upload --repository testpypi dist/*
 
     - name: Publish to PyPI
@@ -63,5 +63,5 @@ jobs:
         TWINE_USERNAME: __token__
         TWINE_PASSWORD: ${{ secrets.PYPI_API_TOKEN }}
       run: |
-        cd src/core
+        cd src
         twine upload dist/*

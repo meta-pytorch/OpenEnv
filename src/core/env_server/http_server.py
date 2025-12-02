@@ -13,7 +13,9 @@ over HTTP endpoints that HTTPEnvClient can consume.
 
 from __future__ import annotations
 
+import asyncio
 import os
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import asdict
 from typing import Any, Dict, Type
 
@@ -62,6 +64,9 @@ class HTTPEnvServer:
         self.env = env
         self.action_cls = action_cls
         self.observation_cls = observation_cls
+        # Create thread pool for running sync code in async context
+        # This is needed for environments using sync libraries (e.g., Playwright sync API)
+        self._executor = ThreadPoolExecutor(max_workers=1)
 
     def register_routes(self, app: Any) -> None:
         """
@@ -78,20 +83,26 @@ class HTTPEnvServer:
         async def reset(request: Dict[str, Any] = Body(default={})) -> Dict[str, Any]:
             """Reset endpoint - returns initial observation."""
             # TODO: Handle seed, episode_id from request if provided
-            observation = self.env.reset()
+            # Run sync environment code in thread pool to avoid blocking asyncio loop
+            loop = asyncio.get_event_loop()
+            observation = await loop.run_in_executor(self._executor, self.env.reset)
             return self._serialize_observation(observation)
 
         @app.post("/step")
         async def step(request: Dict[str, Any]) -> Dict[str, Any]:
             """Step endpoint - executes action and returns observation."""
-            action_data = request.get("action", {})
+            # Support both {"action": {...}} and direct action fields
+            action_data = request.get("action", request)
             # TODO: Handle timeout_s, request_id, episode_id from request if provided
 
             # Deserialize action
             action = self._deserialize_action(action_data)
 
-            # Execute step
-            observation = self.env.step(action)
+            # Execute step in thread pool to avoid blocking asyncio loop
+            loop = asyncio.get_event_loop()
+            observation = await loop.run_in_executor(
+                self._executor, self.env.step, action
+            )
 
             # Return serialized observation
             return self._serialize_observation(observation)
@@ -146,6 +157,19 @@ class HTTPEnvServer:
         }
         """
         obs_dict = asdict(observation)
+
+        # Convert numpy arrays to lists for JSON serialization
+        def _convert_numpy(obj):
+            """Recursively convert numpy arrays to lists."""
+            if hasattr(obj, '__array__'):  # numpy array
+                return obj.tolist()
+            elif isinstance(obj, dict):
+                return {k: _convert_numpy(v) for k, v in obj.items()}
+            elif isinstance(obj, (list, tuple)):
+                return type(obj)(_convert_numpy(item) for item in obj)
+            return obj
+
+        obs_dict = _convert_numpy(obs_dict)
 
         # Extract reward and done (these are part of StepResult on client side)
         reward = obs_dict.pop("reward", None)
