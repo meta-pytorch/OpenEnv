@@ -36,7 +36,9 @@ dependencies = [
 ]
 
 [project.scripts]
-warehouse-server = "envs.warehouse_env.server.app:main"
+# Server entry point - enables running via: uv run --project . server
+# or: python -m warehouse_env.server.app
+server = "warehouse_env.server.app:main"
 
 [project.optional-dependencies]
 dev = [
