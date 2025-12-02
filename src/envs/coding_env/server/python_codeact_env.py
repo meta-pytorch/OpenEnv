@@ -17,12 +17,18 @@ import uuid
 try:
     # Standalone imports (when installed from pip)
     from openenv_core.env_server.interfaces import Action, Environment, Observation
+except ImportError:
+    # In-repo imports (when running from OpenEnv repository)
+    from core.env_server.interfaces import Action, Environment, Observation
+
+# Use relative/absolute imports that work in both modes
+try:
+    # Standalone mode
     from coding_env.server.python_executor import PyExecutor
     from coding_env.models import CodeAction, CodeObservation, CodeState
     from coding_env.server.transforms import create_safe_coding_transform
 except ImportError:
-    # In-repo imports (when running from OpenEnv repository)
-    from core.env_server.interfaces import Action, Environment, Observation
+    # In-repo mode
     from envs.coding_env.server.python_executor import PyExecutor
     from envs.coding_env.models import CodeAction, CodeObservation, CodeState
     from envs.coding_env.server.transforms import create_safe_coding_transform
