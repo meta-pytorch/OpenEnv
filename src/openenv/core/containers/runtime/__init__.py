@@ -6,10 +6,13 @@
 
 """Container runtime providers."""
 
-from .providers import ContainerProvider, KubernetesProvider, LocalDockerProvider
+from .providers import ContainerProvider, KubernetesProvider, LocalDockerProvider, RuntimeProvider
+from .uv_provider import UVProvider
 
 __all__ = [
     "ContainerProvider",
     "LocalDockerProvider",
     "KubernetesProvider",
+    "RuntimeProvider",
+    "UVProvider",
 ]
