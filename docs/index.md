@@ -16,7 +16,7 @@
   </div>
   <div>
     <a href="https://discord.gg/YsTYBh6PD9"><img src="https://camo.githubusercontent.com/aa8bf380611b9abd47f42596a15b4842eaf01af84c86cc97001d2d5d166ef8c0/68747470733a2f2f696d672e736869656c64732e696f2f62616467652f446973636f72642d4f70656e456e762d3732383964613f7374796c653d666c6174266c6f676f3d646973636f7264266c6f676f436f6c6f723d7768697465"></a>
-    <a href="https://pypi.org/project/openenv-core/"><img src="https://img.shields.io/pypi/v/openenv-core?color=blue"></a>
+    <a href="https://pypi.org/project/openenv/"><img src="https://img.shields.io/pypi/v/openenv?color=blue"></a>
     <a href="https://colab.research.google.com/github/meta-pytorch/OpenEnv/blob/main/examples/OpenEnv_Tutorial.ipynb"><img src="https://colab.research.google.com/assets/colab-badge.svg"></a>
   </div>
 </div>

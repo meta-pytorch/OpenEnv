@@ -15,7 +15,7 @@ import pytest
 import typer
 from typer.testing import CliRunner
 
-from openenv_cli.__main__ import app
+from openenv.cli.__main__ import app
 
 
 runner = CliRunner()
@@ -109,9 +109,9 @@ def test_push_authenticates_with_hf(tmp_path: Path) -> None:
     """Test that push ensures Hugging Face authentication."""
     _create_test_openenv_env(tmp_path)
     
-    with patch("openenv_cli.commands.push.whoami") as mock_whoami, \
-         patch("openenv_cli.commands.push.login") as mock_login, \
-         patch("openenv_cli.commands.push.HfApi") as mock_hf_api_class:
+    with patch("openenv.cli.commands.push.whoami") as mock_whoami, \
+         patch("openenv.cli.commands.push.login") as mock_login, \
+         patch("openenv.cli.commands.push.HfApi") as mock_hf_api_class:
         
         # Mock whoami to return user info
         mock_whoami.return_value = {"name": "testuser"}
@@ -136,9 +136,9 @@ def test_push_enables_web_interface_in_dockerfile(tmp_path: Path) -> None:
     """Test that push enables web interface in Dockerfile."""
     _create_test_openenv_env(tmp_path)
     
-    with patch("openenv_cli.commands.push.whoami") as mock_whoami, \
-         patch("openenv_cli.commands.push.login") as mock_login, \
-         patch("openenv_cli.commands.push.HfApi") as mock_hf_api_class:
+    with patch("openenv.cli.commands.push.whoami") as mock_whoami, \
+         patch("openenv.cli.commands.push.login") as mock_login, \
+         patch("openenv.cli.commands.push.HfApi") as mock_hf_api_class:
         
         mock_whoami.return_value = {"name": "testuser"}
         mock_login.return_value = None  # Prevent actual login prompt
@@ -171,9 +171,9 @@ app_port: 8000
 """
     (tmp_path / "README.md").write_text(readme_content)
     
-    with patch("openenv_cli.commands.push.whoami") as mock_whoami, \
-         patch("openenv_cli.commands.push.login") as mock_login, \
-         patch("openenv_cli.commands.push.HfApi") as mock_hf_api_class:
+    with patch("openenv.cli.commands.push.whoami") as mock_whoami, \
+         patch("openenv.cli.commands.push.login") as mock_login, \
+         patch("openenv.cli.commands.push.HfApi") as mock_hf_api_class:
         
         mock_whoami.return_value = {"name": "testuser"}
         mock_login.return_value = None  # Prevent actual login prompt
@@ -195,9 +195,9 @@ def test_push_uses_repo_id_option(tmp_path: Path) -> None:
     """Test that push respects --repo-id option."""
     _create_test_openenv_env(tmp_path)
     
-    with patch("openenv_cli.commands.push.whoami") as mock_whoami, \
-         patch("openenv_cli.commands.push.login") as mock_login, \
-         patch("openenv_cli.commands.push.HfApi") as mock_hf_api_class:
+    with patch("openenv.cli.commands.push.whoami") as mock_whoami, \
+         patch("openenv.cli.commands.push.login") as mock_login, \
+         patch("openenv.cli.commands.push.HfApi") as mock_hf_api_class:
         
         mock_whoami.return_value = {"name": "testuser"}
         mock_login.return_value = None  # Prevent actual login prompt
@@ -221,9 +221,9 @@ def test_push_uses_default_repo_id(tmp_path: Path) -> None:
     """Test that push uses default repo-id from username and env name."""
     _create_test_openenv_env(tmp_path, env_name="test_env")
     
-    with patch("openenv_cli.commands.push.whoami") as mock_whoami, \
-         patch("openenv_cli.commands.push.login") as mock_login, \
-         patch("openenv_cli.commands.push.HfApi") as mock_hf_api_class:
+    with patch("openenv.cli.commands.push.whoami") as mock_whoami, \
+         patch("openenv.cli.commands.push.login") as mock_login, \
+         patch("openenv.cli.commands.push.HfApi") as mock_hf_api_class:
         
         mock_whoami.return_value = {"name": "testuser"}
         mock_login.return_value = None  # Prevent actual login prompt
@@ -247,9 +247,9 @@ def test_push_uses_private_option(tmp_path: Path) -> None:
     """Test that push respects --private option."""
     _create_test_openenv_env(tmp_path)
     
-    with patch("openenv_cli.commands.push.whoami") as mock_whoami, \
-         patch("openenv_cli.commands.push.login") as mock_login, \
-         patch("openenv_cli.commands.push.HfApi") as mock_hf_api_class:
+    with patch("openenv.cli.commands.push.whoami") as mock_whoami, \
+         patch("openenv.cli.commands.push.login") as mock_login, \
+         patch("openenv.cli.commands.push.HfApi") as mock_hf_api_class:
         
         mock_whoami.return_value = {"name": "testuser"}
         mock_login.return_value = None  # Prevent actual login prompt
@@ -273,9 +273,9 @@ def test_push_uses_base_image_option(tmp_path: Path) -> None:
     """Test that push respects --base-image option."""
     _create_test_openenv_env(tmp_path)
     
-    with patch("openenv_cli.commands.push.whoami") as mock_whoami, \
-         patch("openenv_cli.commands.push.login") as mock_login, \
-         patch("openenv_cli.commands.push.HfApi") as mock_hf_api_class:
+    with patch("openenv.cli.commands.push.whoami") as mock_whoami, \
+         patch("openenv.cli.commands.push.login") as mock_login, \
+         patch("openenv.cli.commands.push.HfApi") as mock_hf_api_class:
         
         mock_whoami.return_value = {"name": "testuser"}
         mock_login.return_value = None  # Prevent actual login prompt
@@ -299,9 +299,9 @@ def test_push_uses_directory_option(tmp_path: Path) -> None:
     env_dir.mkdir()
     _create_test_openenv_env(env_dir)
     
-    with patch("openenv_cli.commands.push.whoami") as mock_whoami, \
-         patch("openenv_cli.commands.push.login") as mock_login, \
-         patch("openenv_cli.commands.push.HfApi") as mock_hf_api_class:
+    with patch("openenv.cli.commands.push.whoami") as mock_whoami, \
+         patch("openenv.cli.commands.push.login") as mock_login, \
+         patch("openenv.cli.commands.push.HfApi") as mock_hf_api_class:
         
         mock_whoami.return_value = {"name": "testuser"}
         mock_login.return_value = None  # Prevent actual login prompt
@@ -323,9 +323,9 @@ def test_push_handles_missing_dockerfile(tmp_path: Path) -> None:
     # Remove Dockerfile
     (tmp_path / "server" / "Dockerfile").unlink()
     
-    with patch("openenv_cli.commands.push.whoami") as mock_whoami, \
-         patch("openenv_cli.commands.push.login") as mock_login, \
-         patch("openenv_cli.commands.push.HfApi") as mock_hf_api_class:
+    with patch("openenv.cli.commands.push.whoami") as mock_whoami, \
+         patch("openenv.cli.commands.push.login") as mock_login, \
+         patch("openenv.cli.commands.push.HfApi") as mock_hf_api_class:
         
         mock_whoami.return_value = {"name": "testuser"}
         mock_login.return_value = None  # Prevent actual login prompt
@@ -350,9 +350,9 @@ def test_push_handles_missing_readme(tmp_path: Path) -> None:
     # Remove README
     (tmp_path / "README.md").unlink()
     
-    with patch("openenv_cli.commands.push.whoami") as mock_whoami, \
-         patch("openenv_cli.commands.push.login") as mock_login, \
-         patch("openenv_cli.commands.push.HfApi") as mock_hf_api_class:
+    with patch("openenv.cli.commands.push.whoami") as mock_whoami, \
+         patch("openenv.cli.commands.push.login") as mock_login, \
+         patch("openenv.cli.commands.push.HfApi") as mock_hf_api_class:
         
         mock_whoami.return_value = {"name": "testuser"}
         mock_login.return_value = None  # Prevent actual login prompt
@@ -375,9 +375,9 @@ def test_push_initializes_hf_api_without_token(tmp_path: Path) -> None:
     """Test that push initializes HfApi without token parameter."""
     _create_test_openenv_env(tmp_path)
     
-    with patch("openenv_cli.commands.push.whoami") as mock_whoami, \
-         patch("openenv_cli.commands.push.login") as mock_login, \
-         patch("openenv_cli.commands.push.HfApi") as mock_hf_api_class:
+    with patch("openenv.cli.commands.push.whoami") as mock_whoami, \
+         patch("openenv.cli.commands.push.login") as mock_login, \
+         patch("openenv.cli.commands.push.HfApi") as mock_hf_api_class:
         
         mock_whoami.return_value = {"name": "testuser"}
         mock_login.return_value = None  # Prevent actual login prompt
@@ -402,9 +402,9 @@ def test_push_validates_repo_id_format(tmp_path: Path) -> None:
     """Test that push validates repo-id format."""
     _create_test_openenv_env(tmp_path)
     
-    with patch("openenv_cli.commands.push.whoami") as mock_whoami, \
-         patch("openenv_cli.commands.push.login") as mock_login, \
-         patch("openenv_cli.commands.push.HfApi") as mock_hf_api_class:
+    with patch("openenv.cli.commands.push.whoami") as mock_whoami, \
+         patch("openenv.cli.commands.push.login") as mock_login, \
+         patch("openenv.cli.commands.push.HfApi") as mock_hf_api_class:
         
         mock_whoami.return_value = {"name": "testuser"}
         mock_login.return_value = None  # Prevent actual login prompt
@@ -451,9 +451,9 @@ def test_push_handles_whoami_object_return(tmp_path: Path) -> None:
         def __init__(self):
             self.name = "testuser"
     
-    with patch("openenv_cli.commands.push.whoami") as mock_whoami, \
-         patch("openenv_cli.commands.push.login") as mock_login, \
-         patch("openenv_cli.commands.push.HfApi") as mock_hf_api_class:
+    with patch("openenv.cli.commands.push.whoami") as mock_whoami, \
+         patch("openenv.cli.commands.push.login") as mock_login, \
+         patch("openenv.cli.commands.push.HfApi") as mock_hf_api_class:
         
         mock_whoami.return_value = MockUser()
         mock_login.return_value = None  # Prevent actual login prompt
@@ -475,9 +475,9 @@ def test_push_handles_authentication_failure(tmp_path: Path) -> None:
     """Test that push handles authentication failure."""
     _create_test_openenv_env(tmp_path)
     
-    with patch("openenv_cli.commands.push.whoami") as mock_whoami, \
-         patch("openenv_cli.commands.push.login") as mock_login, \
-         patch("openenv_cli.commands.push.HfApi") as mock_hf_api_class:
+    with patch("openenv.cli.commands.push.whoami") as mock_whoami, \
+         patch("openenv.cli.commands.push.login") as mock_login, \
+         patch("openenv.cli.commands.push.HfApi") as mock_hf_api_class:
         
         # First whoami call fails (not authenticated)
         # Login also fails
@@ -502,9 +502,9 @@ def test_push_handles_whoami_missing_username(tmp_path: Path) -> None:
     """Test that push handles whoami response without username."""
     _create_test_openenv_env(tmp_path)
     
-    with patch("openenv_cli.commands.push.whoami") as mock_whoami, \
-         patch("openenv_cli.commands.push.login") as mock_login, \
-         patch("openenv_cli.commands.push.HfApi") as mock_hf_api_class:
+    with patch("openenv.cli.commands.push.whoami") as mock_whoami, \
+         patch("openenv.cli.commands.push.login") as mock_login, \
+         patch("openenv.cli.commands.push.HfApi") as mock_hf_api_class:
         
         # Return dict without name, fullname, or username
         mock_whoami.return_value = {}
@@ -532,9 +532,9 @@ def test_push_handles_readme_without_frontmatter(tmp_path: Path) -> None:
     # Create README without frontmatter
     (tmp_path / "README.md").write_text("# Test Environment\nNo frontmatter here.\n")
     
-    with patch("openenv_cli.commands.push.whoami") as mock_whoami, \
-         patch("openenv_cli.commands.push.login") as mock_login, \
-         patch("openenv_cli.commands.push.HfApi") as mock_hf_api_class:
+    with patch("openenv.cli.commands.push.whoami") as mock_whoami, \
+         patch("openenv.cli.commands.push.login") as mock_login, \
+         patch("openenv.cli.commands.push.HfApi") as mock_hf_api_class:
         
         mock_whoami.return_value = {"name": "testuser"}
         mock_login.return_value = None  # Prevent actual login prompt
@@ -556,9 +556,9 @@ def test_push_handles_hf_api_create_repo_error(tmp_path: Path) -> None:
     """Test that push handles HF API create_repo error."""
     _create_test_openenv_env(tmp_path)
     
-    with patch("openenv_cli.commands.push.whoami") as mock_whoami, \
-         patch("openenv_cli.commands.push.login") as mock_login, \
-         patch("openenv_cli.commands.push.HfApi") as mock_hf_api_class:
+    with patch("openenv.cli.commands.push.whoami") as mock_whoami, \
+         patch("openenv.cli.commands.push.login") as mock_login, \
+         patch("openenv.cli.commands.push.HfApi") as mock_hf_api_class:
         
         mock_whoami.return_value = {"name": "testuser"}
         mock_login.return_value = None  # Prevent actual login prompt
@@ -582,9 +582,9 @@ def test_push_handles_hf_api_upload_error(tmp_path: Path) -> None:
     """Test that push handles HF API upload_folder error."""
     _create_test_openenv_env(tmp_path)
     
-    with patch("openenv_cli.commands.push.whoami") as mock_whoami, \
-         patch("openenv_cli.commands.push.login") as mock_login, \
-         patch("openenv_cli.commands.push.HfApi") as mock_hf_api_class:
+    with patch("openenv.cli.commands.push.whoami") as mock_whoami, \
+         patch("openenv.cli.commands.push.login") as mock_login, \
+         patch("openenv.cli.commands.push.HfApi") as mock_hf_api_class:
         
         mock_whoami.return_value = {"name": "testuser"}
         mock_login.return_value = None  # Prevent actual login prompt
@@ -610,9 +610,9 @@ def test_push_handles_base_image_not_found_in_dockerfile(tmp_path: Path) -> None
     # Create Dockerfile without FROM line
     (tmp_path / "server" / "Dockerfile").write_text("RUN echo 'test'\nCMD [\"echo\", \"test\"]\n")
     
-    with patch("openenv_cli.commands.push.whoami") as mock_whoami, \
-         patch("openenv_cli.commands.push.login") as mock_login, \
-         patch("openenv_cli.commands.push.HfApi") as mock_hf_api_class:
+    with patch("openenv.cli.commands.push.whoami") as mock_whoami, \
+         patch("openenv.cli.commands.push.login") as mock_login, \
+         patch("openenv.cli.commands.push.HfApi") as mock_hf_api_class:
         
         mock_whoami.return_value = {"name": "testuser"}
         mock_login.return_value = None  # Prevent actual login prompt
