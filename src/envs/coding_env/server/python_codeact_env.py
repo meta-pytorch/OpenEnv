@@ -23,14 +23,16 @@ except ImportError:
 
 # Use relative/absolute imports that work in both modes
 try:
+    from coding_env.models import CodeAction, CodeObservation, CodeState
+
     # Standalone mode
     from coding_env.server.python_executor import PyExecutor
-    from coding_env.models import CodeAction, CodeObservation, CodeState
     from coding_env.server.transforms import create_safe_coding_transform
 except ImportError:
+    from envs.coding_env.models import CodeAction, CodeObservation, CodeState
+
     # In-repo mode
     from envs.coding_env.server.python_executor import PyExecutor
-    from envs.coding_env.models import CodeAction, CodeObservation, CodeState
     from envs.coding_env.server.transforms import create_safe_coding_transform
 
 
@@ -119,6 +121,7 @@ class PythonCodeActEnv(Environment):
             stdout=result.stdout,
             stderr=result.stderr,
             exit_code=result.exit_code,
+            metadata={"last_code": action.code},  # Add code to metadata for transforms
         )
 
         return self._apply_transform(observation)
