@@ -251,33 +251,3 @@ coding_env/
     ├── Dockerfile             # Container image (dual-mode)
     └── README.md              # Server-specific documentation
 ```
-
-## Troubleshooting
-
-### Import Errors
-
-If you get `ModuleNotFoundError`:
-- **In-repo mode**: Make sure you ran `pip install -e .` from the repo root
-- **Standalone mode**: Check imports use `from coding_env import...` (not `from envs.coding_env import...`)
-
-### Docker Build Failures
-
-- **In-repo**: Build from OpenEnv repo root, not from coding_env directory
-- **Standalone**: Only needed for distribution; for testing, use the in-repo build
-
-### Container Won't Start
-
-Check logs without `--rm`:
-```bash
-docker run -d --name debug-coding-env -p 8765:8000 coding-env:latest
-docker logs debug-coding-env
-```
-
-### "Do I need to build Docker differently for standalone testing?"
-
-**No!** The in-repo Docker build (`coding-env:latest`) works perfectly with both:
-- In-repo client: `from envs.coding_env import CodingEnv`
-- Standalone client: `from coding_env import CodingEnv`
-
-The client and server communicate over HTTP, so they're independent. BUILD_MODE is only for distribution.
-
