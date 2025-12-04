@@ -72,6 +72,9 @@ nav:
     - What is OpenEnv?: index.md
     - Quick Start: quickstart.md
     - Building an Environment: environment-builder.md
+  - Tutorials:
+    - OpenEnv Tutorial: tutorials/openenv-tutorial.md
+    - Wordle GRPO with TRL: tutorials/wordle-grpo.md
   - Environments: environments.md
 
   - API Reference:
