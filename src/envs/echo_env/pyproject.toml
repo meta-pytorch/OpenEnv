@@ -35,7 +35,8 @@ dev = [
 server = "echo_env.server.app:main"
 
 [tool.setuptools]
-package-dir = {"" = "."}
+packages = ["echo_env", "echo_env.server"]
+package-dir = { "echo_env" = ".", "echo_env.server" = "server" }
 
-[tool.setuptools.packages.find]
-where = ["."]
+[tool.setuptools.package-data]
+echo_env = ["**/*.yaml", "**/*.yml"]
