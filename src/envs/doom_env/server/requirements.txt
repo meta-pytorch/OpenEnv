@@ -1,0 +1,3 @@
+# ViZDoom and dependencies
+vizdoom>=1.2.0
+numpy>=1.19.0
