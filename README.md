@@ -166,6 +166,12 @@ pip install -e .
 # Or using uv (faster)
 uv pip install -e .
 
+# For development with testing dependencies (pytest, etc.)
+pip install -e ".[dev]"
+
+# Or using uv
+uv pip install -e ".[dev]"
+
 # Run server locally without Docker
 uv run server --host 0.0.0.0 --port 8000
 ```
