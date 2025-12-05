@@ -1,0 +1,44 @@
+# High-Performance Docker Compose configuration
+#
+# Use this overlay for large-scale deployments with optimizations for:
+# - High parallelism (64+ instances)
+# - Shared memory optimization
+# - Resource allocation tuning
+#
+# Usage:
+#   docker-compose -f docker-compose.yml -f docker-compose.hpc.yml up --scale android-env=64
+
+version: '3.8'
+
+services:
+  android-env:
+    # High-performance optimizations
+    environment:
+      # Use shared memory for zero-copy observations
+      - ANDROID_USE_SHARED_MEMORY=true
+      # Higher quality since we have resources
+      - ANDROID_IMAGE_QUALITY=95
+
+    # Resource allocation for parallel instances
+    deploy:
+      resources:
+        limits:
+          cpus: '4'
+          memory: 8G
+        reservations:
+          cpus: '2'
+          memory: 6G
+
+      # Placement constraints (optional - use specific nodes)
+      # placement:
+      #   constraints:
+      #     - node.labels.type == hpc
+
+    # Shared memory size for IPC
+    shm_size: '2gb'
+
+    # Privileged mode for better KVM access (use with caution)
+    # privileged: true
+
+    # CPU affinity for NUMA optimization
+    # cpuset: "0-3"
