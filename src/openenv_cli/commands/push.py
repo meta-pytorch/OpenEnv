@@ -11,7 +11,7 @@ from __future__ import annotations
 import shutil
 import tempfile
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, Optional
 import sys
 import typer
 import yaml
@@ -19,7 +19,7 @@ from huggingface_hub import HfApi, login, whoami
 
 from .._cli_utils import console, validate_env_structure
 
-app = typer.Typer(help="Push an OpenEnv environment to Hugging Face Spaces")
+# Commands are registered in __main__.py
 
 
 def _validate_openenv_directory(directory: Path) -> tuple[str, dict]:
@@ -299,33 +299,23 @@ def _upload_to_hf_space(
         raise typer.Exit(1) from e
 
 
-@app.command()
 def push(
     directory: Annotated[
-        str | None,
+        Optional[str],
         typer.Argument(help="Directory containing the OpenEnv environment (default: current directory)"),
     ] = None,
     repo_id: Annotated[
-        str | None,
+        Optional[str],
         typer.Option(
             "--repo-id",
-            "-r",
             help="Repository ID in format 'username/repo-name' (defaults to 'username/env-name' from openenv.yaml)",
         ),
     ] = None,
     base_image: Annotated[
-        str | None,
+        Optional[str],
         typer.Option(
             "--base-image",
-            "-b",
             help="Base Docker image to use (overrides Dockerfile FROM)",
-        ),
-    ] = None,
-    interface: Annotated[
-        bool,
-        typer.Option(
-            "--interface",
-            help="Enable web interface (default: True if no registry specified)",
         ),
     ] = None,
     no_interface: Annotated[
@@ -336,7 +326,7 @@ def push(
         ),
     ] = False,
     registry: Annotated[
-        str | None,
+        Optional[str],
         typer.Option(
             "--registry",
             help="Custom registry URL (e.g., docker.io/username). Disables web interface by default.",
@@ -384,19 +374,9 @@ def push(
         # Push privately with custom base image
         $ openenv push --private --base-image ghcr.io/meta-pytorch/openenv-base:latest
     """
-    # Handle interface flag logic
-    if no_interface and interface:
-        console.print(
-            "[bold red]Error:[/bold red] Cannot specify both --interface and --no-interface",
-            file=sys.stderr,
-        )
-        raise typer.Exit(1)
-    
     # Determine if web interface should be enabled
     if no_interface:
         enable_interface = False
-    elif interface is not None:
-        enable_interface = interface
     elif registry is not None:
         # Custom registry: disable interface by default
         enable_interface = False

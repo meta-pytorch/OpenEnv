@@ -12,6 +12,7 @@ are properly configured for multi-mode deployment.
 """
 
 from pathlib import Path
+from typing import Annotated, Optional
 
 import typer
 
@@ -23,12 +24,14 @@ from openenv_cli._validation import (
 
 
 def validate(
-    env_path: str | None = typer.Argument(
-        None, help="Path to the environment directory (default: current directory)"
-    ),
-    verbose: bool = typer.Option(
-        False, "--verbose", "-v", help="Show detailed information"
-    ),
+    env_path: Annotated[
+        Optional[str],
+        typer.Option("--env-path", help="Path to the environment directory (default: current directory)"),
+    ] = None,
+    verbose: Annotated[
+        bool,
+        typer.Option("--verbose", help="Show detailed information"),
+    ] = False,
 ) -> None:
     """
     Validate an environment for standardized structure and deployment readiness.
