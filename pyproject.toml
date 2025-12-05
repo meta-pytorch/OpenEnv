@@ -26,6 +26,11 @@ dependencies = [
     "tomli-w>=1.2.0"
 ]
 
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0.0",
+]
+
 [project.scripts]
 openenv = "openenv_cli.__main__:main"
 
