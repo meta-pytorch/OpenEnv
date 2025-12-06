@@ -1,0 +1,37 @@
+[build-system]
+requires = ["setuptools>=45", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "openenv-connect4"
+version = "0.1.0"
+description = "Connect4 environment for OpenEnv"
+requires-python = ">=3.10"
+dependencies = [
+    "openenv-core @ git+https://github.com/meta-pytorch/OpenEnv.git@main#subdirectory=src/core",
+    "fastapi>=0.115.0",
+    "pydantic>=2.0.0",
+    "uvicorn>=0.24.0",
+    "requests>=2.25.0",
+    # Add your environment-specific dependencies here
+    "gymnasium>=0.29.0",
+    "ale-py>=0.8.0",
+    "numpy>=1.24.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0.0",
+    "pytest-cov>=4.0.0",
+    "ipykernel>=6.29.5",
+]
+
+[project.scripts]
+server = "connect4_env.server.app:main"
+
+[tool.setuptools]
+packages = ["connect4_env", "connect4_env.server"]
+package-dir = { "connect4_env" = ".", "connect4_env.server" = "server" }
+
+[tool.setuptools.package-data]
+connect4_env = ["**/*.yaml", "**/*.yml"]

@@ -10,14 +10,14 @@ Connect4 Environment for OpenEnv.
 This module provides OpenEnv integration for the classic Connect4 board game.
 
 Example:
-    >>> from envs.Connect4_env import Connect4Env, Connect4Action
+    >>> from connect4_env import Connect4Env, Connect4Action
     >>>
     >>> # Connect to a running server or start via Docker
-    >>> env = Connect4Env.from_docker_image("Connect4-env:latest")
+    >>> env = Connect4Env.from_docker_image("connect4-env:latest")
     >>>
     >>> # Reset and interact
     >>> result = env.reset()
-    >>> result = env.step(Connect4Action(column=2)) 
+    >>> result = env.step(Connect4Action(column=2))
     >>> print(result.reward, result.done)
     >>>
     >>> # Cleanup

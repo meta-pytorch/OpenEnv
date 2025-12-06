@@ -16,7 +16,7 @@ from dataclasses import dataclass, field
 import numpy as np
 from typing import List
 
-from core.env_server import Action, Observation, State
+from openenv_core.env_server.types import Action, Observation, State
 
 
 @dataclass
@@ -27,6 +27,7 @@ class Connect4Action(Action):
     Attributes:
         column: The column index (0 to 6) where the piece will be placed.
     """
+
     column: int
 
 
@@ -42,13 +43,12 @@ class Connect4Observation(Observation):
         done: Whether the game is over.
         reward: Reward for the last action.
     """
-    
+
     board: List[List[int]]
     legal_actions: List[int]
     done: bool = False
     reward: float = 0.0
     metadata: dict = field(default_factory=dict)
-    
 
 
 @dataclass(kw_only=True)
@@ -62,7 +62,8 @@ class Connect4State(State):
         next_player: Whose turn it is (1 or -1).
         step_count: Number of steps taken in the game.
     """
+
     episode_id: str
-    board: List[List[int]] = field(default_factory=lambda: np.zeros((6,7), dtype=int).tolist())
+    board: List[List[int]] = field(default_factory=lambda: np.zeros((6, 7), dtype=int).tolist())
     next_player: int = 1
     step_count: int = 0
