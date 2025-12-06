@@ -96,14 +96,18 @@ class HTTPEnvClient(ABC, Generic[ActT, ObsT]):
         if provider is None:
             provider = LocalDockerProvider()
 
+        # Extract timeout_s from kwargs for wait_for_ready, with a default
+        timeout_s = kwargs.pop('timeout_s', 30.0)
+        request_timeout_s = kwargs.pop('request_timeout_s', 15.0)
+
         # 1. Start container with optional kwargs (e.g., env_vars, port)
         base_url = provider.start_container(image, **kwargs)
 
-        # 2. Wait for server to be ready
-        provider.wait_for_ready(base_url)
+        # 2. Wait for server to be ready with the specified timeout
+        provider.wait_for_ready(base_url, timeout_s=timeout_s)
 
-        # 3. Create and return client instance with provider reference
-        return cls(base_url=base_url, provider=provider)
+        # 3. Create and return client instance with provider reference and request timeout
+        return cls(base_url=base_url, request_timeout_s=request_timeout_s, provider=provider)
 
     @classmethod
     def from_hub(cls: Type[EnvClientT], repo_id: str, provider: Optional["ContainerProvider"] = None, **kwargs: Any) -> EnvClientT:
