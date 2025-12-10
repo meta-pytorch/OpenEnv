@@ -46,11 +46,11 @@ Usage: $0 <source_env_dir> <target_dir>
 Convert an OpenEnv environment from the monorepo to a standalone repository.
 
 Arguments:
-  source_env_dir   Path to existing environment (e.g., src/envs/echo_env)
+  source_env_dir   Path to existing environment (e.g., envs/echo_env)
   target_dir       Path for new standalone environment (e.g., ~/my_envs/echo_env_standalone)
 
 Example:
-  $0 src/envs/echo_env ~/my_envs/echo_env_standalone
+  $0 envs/echo_env ~/my_envs/echo_env_standalone
 
 The script will:
   1. Copy environment files to target directory
@@ -173,8 +173,8 @@ else
         done < "server/requirements.txt"
     fi
     
-    # Always add openenv-core
-    DEPS="${DEPS}    \"openenv-core>=0.1.0\","
+    # Always add openenv runtime
+    DEPS="${DEPS}    \"openenv[core]>=0.2.0\","
     
     # Create pyproject.toml
     cat > pyproject.toml << EOF

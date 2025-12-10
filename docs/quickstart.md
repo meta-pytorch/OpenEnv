@@ -8,12 +8,8 @@ To install the OpenEnv package, you can use the following command:
 pip install https://github.com/meta-pytorch/OpenEnv.git
 ```
 
-!!! warning
-    This will install the `openenv` cli and not the `openenv-core` package. If you want to install the `openenv-core` package, you can use the following command:
-
-    ```bash
-    pip install openenv-core
-    ```
+!!! note
+    This installs both the `openenv` CLI and the `openenv.core` runtime. Environment projects can depend on `openenv[core]` if they only need the server/client libraries.
 
 ### Using the Echo Environment (Example)
 

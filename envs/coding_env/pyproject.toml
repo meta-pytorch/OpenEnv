@@ -1,0 +1,35 @@
+[build-system]
+requires = ["setuptools>=45", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "openenv-coding_env"
+version = "0.1.0"
+description = "Coding Environment for OpenEnv"
+requires-python = ">=3.10"
+dependencies = [
+    "openenv[core]>=0.2.0",
+    "fastapi>=0.115.0",
+    "pydantic>=2.0.0",
+    "uvicorn[standard]>=0.24.0",
+    "requests>=2.31.0",
+    "smolagents>=1.22.0,<2",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0.0",
+    "pytest-cov>=4.0.0",
+    "ipykernel>=6.29.5",
+]
+
+[project.scripts]
+server = "coding_env.server.app:main"
+
+
+[tool.setuptools]
+packages = ["coding_env", "coding_env.server"]
+package-dir = { "coding_env" = ".", "coding_env.server" = "server" }
+
+[tool.setuptools.package-data]
+coding_env = ["**/*.yaml", "**/*.yml"]

@@ -109,3 +109,4 @@ outputs/
 .uv/
 
 *.backup*/
+src/envs/.discovery_cache.json
