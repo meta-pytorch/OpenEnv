@@ -157,6 +157,7 @@ README_EOF
         "chat_env") ENV_CLASS="ChatEnv" ;;
         "atari_env") ENV_CLASS="AtariEnv" ;;
         "openspiel_env") ENV_CLASS="OpenSpielEnv" ;;
+        "wildfire_env") ENV_CLASS="WildfireEnv" ;;
         *) ENV_CLASS="Env" ;;
     esac
 

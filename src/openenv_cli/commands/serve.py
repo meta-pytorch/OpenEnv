@@ -9,26 +9,24 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, Optional
 
 import typer
 
 from .._cli_utils import console
 
-app = typer.Typer(help="Serve OpenEnv environments locally")
+# Commands are registered in __main__.py
 
-
-@app.command()
 def serve(
     env_path: Annotated[
-        str | None,
+        Optional[str],
         typer.Argument(
             help="Path to the environment directory (default: current directory)"
         ),
     ] = None,
     port: Annotated[
         int,
-        typer.Option("--port", "-p", help="Port to serve on"),
+        typer.Option("--port", help="Port to serve on"),
     ] = 8000,
     host: Annotated[
         str,
