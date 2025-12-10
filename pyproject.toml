@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "openenv"
-version = "0.1.1"
+version = "0.1.2"
 description = "A unified framework for reinforcement learning environments"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -24,6 +24,11 @@ dependencies = [
     "openai>=2.7.2",
     "tomli>=2.3.0",
     "tomli-w>=1.2.0"
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0.0",
 ]
 
 [project.scripts]

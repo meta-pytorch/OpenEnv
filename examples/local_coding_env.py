@@ -67,6 +67,7 @@ def main():
             print(f"   {i}. Code: {code.replace(chr(10), '\\n')[:50]}...")
             print(f"      → stdout: {result.observation.stdout.strip()}")
             print(f"      → exit_code: {result.observation.exit_code}")
+            print(f"      → reward: {result.reward}")
             if result.observation.stderr:
                 print(f"      → stderr: {result.observation.stderr}")
 
@@ -84,6 +85,8 @@ def main():
             print(f"   {i}. {description}")
             print(f"      Code: {code.replace(chr(10), '\\n')[:40]}...")
             print(f"      → exit_code: {result.observation.exit_code}")
+            print(f"      → reward: {result.reward}")
+
             if result.observation.stderr:
                 # Truncate long error messages
                 error_msg = result.observation.stderr[:100]
@@ -116,6 +119,7 @@ def main():
     except Exception as e:
         print(f"\n❌ Test failed: {e}")
         import traceback
+
         traceback.print_exc()
         return False
 
