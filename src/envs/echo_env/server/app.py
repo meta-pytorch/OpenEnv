@@ -5,10 +5,10 @@
 # LICENSE file in the root directory of this source tree.
 
 """
-FastAPI application for the Echo Environment.
+FastAPI application for the Echo Environment (MCP-based).
 
 This module creates an HTTP server that exposes the EchoEnvironment
-over HTTP endpoints, making it compatible with HTTPEnvClient.
+over HTTP endpoints with MCP tool support.
 
 Usage:
     # Development (with auto-reload):
@@ -21,23 +21,24 @@ Usage:
     uv run --project . server
 """
 
-# Support both in-repo and standalone imports
 try:
-    # In-repo imports (when running from OpenEnv repository)
-    from core.env_server.http_server import create_app
-    from ..models import EchoAction, EchoObservation
+    from core.env_server import create_app
+    from core.env_server.types import Action, Observation
+
     from .echo_environment import EchoEnvironment
 except ImportError:
-    # Standalone imports (when environment is standalone with openenv-core from pip)
-    from openenv_core.env_server.http_server import create_app
-    from models import EchoAction, EchoObservation
+    from openenv_core.env_server import create_app
+    from openenv_core.env_server.types import Action, Observation
     from server.echo_environment import EchoEnvironment
 
-# Create the environment instance
+
+# Create the environment instance (MCP client is configured internally)
 env = EchoEnvironment()
 
-# Create the app with web interface and README integration
-app = create_app(env, EchoAction, EchoObservation, env_name="echo_env")
+# Create the FastAPI app
+# Note: We use Action and Observation base classes since echo_env
+# uses MCP actions (ListToolsAction, CallToolAction) instead of custom types
+app = create_app(env, Action, Observation)
 
 
 def main():
@@ -48,7 +49,6 @@ def main():
         uv run --project . server
         python -m envs.echo_env.server.app
         openenv serve echo_env
-
     """
     import uvicorn
 
