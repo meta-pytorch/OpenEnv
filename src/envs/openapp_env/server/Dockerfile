@@ -25,10 +25,12 @@ LABEL org.opencontainers.image.source="https://github.com/meta-pytorch/OpenEnv"
 WORKDIR /app/env
 
 # Install system dependencies
+# - git: required to clone OpenApps from GitHub
 # - curl: for healthcheck
 # - Playwright/BrowserGym dependencies: fonts, libraries for browser automation
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
+    git \
     curl \
     ca-certificates \
     wget \
@@ -60,6 +62,9 @@ RUN apt-get update && \
 # Set environment variables
 ENV PYTHONUNBUFFERED=1
 
+# Set working directory
+WORKDIR /app/env
+
 # Copy environment files
 COPY . .
 
@@ -67,26 +72,49 @@ COPY . .
 # This includes: openenv-core, fastapi, uvicorn, pydantic, requests, browsergym, playwright
 RUN pip install --no-cache-dir -e .
 
+# Verify installation
+RUN python -c "import openapp_env; print('✓ openapp_env installed')" && \
+    python -c "import openapp_env.server.app; print('✓ openapp_env.server.app importable')"
+
 # Install Playwright browsers (Chromium for BrowserGym)
-RUN playwright install chromium && \
-    playwright install-deps chromium
+# We already installed system dependencies above, so just install the browser
+RUN playwright install chromium
+
+# Clone and install OpenApps server
+# OpenApps will run as a background service inside the container
+WORKDIR /app
+RUN git clone https://github.com/facebookresearch/OpenApps.git openapps && \
+    cd openapps && \
+    pip install --no-cache-dir -e .
+
+# Verify OpenApps installation
+RUN python -c "import open_apps; print('✓ OpenApps installed')"
+
+# Copy startup script
+WORKDIR /app/env
+COPY server/start.sh /app/start.sh
+RUN chmod +x /app/start.sh
 
 # OpenApp-specific environment variables (can be overridden at runtime)
+ENV OPENAPPS_URL=http://localhost:5001
 ENV OPENAPPS_PORT=5001
 ENV OPENAPP_HEADLESS=true
 ENV OPENAPP_MAX_STEPS=50
 
+# Hydra requires USER environment variable
+ENV USER=root
+
 # Enable web interface by default (set to false to disable)
 ENV ENABLE_WEB_INTERFACE=true
 
-# Expose port
-EXPOSE 8000
+# Expose ports (8000 for FastAPI, 5001 for OpenApps)
+EXPOSE 8000 5001
 
 # Health check
-HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
     CMD curl -f http://localhost:8000/health || exit 1
 
-# Run the FastAPI server
+# Run the startup script that launches both OpenApps server and FastAPI server
 # Web interface will be available at /web if ENABLE_WEB_INTERFACE=true
 # API documentation available at /docs
-CMD ["uvicorn", "openapp_env.server.app:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["/app/start.sh"]
