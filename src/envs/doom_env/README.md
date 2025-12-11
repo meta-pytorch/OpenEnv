@@ -16,7 +16,12 @@ tags:
 
 # Doom Environment
 
-A ViZDoom-based environment for OpenEnv. ViZDoom is a Doom-based AI research platform for visual reinforcement learning, allowing agents to play Doom using only visual information.
+A ViZDoom-based environment for OpenEnv. ViZDoom is a Doom-based AI research platform for visual reinforcement learning, allowing agents to play Doom using only visual information. Referencing the [ViZDoom documentation](https://vizdoom.cs.put.edu.pl/). And, also for licensing information, please refer to the [ViZDoom license](https://github.com/Farama-Foundation/ViZDoom?tab=readme-ov-file#license)
+
+## References
+
+- [ViZDoom Documentation](http://vizdoom.cs.put.edu.pl/)
+- [ViZDoom GitHub](https://github.com/mwydmuch/ViZDoom)
 
 <p align="center">
   <img src="assets/doom_slayer_at_openEnv_school.png" width="680
