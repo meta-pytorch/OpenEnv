@@ -80,7 +80,7 @@ def deserialize_action_with_preprocessing(
                     value = []
             if isinstance(value, list):
                 try:
-                    import torch
+                    import torch # type: ignore
 
                     processed_data[key] = torch.tensor(value, dtype=torch.long)
                 except ImportError:

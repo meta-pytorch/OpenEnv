@@ -90,7 +90,21 @@ class Environment(ABC):
 
     Args:
         transform: Optional transform to apply to observations
+        
+    Class Attributes:
+        CONCURRENCY_SAFE: Whether this environment supports concurrent sessions.
+            When True, multiple WebSocket connections can each have their own
+            environment instance (up to max_concurrent_envs). When False (default),
+            the environment should only be used with a single session at a time.
+            
+            Set this to True in your Environment subclass if:
+            - The environment uses proper session isolation (e.g., unique working dirs)
+            - No shared mutable state exists between instances
+            - External resources (databases, APIs) can handle concurrent access
     """
+    
+    # Class-level flag indicating whether this environment supports concurrent sessions
+    CONCURRENCY_SAFE: bool = False
 
     def __init__(self, transform: Transform | None = None):
         self.transform = transform
