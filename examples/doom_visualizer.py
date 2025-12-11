@@ -236,7 +236,7 @@ def visualize_with_matplotlib(env):
 
     result = env.reset()
     plt.ion()
-    fig = plt.figure(figsize=(10, 7))
+    plt.figure(figsize=(10, 7))
 
     step = 0
     try:
