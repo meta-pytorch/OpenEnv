@@ -62,7 +62,6 @@ class DoomObservation(Observation):
 
     screen_buffer: List[int]
     screen_shape: List[int]
-    game_variables: List[float] = None
-    available_actions: List[int] = None
+    game_variables: Optional[List[float]] = None
+    available_actions: Optional[List[int]] = None
     episode_finished: bool = False
-
