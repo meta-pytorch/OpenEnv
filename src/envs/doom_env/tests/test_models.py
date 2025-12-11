@@ -10,7 +10,6 @@ Test suite for Doom models (DoomAction and DoomObservation).
 Tests data model validation, serialization, and edge cases.
 """
 
-import pytest
 import numpy as np
 from dataclasses import asdict
 
