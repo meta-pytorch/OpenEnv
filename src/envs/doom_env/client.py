@@ -11,7 +11,7 @@ This module provides the client for connecting to a Doom Environment server
 over HTTP.
 """
 
-from typing import Any, Dict, Optional
+from typing import Dict, Optional
 
 import numpy as np
 
