@@ -16,7 +16,6 @@ import time
 import subprocess
 import requests
 import numpy as np
-from pathlib import Path
 
 from ..client import DoomEnv
 from ..models import DoomAction, DoomObservation
