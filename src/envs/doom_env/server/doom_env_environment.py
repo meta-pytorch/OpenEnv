@@ -12,7 +12,7 @@ ViZDoom is a Doom-based AI research platform for visual RL.
 """
 
 import uuid
-from typing import List, Literal, Optional
+from typing import Optional
 
 try:
     from ..models import DoomAction, DoomObservation
