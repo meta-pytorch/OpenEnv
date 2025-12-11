@@ -11,7 +11,6 @@ Tests the core ViZDoom wrapper and environment logic.
 """
 
 import pytest
-import numpy as np
 
 try:
     from ..server.doom_env_environment import DoomEnvironment
