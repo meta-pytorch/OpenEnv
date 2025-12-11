@@ -184,7 +184,6 @@ def visualize_with_cv2(env):
         action_id = 0  # Default: no action
 
         if key == ord("q") or key == 27:  # Q or ESC
-            running = False
             break
         elif key == ord("a") or key == 81:  # A or Left arrow
             action_id = 1  # Move left
