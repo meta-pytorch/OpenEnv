@@ -21,7 +21,7 @@ echo
 
 # Start Gitea with docker-compose
 echo "1. Starting Gitea container..."
-docker-compose -f src/envs/git_env/docker-compose.gitea.yml up -d
+docker-compose -f envs/git_env/docker-compose.gitea.yml up -d
 
 # Wait for Gitea to be healthy
 echo "2. Waiting for Gitea to be ready..."
@@ -76,8 +76,8 @@ echo
 echo "Admin credentials are configured from .env file"
 echo
 echo "To stop Gitea:"
-echo "  docker-compose -f src/envs/git_env/docker-compose.gitea.yml down"
+echo "  docker-compose -f envs/git_env/docker-compose.gitea.yml down"
 echo
 echo "To remove all data:"
-echo "  docker-compose -f src/envs/git_env/docker-compose.gitea.yml down -v"
+echo "  docker-compose -f envs/git_env/docker-compose.gitea.yml down -v"
 echo

@@ -1,2 +1,2 @@
---8<-- "../../src/envs/dipg_safety_env/README.md"
+--8<-- "../../envs/dipg_safety_env/README.md"
 

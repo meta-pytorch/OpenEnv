@@ -12,7 +12,7 @@ from unittest.mock import patch
 import pytest
 from typer.testing import CliRunner
 
-from openenv_cli.__main__ import app, main
+from openenv.cli.__main__ import app, main
 
 
 runner = CliRunner()
@@ -20,7 +20,7 @@ runner = CliRunner()
 
 def test_main_handles_keyboard_interrupt() -> None:
     """Test that main handles KeyboardInterrupt gracefully."""
-    with patch("openenv_cli.__main__.app") as mock_app:
+    with patch("openenv.cli.__main__.app") as mock_app:
         mock_app.side_effect = KeyboardInterrupt()
         
         with pytest.raises(SystemExit) as exc_info:
@@ -31,7 +31,7 @@ def test_main_handles_keyboard_interrupt() -> None:
 
 def test_main_handles_generic_exception() -> None:
     """Test that main handles generic exceptions gracefully."""
-    with patch("openenv_cli.__main__.app") as mock_app:
+    with patch("openenv.cli.__main__.app") as mock_app:
         mock_app.side_effect = ValueError("Test error")
         
         with pytest.raises(SystemExit) as exc_info:
@@ -44,7 +44,7 @@ def test_main_entry_point() -> None:
     """Test that main() can be called as entry point."""
     # This tests the if __name__ == "__main__" block indirectly
     # by ensuring main() function works
-    with patch("openenv_cli.__main__.app") as mock_app:
+    with patch("openenv.cli.__main__.app") as mock_app:
         main()
         mock_app.assert_called_once()
 

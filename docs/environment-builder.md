@@ -34,10 +34,10 @@ Let's walk through the process of building a custom environment with OpenEnv.
 openenv init my_env
 
 # Optionally choose an output directory
-openenv init my_env --output-dir /Users/you/src/envs
+openenv init my_env --output-dir /Users/you/envs
 ```
 
-The command creates a fully-typed template with `openenv.yaml`, `pyproject.toml`, `uv.lock`, Docker assets, and stub implementations. If you're working inside this repo, move the generated folder under `src/envs/`. 
+The command creates a fully-typed template with `openenv.yaml`, `pyproject.toml`, `uv.lock`, Docker assets, and stub implementations. If you're working inside this repo, move the generated folder under `envs/`. 
 
 Typical layout:
 
@@ -67,7 +67,7 @@ Edit `models.py` to describe your action, observation, and state dataclasses:
 ```python
 # models.py
 from dataclasses import dataclass
-from core.env_server import Action, Observation, State
+from openenv.core.env_server import Action, Observation, State
 
 @dataclass
 class MyAction(Action):
@@ -94,7 +94,7 @@ Customize `server/my_environment.py` by extending `Environment`:
 ```python
 # server/my_environment.py
 import uuid
-from core.env_server import Environment
+from openenv.core.env_server import Environment
 from ..models import MyAction, MyObservation, MyState
 
 class MyEnvironment(Environment):
@@ -123,7 +123,7 @@ class MyEnvironment(Environment):
 
 ```python
 # server/app.py
-from core.env_server import create_fastapi_app
+from openenv.core.env_server import create_fastapi_app
 from ..models import MyAction, MyObservation
 from .my_environment import MyEnvironment
 
@@ -137,8 +137,8 @@ app = create_fastapi_app(env, MyAction, MyObservation)
 
 ```python
 # client.py
-from core.http_env_client import HTTPEnvClient
-from core.types import StepResult
+from openenv.core.http_env_client import HTTPEnvClient
+from openenv.core.types import StepResult
 from .models import MyAction, MyObservation, MyState
 
 class MyEnv(HTTPEnvClient[MyAction, MyObservation]):
@@ -176,7 +176,7 @@ Keep building from the `openenv-base` image so shared tooling stays available:
 # Multi-stage build using openenv-base
 # This Dockerfile is flexible and works for both:
 # - In-repo environments (with local src/core)
-# - Standalone environments (with openenv-core from pip)
+# - Standalone environments (with openenv from pip)
 # The build script (openenv build) handles context detection and sets appropriate build args.
 
 ARG BASE_IMAGE=openenv-base:latest
@@ -191,8 +191,8 @@ ARG ENV_NAME=__ENV_NAME__
 # Copy environment code (always at root of build context)
 COPY . /app/env
 
-# For in-repo builds, openenv-core is already in the pyproject.toml dependencies
-# For standalone builds, openenv-core will be installed from pip via pyproject.toml
+# For in-repo builds, openenv is already in the pyproject.toml dependencies
+# For standalone builds, openenv will be installed from pip via pyproject.toml
 WORKDIR /app/env
 
 # Install dependencies using uv sync
@@ -247,7 +247,7 @@ If you introduced extra dependencies in the Dockerfile, you should install them 
 From the environment directory:
 
 ```bash
-cd src/envs/my_env
+cd envs/my_env
 openenv build          # Builds Docker image (auto-detects context)
 openenv validate --verbose
 ```
@@ -299,13 +299,13 @@ strategy:
   matrix:
     image:
       - name: echo-env
-        dockerfile: src/envs/echo_env/server/Dockerfile
+        dockerfile: envs/echo_env/server/Dockerfile
       - name: chat-env
-        dockerfile: src/envs/chat_env/server/Dockerfile
+        dockerfile: envs/chat_env/server/Dockerfile
       - name: coding-env
-        dockerfile: src/envs/coding_env/server/Dockerfile
+        dockerfile: envs/coding_env/server/Dockerfile
       - name: my-env  # Add your environment here
-        dockerfile: src/envs/my_env/server/Dockerfile
+        dockerfile: envs/my_env/server/Dockerfile
 ```
 
 ### Use Your Environment

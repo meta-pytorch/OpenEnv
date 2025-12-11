@@ -1,2 +1,2 @@
---8<-- "../../src/envs/websearch_env/README.md"
+--8<-- "../../websearch_env/README.md"
 

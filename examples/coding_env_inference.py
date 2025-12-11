@@ -11,7 +11,7 @@ Prerequisites
 1. Build the Coding environment Docker image::
 
        docker build \
-           -f src/envs/coding_env/server/Dockerfile \
+           -f envs/coding_env/server/Dockerfile \
            -t coding-env:latest .
 
 2. Set your Hugging Face token, or any other API key that is compatible with the OpenAI API:
