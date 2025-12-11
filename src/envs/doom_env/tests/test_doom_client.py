@@ -13,7 +13,6 @@ Tests client-server communication, serialization, and rendering.
 import pytest
 import numpy as np
 from unittest.mock import Mock, patch, MagicMock
-from dataclasses import asdict
 
 from ..client import DoomEnv
 from ..models import DoomAction, DoomObservation
