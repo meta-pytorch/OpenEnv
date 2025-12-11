@@ -452,6 +452,7 @@ class DoomEnvironment(Environment):
 
                     plt.close("all")
                 except ImportError:
+                    # If matplotlib is not installed, we cannot close its windows, but this is non-critical during cleanup.
                     pass
             self._render_window = None
 
