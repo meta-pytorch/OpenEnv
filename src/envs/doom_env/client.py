@@ -232,7 +232,11 @@ class DoomEnv(HTTPEnvClient[DoomAction, DoomObservation]):
 
                     plt.close("all")
                 except ImportError:
-                    pass
+                    # Neither cv2 nor matplotlib is available for cleanup.
+                    print(
+                        "Warning: Could not clean up render windows because neither cv2 nor matplotlib is available. "
+                        "Install with: pip install opencv-python or pip install matplotlib"
+                    )
             self._render_window = None
 
         # Call parent close
