@@ -36,7 +36,11 @@ except ImportError:
     from server.openapp_environment import OpenAppEnvironment
 
 # Create the environment instance
-env = OpenAppEnvironment()
+# Use OPENAPPS_URL environment variable if set (Docker mode)
+# Otherwise, environment will try to auto-launch (not implemented, will fail with helpful error)
+import os
+openapps_url = os.environ.get("OPENAPPS_URL")
+env = OpenAppEnvironment(openapps_url=openapps_url) if openapps_url else OpenAppEnvironment()
 
 # Create the app with web interface and README integration
 app = create_app(env, OpenAppAction, OpenAppObservation, env_name="openapp_env")
