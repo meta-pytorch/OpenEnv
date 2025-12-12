@@ -21,8 +21,7 @@ flowchart TB
   subgraph Runtime["Fleet Runtime (Remote)"]
     direction TB
     HTTP["Instance Manager HTTP API<br/>/reset /step /state"]
-    MCP_A["MCP Server A<br/>(e.g., /api/v1/mcp)"]
-    MCP_B["MCP Server B<br/>(e.g., /mcp)"]
+    MCP_SVC["Fleet MCP Service<br/>(Multiple endpoints aggregated)"]
   end
 
   %% Orchestration (RFC 001)
@@ -30,17 +29,18 @@ flowchart TB
 
   %% Agent actions (RFC 003)
   Agent --"tools/list, tools/call"--> Tools
-  Tools <-->|"SSE Session"| MCP_A
-  Tools <-->|"SSE Session"| MCP_B
+  Tools <-->|"SSE Session (Multiplexed)"| MCP_SVC
 ```
 
 ### 1. Combined Action Space (Client-Side Multiplexing)
-Fleet instances expose multiple MCP endpoints (e.g., `api/v1/mcp` for browser control, `mcp` for API tools). 
+Fleet instances currently expose multiple MCP endpoints (e.g., `api/v1/mcp` for browser control, `mcp` for API tools). 
 
 **The Strategy:**
 1.  **Connect to ALL**: The client establishes sessions with both `root + "api/v1/mcp"` and `root + "mcp"`.
 2.  **Union Tools**: `FleetMCPTools.list_tools()` returns the union of tools from all connected endpoints.
 3.  **Route Execution**: `FleetMCPTools.call_tool()` routes the call to the endpoint that owns the tool.
+
+> **Future Work**: This client-side multiplexing is a temporary workaround. Future versions of the Fleet API will expose a single unified MCP endpoint that aggregates all tools server-side, removing the need for the client to know about specific paths like `api/v1/mcp`.
 
 ### 2. Client Implementation (`FleetEnvClient`)
 
