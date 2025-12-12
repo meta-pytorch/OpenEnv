@@ -20,26 +20,35 @@ Usage:
     # Run locally without Docker
     python examples/openapp_example.py --mode local
 
-    # Show browser window to visualize agent actions
-    python examples/openapp_example.py --mode local --show-browser
-
     # Run with custom number of steps
     python examples/openapp_example.py --mode docker --num-steps 20
 
 Visualization Options:
-    # Watch the agent interact with OpenApps in real-time
-    python examples/openapp_example.py --mode local --show-browser
+    # To SEE the browser window and watch agent interactions in real-time:
+    #
+    # Terminal 1: Start OpenApps server with visible browser
+    cd OpenApps
+    python OpenApps/launch.py browsergym_env_args.headless=False
+
+    # Terminal 2: Run your agent code
+    export OPENAPPS_URL=http://localhost:5001
+    python examples/openapp_example.py --mode local
 
     # Or access the web interface directly in your browser:
     # - OpenApps: http://localhost:5001
     # - Calendar: http://localhost:5001/calendar
     # - Todo: http://localhost:5001/todo
-    # - Messenger: http://localhost:5001/messenger
+    # - Messenger: http://localhost:5001/messages
     # - Maps: http://localhost:5001/maps
 
     # Docker mode web interface
     # - Web UI: http://localhost:8000/web
     # - API docs: http://localhost:8000/docs
+
+Important:
+    The browser visualization is controlled by the OpenApps SERVER, not the client.
+    You must launch the server with 'browsergym_env_args.headless=False' to see
+    the browser window.
 """
 
 import argparse
