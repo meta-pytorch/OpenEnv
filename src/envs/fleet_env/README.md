@@ -10,17 +10,19 @@ Run OpenEnv environments on **Fleet** (remote) with **no Docker**, strictly adhe
 We implement a client-side adapter (`FleetEnvClient`) that aggregates Fleet's interfaces into the OpenEnv contract.
 
 ```mermaid
-flowchart LR
+flowchart TB
   subgraph Client["OpenEnv Client (Local)"]
+    direction TB
     Agent["Agent / Policy"]
-    Orch["FleetEnvClient\n(Orchestrator, HTTP)"]
-    Tools["FleetMCPTools\n(Agent, MCP)"]
+    Orch["FleetEnvClient<br/>(Orchestrator, HTTP)"]
+    Tools["FleetMCPTools<br/>(Agent, MCP)"]
   end
 
   subgraph Runtime["Fleet Runtime (Remote)"]
-    HTTP["Instance Manager HTTP API\n/reset /step /state"]
-    MCP_A["MCP Server A\n(e.g., /api/v1/mcp)"]
-    MCP_B["MCP Server B\n(e.g., /mcp)"]
+    direction TB
+    HTTP["Instance Manager HTTP API<br/>/reset /step /state"]
+    MCP_A["MCP Server A<br/>(e.g., /api/v1/mcp)"]
+    MCP_B["MCP Server B<br/>(e.g., /mcp)"]
   end
 
   %% Orchestration (RFC 001)
@@ -84,22 +86,11 @@ tools_list = await tools.list_tools()
 result = await tools.call_tool("computer", {...})
 ```
 
-### Architecture Note: RFC vs Implementation
+### Architecture Note: Strict Separation of Concerns
 
-This design uses a **Client-Side Adapter** pattern to integrate Fleet without modifying remote server images.
+This implementation enforces a strict boundary between the **Orchestration Plane** and the **Agent Plane**, aligning with RFC 001.
 
-**RFC Ideal (Server-Side Execution):**
-```
-Agent -> Client -> [Network] -> Server -> Internal MCP Server
-                                   ^
-                                   | Server executes tool
-```
+- **Orchestrator (`FleetEnvClient`)**: Has access to the HTTP control plane (`reset`, `state`, `step`). It handles environment lifecycle and simulation stepping (if applicable).
+- **Agent (`FleetMCPTools`)**: Has access *only* to the MCP tool capabilities (`list_tools`, `call_tool`). It cannot reset or delete the environment.
 
-**Fleet Adapter (Client-Side Execution):**
-```
-Agent -> Client -> [MCP Client] -> [Network] -> Remote MCP Endpoint
-            ^
-            | Client executes tool via MCP
-```
-
-**Why:** Fleet servers expose raw MCP endpoints but lack a `/step` handler that wraps them as of now. The `FleetEnvClient` bridges this gap, preserving the user-facing `env.step()` interface while handling protocol details locally.
+This avoids "leaking" powerful orchestration capabilities (like `reset` or `delete`) to the agent runtime. Unlike a "bridged" implementation where `env.step()` handles everything, this design requires the caller to explicitly use the correct handle for the correct intent.
