@@ -56,6 +56,37 @@ This environment is ideal for:
 - **Configurable**: Customize app configurations and behavior
 - **BrowserGym Integration**: Built on top of BrowserGym for robust browser interaction
 
+## Directory Structure
+
+```
+openapp_env/
+├── __init__.py                   # Package exports
+├── client.py                     # HTTP client for connecting to OpenApp
+├── models.py                     # Data models for actions and observations
+├── pyproject.toml                # Package dependencies and configuration
+├── openenv.yaml                  # OpenEnv environment configuration
+├── test_openapp_env.py           # Unit tests for environment structure
+├── README.md                     # This file
+├── IMPLEMENTATION.md             # Implementation details and design decisions
+├── example_usage.py              # Basic usage example (legacy)
+├── assets/                       # Images and media
+│   ├── OpenApps_OpenEnv_RL.png   # Environment overview diagram
+│   └── openapps-demo.gif         # Demo animation
+└── server/                       # Server-side environment implementation
+    ├── __init__.py
+    ├── app.py                    # FastAPI server application
+    ├── openapp_environment.py    # Core environment logic (BrowserGym + OpenApps)
+    └── Dockerfile                # Docker image definition
+```
+
+**Key Components:**
+
+- **client.py**: `OpenAppEnv` class that extends `HTTPEnvClient` for remote environment interaction
+- **models.py**: `OpenAppAction` and `OpenAppObservation` dataclasses with validation
+- **server/openapp_environment.py**: `OpenAppEnvironment` class that wraps BrowserGym and OpenApps
+- **server/app.py**: FastAPI server that exposes the environment via HTTP endpoints
+- **Dockerfile**: Self-contained Docker image with all dependencies (OpenApps, BrowserGym, Playwright)
+
 ## Installation
 
 ### For Docker Usage (Recommended)
