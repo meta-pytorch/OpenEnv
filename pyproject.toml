@@ -26,6 +26,12 @@ dependencies = [
     "tomli-w>=1.2.0"
 ]
 
+[project.optional-dependencies]
+fleet = [
+    "mcp>=1.0.0",
+    "fleet-sdk>=0.2.79",
+]
+
 [project.scripts]
 openenv = "openenv_cli.__main__:main"
 
@@ -38,6 +44,9 @@ include-package-data = true
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
 
 [tool.coverage.run]
 omit = [
