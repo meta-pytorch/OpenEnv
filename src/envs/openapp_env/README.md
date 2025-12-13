@@ -38,7 +38,7 @@ LICENSE file in the root directory of this source tree.
 The OpenApp environment provides a simulated web application ecosystem where agents can interact with various apps (calendar, todo, messenger, maps) using browser-based actions.
 
 <div align="center">
-<img src="assets/openapps-demo.gif" alt="OpenApps Demo" width="600"/>
+<img src="assets/openapps-demo.gif" alt="OpenApps Demo" width="800"/>
 </div>
 
 This environment is ideal for:
