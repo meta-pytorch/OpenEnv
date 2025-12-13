@@ -76,7 +76,8 @@ openapp_env/
     ├── __init__.py
     ├── app.py                    # FastAPI server application
     ├── openapp_environment.py    # Core environment logic (BrowserGym + OpenApps)
-    └── Dockerfile                # Docker image definition
+    ├── Dockerfile                # Docker image definition
+    └── start.sh                  # Container startup script (runs both servers)
 ```
 
 **Key Components:**
@@ -85,7 +86,8 @@ openapp_env/
 - **models.py**: `OpenAppAction` and `OpenAppObservation` dataclasses with validation
 - **server/openapp_environment.py**: `OpenAppEnvironment` class that wraps BrowserGym and OpenApps
 - **server/app.py**: FastAPI server that exposes the environment via HTTP endpoints
-- **Dockerfile**: Self-contained Docker image with all dependencies (OpenApps, BrowserGym, Playwright)
+- **server/Dockerfile**: Self-contained Docker image with OpenApps server and FastAPI server
+- **server/start.sh**: Startup script that launches both OpenApps (port 5001) and FastAPI (port 8000)
 
 ## Installation
 
@@ -108,22 +110,38 @@ cd src/envs/openapp_env
 docker build -t openapp-env:latest -f server/Dockerfile .
 ```
 
+**Note for Meta/Corporate Networks:** If you're behind a proxy (HTTP_PROXY/HTTPS_PROXY set), you may need to bypass it for localhost connections:
+```bash
+export NO_PROXY=localhost,127.0.0.1
+docker build -t openapp-env:latest -f src/envs/openapp_env/server/Dockerfile src/envs/openapp_env
+```
+
 **What gets installed in Docker:**
 - **OpenEnv core**: Installed as a dependency
-- **OpenApps**: Installed directly from GitHub
+- **OpenApps**: Cloned from GitHub and installed (runs server inside container)
 - **Core packages**: FastAPI, Uvicorn, Pydantic, Requests (from pyproject.toml)
 - **BrowserGym**: For browser automation
 - **Playwright**: Chromium browser for UI interaction
 - **Web interface support**: Enabled by default via `ENABLE_WEB_INTERFACE=true`
 
+**How Docker mode works:**
+The Docker container runs TWO services automatically:
+1. **OpenApps server** (port 5001) - Provides the web applications (calendar, todo, messenger, maps)
+2. **FastAPI server** (port 8000) - Exposes the OpenEnv HTTP API
+
+Both servers start automatically when the container launches. You only interact with port 8000.
+
 **Build details:**
 - Base image: `python:3.11-slim` (public)
 - Installation: Uses `pip install -e .` with pyproject.toml
 - System deps: Playwright/Chromium dependencies for browser automation
-- Size: ~1.5-2GB (includes Chromium browser)
+- Size: ~5.7GB (includes Chromium browser and all dependencies)
 
 **Step 2: Run the example**
 ```bash
+# For Meta/Corporate Networks with proxy, also set NO_PROXY:
+export NO_PROXY=localhost,127.0.0.1
+
 python examples/openapp_example.py --mode docker
 ```
 
@@ -131,7 +149,11 @@ python examples/openapp_example.py --mode docker
 
 ### Option 2: Local Mode
 
-Local mode requires both the Python package and the OpenApps repository for running the server.
+Local mode requires manual setup of the OpenApps server. This mode is useful for development or when you need to customize the OpenApps configuration.
+
+**Prerequisites:**
+- Python 3.11+ installed
+- UV package manager (recommended) or pip
 
 **Step 1: Install openapp_env**
 ```bash
@@ -139,35 +161,75 @@ cd src/envs/openapp_env
 pip install -e .
 ```
 
-This installs OpenApps as a Python package dependency along with BrowserGym, Playwright, etc.
+This installs the environment package along with dependencies (BrowserGym, Playwright, etc.).
 
 **Step 2: Install Playwright browsers**
 ```bash
 playwright install chromium
 ```
 
-**Step 3: Get OpenApps repository** (for running the server)
+**Step 3: Clone and set up OpenApps** (for running the server)
 ```bash
-# Clone OpenApps to run the server
+# Clone OpenApps repository
 git clone https://github.com/facebookresearch/OpenApps.git
 cd OpenApps
-uv sync
+
+# Install dependencies
+uv sync  # or: pip install -e .
 ```
 
-**Why both?**
-- The Python package (installed via pip) provides the OpenApps modules
-- The repository clone provides launch.py and config files to run the server
-- Docker mode includes everything, so you only need the repository for local development
+**Why do I need the OpenApps repository?**
+
+The OpenApps Python package (installed via pip in Step 1) provides the library code, but the repository contains:
+- `launch.py` - The server startup script
+- `config/` - Hydra configuration files
+- Application templates and assets
+
+In Docker mode, all of this is included in the container, so you don't need to clone anything.
 
 ## Quick Start
 
 ### Running with Docker (Recommended)
 
-The easiest way to use OpenApp environment is with Docker, which handles all the setup automatically:
+Docker mode is the easiest way - everything is automated:
 
 ```bash
+# For Meta/Corporate networks with proxy, set NO_PROXY first:
+export NO_PROXY=localhost,127.0.0.1
+
+# Run the example
 python examples/openapp_example.py --mode docker
 ```
+
+The Docker container automatically:
+- Starts the OpenApps server (port 5001)
+- Starts the FastAPI server (port 8000)
+- Manages both services for you
+
+No manual server setup required!
+
+**What happens inside the container:**
+
+When you run `from_docker_image()`, the following happens automatically:
+
+1. **Container Startup** (`/app/start.sh` runs):
+   ```bash
+   # Launches OpenApps server in background
+   cd /app/openapps
+   python launch.py &
+
+   # Waits for port 5001 to be ready
+   # Then starts FastAPI server
+   uvicorn openapp_env.server.app:app --host 0.0.0.0 --port 8000
+   ```
+
+2. **Your client code** interacts only with port 8000:
+   ```python
+   client = OpenAppEnv.from_docker_image("openapp-env:latest")
+   # Client -> FastAPI (port 8000) -> OpenApps (port 5001)
+   ```
+
+3. **On cleanup**, both servers are automatically stopped when the container is removed.
 
 ### Running Locally
 
@@ -258,12 +320,19 @@ While the OpenApps server is running, open your browser to:
 
 **Option 3: Docker Web Interface**
 
-When running in Docker mode, access the web interface at:
-```
-http://localhost:8000/web
+When running in Docker mode, you can also access a web interface for manual testing:
+
+```bash
+# Start a container and keep it running
+docker run -d -p 8000:8000 openapp-env:latest
+
+# Access the web interface
+# - Interactive UI: http://localhost:8000/web
+# - API docs: http://localhost:8000/docs
+# - OpenApps (internal): http://localhost:5001 (inside container)
 ```
 
-This provides an interactive UI for manual testing and API documentation at `http://localhost:8000/docs`.
+**Note:** In Docker mode, the OpenApps server runs inside the container and is not directly accessible from your host machine. The FastAPI server at port 8000 acts as a proxy to interact with OpenApps.
 
 ### Basic Usage
 
@@ -426,6 +495,78 @@ test_environment()
 This environment integrates:
 - [OpenApps](https://github.com/facebookresearch/OpenApps) - Web application simulation framework
 - [BrowserGym](https://github.com/ServiceNow/BrowserGym) - Browser automation environment
+
+## Troubleshooting
+
+### Docker Build Issues
+
+**Error: `Container did not become ready`**
+
+If you're behind a corporate proxy (Meta/Facebook networks), set `NO_PROXY`:
+```bash
+export NO_PROXY=localhost,127.0.0.1
+docker build -t openapp-env:latest -f src/envs/openapp_env/server/Dockerfile src/envs/openapp_env
+```
+
+**Error: `Environment variable 'USER' not found`**
+
+This is automatically handled in the Dockerfile with `ENV USER=root`. If you see this, rebuild the image.
+
+**Container exits immediately**
+
+Check the logs to see which server failed:
+```bash
+docker logs <container-id>
+```
+
+Common causes:
+- OpenApps server failed to start (check for port conflicts)
+- Missing dependencies (rebuild with `--no-cache`)
+
+### Local Mode Issues
+
+**Error: `OPENAPPS_URL not set`**
+
+Set the environment variable before running:
+```bash
+export OPENAPPS_URL=http://localhost:5001
+python examples/openapp_example.py --mode local
+```
+
+**Error: `Connection refused to localhost:5001`**
+
+Make sure the OpenApps server is running:
+```bash
+cd OpenApps
+uv run launch.py
+```
+
+**Browser visualization not working**
+
+The visualization is controlled by the **server**, not the client:
+```bash
+# Start server with visible browser
+cd OpenApps
+python launch.py browsergym_env_args.headless=False
+```
+
+### Performance Issues
+
+**Docker container is slow**
+
+The container runs both a full Chromium browser and web applications. For faster performance:
+- Increase Docker memory allocation (6GB+ recommended)
+- Use headless mode (default)
+- Reduce `max_steps` in environment configuration
+
+**Large Docker image size**
+
+The image is ~5.7GB due to:
+- Chromium browser (~1.5GB)
+- OpenApps dependencies (~2GB)
+- BrowserGym and ML libraries (~2GB)
+
+This is expected for a full browser automation environment.
 
 ## License
 
