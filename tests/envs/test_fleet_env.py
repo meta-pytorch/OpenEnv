@@ -45,7 +45,7 @@ def fake_requests_session(monkeypatch):
 
 @pytest.fixture
 def fake_fleet_module(monkeypatch):
-    # Create a fake `fleet` module with AsyncFleet.make returning an env with urls.
+    # Create a fake `fleet` module with Fleet.make returning an env with urls.
     class _Urls:
         def __init__(self):
             self.root = "https://example/"
@@ -63,14 +63,14 @@ def fake_fleet_module(monkeypatch):
         def close(self):
             self.closed = True
 
-    class _AsyncFleet:
+    class _Fleet:
         def __init__(self, api_key=None):
             self.api_key = api_key
 
-        async def make(self, **kwargs):
+        def make(self, **kwargs):
             return _Env()
 
-    mod = types.SimpleNamespace(AsyncFleet=_AsyncFleet)
+    mod = types.SimpleNamespace(Fleet=_Fleet)
     monkeypatch.setitem(sys.modules, "fleet", mod)
 
 
@@ -112,18 +112,14 @@ async def test_agent_tools_list_and_call_routes(monkeypatch):
     class _Tool:
         def __init__(self, name):
             self.name = name
+            self.description = ""
+            self.inputSchema = {"type": "object", "properties": {}, "required": []}
 
     class _FakeMCPClient:
         def __init__(self, url, api_key):
             self.url = url
             self.api_key = api_key
             self.list_calls = 0
-
-        async def __aenter__(self):
-            return self
-
-        async def __aexit__(self, exc_type, exc, tb):
-            return False
 
         async def list_tools(self):
             self.list_calls += 1
@@ -141,7 +137,7 @@ async def test_agent_tools_list_and_call_routes(monkeypatch):
 
     tools = FleetMCPTools(api_key="k", mcp_urls=("https://x/api/v1/mcp", "https://x/mcp"))
     listed = await tools.list_tools()
-    assert sorted([t.name for t in listed]) == ["computer", "search_issues"]
+    assert sorted([t["function"]["name"] for t in listed.tools]) == ["computer", "search_issues"]
 
     res = await tools.call_tool("computer", {"action": "screenshot"})
     assert res["url"].endswith("api/v1/mcp")

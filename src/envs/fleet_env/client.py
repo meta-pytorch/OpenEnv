@@ -56,45 +56,28 @@ class FleetEnvClient(HTTPEnvClient[Action, Observation]):
         image_type: str = "mcp",
         **kwargs: Any,
     ) -> Tuple["FleetEnvClient", FleetMCPTools]:
-        """
-            Instantiate a FleetEnvClient and FleetMCPTools from a Fleet environment.
-
-            Args:
-                api_key: The API key for the Fleet environment.
-                env_key: The environment key for the Fleet environment.
-                region: The region for the Fleet environment.
-                ttl_seconds: The TTL for the Fleet environment.
-                env_variables: The environment variables for the Fleet environment.
-                image_type: The image type for the Fleet environment.
-        """
         try:
-            from fleet import AsyncFleet
+            from fleet import Fleet
         except ImportError as e:
             raise ImportError(
                 "Fleet support requires the optional dependency set. "
                 "Install with `pip install openenv-core[fleet]`."
             ) from e
 
-        async def _make_env():
-            fleet = AsyncFleet(api_key=api_key)
-            return await fleet.make(
-                env_key=env_key,
-                region=region,
-                ttl_seconds=ttl_seconds,
-                env_variables=env_variables,
-                image_type=image_type,
-            )
-
-        loop = asyncio.new_event_loop()
-        try:
-            asyncio.set_event_loop(loop)
-            env = loop.run_until_complete(_make_env())
-        finally:
-            asyncio.set_event_loop(None)
-            loop.close()
+        # Use synchronous Fleet client for the orchestrator handle.
+        # This ensures .close() and other lifecycle methods are synchronous.
+        fleet = Fleet(api_key=api_key)
+        env = fleet.make(
+            env_key=env_key,
+            region=region,
+            ttl_seconds=ttl_seconds,
+            env_variables=env_variables,
+            image_type=image_type,
+        )
 
         root = env.urls.root
-        mcp_urls = tuple(sorted({f"{root}api/v1/mcp", f"{root}mcp"}))
+        # Fleet currently exposes multiple MCP endpoints. Prefer /api/v1/mcp first.
+        mcp_urls = (f"{root}api/v1/mcp", f"{root}mcp")
 
         orch = cls(
             base_url=env.urls.manager.api,

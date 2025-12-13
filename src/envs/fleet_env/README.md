@@ -1,96 +1,124 @@
-### Fleet Runtime Integration (OpenEnv) — Design Proposal
+### Fleet environments
 
-### Goal
-Run OpenEnv environments on **Fleet** (remote) with **no Docker**, strictly adhering to:
-- **RFC 001**: Agent interacts via MCP tools; Orchestration via HTTP.
-- **RFC 003**: Standardized `ListToolsAction` and `CallToolAction`.
+This integration lets you run OpenEnv environments on **Fleet** (remote) without Docker.
+The key idea is simple: keep **orchestration** and **agent actions** separate.
 
-### Architecture
+- **Orchestration (HTTP)**: reset / step / state (episode + lifecycle control)
+- **Agent actions (MCP)**: tools/list + tools/call (what the agent can do)
 
-We implement a client-side adapter (`FleetEnvClient`) that aggregates Fleet's interfaces into the OpenEnv contract.
+That boundary matches **RFC 001** (split planes) and lines up with **RFC 003**’s “tool-call actions”.
+If you want the longer-form design background, see:
+
+- **RFC 001**: [`rfcs/001-abstractions.md`](../../../rfcs/001-abstractions.md)
+- **RFC 003**: [`rfcs/003-mcp-support.md`](../../../rfcs/003-mcp-support.md)
+
+### What this is *not* (container/provider abstraction)
+
+This Fleet integration is intentionally **not** a “container runtime” abstraction (no Docker provider, no local container lifecycle).
+In particular, there is **no local Dockerized setup** where you spin up an “env server” container alongside an “env” container; Fleet hosts the runtime remotely (HTTP env server + MCP service), and the client connects to it.
+Fleet provisions and runs the environment remotely; on the client side we just hold two handles:
+
+- `FleetEnvClient` for the HTTP orchestration plane
+- `FleetMCPTools` for the MCP agent plane
+
+### Architecture (one picture)
 
 ```mermaid
 flowchart TB
-  subgraph Client["OpenEnv Client (Local)"]
-    direction TB
+  subgraph Client["OpenEnv client (local)"]
     Agent["Agent / Policy"]
-    Orch["FleetEnvClient<br/>(Orchestrator, HTTP)"]
-    Tools["FleetMCPTools<br/>(Agent, MCP)"]
+    Orch["FleetEnvClient (HTTP)"]
+    Tools["FleetMCPTools (MCP)"]
   end
 
-  subgraph Runtime["Fleet Runtime (Remote)"]
-    direction TB
-    HTTP["Instance Manager HTTP API<br/>/reset /step /state"]
-    MCP_SVC["Fleet MCP Service<br/>(Multiple endpoints aggregated)"]
+  subgraph Runtime["Fleet runtime (remote)"]
+    HTTP["Instance Manager HTTP API"]
+    MCP["MCP service"]
   end
 
-  %% Orchestration (RFC 001)
-  Orch --"reset()/step()/state()"--> HTTP
-
-  %% Agent actions (RFC 003)
-  Agent --"tools/list, tools/call"--> Tools
-  Tools <-->|"SSE Session (Multiplexed)"| MCP_SVC
+  Orch -- reset/step/state --> HTTP
+  Agent -- list_tools/call_tool --> Tools
+  Tools <-- streamable HTTP --> MCP
 ```
 
-### 1. Combined Action Space (Client-Side Multiplexing)
-Fleet instances currently expose multiple MCP endpoints (e.g., `api/v1/mcp` for browser control, `mcp` for API tools). 
+### What FleetMCPTools does (and why)
 
-**The Strategy:**
-1.  **Connect to ALL**: The client establishes sessions with both `root + "api/v1/mcp"` and `root + "mcp"`.
-2.  **Union Tools**: `FleetMCPTools.list_tools()` returns the union of tools from all connected endpoints.
-3.  **Route Execution**: `FleetMCPTools.call_tool()` routes the call to the endpoint that owns the tool.
+Fleet currently exposes **more than one MCP endpoint** (commonly `api/v1/mcp` and `mcp`).
+`FleetMCPTools` handles that so your agent code doesn’t need to care:
 
-> **Future Work**: This client-side multiplexing is a temporary workaround. Future versions of the Fleet API will expose a single unified MCP endpoint that aggregates all tools server-side, removing the need for the client to know about specific paths like `api/v1/mcp`.
+- **Union tools**: `await tools.list_tools()` returns a `ListToolsAction` where `.tools` is the union of tools across endpoints.
+- **OpenAI-friendly format**: `.tools` is already in OpenAI “tools” dict format (via `convert_tool_format()`).
+- **Route calls**: `await tools.call_tool(name, args)` routes to the endpoint that owns `name` (cached after discovery).
 
-### 2. Client Implementation (`FleetEnvClient`)
+### Pseudocode (how the wiring works)
 
-This adapter replaces `LocalDockerProvider` and remains orchestration-only (HTTP). Agent tool calls are handled by `FleetMCPTools` (MCP).
+This is intentionally “conceptual code” — it’s here to make the split-plane design obvious:
 
 ```python
-# Pseudocode implementation of the Client Adapter
 class FleetEnvClient(HTTPEnvClient):
     @classmethod
-    def from_fleet(cls, api_key, env_key, **kwargs):
-        # 1. Provision Instance via Fleet SDK
-        env = fleet.make(env_key, ...)
-        
-        # 2. Establish MCP Sessions (Streamable HTTP)
-        # We connect to BOTH to provide the full browser + api toolset
-        mcp_sessions = []
-        for path in ["api/v1/mcp", "mcp"]:
-            url = f"{env.urls.root}{path}"
-            if is_reachable(url):
-                mcp_sessions.append(connect_mcp(url, api_key))
-                
-        orch = cls(base_url=env.urls.manager.api)
-        tools = FleetMCPTools(mcp_urls=mcp_sessions)
+    def from_fleet(cls, api_key: str, env_key: str, **kwargs):
+        # 1) Provision a remote instance via Fleet SDK
+        env = Fleet(api_key=api_key).make(env_key=env_key, image_type="mcp", **kwargs)
+
+        # 2) Orchestrator handle talks to the Instance Manager (HTTP)
+        orch = cls(
+            base_url=env.urls.manager.api,
+            default_headers={"Authorization": f"Bearer {api_key}"},
+        )
+
+        # 3) Agent handle talks to MCP (may be multiple endpoints today)
+        mcp_urls = (
+            f"{env.urls.root}api/v1/mcp",
+            f"{env.urls.root}mcp",
+        )
+        tools = FleetMCPTools(api_key=api_key, mcp_urls=mcp_urls)
+
         return orch, tools
-
-    # step/reset/state remain HTTP only
 ```
 
-### 3. Usage (User Perspective)
+### Quickstart
 
-```python
-# The user simply provides keys. No Docker required.
-orch, tools = FleetEnvClient.from_fleet(
-    api_key=os.environ["FLEET_API_KEY"],
-    env_key=os.environ["FLEET_ENV_KEY"]
-)
+- Install: `pip install "openenv-core[fleet]"`
+- Set: `export FLEET_API_KEY="..."`
+- Run: `python examples/fleet_env_example.py <env_key>`
 
-# Orchestrator controls episode (HTTP)
-orch.reset()
+### Walkthrough (what the example is doing)
 
-# Agent uses MCP tools (Browser + API)
-tools_list = await tools.list_tools()
-result = await tools.call_tool("computer", {...})
+See `examples/fleet_env_example.py`.
+
+1. **Provision** a remote env on Fleet:
+   - `orch, tools = FleetEnvClient.from_fleet(...)`
+2. **Reset** the episode via HTTP:
+   - `obs = orch.reset()`
+3. **Discover tools** via MCP:
+   - `listed = await tools.list_tools()`
+   - `tool_defs = listed.tools`
+   - Each entry in `tool_defs` has `{"type": "function", "function": {"name": ..., "parameters": ...}}`
+4. **Call a tool** (the example picks a “safe” action from the schema and calls `computer`)
+
+Here’s a real run (trimmed) so you know what “healthy” looks like:
+
+```text
+Provisioning Fleet environment: amazon...
+Orchestrator: Resetting environment...
+Reset complete. Initial observation keys: []
+
+Agent: Discovering tools...
+Available tools (1): ['computer']
+[{'type': 'object', 'properties': {'action': {'enum': ['screenshot', ..., 'cursor_position'], 'type': 'string'}, ...}, 'required': ['action']}]
+
+Target Tool: computer
+Agent: Calling tool 'computer' with {'action': 'cursor_position'}...
+Agent: Tool execution result received.
+result=CallToolResult(... structuredContent={'result': {'output': 'X=683,Y=384', ...}})
 ```
 
-### Architecture Note: Strict Separation of Concerns
+### TODOs / known sharp edges
 
-This implementation enforces a strict boundary between the **Orchestration Plane** and the **Agent Plane**, aligning with RFC 001.
-
-- **Orchestrator (`FleetEnvClient`)**: Has access to the HTTP control plane (`reset`, `state`, `step`). It handles environment lifecycle and simulation stepping (if applicable).
-- **Agent (`FleetMCPTools`)**: Has access *only* to the MCP tool capabilities (`list_tools`, `call_tool`). It cannot reset or delete the environment.
-
-This avoids "leaking" powerful orchestration capabilities (like `reset` or `delete`) to the agent runtime. Unlike a "bridged" implementation where `env.step()` handles everything, this design requires the caller to explicitly use the correct handle for the correct intent.
+- **MCP endpoint abstraction**: stop hardcoding `("api/v1/mcp", "mcp")` and discover endpoints (or accept a single unified endpoint when Fleet provides one).
+- **Reset inconsistencies**: some env keys don’t behave consistently on `/reset` (needs better error reporting + a compatibility note per env type).
+- **Determinism in examples**: example currently randomizes among safe actions; add an explicit seed or a single default for reproducible docs.
+- **Tool dedupe rules**: if the same tool name exists on two endpoints, define/record the policy (first-wins vs prefer `api/v1/mcp`, etc.).
+- **Better surfacing of schemas**: optional flag to return both OpenAI-shaped tool defs and raw MCP `inputSchema` for debugging.
+- **Retries / backoff**: MCP list/call should have bounded retries and clearer failure modes when one endpoint is down.

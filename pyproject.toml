@@ -29,7 +29,7 @@ dependencies = [
 [project.optional-dependencies]
 fleet = [
     "mcp>=1.0.0",
-    "fleet-sdk>=0.2.79",
+    "fleet-python>=0.2.79",
 ]
 
 [project.scripts]
