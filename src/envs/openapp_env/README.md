@@ -89,21 +89,49 @@ openapp_env/
 
 ## Installation
 
-### For Docker Usage (Recommended)
+There are two ways to use the OpenApp environment: **Docker mode** (recommended, fully self-contained) or **Local mode** (requires manual server setup).
 
-Docker mode is fully self-contained and requires no additional setup:
+### Option 1: Docker Mode (Recommended)
+
+Docker mode is fully self-contained and handles all dependencies automatically. No local installation required!
+
+**Step 1: Build the Docker image**
+
+The Docker image can be built in standalone mode using only public base images:
 
 ```bash
+# Build from project root
+docker build -t openapp-env:latest -f src/envs/openapp_env/server/Dockerfile src/envs/openapp_env
+
+# Or build from the openapp_env directory
 cd src/envs/openapp_env
-pip install -e .
-playwright install chromium
+docker build -t openapp-env:latest -f server/Dockerfile .
 ```
 
-Then build and use the Docker image - OpenApps is included in the container.
+**What gets installed in Docker:**
+- **OpenEnv core**: Installed as a dependency
+- **OpenApps**: Installed directly from GitHub
+- **Core packages**: FastAPI, Uvicorn, Pydantic, Requests (from pyproject.toml)
+- **BrowserGym**: For browser automation
+- **Playwright**: Chromium browser for UI interaction
+- **Web interface support**: Enabled by default via `ENABLE_WEB_INTERFACE=true`
 
-### For Local Development
+**Build details:**
+- Base image: `python:3.11-slim` (public)
+- Installation: Uses `pip install -e .` with pyproject.toml
+- System deps: Playwright/Chromium dependencies for browser automation
+- Size: ~1.5-2GB (includes Chromium browser)
 
-Local mode requires both the Python package and the OpenApps repository:
+**Step 2: Run the example**
+```bash
+python examples/openapp_example.py --mode docker
+```
+
+**Note:** For Docker mode, you only need Python installed locally to run the example script. All environment dependencies are inside the Docker container.
+
+### Option 2: Local Mode
+
+Local mode requires both the Python package and the OpenApps repository for running the server.
 
 **Step 1: Install openapp_env**
 ```bash
@@ -129,7 +157,7 @@ uv sync
 **Why both?**
 - The Python package (installed via pip) provides the OpenApps modules
 - The repository clone provides launch.py and config files to run the server
-- Docker mode includes everything, so you only need it for local development
+- Docker mode includes everything, so you only need the repository for local development
 
 ## Quick Start
 
@@ -153,9 +181,20 @@ uv sync
 ```
 
 **Step 2: Start OpenApps Server** (in terminal 1)
+
+To run the server in **headless mode** (no browser window):
 ```bash
 cd OpenApps  # or wherever you cloned it
 uv run launch.py
+
+# or instead of the uv run you can use the Python command:
+python OpenApps/launch.py
+```
+
+To run the server with **visible browser** for visualization:
+```bash
+cd OpenApps
+python OpenApps/launch.py browsergym_env_args.headless=False
 ```
 
 Wait for the server to start (you'll see "Port 5001 is available" or similar).
@@ -192,11 +231,21 @@ python examples/openapp_example.py --help
 
 There are multiple ways to see what the agent is doing:
 
-**Option 1: Show Browser Window**
+**Option 1: Show Browser Window (Local Mode)**
+
+The key is to start the OpenApps server with visualization enabled:
+
 ```bash
-# Watch the agent interact with apps in real-time
-python examples/openapp_example.py --mode local --show-browser
+# Terminal 1: Start OpenApps server with visible browser
+cd OpenApps
+python OpenApps/launch.py browsergym_env_args.headless=False
+
+# Terminal 2: Run your agent code
+export OPENAPPS_URL=http://localhost:5001
+python examples/openapp_example.py --mode local
 ```
+
+**Important:** The browser visualization is controlled by the OpenApps server, not the client. You must launch the server with `browsergym_env_args.headless=False` to see the browser window.
 
 **Option 2: Access Web Interface Directly**
 
@@ -204,7 +253,7 @@ While the OpenApps server is running, open your browser to:
 - Main page: `http://localhost:5001`
 - Calendar: `http://localhost:5001/calendar`
 - Todo: `http://localhost:5001/todo`
-- Messenger: `http://localhost:5001/messenger`
+- Messenger: `http://localhost:5001/messages`
 - Maps: `http://localhost:5001/maps`
 
 **Option 3: Docker Web Interface**
@@ -309,34 +358,6 @@ env = OpenAppEnvironment(
 ```
 
 **Note:** OpenApps is automatically detected from the installed Python package. You can optionally override with `openapps_path` parameter or `OPENAPPS_PATH` environment variable if needed.
-
-## Building Docker Image
-
-The OpenApp environment Docker image can be built in standalone mode using only public base images. This makes it suitable for CI/CD, GitHub, and HuggingFace deployments.
-
-```bash
-# Build from project root
-docker build -t openapp-env:latest -f src/envs/openapp_env/server/Dockerfile src/envs/openapp_env
-
-# Or build from the openapp_env directory
-cd src/envs/openapp_env
-docker build -t openapp-env:latest -f server/Dockerfile .
-```
-
-**What gets installed:**
-
-The Dockerfile uses the `pyproject.toml` to install all dependencies:
-- **OpenEnv core**: Installed as a dependency
-- **Core packages**: FastAPI, Uvicorn, Pydantic, Requests (from pyproject.toml)
-- **BrowserGym**: For browser automation
-- **Playwright**: Chromium browser for UI interaction
-- **Web interface support**: Enabled by default via `ENABLE_WEB_INTERFACE=true`
-
-**Build details:**
-- Base image: `python:3.11-slim` (public)
-- Installation: Uses `pip install -e .` with pyproject.toml
-- System deps: Playwright/Chromium dependencies for browser automation
-- Size: ~1.5-2GB (includes Chromium browser)
 
 ## Tasks and Rewards
 
