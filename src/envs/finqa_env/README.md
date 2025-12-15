@@ -16,6 +16,8 @@ FinQA tests an agent's ability to:
 
 **Reward**: Binary (1.0 for correct answer, 0.0 for incorrect) using fuzzy numerical matching with 1% tolerance.
 
+> **Note**: This dataset is for evaluation only. Do not train on it.
+
 ## Quick Start
 
 ### Using Docker
@@ -26,6 +28,12 @@ docker build -t finqa-env:latest -f src/envs/finqa_env/server/Dockerfile .
 
 # Run the server
 docker run -p 8000:8000 finqa-env:latest
+```
+
+### Local Development
+
+```bash
+uv pip install pandas
 ```
 
 ### Using the Client
