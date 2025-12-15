@@ -34,7 +34,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy environment files first (for better caching)
-COPY . .
+COPY src/core/ /app/src/core/
+COPY src/envs/browsergym_env/ /app/env/
 
 # Make start script executable
 RUN chmod +x /app/env/server/start.sh
