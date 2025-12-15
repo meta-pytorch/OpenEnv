@@ -408,11 +408,22 @@ class OpenAppEnvironment(Environment):
         )
 
     def _execute_click(self, bid: str) -> float:
-        """Execute click action. Returns reward."""
+        """Execute click action. Returns reward.
+
+        Supports two modes:
+        1. CSS selector mode: If bid starts with '#', '.', or '[', it's treated as a CSS selector
+           and uses Playwright directly (e.g., bid="#msg-input")
+        2. BrowserGym mode: Otherwise, uses BrowserGym's accessibility tree bid
+        """
         if self._browser_env is None:
             return 0.0
 
         try:
+            # Check if bid is a CSS selector (starts with # or other CSS selector chars)
+            if bid.startswith('#') or bid.startswith('.') or bid.startswith('['):
+                # Use Playwright directly for CSS selectors
+                return self._execute_click_playwright(bid)
+
             # BrowserGym action format: click("bid")
             action = f'click("{bid}")'
             obs, reward, done, truncated, info = self._browser_env.step(action)
@@ -428,11 +439,22 @@ class OpenAppEnvironment(Environment):
             return -0.1
 
     def _execute_fill(self, bid: str, text: str) -> float:
-        """Execute fill action. Returns reward."""
+        """Execute fill action. Returns reward.
+
+        Supports two modes:
+        1. CSS selector mode: If bid starts with '#', it's treated as an HTML ID selector
+           and uses Playwright directly (e.g., bid="#msg-input")
+        2. BrowserGym mode: Otherwise, uses BrowserGym's accessibility tree bid
+        """
         if self._browser_env is None:
             return 0.0
 
         try:
+            # Check if bid is a CSS selector (starts with # or other CSS selector chars)
+            if bid.startswith('#') or bid.startswith('.') or bid.startswith('['):
+                # Use Playwright directly for CSS selectors
+                return self._execute_fill_playwright(bid, text)
+
             # BrowserGym action format: fill("bid", "text")
             action = f'fill("{bid}", "{text}")'
             obs, reward, done, truncated, info = self._browser_env.step(action)
@@ -446,6 +468,77 @@ class OpenAppEnvironment(Environment):
         except Exception as e:
             self._last_action_error = f"Fill failed: {str(e)}"
             return -0.1
+
+    def _execute_fill_playwright(self, selector: str, text: str) -> float:
+        """Execute fill action using Playwright directly with CSS selector."""
+        try:
+            # Access the underlying Playwright page from BrowserGym
+            page = self._browser_env.unwrapped.page
+
+            # Wait for element and fill it
+            page.wait_for_selector(selector, timeout=5000)
+            page.fill(selector, text)
+
+            # Small delay to let the page update
+            page.wait_for_timeout(200)
+
+            # Update observation after action
+            self._update_observation_from_page(page)
+
+            return 0.0
+        except Exception as e:
+            self._last_action_error = f"Fill (Playwright) failed: {str(e)}"
+            return -0.1
+
+    def _execute_click_playwright(self, selector: str) -> float:
+        """Execute click action using Playwright directly with CSS selector."""
+        try:
+            # Access the underlying Playwright page from BrowserGym
+            page = self._browser_env.unwrapped.page
+
+            # Wait for element and click it
+            page.wait_for_selector(selector, timeout=5000)
+            page.click(selector)
+
+            # Longer delay to let HTMX process the request
+            page.wait_for_timeout(500)
+
+            # Update observation after action
+            self._update_observation_from_page(page)
+
+            return 0.0
+        except Exception as e:
+            self._last_action_error = f"Click (Playwright) failed: {str(e)}"
+            return -0.1
+
+    def _execute_press_key_playwright(self, key: str) -> float:
+        """Execute key press using Playwright directly."""
+        try:
+            # Access the underlying Playwright page from BrowserGym
+            page = self._browser_env.unwrapped.page
+
+            # Press the key
+            page.keyboard.press(key)
+
+            # Delay to let the page update
+            page.wait_for_timeout(500)
+
+            # Update observation after action
+            self._update_observation_from_page(page)
+
+            return 0.0
+        except Exception as e:
+            self._last_action_error = f"Press key (Playwright) failed: {str(e)}"
+            return -0.1
+
+    def _update_observation_from_page(self, page) -> None:
+        """Update internal observation state from Playwright page."""
+        try:
+            self._current_url = page.url
+            # Note: We can't easily get axtree from Playwright directly,
+            # so we'll just update URL. The next BrowserGym action will sync the state.
+        except Exception:
+            pass
 
     def _execute_select(self, bid: str, value: str) -> float:
         """Execute select option action. Returns reward."""
@@ -515,6 +608,10 @@ class OpenAppEnvironment(Environment):
             return 0.0
 
         try:
+            # Special handling for Enter key - use Playwright directly for reliability
+            if text == "\n" or text.lower() == "enter":
+                return self._execute_press_key_playwright("Enter")
+
             # BrowserGym action format: send_keys("text")
             action = f'send_keys("{text}")'
             obs, reward, done, truncated, info = self._browser_env.step(action)
