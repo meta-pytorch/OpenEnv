@@ -1,0 +1,866 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Doom Environment for OpenEnv - Visual RL Training</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --doom-red: #8B0000;
+            --doom-orange: #FF4500;
+            --doom-yellow: #FFD700;
+            --doom-dark: #1a1a1a;
+            --doom-darker: #0d0d0d;
+            --code-bg: #2d2d2d;
+            --text-light: #f0f0f0;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: var(--doom-darker);
+            color: var(--text-light);
+            overflow-x: hidden;
+        }
+
+        /* Animated fire background */
+        .fire-bg {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(180deg, #0d0d0d 0%, #1a0a0a 50%, #2d1010 100%);
+            z-index: -2;
+        }
+
+        .fire-particles {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: -1;
+            overflow: hidden;
+        }
+
+        .particle {
+            position: absolute;
+            bottom: -20px;
+            width: 10px;
+            height: 10px;
+            background: radial-gradient(circle, var(--doom-orange), transparent);
+            border-radius: 50%;
+            animation: rise 4s infinite ease-in;
+            opacity: 0;
+        }
+
+        @keyframes rise {
+            0% {
+                opacity: 0;
+                transform: translateY(0) scale(1);
+            }
+            10% {
+                opacity: 0.8;
+            }
+            90% {
+                opacity: 0.3;
+            }
+            100% {
+                opacity: 0;
+                transform: translateY(-100vh) scale(0.3);
+            }
+        }
+
+        /* Header */
+        .header {
+            text-align: center;
+            padding: 60px 20px;
+            background: linear-gradient(180deg, rgba(139,0,0,0.3) 0%, transparent 100%);
+            position: relative;
+        }
+
+        .header h1 {
+            font-size: 4rem;
+            color: var(--doom-red);
+            text-shadow: 0 0 20px var(--doom-red), 0 0 40px var(--doom-orange);
+            animation: pulse-glow 2s infinite alternate;
+            letter-spacing: 5px;
+        }
+
+        @keyframes pulse-glow {
+            from {
+                text-shadow: 0 0 20px var(--doom-red), 0 0 40px var(--doom-orange);
+            }
+            to {
+                text-shadow: 0 0 30px var(--doom-red), 0 0 60px var(--doom-orange), 0 0 80px var(--doom-yellow);
+            }
+        }
+
+        .header .subtitle {
+            font-size: 1.5rem;
+            color: var(--doom-yellow);
+            margin-top: 20px;
+            opacity: 0.9;
+        }
+
+        .header .tagline {
+            font-size: 1.1rem;
+            color: #aaa;
+            margin-top: 10px;
+            font-style: italic;
+        }
+
+        /* Hero Image */
+        .hero-section {
+            display: flex;
+            justify-content: center;
+            padding: 40px 20px;
+        }
+
+        .hero-image {
+            max-width: 700px;
+            width: 100%;
+            border-radius: 15px;
+            box-shadow: 0 0 50px rgba(139, 0, 0, 0.5);
+            animation: float 3s ease-in-out infinite;
+        }
+
+        @keyframes float {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-10px); }
+        }
+
+        /* Section styling */
+        .section {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 60px 20px;
+        }
+
+        .section-title {
+            font-size: 2.5rem;
+            color: var(--doom-orange);
+            text-align: center;
+            margin-bottom: 40px;
+            text-shadow: 0 0 10px var(--doom-orange);
+        }
+
+        /* Scenarios Gallery */
+        .scenarios-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 30px;
+            padding: 20px;
+        }
+
+        .scenario-card {
+            background: linear-gradient(145deg, var(--doom-dark), var(--doom-darker));
+            border-radius: 15px;
+            overflow: hidden;
+            border: 2px solid var(--doom-red);
+            transition: transform 0.3s, box-shadow 0.3s;
+            cursor: pointer;
+        }
+
+        .scenario-card:hover {
+            transform: translateY(-10px) scale(1.02);
+            box-shadow: 0 20px 40px rgba(139, 0, 0, 0.4);
+        }
+
+        .scenario-card img {
+            width: 100%;
+            height: 200px;
+            object-fit: cover;
+            border-bottom: 2px solid var(--doom-red);
+        }
+
+        .scenario-card .card-content {
+            padding: 20px;
+        }
+
+        .scenario-card h3 {
+            color: var(--doom-yellow);
+            font-size: 1.3rem;
+            margin-bottom: 10px;
+        }
+
+        .scenario-card p {
+            color: #bbb;
+            font-size: 0.95rem;
+            line-height: 1.5;
+        }
+
+        /* Code Section */
+        .code-section {
+            background: var(--code-bg);
+            border-radius: 15px;
+            padding: 30px;
+            margin: 20px 0;
+            border: 1px solid #444;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .code-section::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 40px;
+            background: linear-gradient(90deg, var(--doom-red), var(--doom-orange));
+            opacity: 0.3;
+        }
+
+        .code-header {
+            display: flex;
+            align-items: center;
+            margin-bottom: 20px;
+            padding-top: 10px;
+        }
+
+        .code-dots {
+            display: flex;
+            gap: 8px;
+        }
+
+        .code-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+        }
+
+        .code-dot.red { background: #ff5f56; }
+        .code-dot.yellow { background: #ffbd2e; }
+        .code-dot.green { background: #27c93f; }
+
+        .code-title {
+            margin-left: 20px;
+            color: #888;
+            font-size: 0.9rem;
+        }
+
+        pre {
+            background: #1e1e1e;
+            padding: 20px;
+            border-radius: 10px;
+            overflow-x: auto;
+            font-family: 'Consolas', 'Monaco', monospace;
+            font-size: 0.9rem;
+            line-height: 1.6;
+        }
+
+        code {
+            color: #d4d4d4;
+        }
+
+        .code-keyword { color: #569cd6; }
+        .code-string { color: #ce9178; }
+        .code-comment { color: #6a9955; }
+        .code-function { color: #dcdcaa; }
+        .code-number { color: #b5cea8; }
+        .code-class { color: #4ec9b0; }
+
+        /* Typing animation for code */
+        .typing-code {
+            overflow: hidden;
+            white-space: pre;
+            animation: typing 3s steps(60) forwards;
+        }
+
+        @keyframes typing {
+            from { width: 0; }
+            to { width: 100%; }
+        }
+
+        /* Features Grid */
+        .features-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 25px;
+        }
+
+        .feature-card {
+            background: linear-gradient(145deg, rgba(139,0,0,0.2), transparent);
+            border: 1px solid var(--doom-red);
+            border-radius: 15px;
+            padding: 30px;
+            text-align: center;
+            transition: all 0.3s;
+        }
+
+        .feature-card:hover {
+            background: linear-gradient(145deg, rgba(139,0,0,0.4), transparent);
+            transform: scale(1.05);
+        }
+
+        .feature-icon {
+            font-size: 3rem;
+            margin-bottom: 15px;
+            display: block;
+        }
+
+        .feature-card h3 {
+            color: var(--doom-yellow);
+            margin-bottom: 10px;
+        }
+
+        .feature-card p {
+            color: #aaa;
+            font-size: 0.9rem;
+        }
+
+        /* Auto-scrolling scenario showcase */
+        .showcase-container {
+            overflow: hidden;
+            padding: 40px 0;
+            background: linear-gradient(90deg, var(--doom-darker), transparent 10%, transparent 90%, var(--doom-darker));
+        }
+
+        .showcase-track {
+            display: flex;
+            animation: scroll-showcase 30s linear infinite;
+            width: fit-content;
+        }
+
+        .showcase-track:hover {
+            animation-play-state: paused;
+        }
+
+        @keyframes scroll-showcase {
+            0% { transform: translateX(0); }
+            100% { transform: translateX(-50%); }
+        }
+
+        .showcase-item {
+            flex-shrink: 0;
+            margin: 0 15px;
+            border-radius: 10px;
+            overflow: hidden;
+            border: 2px solid var(--doom-orange);
+            transition: transform 0.3s;
+        }
+
+        .showcase-item:hover {
+            transform: scale(1.1);
+        }
+
+        .showcase-item img {
+            width: 250px;
+            height: 180px;
+            object-fit: cover;
+        }
+
+        /* Quick Start Section */
+        .quick-start {
+            background: linear-gradient(145deg, rgba(255,69,0,0.1), transparent);
+            border-radius: 20px;
+            padding: 40px;
+            border: 2px solid var(--doom-orange);
+        }
+
+        .command-line {
+            background: #000;
+            border-radius: 10px;
+            padding: 20px;
+            margin: 15px 0;
+            font-family: 'Consolas', monospace;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .command-line::before {
+            content: '$ ';
+            color: var(--doom-yellow);
+        }
+
+        .command-line .cmd {
+            color: #0f0;
+        }
+
+        .blink-cursor {
+            display: inline-block;
+            width: 10px;
+            height: 20px;
+            background: var(--doom-yellow);
+            animation: blink 1s infinite;
+            vertical-align: middle;
+            margin-left: 5px;
+        }
+
+        @keyframes blink {
+            0%, 50% { opacity: 1; }
+            51%, 100% { opacity: 0; }
+        }
+
+        /* Stats Counter */
+        .stats-section {
+            display: flex;
+            justify-content: center;
+            gap: 60px;
+            flex-wrap: wrap;
+            padding: 40px;
+        }
+
+        .stat-item {
+            text-align: center;
+        }
+
+        .stat-number {
+            font-size: 3.5rem;
+            color: var(--doom-yellow);
+            font-weight: bold;
+            text-shadow: 0 0 20px var(--doom-yellow);
+        }
+
+        .stat-label {
+            color: #aaa;
+            font-size: 1.1rem;
+            margin-top: 10px;
+        }
+
+        /* Footer */
+        .footer {
+            text-align: center;
+            padding: 40px;
+            background: linear-gradient(0deg, rgba(139,0,0,0.3) 0%, transparent 100%);
+            margin-top: 60px;
+        }
+
+        .footer-links {
+            display: flex;
+            justify-content: center;
+            gap: 30px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+
+        .footer-links a {
+            color: var(--doom-orange);
+            text-decoration: none;
+            font-size: 1.1rem;
+            transition: color 0.3s;
+        }
+
+        .footer-links a:hover {
+            color: var(--doom-yellow);
+        }
+
+        .footer-tagline {
+            color: #666;
+            font-style: italic;
+            margin-top: 20px;
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .header h1 {
+                font-size: 2.5rem;
+            }
+            .section-title {
+                font-size: 1.8rem;
+            }
+            .stats-section {
+                gap: 30px;
+            }
+            .stat-number {
+                font-size: 2.5rem;
+            }
+        }
+
+        /* Vision Models Section */
+        .vision-models {
+            display: flex;
+            justify-content: center;
+            gap: 40px;
+            flex-wrap: wrap;
+            margin: 40px 0;
+        }
+
+        .vision-model-card {
+            background: linear-gradient(145deg, var(--doom-dark), var(--doom-darker));
+            border: 2px solid var(--doom-orange);
+            border-radius: 50%;
+            width: 150px;
+            height: 150px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.3s;
+            cursor: pointer;
+        }
+
+        .vision-model-card:hover {
+            transform: rotate(10deg) scale(1.1);
+            box-shadow: 0 0 30px var(--doom-orange);
+        }
+
+        .vision-model-card .model-name {
+            color: var(--doom-yellow);
+            font-weight: bold;
+            font-size: 1.2rem;
+        }
+
+        .vision-model-card .model-desc {
+            color: #888;
+            font-size: 0.8rem;
+            text-align: center;
+            padding: 0 10px;
+        }
+    </style>
+</head>
+<body>
+    <!-- Fire Background -->
+    <div class="fire-bg"></div>
+    <div class="fire-particles" id="particles"></div>
+
+    <!-- Header -->
+    <header class="header">
+        <h1>🎮 DOOM ENV</h1>
+        <p class="subtitle">Visual Reinforcement Learning for OpenEnv</p>
+        <p class="tagline">"Training agents is more fun when they're fighting demons"</p>
+    </header>
+
+    <!-- Hero Image -->
+    <section class="hero-section">
+        <img src="doom_slayer_at_openEnv_school.png" alt="Doom Slayer at OpenEnv School" class="hero-image">
+    </section>
+
+    <!-- Stats Section -->
+    <section class="stats-section">
+        <div class="stat-item">
+            <div class="stat-number" id="scenarios-count">0</div>
+            <div class="stat-label">Scenarios</div>
+        </div>
+        <div class="stat-item">
+            <div class="stat-number" id="models-count">0</div>
+            <div class="stat-label">Vision Model Types</div>
+        </div>
+        <div class="stat-item">
+            <div class="stat-number" id="actions-count">0</div>
+            <div class="stat-label">Action Types</div>
+        </div>
+        <div class="stat-item">
+            <div class="stat-number" id="year">0</div>
+            <div class="stat-label">Years of Doom Legacy</div>
+        </div>
+    </section>
+
+    <!-- Auto-scrolling Showcase -->
+    <section class="showcase-container">
+        <div class="showcase-track">
+<div class="showcase-item"><img src="basic.gif" alt="Basic Scenario"></div>
+            <div class="showcase-item"><img src="deadly_corridor.gif" alt="Deadly Corridor"></div>
+            <div class="showcase-item"><img src="defend_the_center.gif" alt="Defend the Center"></div>
+            <div class="showcase-item"><img src="health_gathering.gif" alt="Health Gathering"></div>
+            <div class="showcase-item"><img src="defend_the_line.gif" alt="Defend the Line"></div>
+            <div class="showcase-item"><img src="my_way_home.gif" alt="My Way Home"></div>
+            <div class="showcase-item"><img src="predict_position.gif" alt="Predict Position"></div>
+            <div class="showcase-item"><img src="take_cover.gif" alt="Take Cover"></div>
+            <!-- Duplicate for seamless loop -->
+            <div class="showcase-item"><img src="basic.gif" alt="Basic Scenario"></div>
+            <div class="showcase-item"><img src="deadly_corridor.gif" alt="Deadly Corridor"></div>
+            <div class="showcase-item"><img src="defend_the_center.gif" alt="Defend the Center"></div>
+            <div class="showcase-item"><img src="health_gathering.gif" alt="Health Gathering"></div>
+            <div class="showcase-item"><img src="defend_the_line.gif" alt="Defend the Line"></div>
+            <div class="showcase-item"><img src="my_way_home.gif" alt="My Way Home"></div>
+            <div class="showcase-item"><img src="predict_position.gif" alt="Predict Position"></div>
+            <div class="showcase-item"><img src="take_cover.gif" alt="Take Cover"></div>
+        </div>
+    </section>
+
+    <!-- Vision Models Section -->
+    <section class="section">
+        <h2 class="section-title">🧠 Vision Models Supported</h2>
+        <div class="vision-models">
+            <div class="vision-model-card">
+                <span class="model-name">CNN</span>
+                <span class="model-desc">Convolutional Networks</span>
+            </div>
+            <div class="vision-model-card">
+                <span class="model-name">ViT</span>
+                <span class="model-desc">Vision Transformers</span>
+            </div>
+            <div class="vision-model-card">
+                <span class="model-name">VLM</span>
+                <span class="model-desc">Vision-Language Models</span>
+            </div>
+        </div>
+    </section>
+
+    <!-- Features Section -->
+    <section class="section">
+        <h2 class="section-title">⚡ Key Features</h2>
+        <div class="features-grid">
+            <div class="feature-card">
+                <span class="feature-icon">👁️</span>
+                <h3>Visual Observations</h3>
+                <p>RGB or grayscale screen buffers with configurable resolution</p>
+            </div>
+            <div class="feature-card">
+                <span class="feature-icon">❤️</span>
+                <h3>Game Variables</h3>
+                <p>Health, ammo, kills, armor - perfect for reward shaping</p>
+            </div>
+            <div class="feature-card">
+                <span class="feature-icon">🐳</span>
+                <h3>Docker Ready</h3>
+                <p>Fully containerized with web interface for debugging</p>
+            </div>
+            <div class="feature-card">
+                <span class="feature-icon">🎯</span>
+                <h3>Flexible Actions</h3>
+                <p>Discrete action IDs or button combinations</p>
+            </div>
+<div class="feature-card">
+                <span class="feature-icon">🔧</span>
+                <h3>OpenEnv Compatible</h3>
+                <p>Works with TRL, torchforge, and SkyRL</p>
+            </div>
+        </div>
+    </section>
+
+    <!-- Code Section -->
+    <section class="section">
+        <h2 class="section-title">💻 Simple API</h2>
+
+        <div class="code-section">
+            <div class="code-header">
+                <div class="code-dots">
+                    <span class="code-dot red"></span>
+                    <span class="code-dot yellow"></span>
+                    <span class="code-dot green"></span>
+                </div>
+                <span class="code-title">doom_example.py</span>
+            </div>
+            <pre><code><span class="code-keyword">from</span> <span class="code-class">envs.doom_env</span> <span class="code-keyword">import</span> DoomAction, DoomEnv
+<span class="code-keyword">import</span> numpy <span class="code-keyword">as</span> np
+
+<span class="code-comment"># Deploy with Docker - fully isolated</span>
+env = <span class="code-class">DoomEnv</span>.<span class="code-function">from_docker_image</span>(<span class="code-string">"doom-env:latest"</span>)
+
+<span class="code-comment"># Standard RL interface</span>
+obs = env.<span class="code-function">reset</span>()
+<span class="code-function">print</span>(<span class="code-string">f"Screen shape: </span>{obs.observation.screen_shape}<span class="code-string">"</span>)
+
+<span class="code-comment"># Take actions and get visual observations</span>
+<span class="code-keyword">for</span> step <span class="code-keyword">in</span> <span class="code-function">range</span>(<span class="code-number">1000</span>):
+    obs = env.<span class="code-function">step</span>(<span class="code-class">DoomAction</span>(action_id=<span class="code-number">1</span>))
+
+    <span class="code-comment"># Reshape screen buffer for vision models</span>
+    frame = np.<span class="code-function">array</span>(obs.observation.screen_buffer)
+    frame = frame.<span class="code-function">reshape</span>(obs.observation.screen_shape)
+
+    <span class="code-comment"># Feed to CNN/ViT/VLM</span>
+    <span class="code-keyword">if</span> obs.observation.done:
+        <span class="code-keyword">break</span>
+
+env.<span class="code-function">close</span>()</code></pre>
+        </div>
+
+        <div class="code-section">
+            <div class="code-header">
+                <div class="code-dots">
+                    <span class="code-dot red"></span>
+                    <span class="code-dot yellow"></span>
+                    <span class="code-dot green"></span>
+                </div>
+                <span class="code-title">vision_model_integration.py</span>
+            </div>
+            <pre><code><span class="code-keyword">import</span> torch
+<span class="code-keyword">from</span> <span class="code-class">torchvision</span> <span class="code-keyword">import</span> transforms
+
+<span class="code-comment"># Process observations for different vision models</span>
+obs = env.<span class="code-function">reset</span>()
+screen = np.<span class="code-function">array</span>(obs.observation.screen_buffer)
+screen = screen.<span class="code-function">reshape</span>(obs.observation.screen_shape)
+
+<span class="code-comment"># For CNN: Direct pixel input [H, W, C] → [C, H, W]</span>
+cnn_input = torch.<span class="code-function">tensor</span>(screen).<span class="code-function">permute</span>(<span class="code-number">2</span>, <span class="code-number">0</span>, <span class="code-number">1</span>).<span class="code-function">float</span>() / <span class="code-number">255.0</span>
+
+<span class="code-comment"># For ViT: Resize to standard patch size</span>
+vit_transform = transforms.<span class="code-class">Compose</span>([
+    transforms.<span class="code-function">ToPILImage</span>(),
+    transforms.<span class="code-function">Resize</span>((<span class="code-number">224</span>, <span class="code-number">224</span>)),
+    transforms.<span class="code-function">ToTensor</span>()
+])
+vit_input = <span class="code-function">vit_transform</span>(screen)
+
+<span class="code-comment"># For VLM: Combine with task description</span>
+task_prompt = <span class="code-string">"Navigate the corridor and eliminate enemies"</span>
+vlm_input = (screen, task_prompt)</code></pre>
+        </div>
+    </section>
+
+    <!-- Scenarios Section -->
+    <section class="section">
+        <h2 class="section-title">🎮 Scenarios Gallery</h2>
+        <div class="scenarios-grid">
+            <div class="scenario-card">
+                <img src="basic.gif" alt="Basic Scenario">
+                <div class="card-content">
+                    <h3>Basic</h3>
+                    <p>Learn fundamental movement and shooting mechanics. Perfect starting point for RL agents.</p>
+                </div>
+            </div>
+            <div class="scenario-card">
+                <img src="deadly_corridor.gif" alt="Deadly Corridor">
+                <div class="card-content">
+                    <h3>Deadly Corridor</h3>
+                    <p>Navigate through a dangerous corridor while avoiding or eliminating monsters.</p>
+                </div>
+            </div>
+            <div class="scenario-card">
+                <img src="defend_the_center.gif" alt="Defend the Center">
+                <div class="card-content">
+                    <h3>Defend the Center</h3>
+                    <p>Survive waves of attacking monsters from all directions. Test defensive strategies.</p>
+                </div>
+            </div>
+            <div class="scenario-card">
+                <img src="health_gathering.gif" alt="Health Gathering">
+                <div class="card-content">
+                    <h3>Health Gathering</h3>
+                    <p>Resource collection under time pressure. Learn to prioritize and navigate efficiently.</p>
+                </div>
+            </div>
+            <div class="scenario-card">
+                <img src="my_way_home.gif" alt="My Way Home">
+                <div class="card-content">
+                    <h3>My Way Home</h3>
+                    <p>Pure navigation challenge. Find the exit in a maze-like environment.</p>
+                </div>
+            </div>
+            <div class="scenario-card">
+                <img src="predict_position.gif" alt="Predict Position">
+                <div class="card-content">
+                    <h3>Predict Position</h3>
+                    <p>Anticipate and hit moving targets. Develops temporal reasoning skills.</p>
+                </div>
+            </div>
+            <div class="scenario-card">
+                <img src="defend_the_line.gif" alt="Defend the Line">
+                <div class="card-content">
+                    <h3>Defend the Line</h3>
+                    <p>Defend a line against incoming monsters. Test strategic positioning.</p>
+                </div>
+            </div>
+            <div class="scenario-card">
+                <img src="take_cover.gif" alt="Take Cover">
+                <div class="card-content">
+                    <h3>Take Cover</h3>
+                    <p>Learn defensive strategies. Avoid enemy fire by using cover effectively.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Quick Start Section -->
+    <section class="section">
+        <h2 class="section-title">🚀 Quick Start</h2>
+        <div class="quick-start">
+            <div class="command-line">
+                <span class="cmd">git clone -b alidev_doom_env_01 https://github.com/AlirezaShamsoshoara/OpenEnv.git</span>
+                <span class="blink-cursor"></span>
+            </div>
+            <div class="command-line">
+                <span class="cmd">cd OpenEnv</span>
+            </div>
+            <div class="command-line">
+                <span class="cmd">docker pull vmvm-registry.fbinfra.net/hackathon/pe_hackathon/alisol/doom-env:latest</span>
+            </div>
+            <div class="command-line">
+                <span class="cmd">python examples/doom_example.py --docker --render</span>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="footer-links">
+            <a href="https://github.com/AlirezaShamsoshoara/OpenEnv/tree/alidev_doom_env_01" target="_blank">📦 GitHub</a>
+            <a href="https://huggingface.co/spaces/Crashbandicoote2/doom_env" target="_blank">🤗 HuggingFace</a>
+            <a href="https://github.com/Farama-Foundation/ViZDoom" target="_blank">🎮 ViZDoom</a>
+            <a href="http://vizdoom.cs.put.edu.pl/" target="_blank">📚 Documentation</a>
+        </div>
+        <p class="footer-tagline">"Because training agents is more fun when they're fighting demons" 👹</p>
+        <p style="margin-top: 20px; color: #444;">OpenEnv Hackathon 2025</p>
+    </footer>
+
+    <script>
+        // Create fire particles
+        function createParticles() {
+            const container = document.getElementById('particles');
+            const particleCount = 50;
+
+            for (let i = 0; i < particleCount; i++) {
+                const particle = document.createElement('div');
+                particle.className = 'particle';
+                particle.style.left = Math.random() * 100 + '%';
+                particle.style.animationDelay = Math.random() * 4 + 's';
+                particle.style.animationDuration = (3 + Math.random() * 2) + 's';
+                container.appendChild(particle);
+            }
+        }
+
+        // Animate counters
+        function animateCounter(elementId, target, duration = 2000) {
+            const element = document.getElementById(elementId);
+            const start = 0;
+            const increment = target / (duration / 16);
+            let current = start;
+
+            const timer = setInterval(() => {
+                current += increment;
+                if (current >= target) {
+                    current = target;
+                    clearInterval(timer);
+                }
+                element.textContent = Math.floor(current);
+            }, 16);
+        }
+
+        // Initialize on page load
+        document.addEventListener('DOMContentLoaded', () => {
+            createParticles();
+
+            // Delay counter animations for visual effect
+            setTimeout(() => {
+                animateCounter('scenarios-count', 8);
+                animateCounter('models-count', 3);
+                animateCounter('actions-count', 7);
+                animateCounter('year', 32); // 2024 - 1993 + 1
+            }, 500);
+        });
+
+        // Add scroll reveal effect
+        const observerOptions = {
+            threshold: 0.1,
+            rootMargin: '0px 0px -50px 0px'
+        };
+
+        const observer = new IntersectionObserver((entries) => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting) {
+                    entry.target.style.opacity = '1';
+                    entry.target.style.transform = 'translateY(0)';
+                }
+            });
+        }, observerOptions);
+
+        document.querySelectorAll('.scenario-card, .feature-card, .code-section').forEach(el => {
+            el.style.opacity = '0';
+            el.style.transform = 'translateY(30px)';
+            el.style.transition = 'opacity 0.6s ease, transform 0.6s ease';
+            observer.observe(el);
+        });
+    </script>
+</body>
+</html>

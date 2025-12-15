@@ -113,3 +113,6 @@ outputs/
 _vizdoom.ini
 
 *.backup*/
+
+# .sesskey
+*.sesskey
