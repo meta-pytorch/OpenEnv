@@ -69,9 +69,16 @@ class GenericOpenAppsTask:
         # Store as instance attributes
         self.base_url = base_url
         self.seed = seed
+
+        # BrowserGym task properties
         self.viewport = {"width": 1024, "height": 768}
         self.slow_mo = 100
         self.timeout = 5000
+
+        # Additional properties that BrowserGym might expect
+        self.locale = None
+        self.timezone_id = None
+        self.geolocation = None
 
     def setup(
         self, page: "playwright.sync_api.Page"
@@ -262,6 +269,7 @@ class OpenAppEnvironment(Environment):
             task_entrypoint=GenericOpenAppsTask,
             task_kwargs={"base_url": self.openapps_url},
             headless=self.headless,
+            slow_mo=200,  # Slow down actions so they're visible (200ms delay)
         )
 
     def _get_current_observation(self) -> Dict[str, Any]:
@@ -307,11 +315,21 @@ class OpenAppEnvironment(Environment):
         if self._browser_env is None:
             self._initialize_browser()
 
-        # Navigate to start page
-        self._current_url = self.openapps_url
-        self._current_html = "<html><body>OpenApps Ready</body></html>"
-        self._current_axtree = ""
-        self._app_state = {}
+        # Reset the BrowserGym environment
+        try:
+            obs, info = self._browser_env.reset()
+            # Extract observation data from BrowserGym
+            self._current_url = obs.get("url", self.openapps_url)
+            self._current_html = obs.get("dom_txt", "")
+            self._current_axtree = obs.get("axtree_txt", "")
+            self._app_state = {}
+        except Exception as e:
+            print(f"Warning: Failed to reset browser environment: {e}")
+            # Fallback to placeholder values
+            self._current_url = self.openapps_url
+            self._current_html = "<html><body>OpenApps Ready</body></html>"
+            self._current_axtree = ""
+            self._app_state = {}
 
         obs_data = self._get_current_observation()
 
@@ -391,33 +409,125 @@ class OpenAppEnvironment(Environment):
 
     def _execute_click(self, bid: str) -> float:
         """Execute click action. Returns reward."""
-        # Placeholder: actual implementation would use BrowserGym
-        self._current_html += f"<!-- Clicked on {bid} -->"
-        return 0.0
+        if self._browser_env is None:
+            return 0.0
+
+        try:
+            # BrowserGym action format: click("bid")
+            action = f'click("{bid}")'
+            obs, reward, done, truncated, info = self._browser_env.step(action)
+
+            # Update current state from observation
+            self._current_url = obs.get("url", self._current_url)
+            self._current_html = obs.get("dom_txt", self._current_html)
+            self._current_axtree = obs.get("axtree_txt", self._current_axtree)
+
+            return float(reward) if reward else 0.0
+        except Exception as e:
+            self._last_action_error = f"Click failed: {str(e)}"
+            return -0.1
 
     def _execute_fill(self, bid: str, text: str) -> float:
         """Execute fill action. Returns reward."""
-        # Placeholder: actual implementation would use BrowserGym
-        self._current_html += f"<!-- Filled {bid} with {text} -->"
-        return 0.0
+        if self._browser_env is None:
+            return 0.0
+
+        try:
+            # BrowserGym action format: fill("bid", "text")
+            action = f'fill("{bid}", "{text}")'
+            obs, reward, done, truncated, info = self._browser_env.step(action)
+
+            # Update current state from observation
+            self._current_url = obs.get("url", self._current_url)
+            self._current_html = obs.get("dom_txt", self._current_html)
+            self._current_axtree = obs.get("axtree_txt", self._current_axtree)
+
+            return float(reward) if reward else 0.0
+        except Exception as e:
+            self._last_action_error = f"Fill failed: {str(e)}"
+            return -0.1
 
     def _execute_select(self, bid: str, value: str) -> float:
         """Execute select option action. Returns reward."""
-        self._current_html += f"<!-- Selected {value} in {bid} -->"
-        return 0.0
+        if self._browser_env is None:
+            return 0.0
+
+        try:
+            # BrowserGym action format: select_option("bid", "value")
+            action = f'select_option("{bid}", "{value}")'
+            obs, reward, done, truncated, info = self._browser_env.step(action)
+
+            # Update current state from observation
+            self._current_url = obs.get("url", self._current_url)
+            self._current_html = obs.get("dom_txt", self._current_html)
+            self._current_axtree = obs.get("axtree_txt", self._current_axtree)
+
+            return float(reward) if reward else 0.0
+        except Exception as e:
+            self._last_action_error = f"Select failed: {str(e)}"
+            return -0.1
 
     def _execute_goto(self, url: str) -> float:
         """Execute navigation action. Returns reward."""
-        self._current_url = url
-        return 0.0
+        if self._browser_env is None:
+            self._current_url = url
+            return 0.0
+
+        try:
+            # BrowserGym action format: goto("url")
+            action = f'goto("{url}")'
+            obs, reward, done, truncated, info = self._browser_env.step(action)
+
+            # Update current state from observation
+            self._current_url = obs.get("url", url)
+            self._current_html = obs.get("dom_txt", self._current_html)
+            self._current_axtree = obs.get("axtree_txt", self._current_axtree)
+
+            return float(reward) if reward else 0.0
+        except Exception as e:
+            self._last_action_error = f"Goto failed: {str(e)}"
+            self._current_url = url  # Update URL even if failed
+            return -0.1
 
     def _execute_scroll(self, direction: str) -> float:
         """Execute scroll action. Returns reward."""
-        return 0.0
+        if self._browser_env is None:
+            return 0.0
+
+        try:
+            # BrowserGym action format: scroll("direction")
+            action = f'scroll("{direction}")'
+            obs, reward, done, truncated, info = self._browser_env.step(action)
+
+            # Update current state from observation
+            self._current_url = obs.get("url", self._current_url)
+            self._current_html = obs.get("dom_txt", self._current_html)
+            self._current_axtree = obs.get("axtree_txt", self._current_axtree)
+
+            return float(reward) if reward else 0.0
+        except Exception as e:
+            self._last_action_error = f"Scroll failed: {str(e)}"
+            return -0.1
 
     def _execute_send_keys(self, text: str) -> float:
         """Execute send keys action. Returns reward."""
-        return 0.0
+        if self._browser_env is None:
+            return 0.0
+
+        try:
+            # BrowserGym action format: send_keys("text")
+            action = f'send_keys("{text}")'
+            obs, reward, done, truncated, info = self._browser_env.step(action)
+
+            # Update current state from observation
+            self._current_url = obs.get("url", self._current_url)
+            self._current_html = obs.get("dom_txt", self._current_html)
+            self._current_axtree = obs.get("axtree_txt", self._current_axtree)
+
+            return float(reward) if reward else 0.0
+        except Exception as e:
+            self._last_action_error = f"Send keys failed: {str(e)}"
+            return -0.1
 
     @property
     def state(self) -> State:
