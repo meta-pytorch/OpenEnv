@@ -1,0 +1,1 @@
+--8<-- "../../src/envs/browsergym_env/README.md"
