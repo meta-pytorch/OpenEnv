@@ -5,86 +5,112 @@
 # LICENSE file in the root directory of this source tree.
 
 """
-Echo Environment HTTP Client.
+Echo Environment HTTP Client (MCP-based).
 
 This module provides the client for connecting to an Echo Environment server
-over HTTP.
+over HTTP using MCP actions.
 """
 
-from typing import Any, Dict
+from typing import Dict
 
-# Support both in-repo and standalone imports
 try:
-    # In-repo imports (when running from OpenEnv repository)
     from core.client_types import StepResult
-    from core.env_server.types import State
+    from core.env_server.mcp_types import (
+        CallToolAction,
+        CallToolObservation,
+        ListToolsObservation,
+    )
+    from core.env_server.types import Observation, State
     from core.http_env_client import HTTPEnvClient
-    from .models import EchoAction, EchoObservation
 except ImportError:
-    # Standalone imports (when environment is standalone with openenv-core from pip)
     from openenv_core.client_types import StepResult
-    from openenv_core.env_server.types import State
+    from openenv_core.env_server.mcp_types import (
+        CallToolAction,
+        CallToolObservation,
+        ListToolsObservation,
+    )
+    from openenv_core.env_server.types import Observation, State
     from openenv_core.http_env_client import HTTPEnvClient
-    from models import EchoAction, EchoObservation
 
 
-class EchoEnv(HTTPEnvClient[EchoAction, EchoObservation]):
+class EchoEnv(HTTPEnvClient[CallToolAction, Observation]):
     """
-    HTTP client for the Echo Environment.
+    HTTP client for the Echo Environment (MCP-based).
 
     This client connects to an EchoEnvironment HTTP server and provides
-    methods to interact with it: reset(), step(), and state access.
+    methods to interact with it using MCP actions.
 
     Example:
+        >>> from core.env_server.mcp_types import CallToolAction
         >>> # Connect to a running server
         >>> client = EchoEnv(base_url="http://localhost:8000")
         >>> result = client.reset()
-        >>> print(result.observation.echoed_message)
         >>>
-        >>> # Send a message
-        >>> result = client.step(EchoAction(message="Hello!"))
-        >>> print(result.observation.echoed_message)
-        >>> print(result.reward)
+        >>> # Call echo_message tool using step API
+        >>> action = CallToolAction(tool_name="echo_message", parameters={"message": "Hello!"})
+        >>> result = client.step(action)
+        >>> print(result.observation.result)  # {"echoed_message": "Hello!"}
 
     Example with Docker:
+        >>> from core.env_server.mcp_types import CallToolAction
         >>> # Automatically start container and connect
         >>> client = EchoEnv.from_docker_image("echo-env:latest")
         >>> result = client.reset()
-        >>> result = client.step(EchoAction(message="Test"))
+        >>> action = CallToolAction(tool_name="echo_message", parameters={"message": "Test"})
+        >>> result = client.step(action)
     """
 
-    def _step_payload(self, action: EchoAction) -> Dict:
+    def _step_payload(self, action: CallToolAction) -> Dict:
         """
-        Convert EchoAction to JSON payload for step request.
+        Convert CallToolAction to JSON payload for step request.
 
         Args:
-            action: EchoAction instance
+            action: CallToolAction instance
 
         Returns:
             Dictionary representation suitable for JSON encoding
         """
         return {
-            "message": action.message,
+            "type": "CallToolAction",
+            "tool_name": action.tool_name,
+            "parameters": action.parameters,
         }
 
-    def _parse_result(self, payload: Dict) -> StepResult[EchoObservation]:
+    def _parse_result(self, payload: Dict) -> StepResult[Observation]:
         """
-        Parse server response into StepResult[EchoObservation].
+        Parse server response into StepResult with typed Observation.
 
         Args:
             payload: JSON response from server
 
         Returns:
-            StepResult with EchoObservation
+            StepResult with typed Observation (ListToolsObservation or CallToolObservation)
         """
         obs_data = payload.get("observation", {})
-        observation = EchoObservation(
-            echoed_message=obs_data.get("echoed_message", ""),
-            message_length=obs_data.get("message_length", 0),
-            done=payload.get("done", False),
-            reward=payload.get("reward"),
-            metadata=obs_data.get("metadata", {}),
-        )
+
+        # Create appropriate typed observation based on fields present
+        if "tools" in obs_data:
+            observation = ListToolsObservation(
+                done=obs_data.get("done", False),
+                reward=obs_data.get("reward"),
+                metadata=obs_data.get("metadata", {}),
+                tools=obs_data.get("tools", []),
+            )
+        elif "result" in obs_data or "error" in obs_data or "tool_name" in obs_data:
+            observation = CallToolObservation(
+                done=obs_data.get("done", False),
+                reward=obs_data.get("reward"),
+                metadata=obs_data.get("metadata", {}),
+                result=obs_data.get("result"),
+                error=obs_data.get("error"),
+                tool_name=obs_data.get("tool_name"),
+            )
+        else:
+            observation = Observation(
+                done=obs_data.get("done", False),
+                reward=obs_data.get("reward"),
+                metadata=obs_data.get("metadata", {}),
+            )
 
         return StepResult(
             observation=observation,
