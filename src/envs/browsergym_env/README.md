@@ -80,6 +80,7 @@ env.close()
 MiniWoB tasks are organized by difficulty and type. Here are the main categories:
 
 **Click Tasks** (Basic interaction)
+
 | Task Name | Description | Difficulty |
 |-----------|-------------|------------|
 | `click-test` | Click a single button | ⭐ Easy |
@@ -102,6 +103,7 @@ MiniWoB tasks are organized by difficulty and type. Here are the main categories
 | `click-widget` | Click on UI widget | ⭐⭐ Medium |
 
 **Text Entry Tasks** (Typing and forms)
+
 | Task Name | Description | Difficulty |
 |-----------|-------------|------------|
 | `enter-text` | Type text into input field | ⭐ Easy |
@@ -114,6 +116,7 @@ MiniWoB tasks are organized by difficulty and type. Here are the main categories
 | `login-user-popup` | Login via popup | ⭐⭐⭐ Hard |
 
 **Navigation Tasks** (Multi-step interaction)
+
 | Task Name | Description | Difficulty |
 |-----------|-------------|------------|
 | `navigate-tree` | Navigate through tree structure | ⭐⭐⭐ Hard |
@@ -126,6 +129,7 @@ MiniWoB tasks are organized by difficulty and type. Here are the main categories
 | `choose-list` | Select from long list | ⭐⭐ Medium |
 
 **Visual/Spatial Tasks** (Requires visual understanding)
+
 | Task Name | Description | Difficulty |
 |-----------|-------------|------------|
 | `count-sides` | Count sides of shape | ⭐⭐ Medium |
@@ -140,6 +144,7 @@ MiniWoB tasks are organized by difficulty and type. Here are the main categories
 | `read-table-2` | More complex table reading | ⭐⭐⭐ Hard |
 
 **Email/Social Tasks** (Realistic scenarios)
+
 | Task Name | Description | Difficulty |
 |-----------|-------------|------------|
 | `email-inbox` | Manage email inbox | ⭐⭐⭐⭐ Very Hard |
@@ -168,6 +173,7 @@ env = BrowserGymEnv(environment={"BROWSERGYM_TASK_NAME": "email-inbox"})
 WebArena tasks are organized by website and difficulty. Tasks are numbered 0-811.
 
 **By Website:**
+
 | Website | Task Count | Description | Example Tasks |
 |---------|------------|-------------|---------------|
 | Shopping | ~200 | E-commerce site | Search products, add to cart, checkout |
@@ -178,6 +184,7 @@ WebArena tasks are organized by website and difficulty. Tasks are numbered 0-811
 | Map | ~12 | Location service | Find places, get directions |
 
 **By Difficulty:**
+
 | Difficulty | Task Count | Steps Required | Example |
 |------------|------------|----------------|---------|
 | Easy | ~200 | 1-5 steps | "Find the price of product X" |
@@ -185,6 +192,7 @@ WebArena tasks are organized by website and difficulty. Tasks are numbered 0-811
 | Hard | ~212 | 15+ steps | "Create merge request for bug fix" |
 
 **Usage:**
+
 ```python
 # Task 0 (usually easy)
 env = BrowserGymEnv(environment={
