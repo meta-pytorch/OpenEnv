@@ -7,10 +7,12 @@
 """Core tools for code execution and other utilities."""
 
 from .git_server_client import GitServerClient, RepoInfo
+from .julia_executor import JuliaExecutor
 from .local_python_executor import PyExecutor
 
 __all__ = [
     "PyExecutor",
+    "JuliaExecutor",
     "GitServerClient",
     "RepoInfo",
 ]
