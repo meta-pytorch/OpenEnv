@@ -41,10 +41,8 @@ dev = [
 server = "openapp_env.server.app:main"
 
 [tool.setuptools]
-package-dir = {"" = "."}
-
-[tool.setuptools.packages.find]
-where = ["."]
+packages = ["openapp_env", "openapp_env.server"]
+package-dir = { "openapp_env" = ".", "openapp_env.server" = "server" }
 
 [tool.hatch.metadata]
 allow-direct-references = true
