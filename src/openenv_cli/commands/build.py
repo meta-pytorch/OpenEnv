@@ -13,13 +13,13 @@ import subprocess
 import tempfile
 import sys
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, Optional
 
 import typer
 
 from .._cli_utils import console
 
-app = typer.Typer(help="Build Docker images for OpenEnv environments")
+# Commands are registered in __main__.py
 
 
 def _detect_build_context(env_path: Path) -> tuple[str, Path, Path | None]:
@@ -294,33 +294,29 @@ def _push_docker_image(tag: str, registry: str | None = None) -> bool:
     return result.returncode == 0
 
 
-@app.command()
 def build(
     env_path: Annotated[
-        str | None,
+        Optional[str],
         typer.Argument(help="Path to the environment directory (default: current directory)"),
     ] = None,
     tag: Annotated[
-        str | None,
+        Optional[str],
         typer.Option(
             "--tag",
-            "-t",
             help="Docker image tag (default: openenv-<env_name>)",
         ),
     ] = None,
     context: Annotated[
-        str | None,
+        Optional[str],
         typer.Option(
             "--context",
-            "-c",
             help="Build context path (default: <env_path>/server)",
         ),
     ] = None,
     dockerfile: Annotated[
-        str | None,
+        Optional[str],
         typer.Option(
             "--dockerfile",
-            "-f",
             help="Path to Dockerfile (default: <context>/Dockerfile)",
         ),
     ] = None,
