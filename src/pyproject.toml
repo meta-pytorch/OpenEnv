@@ -35,6 +35,13 @@ dev = [
     "mypy>=1.0.0",
 ]
 
+# Fleet runtime integration (optional)
+fleet = [
+    "mcp>=1.0.0",
+    "fleet-python>=0.2.79",
+    "openai>=2.11.0",
+]
+
 [project.scripts]
 openenv = "openenv_cli.__main__:main"
 
