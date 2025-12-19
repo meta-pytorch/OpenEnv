@@ -192,23 +192,42 @@ class LocalDockerProvider(ContainerProvider):
         import subprocess
 
         try:
-            # Stop container
+            # Try graceful stop first (Docker waits 5 seconds before SIGKILL)
+            # Subprocess timeout is 15 seconds to allow Docker's grace period
             subprocess.run(
-                ["docker", "stop", self._container_id],
+                ["docker", "stop", "--time=5", self._container_id],
                 capture_output=True,
                 check=True,
-                timeout=10,
+                timeout=15,
             )
-
-            # Remove container
-            subprocess.run(
-                ["docker", "rm", self._container_id],
-                capture_output=True,
-                check=True,
-                timeout=10,
-            )
+        except subprocess.TimeoutExpired:
+            # Graceful stop timed out, force kill the container
+            print(f"Warning: Container {self._container_id} did not stop gracefully, forcing kill...")
+            try:
+                subprocess.run(
+                    ["docker", "kill", self._container_id],
+                    capture_output=True,
+                    check=True,
+                    timeout=5,
+                )
+            except (subprocess.CalledProcessError, subprocess.TimeoutExpired):
+                # Container might already be stopped
+                pass
         except subprocess.CalledProcessError:
-            # Container might already be stopped/removed
+            # Container might already be stopped
+            pass
+
+        # Always try to remove the container
+        try:
+            subprocess.run(
+                ["docker", "rm", "-f", self._container_id],
+                capture_output=True,
+                check=True,
+                timeout=10,
+            )
+        except (subprocess.CalledProcessError, subprocess.TimeoutExpired):
+            # Container might already be removed or removal failed
+            # Use -f flag to force removal even if still running
             pass
         finally:
             self._container_id = None
