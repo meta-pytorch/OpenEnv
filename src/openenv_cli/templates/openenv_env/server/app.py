@@ -27,7 +27,7 @@ except Exception as e:  # pragma: no cover
     raise ImportError("openenv_core is required for the web interface. Install dependencies with '\n    uv sync\n'") from e
 
 from .__ENV_NAME___environment import __ENV_CLASS_NAME__Environment
-from models import __ENV_CLASS_NAME__Action, __ENV_CLASS_NAME__Observation
+from ..models import __ENV_CLASS_NAME__Action, __ENV_CLASS_NAME__Observation
 
 # Create the environment instance
 env = __ENV_CLASS_NAME__Environment()

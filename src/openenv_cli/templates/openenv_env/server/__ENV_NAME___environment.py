@@ -16,7 +16,7 @@ from uuid import uuid4
 from openenv_core.env_server.interfaces import Environment
 from openenv_core.env_server.types import State
 
-from models import __ENV_CLASS_NAME__Action, __ENV_CLASS_NAME__Observation
+from ..models import __ENV_CLASS_NAME__Action, __ENV_CLASS_NAME__Observation
 
 
 class __ENV_CLASS_NAME__Environment(Environment):
