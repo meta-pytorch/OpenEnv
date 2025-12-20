@@ -1,0 +1,95 @@
+version: '3.8'
+
+# Docker Compose configuration for Android Environment
+#
+# This file enables easy deployment of multiple Android emulator instances
+# for large-scale parallel training.
+#
+# Usage:
+#   # Single instance
+#   docker-compose up
+#
+#   # Scale to 10 instances
+#   docker-compose up --scale android-env=10
+#
+#   # With GPU nodes
+#   docker-compose -f docker-compose.yml -f docker-compose.hpc.yml up
+
+services:
+  # Main Android environment service
+  android-env:
+    build:
+      context: ../../..
+      dockerfile: src/envs/android_env/server/Dockerfile
+      args:
+        BASE_IMAGE: openenv-base:latest
+    image: android-env:latest
+
+    # Environment configuration
+    environment:
+      # Required
+      - ANDROID_AVD_NAME=${ANDROID_AVD_NAME:-default_pixel_6}
+      - ANDROID_TASK_PATH=${ANDROID_TASK_PATH:-/workspace/tasks/calculator_basic.textproto}
+
+      # Optional
+      - ANDROID_ADB_PATH=${ANDROID_ADB_PATH:-/opt/android-sdk/platform-tools/adb}
+      - ANDROID_EMULATOR_PATH=${ANDROID_EMULATOR_PATH:-/opt/android-sdk/emulator/emulator}
+      - ANDROID_AVD_HOME=${ANDROID_AVD_HOME:-/root/.android/avd}
+      - ANDROID_SDK_ROOT=${ANDROID_SDK_ROOT:-/opt/android-sdk}
+      - ANDROID_RUN_HEADLESS=${ANDROID_RUN_HEADLESS:-true}
+      - ANDROID_IMAGE_FORMAT=${ANDROID_IMAGE_FORMAT:-JPEG}
+      - ANDROID_IMAGE_QUALITY=${ANDROID_IMAGE_QUALITY:-85}
+
+    # Port mapping
+    ports:
+      - "8000-8099:8000"  # Allow port range for scaling
+
+    # Volume mounts
+    volumes:
+      # Mount tasks directory
+      - ./examples/tasks:/workspace/tasks:ro
+      # Mount apps directory (for custom APKs)
+      - ${ANDROID_APPS_DIR:-./examples/apps}:/workspace/apps:ro
+      # Optional: Persist AVD data
+      # - android-avd-data:/root/.android/avd
+
+    # Device access for KVM hardware acceleration
+    devices:
+      - /dev/kvm:/dev/kvm
+
+    # Resource limits
+    deploy:
+      resources:
+        limits:
+          cpus: '4'
+          memory: 8G
+        reservations:
+          cpus: '2'
+          memory: 4G
+
+    # Restart policy
+    restart: unless-stopped
+
+    # Health check
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 120s  # Emulator takes time to boot
+
+    # Logging
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+# Optional: Uncomment to persist AVD data across container restarts
+# volumes:
+#   android-avd-data:
+#     driver: local
+
+networks:
+  default:
+    driver: bridge

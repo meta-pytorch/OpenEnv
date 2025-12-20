@@ -1,0 +1,62 @@
+# Basic Calculator Task
+# This is a simple task for testing Android environment interaction.
+# It opens the Android calculator app and allows free exploration.
+
+id: "calculator_basic"
+name: "Calculator Basic"
+description: "Interact with the Android Calculator app"
+
+# Setup steps: Install and launch calculator
+setup_steps: [
+  {
+    adb_request: {
+      start_activity: {
+        full_activity: "com.google.android.calculator/.Calculator"
+        force_stop: true
+      }
+    }
+    success_condition: {
+      wait_for_app_screen: {
+        app_screen: {
+          activity: "com.google.android.calculator/.Calculator"
+        }
+        timeout_sec: 10.0
+      }
+    }
+  }
+]
+
+# Reset steps: Force stop and restart
+reset_steps: [
+  {
+    adb_request: {
+      force_stop: {
+        package_name: "com.google.android.calculator"
+      }
+    }
+  },
+  {
+    adb_request: {
+      start_activity: {
+        full_activity: "com.google.android.calculator/.Calculator"
+      }
+    }
+    success_condition: {
+      wait_for_app_screen: {
+        app_screen: {
+          activity: "com.google.android.calculator/.Calculator"
+        }
+        timeout_sec: 10.0
+      }
+    }
+  }
+]
+
+# Expected app screen
+expected_app_screen: {
+  activity: "com.google.android.calculator/.Calculator"
+}
+
+# Episode configuration
+max_episode_sec: 60  # 1 minute episodes
+max_num_steps: 100   # Maximum 100 steps per episode
