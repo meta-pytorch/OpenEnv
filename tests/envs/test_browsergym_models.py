@@ -1,5 +1,11 @@
 """Unit tests for BrowserGym models."""
 
+import os
+import sys
+
+# Add the project root to the path for envs imports
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
+
 from envs.browsergym_env.models import (
     BrowserGymAction,
     BrowserGymObservation,
@@ -18,7 +24,7 @@ def test_browser_gym_action_with_metadata():
     """Test creating a BrowserGymAction with metadata."""
     action = BrowserGymAction(
         action_str="fill('username', 'john')",
-        metadata={"user": "test", "timestamp": 123456}
+        metadata={"user": "test", "timestamp": 123456},
     )
     assert action.action_str == "fill('username', 'john')"
     assert action.metadata["user"] == "test"

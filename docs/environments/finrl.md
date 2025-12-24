@@ -1,2 +1,2 @@
---8<-- "../../src/envs/finrl_env/README.md"
+--8<-- "../../envs/finrl_env/README.md"
 

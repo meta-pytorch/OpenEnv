@@ -10,7 +10,7 @@ Prerequisites
 -------------
 1. Build the TextArena Docker image::
 
-       docker build -f src/envs/textarena_env/server/Dockerfile -t textarena-env:latest .
+       docker build -f envs/textarena_env/server/Dockerfile -t textarena-env:latest .
 
 2. Set your Hugging Face token::
 
@@ -33,8 +33,8 @@ from typing import Iterable, List
 
 from openai import OpenAI
 
-from envs.textarena_env import TextArenaAction, TextArenaEnv
-from envs.textarena_env.models import TextArenaMessage
+from textarena_env import TextArenaAction, TextArenaEnv
+from textarena_env.models import TextArenaMessage
 
 # ---------------------------------------------------------------------------
 # Configuration

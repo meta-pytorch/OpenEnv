@@ -28,7 +28,7 @@ from matplotlib.animation import FuncAnimation
 # Add src to path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent / "src"))
 
-from envs.snake_env import SnakeAction, SnakeEnv
+from snake_env import SnakeAction, SnakeEnv
 
 
 # Cell type constants (from marlenv.envs.snake_env.Cell)

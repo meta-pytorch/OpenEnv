@@ -27,7 +27,7 @@ from openai import OpenAI
 import numpy as np
 from PIL import Image
 
-from envs.browsergym_env import BrowserGymAction, BrowserGymEnv
+from browsergym_env import BrowserGymAction, BrowserGymEnv
 
 API_BASE_URL = "https://router.huggingface.co/v1"
 API_KEY = os.getenv("HF_TOKEN") or os.getenv("API_KEY")

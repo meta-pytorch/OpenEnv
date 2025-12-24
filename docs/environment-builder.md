@@ -10,7 +10,7 @@ A typical workflow looks like:
 
 1. Scaffold a new environment with `openenv init`.
 2. Customize your models, environment logic, and FastAPI server.
-3. Implement a typed `HTTPEnvClient`.
+3. Implement a typed `EnvClient` (WebSocket-based for persistent sessions).
 4. Configure dependencies and the Dockerfile once.
 5. Use the CLI (`openenv build`, `openenv validate`, `openenv push`) to package and share your work.
 
@@ -34,10 +34,10 @@ Let's walk through the process of building a custom environment with OpenEnv.
 openenv init my_env
 
 # Optionally choose an output directory
-openenv init my_env --output-dir /Users/you/src/envs
+openenv init my_env --output-dir /Users/you/envs
 ```
 
-The command creates a fully-typed template with `openenv.yaml`, `pyproject.toml`, `uv.lock`, Docker assets, and stub implementations. If you're working inside this repo, move the generated folder under `src/envs/`. 
+The command creates a fully-typed template with `openenv.yaml`, `pyproject.toml`, `uv.lock`, Docker assets, and stub implementations. If you're working inside this repo, move the generated folder under `envs/`. 
 
 Typical layout:
 
@@ -58,33 +58,26 @@ my_env/
     └── Dockerfile
 ```
 
-Python classes are generated for the action, observation, and state, and a client is generated for the environment. For example, you will find `MyEnvironment`, `MyAction`, `MyObservation`, and `MyState` in the `my_env` directory based on the name of the environment you provided.
+Python classes are generated for the action, observation, environment, and client. For example, you will find `MyEnvironment`, `MyAction`, `MyObservation`, and `MyEnv` (client) in the `my_env` directory based on the name you provided. The environment uses the core `State` class from `openenv.core.env_server.types`.
 
 ### 2. Define Models
 
-Edit `models.py` to describe your action, observation, and state dataclasses:
+Edit `models.py` to describe your action and observation using Pydantic:
 
 ```python
 # models.py
-from dataclasses import dataclass
-from core.env_server import Action, Observation, State
+from pydantic import Field
+from openenv.core.env_server.types import Action, Observation
 
-@dataclass
 class MyAction(Action):
     """Your custom action."""
-    command: str
-    parameters: dict
+    command: str = Field(..., description="Command to execute")
+    parameters: dict = Field(default_factory=dict, description="Command parameters")
 
-@dataclass
 class MyObservation(Observation):
     """Your custom observation."""
-    result: str
-    success: bool
-
-@dataclass
-class MyState(State):
-    """Custom state fields."""
-    custom_field: int = 0
+    result: str = Field(..., description="Result of the action")
+    success: bool = Field(..., description="Whether the action succeeded")
 ```
 
 ### 3. Implement Environment Logic
@@ -93,69 +86,103 @@ Customize `server/my_environment.py` by extending `Environment`:
 
 ```python
 # server/my_environment.py
-import uuid
-from core.env_server import Environment
-from ..models import MyAction, MyObservation, MyState
+from uuid import uuid4
+from openenv.core.env_server.interfaces import Environment
+from openenv.core.env_server.types import State
+from models import MyAction, MyObservation
 
 class MyEnvironment(Environment):
     def __init__(self):
-        super().__init__()
-        self._state = MyState()
+        self._state = State(episode_id=str(uuid4()), step_count=0)
 
     def reset(self) -> MyObservation:
-        self._state = MyState(episode_id=str(uuid.uuid4()))
-        return MyObservation(result="Ready", success=True)
+        self._state = State(episode_id=str(uuid4()), step_count=0)
+        return MyObservation(result="Ready", success=True, done=False, reward=0.0)
 
     def step(self, action: MyAction) -> MyObservation:
         # Implement your logic here
         self._state.step_count += 1
         result = self._execute_command(action.command)
-        return MyObservation(result=result, success=True)
+        return MyObservation(result=result, success=True, done=False, reward=1.0)
 
     @property
-    def state(self) -> MyState:
+    def state(self) -> State:
         return self._state
 ```
 
 ### 4. Create the FastAPI Server
 
-`server/app.py` should expose the environment through `create_fastapi_app`:
+`server/app.py` should expose the environment through `create_app`.
+
+**Important:** You must pass a class or factory function (not an instance) to enable WebSocket-based concurrent sessions:
 
 ```python
 # server/app.py
-from core.env_server import create_fastapi_app
+from openenv.core.env_server import create_app
 from ..models import MyAction, MyObservation
 from .my_environment import MyEnvironment
 
-env = MyEnvironment()
-app = create_fastapi_app(env, MyAction, MyObservation)
+# Pass the class (factory) - each WebSocket session gets its own instance
+app = create_app(MyEnvironment, MyAction, MyObservation, env_name="my_env")
+```
+
+For environments with constructor arguments, create a factory function:
+
+```python
+# server/app.py
+import os
+from openenv.core.env_server import create_app
+from ..models import MyAction, MyObservation
+from .my_environment import MyEnvironment
+
+# Read config from environment variables
+api_key = os.getenv("MY_API_KEY")
+timeout = int(os.getenv("MY_TIMEOUT", "30"))
+
+def create_my_environment():
+    """Factory function that creates MyEnvironment with config."""
+    return MyEnvironment(api_key=api_key, timeout=timeout)
+
+# Pass the factory function
+app = create_app(create_my_environment, MyAction, MyObservation, env_name="my_env")
 ```
 
 ### 5. Implement the Client
 
-`client.py` extends `HTTPEnvClient` so users can interact with your server over HTTP or Docker:
+`client.py` extends `EnvClient` so users can interact with your server via WebSocket for persistent sessions:
 
 ```python
 # client.py
-from core.http_env_client import HTTPEnvClient
-from core.types import StepResult
+from openenv.core.env_client import EnvClient
+from openenv.core.client_types import StepResult
 from .models import MyAction, MyObservation, MyState
 
-class MyEnv(HTTPEnvClient[MyAction, MyObservation]):
+class MyEnv(EnvClient[MyAction, MyObservation, MyState]):
     def _step_payload(self, action: MyAction) -> dict:
         return {"command": action.command, "parameters": action.parameters}
 
     def _parse_result(self, payload: dict) -> StepResult[MyObservation]:
-        obs = MyObservation(**payload["observation"])
+        obs_data = payload.get("observation", {})
+        obs = MyObservation(
+            result=obs_data.get("result", ""),
+            success=obs_data.get("success", False),
+            done=payload.get("done", False),
+            reward=payload.get("reward"),
+        )
         return StepResult(
             observation=obs,
             reward=payload.get("reward"),
             done=payload.get("done", False),
         )
 
-    def _parse_state(self, payload: dict) -> MyState:
-        return MyState(**payload)
+    def _parse_state(self, payload: dict) -> State:
+        return State(
+            episode_id=payload.get("episode_id"),
+            step_count=payload.get("step_count", 0),
+        )
 ```
+
+The `EnvClient` maintains a persistent WebSocket connection to the server, enabling efficient multi-step interactions with lower latency compared to HTTP. Each client instance gets its own dedicated environment session on the server.
 
 ### 6. Configure Dependencies & Dockerfile
 
@@ -176,7 +203,7 @@ Keep building from the `openenv-base` image so shared tooling stays available:
 # Multi-stage build using openenv-base
 # This Dockerfile is flexible and works for both:
 # - In-repo environments (with local src/core)
-# - Standalone environments (with openenv-core from pip)
+# - Standalone environments (with openenv from pip)
 # The build script (openenv build) handles context detection and sets appropriate build args.
 
 ARG BASE_IMAGE=openenv-base:latest
@@ -191,8 +218,8 @@ ARG ENV_NAME=__ENV_NAME__
 # Copy environment code (always at root of build context)
 COPY . /app/env
 
-# For in-repo builds, openenv-core is already in the pyproject.toml dependencies
-# For standalone builds, openenv-core will be installed from pip via pyproject.toml
+# For in-repo builds, openenv is already in the pyproject.toml dependencies
+# For standalone builds, openenv will be installed from pip via pyproject.toml
 WORKDIR /app/env
 
 # Install dependencies using uv sync
@@ -247,7 +274,7 @@ If you introduced extra dependencies in the Dockerfile, you should install them 
 From the environment directory:
 
 ```bash
-cd src/envs/my_env
+cd envs/my_env
 openenv build          # Builds Docker image (auto-detects context)
 openenv validate --verbose
 ```
@@ -299,13 +326,13 @@ strategy:
   matrix:
     image:
       - name: echo-env
-        dockerfile: src/envs/echo_env/server/Dockerfile
+        dockerfile: envs/echo_env/server/Dockerfile
       - name: chat-env
-        dockerfile: src/envs/chat_env/server/Dockerfile
+        dockerfile: envs/chat_env/server/Dockerfile
       - name: coding-env
-        dockerfile: src/envs/coding_env/server/Dockerfile
+        dockerfile: envs/coding_env/server/Dockerfile
       - name: my-env  # Add your environment here
-        dockerfile: src/envs/my_env/server/Dockerfile
+        dockerfile: envs/my_env/server/Dockerfile
 ```
 
 ### Use Your Environment
@@ -322,22 +349,29 @@ client = MyEnv.from_hub("my-org/my-env")
 # Or, connect to the local server
 client = MyEnv(base_url="http://localhost:8000")
 
-# Reset
-result = client.reset()
-print(result.observation.result)  # "Ready"
+# Use context manager for automatic cleanup (recommended)
+with client:
+    # Reset
+    result = client.reset()
+    print(result.observation.result)  # "Ready"
 
-# Execute actions
-result = client.step(MyAction(command="test", parameters={}))
-print(result.observation.result)
-print(result.observation.success)
+    # Execute actions
+    result = client.step(MyAction(command="test", parameters={}))
+    print(result.observation.result)
+    print(result.observation.success)
 
-# Get state
-state = client.state()
-print(state.episode_id)
-print(state.step_count)
+    # Get state
+    state = client.state()
+    print(state.episode_id)
+    print(state.step_count)
 
-# Cleanup
-client.close()
+# Or manually manage the connection
+try:
+    client = MyEnv(base_url="http://localhost:8000")
+    result = client.reset()
+    result = client.step(MyAction(command="test", parameters={}))
+finally:
+    client.close()
 ```
 
 ## Nice work! You've now built and used your own OpenEnv environment.

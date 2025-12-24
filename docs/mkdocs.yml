@@ -64,14 +64,17 @@ markdown_extensions:
   - meta
 
 watch:
-  - ../src/core
-  - ../src/openenv_cli
+  - ../src/openenv/core
+  - ../src/openenv/cli
 
 nav:
   - Get Started:
     - What is OpenEnv?: index.md
     - Quick Start: quickstart.md
     - Building an Environment: environment-builder.md
+  - Tutorials:
+    - OpenEnv Tutorial: tutorials/openenv-tutorial.md
+    - Wordle GRPO with TRL: tutorials/wordle-grpo.md
   - Environments: environments.md
 
   - API Reference:

@@ -1,14 +1,23 @@
 """Unit tests for BrowserGym environment server."""
 
 import os
+import shutil
 import sys
 import subprocess
 import time
 import requests
 import pytest
 
+# Add the project root to the path for envs imports
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
+
 from envs.browsergym_env.client import BrowserGymEnv
 from envs.browsergym_env.models import BrowserGymAction
+
+# Skip all tests if gunicorn is not installed
+pytestmark = pytest.mark.skipif(
+    shutil.which("gunicorn") is None, reason="gunicorn not installed"
+)
 
 
 @pytest.fixture(scope="module")
@@ -32,9 +41,12 @@ def server():
 
     gunicorn_command = [
         "gunicorn",
-        "-w", "1",  # Single worker for testing
-        "-k", "uvicorn.workers.UvicornWorker",
-        "-b", f"0.0.0.0:{PORT}",
+        "-w",
+        "1",  # Single worker for testing
+        "-k",
+        "uvicorn.workers.UvicornWorker",
+        "-b",
+        f"0.0.0.0:{PORT}",
         "envs.browsergym_env.server.app:app",
     ]
 
@@ -57,7 +69,7 @@ def server():
                 print("✅ Server is running and healthy!")
                 break
         except requests.exceptions.RequestException:
-            print(f"Attempt {i+1}/12: Server not ready, waiting 10 seconds...")
+            print(f"Attempt {i + 1}/12: Server not ready, waiting 10 seconds...")
             time.sleep(10)
 
     if not is_healthy:
@@ -199,8 +211,7 @@ def test_action_with_metadata(server):
     env.reset()
 
     action = BrowserGymAction(
-        action_str="click('button')",
-        metadata={"test": "value", "number": 42}
+        action_str="click('button')", metadata={"test": "value", "number": 42}
     )
     result = env.step(action)
 

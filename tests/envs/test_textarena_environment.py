@@ -1,3 +1,13 @@
+import os
+import sys
+import pytest
+
+# Add the project root to the path for envs imports
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
+
+# Skip entire module if nltk is not installed (required by textarena_env)
+pytest.importorskip("nltk", reason="nltk not installed")
+
 from envs.textarena_env.server.environment import TextArenaEnvironment
 from envs.textarena_env.models import TextArenaMessage, TextArenaAction
 
@@ -23,12 +33,17 @@ def test_convert_messages_coalesces_consecutive_characters():
     ]
 
 
+@pytest.mark.skipif(
+    not pytest.importorskip("textarena", reason="textarena not installed"),
+    reason="textarena not installed",
+)
 def test_wordle_reset_clears_accumulated_state():
     """Test that resetting Wordle environment clears accumulated observation state.
 
     This test verifies the workaround for TextArena's LLMObservationWrapper,
     which accumulates observations in self.full_observations across resets.
     """
+    pytest.importorskip("textarena", reason="textarena not installed")
     env = TextArenaEnvironment(
         env_id="Wordle-v0",
         num_players=1,
