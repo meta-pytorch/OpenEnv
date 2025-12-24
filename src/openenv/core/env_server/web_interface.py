@@ -279,6 +279,8 @@ def create_web_interface_app(
     action_cls: Type[Action],
     observation_cls: Type[Observation],
     env_name: Optional[str] = None,
+    max_concurrent_envs: Optional[int] = None,
+    concurrency_config: Optional[Any] = None,
 ) -> FastAPI:
     """
     Create a FastAPI application with web interface for the given environment.
@@ -288,6 +290,8 @@ def create_web_interface_app(
         action_cls: The Action subclass this environment expects
         observation_cls: The Observation subclass this environment returns
         env_name: Optional environment name for README loading
+        max_concurrent_envs: Maximum concurrent WebSocket sessions
+        concurrency_config: Optional ConcurrencyConfig for advanced concurrency settings
 
     Returns:
         FastAPI application instance with web interface
@@ -295,7 +299,9 @@ def create_web_interface_app(
     from .http_server import create_fastapi_app
 
     # Create the base environment app
-    app = create_fastapi_app(env, action_cls, observation_cls)
+    app = create_fastapi_app(
+        env, action_cls, observation_cls, max_concurrent_envs, concurrency_config
+    )
 
     # Load environment metadata
     metadata = load_environment_metadata(env, env_name)
