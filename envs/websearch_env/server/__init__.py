@@ -1,0 +1,11 @@
+# Copyright (c) Meta Platforms, Inc. and affiliates.
+# All rights reserved.
+#
+# This source code is licensed under the BSD-style license found in the
+# LICENSE file in the root directory of this source tree.
+
+"""WebSearch Env Environment server components."""
+
+from .web_search_environment import WebSearchEnvironment
+
+__all__ = ["WebSearchEnvironment"]

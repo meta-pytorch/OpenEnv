@@ -38,7 +38,7 @@ Usage:
 import os
 import re
 from openai import OpenAI
-from envs.openspiel_env import OpenSpielEnv, OpenSpielAction
+from openspiel_env import OpenSpielEnv, OpenSpielAction
 
 
 # We are using the HuggingFace Inference Providers API to access the models

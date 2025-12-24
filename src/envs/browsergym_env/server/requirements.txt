@@ -1,7 +1,0 @@
-browsergym>=0.2.0
-browsergym-core>=0.2.0
-browsergym-miniwob>=0.2.0
-browsergym-webarena>=0.2.0
-gymnasium>=0.29.0
-playwright>=1.40.0
-Pillow>=10.0.0

@@ -6,14 +6,21 @@
 
 """Test that PythonCodeActEnv.reset() properly resets executor state."""
 
+import os
 import sys
 from pathlib import Path
 
+import pytest
+
+# Add the project root and src to the path
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
+sys.path.insert(0, str(Path(__file__).parent.parent.parent / "src"))
+
+# Skip entire module if smolagents is not installed
+pytest.importorskip("smolagents", reason="smolagents is not installed")
+
 from envs.coding_env.models import CodeAction
 from envs.coding_env.server.python_codeact_env import PythonCodeActEnv
-
-# Add src to path
-sys.path.insert(0, str(Path(__file__).parent.parent.parent / "src"))
 
 
 def test_reset_clears_executor_state():

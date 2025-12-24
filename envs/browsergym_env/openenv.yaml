@@ -1,0 +1,5 @@
+name: browsergym_env
+version: "0.1.0"
+description: "BrowserGym environment for web automation tasks using Playwright"
+action: BrowserGymAction
+observation: BrowserGymObservation

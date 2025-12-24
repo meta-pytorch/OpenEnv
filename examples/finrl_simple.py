@@ -17,7 +17,7 @@ import numpy as np
 # Add src to path
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
-from envs.finrl_env import FinRLAction, FinRLEnv
+from finrl_env import FinRLAction, FinRLEnv
 
 
 def main():

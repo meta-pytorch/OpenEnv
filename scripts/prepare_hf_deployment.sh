@@ -43,21 +43,21 @@ echo "Preparing $ENV_NAME environment for deployment..."
 # Create staging directory
 CURRENT_STAGING_DIR="${STAGING_DIR}_${ENV_NAME}"
 mkdir -p $CURRENT_STAGING_DIR/src/core
-mkdir -p $CURRENT_STAGING_DIR/src/envs/$ENV_NAME
+mkdir -p $CURRENT_STAGING_DIR/envs/$ENV_NAME
 
 # Copy core files
 cp -r src/core/* $CURRENT_STAGING_DIR/src/core/
 echo "Copied core files"
 
 # Copy environment files
-cp -r src/envs/$ENV_NAME/* $CURRENT_STAGING_DIR/src/envs/$ENV_NAME/
+cp -r envs/$ENV_NAME/* $CURRENT_STAGING_DIR/envs/$ENV_NAME/
 echo "Copied $ENV_NAME environment files"
 
 # Copy and modify the static Dockerfile from the environment
 create_environment_dockerfile() {
     local env_name=$1
-    local dockerfile_path="src/envs/$env_name/server/Dockerfile"
-    local prepare_script="src/envs/$env_name/server/prepare_hf.sh"
+    local dockerfile_path="envs/$env_name/server/Dockerfile"
+    local prepare_script="envs/$env_name/server/prepare_hf.sh"
 
     if [ ! -f "$dockerfile_path" ]; then
         echo "Error: Dockerfile not found at $dockerfile_path"
@@ -92,7 +92,7 @@ create_environment_dockerfile $ENV_NAME
 # Copy and prepend HF-specific intro to README
 create_readme() {
     local env_name=$1
-    local readme_source="src/envs/$env_name/README.md"
+    local readme_source="envs/$env_name/README.md"
 
     if [ ! -f "$readme_source" ]; then
         echo "Error: README not found at $readme_source"

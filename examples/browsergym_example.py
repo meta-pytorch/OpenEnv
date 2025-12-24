@@ -1,16 +1,14 @@
 """BrowserGym MiniWoB example with Qwen deciding the next action.
 
-This is an inference example for the BrowserGym environment. It uses the OpenAI 
-client and a vision language model to decide the next action. We use Hugging Face 
-Inference Providers API to access the model, but you can use any other provider that 
+This is an inference example for the BrowserGym environment. It uses the OpenAI
+client and a vision language model to decide the next action. We use Hugging Face
+Inference Providers API to access the model, but you can use any other provider that
 is compatible with the OpenAI API.
 
 Prerequisites:
-- Clone the MiniWoB++ tasks repository.
-- Serve the HTML bundle with `python -m http.server 8888` inside the
-  `miniwob-plusplus/miniwob/html` directory.
-- Export the MiniWoB URL (must include the `/miniwob/` suffix):
-    `export MINIWOB_URL=http://host.docker.internal:8888/miniwob/`
+- (Optional) Export the MiniWoB URL if you are hosting the tasks yourself
+  (must include the `/miniwob/` suffix); the BrowserGym Docker image now
+  serves the MiniWoB bundle internally on port 8888.
 - Export your Hugging Face token for the router:
     `export HF_TOKEN=your_token_here`
 
@@ -29,7 +27,7 @@ from openai import OpenAI
 import numpy as np
 from PIL import Image
 
-from envs.browsergym_env import BrowserGymAction, BrowserGymEnv
+from browsergym_env import BrowserGymAction, BrowserGymEnv
 
 API_BASE_URL = "https://router.huggingface.co/v1"
 API_KEY = os.getenv("HF_TOKEN") or os.getenv("API_KEY")
@@ -99,10 +97,12 @@ def extract_clickable_elements(observation) -> List[Dict[str, str]]:
 
         bbox = props.get("bbox") or []
         bbox_str = ", ".join(bbox) if bbox else "?"
-        clickables.append({
-            "bid": str(bid),
-            "bbox": bbox_str,
-        })
+        clickables.append(
+            {
+                "bid": str(bid),
+                "bbox": bbox_str,
+            }
+        )
 
     # Keep a stable ordering for readability
     clickables.sort(key=lambda item: item["bid"])
@@ -170,18 +170,16 @@ def parse_model_action(response_text: str) -> str:
 
 
 def main() -> None:
-
     client = OpenAI(base_url=API_BASE_URL, api_key=API_KEY)
 
-    env = BrowserGymEnv.from_hub(
-        "browsergym-env:latest",
+    env = BrowserGymEnv.from_docker_image(
+        image="browsergym-env:latest",
         env_vars={
             "BROWSERGYM_BENCHMARK": "miniwob",
             "BROWSERGYM_TASK_NAME": "click-test",
         },
-        ports={8000: 8000},
     )
-    
+
     history: List[str] = []
 
     try:
@@ -227,9 +225,7 @@ def main() -> None:
                 response_text = completion.choices[0].message.content or ""
             # pylint: disable=broad-except
             except Exception as exc:  # noqa: BLE001
-                failure_msg = (
-                    f"Model request failed ({exc}). Using fallback action."
-                )
+                failure_msg = f"Model request failed ({exc}). Using fallback action."
                 print(failure_msg)
                 response_text = FALLBACK_ACTION
 
@@ -242,8 +238,7 @@ def main() -> None:
             reward = result.reward or 0.0
             error_flag = " ERROR" if observation.last_action_error else ""
             history_line = (
-                f"Step {step}: {action_str} -> reward {reward:+.2f}"
-                f"{error_flag}"
+                f"Step {step}: {action_str} -> reward {reward:+.2f}{error_flag}"
             )
             history.append(history_line)
             print(

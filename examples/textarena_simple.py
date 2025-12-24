@@ -15,7 +15,7 @@ from pathlib import Path
 # Add project src/ to import path
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
-from envs.textarena_env import TextArenaEnv, TextArenaAction
+from textarena_env import TextArenaEnv, TextArenaAction
 
 
 def main() -> None:
@@ -73,7 +73,7 @@ def main() -> None:
     except Exception as exc:  # pragma: no cover - demonstration script
         print(f"\n❌ Error: {exc}")
         print("\nMake sure you have built the Docker image first:")
-        print("  docker build -f src/envs/textarena_env/server/Dockerfile -t textarena-env:latest .")
+        print("  docker build -f envs/textarena_env/server/Dockerfile -t textarena-env:latest .")
         print("\nAlternatively run the server manually:")
         print("  python -m envs.textarena_env.server.app")
 

@@ -2,8 +2,13 @@
 
 **Status**: In Review
 **Created**: 10/20/2025
+**Amended**: November 12, 2025
 **Authors**: @Darktex, @pankit-eng, @jspisak, @zkwentz
 **RFC ID:** 001
+
+## Amendment History
+
+**November 12, 2025**: Added two-interface model (MCP for agents, HTTP for operations), simulation layer clarity, event queues, state management, and "The Time Problem" section.
 
 ## Summary
 This document defines what we call an "Environment", what its responsibilities are, and how we expect our customers to use our environments in their systems.
@@ -65,39 +70,149 @@ This is the contract that we are proposing. We feel it strikes a good balance be
 These are the key abstractions that we expect. Note that in this project we only implement the "Environment" abstraction under our meaning. You can map to other "agents" or "environment" abstractions by writing adapters to and from OpenEnvs.
 
 Key assumptions:
-1. We separate tasks from environments. While it is a good idea to package up a dataset with an environment and evals, we expect this wrapping to be done *outside* the env box. This allows for the reuse of environments across tasks.
+1. The Environment bundles everything needed for agent interaction: tools (MCP servers), sandboxing, code execution, reward computation, tasks/datasets, and evals. This packaging makes environments self-contained and reusable.
 2. We hold the state of everything **external** to the agent in the Environment. For example, if your agent defines `a = 4` with an action and wants to read `a` some time in the future, the environment will persist the interpreter state and remember variable assignments.
 3. We expect a _thin_ Agent abstraction around your model that holds the state of everything pertaining to your model, such as conversation history, tokenizer etc.
 
+```mermaid
+flowchart TB
+    subgraph outer["OUTER SYSTEM (RL Training Infrastructure)"]
+        agent["Agent (Thin Wrapper)
+
+        - Model/Policy
+        - Tokenizer
+        - Conversation History"]
+
+        env["Environment (Docker Container)
+
+        - MCP Servers
+        - Sandbox
+        - Code Execution
+        - Reward Pipeline
+        - External State
+        - Task/Dataset Loader
+        - Evals (aggregated)"]
+
+        orchestration["RL Orchestration (Training Loop)
+
+        - reset, step, get_state
+        - Simulation control
+        - Metrics and monitoring"]
+
+        agent <-->|"MCP
+        (Tool Calls)"| env
+        orchestration -->|"HTTP
+        (Orchestration)"| env
+    end
+
+    classDef agentBox fill:#e1f5ff,stroke:#333,stroke-width:2px
+    classDef envBox fill:#fff4e1,stroke:#333,stroke-width:2px
+    classDef orchBox fill:#f0f0f0,stroke:#333,stroke-width:2px
+
+    class agent agentBox
+    class env envBox
+    class orchestration orchBox
 ```
-┌──────────────────────────────────────────────────────────────────────────┐
-│                              OUTER SYSTEM                                │
-│                                                                          │
-│   ┌──────────────────┐                    ┌───────────────────────────┐  │
-│   │ Dataset/Task     │                    │      Agent                │  │
-│   │ Loader           │───────────────────>│  (thin wrapper)           │  │
-│   │                  │   Provides task    │                           │  │
-│   └──────────────────┘                    │  • Model/Policy           │  │
-│                                           │  • Tokenizer              │  │
-│   ┌──────────────────┐                    │  • Conversation History   │  │
-│   │ Evals            │                    └───────┬───────────────────┘  │
-│   │ (data-dependent, │                            │         ^            │
-│   │  aggregated)     │                            │ Action  │            │
-│   └──────────────────┘                            │         │Observation │
-│                                                   v         │            │
-│                                           ┌─────────────────┴───────────┐│
-│                                           │      Environment            ││
-│                                           │                             ││
-│                                           │  • Tools (MCP)              ││
-│                                           │  • Sandbox (Docker)         ││
-│                                           │  • Code Execution           ││
-│                                           │  • Reward Pipeline          ││
-│                                           │  • External State           ││
-│                                           │    (e.g., interpreter vars) ││
-│                                           └─────────────────────────────┘│
-│                                                                          │
-└──────────────────────────────────────────────────────────────────────────┘
+
+**Key Interfaces:**
+- **MCP (Agent ↔ Environment)**: Agent-environment tool interaction (training AND production)
+- **HTTP (Orchestration ↔ Environment)**: Simulation control + operations (training AND production)
+
+
+**Critical insight**: The Agent uses **MCP exclusively** to interact with the Environment. The HTTP interface is for orchestration (simulation control in training, operations in production), never for agent actions.
+
+## Two Interfaces, Two Purposes
+
+A critical insight shapes OpenEnv's architecture: **environments expose two distinct interfaces** serving fundamentally different purposes.
+
+**1. MCP (Agent Interface)**
+- Agent ↔ Environment tool interaction
+- Present in training AND production
+- Operations: Tool calls (`search()`, `execute_sql()`, etc.)
+- **This is the ONLY interface agents use** (see RFC 005)
+
+**2. HTTP (Service/Operations Interface)**
+- RL Orchestration ↔ Environment control
+- Present in training AND production (different purposes)
+- Operations:
+  - Training: `reset()`, `step()`, `get_state()` (simulation control)
+  - Production: Health checks, metrics, logs (operations)
+- **Agents NEVER access this directly**
+
+**Key principle**: MCP for agent actions, HTTP for orchestration. See RFC 002 for detailed specification of how these interfaces work in practice, including graceful degradation from training to production.
+
+**Special note**: Simulation control methods (`.reset()`, `.step()`) are **never** exposed as MCP tools. This ensures agents never learn they can reset reality—critical for safe production deployment.
+
+## The Time Problem: Simulation vs Production
+
+A critical insight that shapes our entire design:
+
+**Simulation Time (Training/Eval)**:
+- Time only advances when we say so (via `.step()`)
+- Agent can "think" for arbitrary real-world time - simulation is paused
+- Environment state is frozen until agent acts
+- Can reset to initial state infinitely
+- Code execution blocks execute atomically from environment's perspective
+
+**Real Time (Production)**:
+- Time flows continuously
+- Events arrive on their own schedule (people get hired *now*, not when agent is ready)
+- Agent must react with bounded latency
+- Cannot reset (it's the real world). Deleting records is a one-way door.
+- No "turns" in the traditional sense - continuous stream of events
+
+**Key insight**: You can simulate production (via event queues), but you can't "productionize" simulation (can't pause reality).
+
+This temporal duality drives the need for two distinct interfaces:
+- **Simulation control** (HTTP): Reset, step, reward computation (training/eval only)
+- **Agent-environment interaction** (MCP): Tool calls (training AND production)
+
+**See RFC 006** for how we simulate production performance characteristics (latency, reliability) during training to minimize the training-production delta.
+
+## Event Queues: First-Class Abstraction
+
+Environments fall into two categories:
+
+1. **Static environments**: State only changes when agent acts (chess, coding puzzles)
+2. **Dynamic environments**: State changes independently (database with external events, customer service)
+
+We make the event queue a **first-class abstraction**:
+- **Empty queue** = static environment
+- **Populated queue** = dynamic environment with external events
+
+```python
+class Environment:
+    def __init__(
+        self,
+        mode: str,  # "sim" or "prod"
+        mcp_servers: List[MCPServerConfig],
+        event_queue: EventQueue,  # Empty for static, populated for dynamic
+        ..
+.
+    ):
+        self.event_queue = event_queue
+        self.mode = mode
 ```
+
+The event queue delivers external events (e.g., "new employee hired", "API request received") that change the environment state independently of agent actions. This enables realistic simulation of production scenarios where the world doesn't wait for the agent.
+
+## State Management: Why It's Separate
+
+**State** is a distinct concept from both **tools** and **data**:
+
+1. **Not part of the dataset**: While datasets contain tasks, the initial state snapshot (e.g., database contents) is separate. You can have many different tasks operate on the same state snapshot!
+
+2. **Not part of MCP tools**: Tools query and mutate state, but state itself isn't defined by MCP. MCP only deals with the interface to state.
+
+3. **Simulation-specific reset capability**: During training, we need the ability to reset state to its original snapshot. **Crucially**, the agent absolutely cannot trigger this reset—it's exclusively for the training loop via `.reset()` (HTTP). If the agent could reset state, it would learn that every error is recoverable, creating a huge training-production delta.
+
+**Example**: Database maintenance environment
+- Initial state: SQLite database with employee records
+- Agent calls `execute_sql("DELETE FROM employees")` → receives penalty in reward
+- Training loop calls `env.reset()` → database restored to initial snapshot
+- Agent learns not to delete records (because it can't undo the damage)
+
+In production, there is no reset. The agent must live with consequences of its actions.
 
 ## Python Interfaces
 
@@ -444,7 +559,7 @@ for batch_of_tasks in dataloader:
 
 3. **PyTorch DataLoader compatibility**: `TaskDataset` follows the PyTorch `IterableDataset` interface (implements `__iter__`), making it seamlessly compatible with PyTorch's `DataLoader` for streaming data, multiprocess loading, etc. This is ideal for sequential data access and large datasets.
 
-4. **Flexibility**: Environments can support both traditional tool calling (where each tool call is a separate action) and CodeAct (where an action contains code that may call multiple tools). See RFC 004 for details on unified action interface and RFC 003 for MCP integration.
+4. **Flexibility**: Environments can support both traditional tool calling (where each tool call is a separate action) and CodeAct (where an action contains code that may call multiple tools). See RFC 005 for details on unified action interface, RFC 003 for traditional MCP integration, and RFC 004 for CodeAct.
 
 5. **State ownership**: The Environment owns all external state (file system, interpreter state, tool outputs). The Agent owns internal state (conversation history, model hidden states, etc.).
 

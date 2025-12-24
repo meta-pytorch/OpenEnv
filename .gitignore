@@ -89,9 +89,23 @@ ehthumbs.db
 Desktop.ini
 
 # Docker
-.dockerignore
+/.dockerignore
 
 # Exclude anything containing "claude" (case-insensitive)
 *claude*
 *Claude*
 *CLAUDE*
+
+# OpenEnv-specific
+# Environment outputs (logs, evaluations, etc.)
+**/outputs/
+outputs/
+
+# Generated requirements files from pyproject.toml
+**/server/requirements.txt.generated
+
+# UV root lock file (env lock files should be committed)
+/uv.lock
+.uv/
+
+*.backup*/

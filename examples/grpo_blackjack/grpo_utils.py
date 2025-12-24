@@ -18,7 +18,7 @@ import torch.nn.functional as F
 import torchstore as ts
 from omegaConf import DictConfig
 
-from envs.openspiel_env import OpenSpielAction, OpenSpielEnv
+from openspiel_env import OpenSpielAction, OpenSpielEnv
 from forge.actors._torchstore_utils import (
     get_dcp_whole_state_dict_key,
     get_param_prefix,

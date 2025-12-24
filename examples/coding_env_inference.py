@@ -11,7 +11,7 @@ Prerequisites
 1. Build the Coding environment Docker image::
 
        docker build \
-           -f src/envs/coding_env/server/Dockerfile \
+           -f envs/coding_env/server/Dockerfile \
            -t coding-env:latest .
 
 2. Set your Hugging Face token, or any other API key that is compatible with the OpenAI API:
@@ -35,7 +35,7 @@ from typing import List, Tuple
 
 from openai import OpenAI
 
-from envs.coding_env import CodeAction, CodingEnv
+from coding_env import CodeAction, CodingEnv
 
 
 # ---------------------------------------------------------------------------
@@ -67,6 +67,7 @@ SYSTEM_PROMPT = (
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def extract_python_code(text: str) -> str:
     """Extract the first Python code block from the model output."""
@@ -115,6 +116,7 @@ def build_initial_prompt(task: str) -> str:
 # Gameplay
 # ---------------------------------------------------------------------------
 
+
 def solve_coding_task(
     env: CodingEnv,
     client: OpenAI,
@@ -152,9 +154,7 @@ def solve_coding_task(
 
         transcripts.append(
             (
-                f"Step {step} | exit_code={obs.exit_code}\n"
-                f"stdout:\n{obs.stdout}\n"
-                f"stderr:\n{obs.stderr}\n"
+                f"Step {step} | exit_code={obs.exit_code}\nstdout:\n{obs.stdout}\nstderr:\n{obs.stderr}\n"
             )
         )
 
@@ -192,6 +192,7 @@ def solve_coding_task(
 # Entrypoint
 # ---------------------------------------------------------------------------
 
+
 def main() -> None:
     if not API_KEY:
         raise SystemExit(
@@ -222,5 +223,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-
-
