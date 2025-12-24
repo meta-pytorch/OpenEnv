@@ -1,4 +1,15 @@
+---
+title: Grid World Env
+emoji: 🌍
+colorFrom: blue
+colorTo: indigo
+sdk: docker
+pinned: false
+---
+
 # Grid World Environment
+
+[Hugging Face Space](https://huggingface.co/spaces/yuvrajpant56/grid_world_env)
 
 This directory contains the implementation of a simple 5x5 Grid World environment, designed to serve two primary purposes within the OpenEnv ecosystem:
 
