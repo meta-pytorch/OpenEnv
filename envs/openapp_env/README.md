@@ -102,14 +102,16 @@ Docker mode is fully self-contained and handles all dependencies automatically. 
 The Docker image can be built in standalone mode using only public base images:
 
 ```bash
-# Build from project root
-docker build -t openapp-env:latest -f envs/openapp_env/server/Dockerfile .
+# Build from the environment directory
+cd envs/openapp_env
+docker build -t openapp-env:latest -f server/Dockerfile .
 ```
 
 **Note for Meta/Corporate Networks:** If you're behind a proxy (HTTP_PROXY/HTTPS_PROXY set), you may need to bypass it for localhost connections:
 ```bash
 export NO_PROXY=localhost,127.0.0.1
-docker build -t openapp-env:latest -f envs/openapp_env/server/Dockerfile .
+cd envs/openapp_env
+docker build -t openapp-env:latest -f server/Dockerfile .
 ```
 
 **What gets installed in Docker:**
