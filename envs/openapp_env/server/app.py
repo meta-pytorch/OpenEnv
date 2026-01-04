@@ -29,11 +29,11 @@ try:
     from ..models import OpenAppAction, OpenAppObservation
     from .openapp_environment import OpenAppEnvironment
 except ImportError:
-    from models import OpenAppAction, OpenAppObservation
-
     # Standalone imports (when environment is standalone with openenv-core from pip)
     from openenv_core.env_server.http_server import create_app
-    from server.openapp_environment import OpenAppEnvironment
+
+    from openapp_env.models import OpenAppAction, OpenAppObservation
+    from openapp_env.server.openapp_environment import OpenAppEnvironment
 
 # Create the environment instance
 # Use OPENAPPS_URL environment variable if set (Docker mode)

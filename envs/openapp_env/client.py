@@ -22,12 +22,12 @@ try:
 
     from .models import OpenAppAction, OpenAppObservation
 except ImportError:
-    from models import OpenAppAction, OpenAppObservation
-
     # Standalone imports (when environment is standalone with openenv-core from pip)
     from openenv_core.client_types import StepResult
     from openenv_core.env_server.types import State
     from openenv_core.http_env_client import HTTPEnvClient
+
+    from openapp_env.models import OpenAppAction, OpenAppObservation
 
 
 class OpenAppEnv(HTTPEnvClient[OpenAppAction, OpenAppObservation]):

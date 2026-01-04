@@ -28,11 +28,11 @@ try:
 
     from ..models import OpenAppAction, OpenAppObservation
 except ImportError:
-    from models import OpenAppAction, OpenAppObservation
-
     # Standalone imports (when environment is standalone with openenv-core from pip)
     from openenv_core.env_server.interfaces import Environment
     from openenv_core.env_server.types import State
+
+    from openapp_env.models import OpenAppAction, OpenAppObservation
 
 
 class GenericOpenAppsTask:

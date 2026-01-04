@@ -9,13 +9,15 @@ requires = ["setuptools>=45", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "openenv-openapp-env"
+name = "openenv-openapp_env"
 version = "0.1.0"
 description = "OpenApp Environment for OpenEnv - web application simulation environment for UI agents"
 requires-python = ">=3.11,<3.14"
 dependencies = [
     # Core OpenEnv dependencies (required for server functionality)
-    "openenv-core>=0.1.0",
+    # Using <0.2.0 to avoid openai>=2.7.2 dependency conflict with OpenApps
+    # OpenApps requires openai<2 via agentlab dependency
+    "openenv-core>=0.1.1,<0.2.0",
     "fastapi>=0.115.0",
     "pydantic>=2.0.0",
     "uvicorn[standard]>=0.24.0",
@@ -36,13 +38,14 @@ dev = [
 ]
 
 [project.scripts]
-# Server entry point - enables running via: uv run --project . server
-# or: python -m openapp_env.server.app
 server = "openapp_env.server.app:main"
 
 [tool.setuptools]
 packages = ["openapp_env", "openapp_env.server"]
 package-dir = { "openapp_env" = ".", "openapp_env.server" = "server" }
+
+[tool.setuptools.package-data]
+openapp_env = ["**/*.yaml", "**/*.yml", "**/*.md"]
 
 [tool.hatch.metadata]
 allow-direct-references = true

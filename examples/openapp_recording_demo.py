@@ -35,10 +35,10 @@ import time
 from pathlib import Path
 
 # Add src to path
-sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
+sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from envs.openapp_env.models import OpenAppAction
-from envs.openapp_env.server.openapp_environment import OpenAppEnvironment
+from openapp_env.models import OpenAppAction
+from openapp_env.server.openapp_environment import OpenAppEnvironment
 
 
 class RecordingDemo:

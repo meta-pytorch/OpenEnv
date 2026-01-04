@@ -103,17 +103,17 @@ The Docker image can be built in standalone mode using only public base images:
 
 ```bash
 # Build from project root
-docker build -t openapp-env:latest -f src/envs/openapp_env/server/Dockerfile src/envs/openapp_env
+docker build -t openapp-env:latest -f envs/openapp_env/server/Dockerfile envs/openapp_env
 
 # Or build from the openapp_env directory
-cd src/envs/openapp_env
+cd envs/openapp_env
 docker build -t openapp-env:latest -f server/Dockerfile .
 ```
 
 **Note for Meta/Corporate Networks:** If you're behind a proxy (HTTP_PROXY/HTTPS_PROXY set), you may need to bypass it for localhost connections:
 ```bash
 export NO_PROXY=localhost,127.0.0.1
-docker build -t openapp-env:latest -f src/envs/openapp_env/server/Dockerfile src/envs/openapp_env
+docker build -t openapp-env:latest -f envs/openapp_env/server/Dockerfile envs/openapp_env
 ```
 
 **What gets installed in Docker:**
@@ -157,7 +157,7 @@ Local mode requires manual setup of the OpenApps server. This mode is useful for
 
 **Step 1: Install openapp_env**
 ```bash
-cd src/envs/openapp_env
+cd envs/openapp_env
 pip install -e .
 ```
 
@@ -460,7 +460,7 @@ client.close()
 ### Running Server Locally (without Docker)
 
 ```bash
-cd src/envs/openapp_env
+cd envs/openapp_env
 uv run server
 ```
 
@@ -469,8 +469,8 @@ The server will start at `http://localhost:8000`
 ### Testing
 
 ```python
-from envs.openapp_env.server.openapp_environment import OpenAppEnvironment
-from envs.openapp_env.models import OpenAppAction
+from openapp_env.server.openapp_environment import OpenAppEnvironment
+from openapp_env.models import OpenAppAction
 
 def test_environment():
     env = OpenAppEnvironment()
@@ -505,7 +505,7 @@ This environment integrates:
 If you're behind a corporate proxy (Meta/Facebook networks), set `NO_PROXY`:
 ```bash
 export NO_PROXY=localhost,127.0.0.1
-docker build -t openapp-env:latest -f src/envs/openapp_env/server/Dockerfile src/envs/openapp_env
+docker build -t openapp-env:latest -f envs/openapp_env/server/Dockerfile envs/openapp_env
 ```
 
 **Error: `Environment variable 'USER' not found`**

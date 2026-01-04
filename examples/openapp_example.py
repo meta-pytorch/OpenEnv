@@ -58,12 +58,12 @@ import time
 from pathlib import Path
 
 # Add src to path
-sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
+sys.path.insert(0, str(Path(__file__).parent.parent))
 
 
 def run_with_docker(num_steps: int = 15, headless: bool = True):
     """Run OpenApp environment using Docker container."""
-    from envs.openapp_env import OpenAppAction, OpenAppEnv
+    from openapp_env import OpenAppAction, OpenAppEnv
 
     print("=" * 70)
     print("Starting OpenApp environment with Docker...")
@@ -206,12 +206,12 @@ def run_local(num_steps: int = 15, headless: bool = True):
         return 1
 
     try:
-        from envs.openapp_env.models import OpenAppAction
-        from envs.openapp_env.server.openapp_environment import OpenAppEnvironment
+        from openapp_env.models import OpenAppAction
+        from openapp_env.server.openapp_environment import OpenAppEnvironment
     except ImportError as e:
         print(f"❌ Error importing local modules: {e}")
         print("\nMake sure you have installed the environment:")
-        print("  cd src/envs/openapp_env")
+        print("  cd envs/openapp_env")
         print("  pip install -e .")
         return 1
 
@@ -309,8 +309,8 @@ Visualization:
   - Docker mode web interface: http://localhost:8000/web
 
 Note:
-  - Docker mode requires: docker build -t openapp-env:latest -f src/envs/openapp_env/server/Dockerfile src/envs/openapp_env
-  - Local mode requires: pip install -e src/envs/openapp_env && playwright install chromium
+  - Docker mode requires: docker build -t openapp-env:latest -f envs/openapp_env/server/Dockerfile envs/openapp_env
+  - Local mode requires: pip install -e envs/openapp_env && playwright install chromium
         """,
     )
 

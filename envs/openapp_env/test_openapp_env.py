@@ -13,10 +13,10 @@ to ensure it follows OpenEnv standards.
 
 Usage:
     # From OpenEnv root directory
-    python3 src/envs/openapp_env/test_openapp_env.py
+    python3 envs/openapp_env/test_openapp_env.py
 
     # Or from openapp_env directory
-    cd src/envs/openapp_env
+    cd envs/openapp_env
     python3 test_openapp_env.py
 """
 
@@ -24,10 +24,10 @@ import sys
 from pathlib import Path
 
 # Add src to path for local testing
-sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
+sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
-from envs.openapp_env.models import OpenAppAction, OpenAppObservation
-from envs.openapp_env.server.openapp_environment import OpenAppEnvironment
+from openapp_env.models import OpenAppAction, OpenAppObservation
+from openapp_env.server.openapp_environment import OpenAppEnvironment
 
 
 def test_models():
