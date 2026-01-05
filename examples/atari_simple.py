@@ -16,21 +16,33 @@ Usage:
     python examples/atari_simple.py
 """
 
-import numpy as np
-from envs.atari_env import AtariEnv, AtariAction
+import sys
+from pathlib import Path
 
+import numpy as np
+
+# Add src to path
+sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
+
+from atari_env import AtariEnv, AtariAction
+# import envs
+# print(envs.__path__)
 
 def main():
     """Run a simple Atari episode."""
     # Connect to the Atari environment server
     print("Connecting to Atari environment...")
-    env = AtariEnv(base_url="http://localhost:8000")
-
+    env = AtariEnv.from_docker_image("ghcr.io/meta-pytorch/openenv-atari-env:latest")
+    
+   
     try:
         # Reset the environment
         print("\nResetting environment...")
         result = env.reset()
         print(f"Screen shape: {result.observation.screen_shape}")
+
+    
+    
         print(f"Legal actions: {result.observation.legal_actions}")
         print(f"Lives: {result.observation.lives}")
 
@@ -42,7 +54,8 @@ def main():
         for step in range(100):
             # Random action
             action_id = np.random.choice(result.observation.legal_actions)
-
+            action_id = int(action_id)
+            
             # Take action
             result = env.step(AtariAction(action_id=action_id))
 

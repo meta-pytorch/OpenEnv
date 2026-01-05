@@ -1,0 +1,106 @@
+name: Build OpenSpiel Base Image
+
+on:
+  workflow_dispatch:  # Manual trigger only
+    inputs:
+      force_rebuild:
+        description: 'Force rebuild even if base image exists'
+        required: false
+        default: 'false'
+        type: boolean
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_PREFIX: ${{ github.repository_owner }}/openenv
+
+jobs:
+  # Job 1: Build base image first
+  build-base:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata for base image
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-base
+          tags: |
+            type=raw,value=latest,enable={{is_default_branch}}
+            type=sha
+
+      - name: Build and push base image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: src/core/containers/images/Dockerfile
+          push: true
+          platforms: linux/amd64,linux/arm64
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha,scope=base
+          cache-to: type=gha,mode=max,scope=base
+
+  # Job 2: Build OpenSpiel base image (depends on base)
+  build-openspiel-base:
+    runs-on: 8-core-ubuntu
+    needs: build-base  # Wait for base image to be built
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata for OpenSpiel base image
+        id: meta-openspiel-base
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-openspiel-base
+          tags: |
+            type=raw,value=latest,enable={{is_default_branch}}
+            type=sha
+
+      - name: Build and push OpenSpiel base image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: envs/openspiel_env/server/Dockerfile.openspiel-base
+          push: true
+          platforms: linux/amd64,linux/arm64
+          tags: ${{ steps.meta-openspiel-base.outputs.tags }}
+          labels: ${{ steps.meta-openspiel-base.outputs.labels }}
+          cache-from: type=gha,scope=openspiel-base
+          cache-to: type=gha,mode=max,scope=openspiel-base
+
+      - name: Build summary
+        run: |
+          echo "✅ OpenSpiel base image built and pushed successfully!"
+          echo "📦 Image: ${{ steps.meta-openspiel-base.outputs.tags }}"
+          echo "🚀 Next regular build will use this new base image"

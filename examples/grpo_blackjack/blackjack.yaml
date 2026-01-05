@@ -1,0 +1,155 @@
+# BlackJack GRPO Training Configuration
+# >>> python -m apps.grpo.blackjack_main --config apps/grpo/blackjack.yaml
+#
+# Prerequisites:
+# 1. Start BlackJack server:
+#    cd /Users/sanyambhutani/OpenEnv/OpenEnv
+#    export PYTHONPATH="/Users/sanyambhutani/OpenEnv/OpenEnv/src:${PYTHONPATH}"
+#    OPENSPIEL_GAME=blackjack python -m envs.openspiel_env.server.app
+#
+# 2. Run training:
+#    python -m apps.grpo.blackjack_main --config apps/grpo/blackjack.yaml
+
+# Global configuration
+group_size: 4  # Number of parallel games per rollout
+local_batch_size: 8  # Per-device batch size
+max_req_tokens: 512  # Max tokens for prompt (BlackJack prompts are ~200-300 tokens)
+max_res_tokens: 32  # Max tokens for response (just "HIT" or "STAND" + thinking)
+model: "Qwen/Qwen3-1.7B"
+off_by_n: 1  # Off-policy tolerance
+
+# Main loop configuration
+rollout_threads: 1  # Number of parallel rollout threads
+
+# Observability configuration
+metric_logging:
+  wandb:
+    project: "blackjack-grpo-tutorial"
+    group: "blackjack_exp_${oc.env:USER}"
+    reduce_across_ranks: True
+  console:
+    reduce_across_ranks: True
+
+# BlackJack environment configuration
+blackjack_env:
+  server_url: "http://localhost:8004"
+  model: ${model}
+
+# Policy configuration (generator)
+policy:
+  engine_args:  # https://docs.vllm.ai/en/v0.10.0/api/vllm/engine/arg_utils.html#vllm.engine.arg_utils.EngineArgs
+    model: ${model}
+    tensor_parallel_size: 1
+    pipeline_parallel_size: 1
+    enforce_eager: false
+  sampling_params:  # https://docs.vllm.ai/en/v0.10.0/api/vllm/sampling_params.html#vllm.sampling_params.SamplingParams
+    n: 1  # Generate 1 response per game state (not group_size, since we play full games)
+    max_tokens: ${max_res_tokens}
+    temperature: 1.0
+    top_p: 1.0
+
+# Trainer configuration
+trainer:
+  model:
+    name: qwen3
+    flavor: 1.7B
+    hf_assets_path: hf://${model}
+  optimizer:
+    name: AdamW
+    lr: 1e-5
+    eps: 1e-8
+  lr_scheduler:
+    warmup_steps: 1
+  training:
+    local_batch_size: ${local_batch_size}
+    seq_len: 1024  # Shorter than GSM8K since BlackJack episodes are shorter
+    max_norm: 1.0
+    steps: 1000  # Tutorial: 1000 steps (increase for production)
+    dtype: bfloat16
+    gc_freq: 1
+  compile:
+    enable: false
+  parallelism:
+    data_parallel_replicate_degree: 1
+    data_parallel_shard_degree: 1
+    tensor_parallel_degree: 1
+    pipeline_parallel_degree: 1
+    context_parallel_degree: 1
+    expert_parallel_degree: 1
+    disable_loss_parallel: true
+  checkpoint:
+    enable: true
+    initial_load_path: hf://${model}
+    initial_load_in_hf: true
+    last_save_in_hf: true
+    interval: 500
+    async_mode: "disabled"
+  activation_checkpoint:
+    mode: selective
+    selective_ac_option: op
+
+# Replay buffer configuration
+replay_buffer:
+  batch_size: ${local_batch_size}
+  max_policy_age: ${off_by_n}
+  dp_size: ${trainer.parallelism.data_parallel_shard_degree}
+
+# Reference model configuration
+ref_model:
+  model:
+    name: qwen3
+    flavor: 1.7B
+    hf_assets_path: hf://${model}
+  training:
+    seq_len: ${trainer.training.seq_len}
+    dtype: bfloat16
+    gc_freq: 1
+  compile:
+    enable: false
+  parallelism:
+    data_parallel_replicate_degree: 1
+    data_parallel_shard_degree: 1
+    tensor_parallel_degree: 1
+    pipeline_parallel_degree: 1
+    context_parallel_degree: 1
+    expert_parallel_degree: 1
+  checkpoint:
+    enable: true
+    initial_load_path: hf://${model}
+    initial_load_in_hf: true
+
+# All resource allocations
+services:
+  policy:
+    procs: ${policy.engine_args.tensor_parallel_size}
+    num_replicas: 1
+    mesh_name: policy
+    with_gpus: true
+  ref_model:
+    procs: 1
+    num_replicas: 1
+    mesh_name: ref_model
+    with_gpus: true
+  reward_actor:
+    procs: 1
+    num_replicas: 1
+    mesh_name: reward_actor
+    with_gpus: false
+
+actors:
+  blackjack_env:
+    procs: 1
+    with_gpus: false
+    mesh_name: blackjack_env
+  trainer:
+    procs: 1
+    with_gpus: true
+    mesh_name: trainer
+  replay_buffer:
+    procs: 1
+    with_gpus: false
+    mesh_name: replay_buffer
+  compute_advantages:
+    procs: 1
+    with_gpus: false
+    mesh_name: compute_advantages

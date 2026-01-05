@@ -1,0 +1,7 @@
+<nodes>
+    <node id="n" x="0.0" y="150.0" type="priority"/>
+    <node id="s" x="0.0" y="-150.0" type="priority"/>
+    <node id="e" x="150.0" y="0.0" type="priority"/>
+    <node id="w" x="-150.0" y="0.0" type="priority"/>
+	<node id="t" x="0.0" y="0.0" type="priority"/>
+</nodes>

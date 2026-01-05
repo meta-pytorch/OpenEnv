@@ -68,13 +68,25 @@ jobs:
       matrix:
         image:
           - name: echo-env
-            dockerfile: src/envs/echo_env/server/Dockerfile
+            dockerfile: envs/echo_env/server/Dockerfile
           - name: chat-env
-            dockerfile: src/envs/chat_env/server/Dockerfile
+            dockerfile: envs/chat_env/server/Dockerfile
           - name: coding-env
-            dockerfile: src/envs/coding_env/server/Dockerfile
+            dockerfile: envs/coding_env/server/Dockerfile
+          - name: sumo-rl-env
+            dockerfile: envs/sumo_rl_env/server/Dockerfile
           - name: atari-env
-            dockerfile: src/envs/atari_env/server/Dockerfile
+            dockerfile: envs/atari_env/server/Dockerfile
+          - name: git-env
+            dockerfile: envs/git_env/server/Dockerfile
+          - name: my-env  # Add your environment here
+            dockerfile: envs/connect4_env/server/Dockerfile
+          - name: textarena-env
+            dockerfile: envs/textarena_env/server/Dockerfile
+          - name: browsergym-env
+            dockerfile: envs/browsergym_env/server/Dockerfile
+          - name: snake-env
+            dockerfile: envs/snake_env/server/Dockerfile
 
     steps:
       - name: Checkout code

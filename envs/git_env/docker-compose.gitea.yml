@@ -1,0 +1,49 @@
+# Docker Compose configuration for shared Gitea service
+# This runs a single Gitea instance that can be shared by multiple
+# Git environment containers for optimal task-based isolation.
+#
+# Usage:
+#   docker-compose -f docker-compose.gitea.yml up -d
+#
+# The Gitea service will be available at:
+#   - http://localhost:3000 (web interface)
+#   - http://gitea:3000 (from other containers on the same network)
+
+version: '3.8'
+
+services:
+  gitea:
+    image: gitea/gitea:1.24
+    container_name: openenv-gitea
+    hostname: gitea
+    environment:
+      - USER_UID=1000
+      - USER_GID=1000
+      - GITEA__database__DB_TYPE=sqlite3
+      - GITEA__database__PATH=/data/gitea/gitea.db
+      - GITEA__server__DOMAIN=gitea
+      - GITEA__server__HTTP_PORT=3000
+      - GITEA__server__ROOT_URL=http://gitea:3000/
+      - GITEA__server__OFFLINE_MODE=true
+    restart: unless-stopped
+    networks:
+      - openenv-network
+    ports:
+      - "3000:3000"
+    volumes:
+      - gitea-data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+networks:
+  openenv-network:
+    name: openenv-network
+    driver: bridge
+
+volumes:
+  gitea-data:
+    name: openenv-gitea-data

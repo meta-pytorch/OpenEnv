@@ -79,7 +79,20 @@ Each RFC should include the following sections:
 
 ## Current RFCs
 
-- [001-openenv-spec.md](./001-openenv-spec.md) - OpenEnv Framework Specification (baseline APIs, HTTP communication, Docker isolation)
+### Core Abstractions & Design
+- [000-project-phases.md](./000-project-phases.md) - Design Principles and Broad Roadmap
+- [001-abstractions.md](./001-abstractions.md) - Basic Abstractions (Environment, Agent, State)
+- [002-env-spec.md](./002-env-spec.md) - Framework Spec for Agent Execution Environments
+
+### MCP Integration
+- [003-mcp-support.md](./003-mcp-support.md) - MCP Support: Traditional Tool Calling
+- [004-codeact-with-mcp.md](./004-codeact-with-mcp.md) - CodeAct Support with MCP
+- [005-mcp-universal-interface.md](./005-mcp-universal-interface.md) - MCP as THE Universal Interface (Policy)
+
+### Tool Ecosystem & Performance
+- [005-tool-registry.md](./005-tool-registry.md) - Tool Registry & Distribution via Hugging Face Hub (Note: Will be renumbered)
+- [006-performance-simulation.md](./006-performance-simulation.md) - Production Performance Simulation
+- [007-mcp-interception.md](./007-mcp-interception.md) - MCP Protocol Interception (Draft - Future Work)
 
 ## Questions?
 
