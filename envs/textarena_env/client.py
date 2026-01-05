@@ -13,7 +13,7 @@ from typing import Any, Dict, TYPE_CHECKING
 from openenv.core.client_types import StepResult
 from openenv.core.env_client import EnvClient
 
-from .models import (
+from .env_types import (
     TextArenaAction,
     TextArenaMessage,
     TextArenaObservation,

@@ -28,6 +28,6 @@ Example:
 """
 
 from .client import FinRLEnv
-from .models import FinRLAction, FinRLObservation
+from .env_types import FinRLAction, FinRLObservation
 
 __all__ = ["FinRLEnv", "FinRLAction", "FinRLObservation"]

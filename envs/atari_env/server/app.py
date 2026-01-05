@@ -34,7 +34,7 @@ import os
 
 from openenv.core.env_server import create_app
 
-from ..models import AtariAction, AtariObservation
+from ..env_types import AtariAction, AtariObservation
 from .atari_environment import AtariEnvironment
 
 # Get configuration from environment variables

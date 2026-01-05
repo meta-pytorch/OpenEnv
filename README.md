@@ -115,7 +115,7 @@ To use the web interface:
 
 ```python
 from openenv.core.env_server import create_web_interface_app
-from your_env.models import YourAction, YourObservation
+from your_env.env_types import YourAction, YourObservation
 from your_env.server.your_environment import YourEnvironment
 
 env = YourEnvironment()
@@ -164,7 +164,7 @@ This creates the following structure:
 my_env/
 ├── .dockerignore        # Docker build exclusions
 ├── __init__.py           # Export YourAction, YourObservation, YourEnv
-├── models.py             # Define Action, Observation, State dataclasses
+├── env_types.py          # Define Action, Observation, State dataclasses
 ├── client.py             # Implement YourEnv(HTTPEnvClient)
 ├── README.md             # Document your environment
 ├── openenv.yaml          # Environment manifest

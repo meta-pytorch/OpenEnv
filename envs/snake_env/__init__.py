@@ -7,6 +7,6 @@
 """Snake Environment - A multi-agent snake game environment based on marlenv."""
 
 from .client import SnakeEnv
-from .models import SnakeAction, SnakeObservation
+from .env_types import SnakeAction, SnakeObservation
 
 __all__ = ["SnakeAction", "SnakeObservation", "SnakeEnv"]

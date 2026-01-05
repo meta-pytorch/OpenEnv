@@ -16,7 +16,7 @@ from typing import Any, Dict, Literal, Optional
 
 from openenv.core.env_server import Action, Environment, Observation
 
-from ..models import AtariAction, AtariObservation, AtariState
+from ..env_types import AtariAction, AtariObservation, AtariState
 
 # Import ALE
 try:

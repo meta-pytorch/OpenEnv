@@ -7,7 +7,7 @@
 """TextArena environment integration for OpenEnv."""
 
 from .client import TextArenaEnv
-from .models import (
+from .env_types import (
     TextArenaAction,
     TextArenaMessage,
     TextArenaObservation,

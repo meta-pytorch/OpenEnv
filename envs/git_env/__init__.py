@@ -8,7 +8,7 @@ Note: Repository migration is done externally via Gitea API before environment u
 """
 
 from .client import GitEnv
-from .models import GitAction, GitObservation, GitState
+from .env_types import GitAction, GitObservation, GitState
 
 __all__ = [
     "GitEnv",

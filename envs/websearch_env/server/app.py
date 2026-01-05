@@ -30,7 +30,7 @@ except Exception as e:  # pragma: no cover
     ) from e
 
 from .web_search_environment import WebSearchEnvironment
-from models import WebSearchAction, WebSearchObservation
+from env_types import WebSearchAction, WebSearchObservation
 
 # Create the environment instance
 env = WebSearchEnvironment()

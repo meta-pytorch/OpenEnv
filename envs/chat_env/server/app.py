@@ -28,7 +28,7 @@ import os
 
 from openenv.core.env_server import create_app
 
-from ..models import ChatAction, ChatObservation
+from ..env_types import ChatAction, ChatObservation
 from .chat_environment import ChatEnvironment
 
 

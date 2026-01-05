@@ -19,13 +19,13 @@ try:
     from openenv.core.client_types import StepResult
     from openenv.core.env_server.types import State
     from openenv.core.env_client import EnvClient
-    from .models import EchoAction, EchoObservation
+    from .env_types import EchoAction, EchoObservation
 except ImportError:
     # Standalone imports (when environment is standalone with openenv from pip)
     from openenv.core.client_types import StepResult
     from openenv.core.env_server.types import State
     from openenv.core.env_client import EnvClient
-    from models import EchoAction, EchoObservation
+    from env_types import EchoAction, EchoObservation
 
 
 class EchoEnv(EnvClient[EchoAction, EchoObservation, State]):

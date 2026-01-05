@@ -18,7 +18,7 @@ from __future__ import annotations
 from openenv.core.client_types import StepResult
 from openenv.core.env_client import EnvClient
 
-from .models import CodeAction, CodeObservation, CodeState
+from .env_types import CodeAction, CodeObservation, CodeState
 
 
 class CodingEnv(EnvClient[CodeAction, CodeObservation, CodeState]):

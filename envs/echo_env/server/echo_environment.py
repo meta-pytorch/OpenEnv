@@ -18,12 +18,12 @@ try:
     # In-repo imports (when running from OpenEnv repository)
     from openenv.core.env_server.interfaces import Environment
     from openenv.core.env_server.types import State
-    from ..models import EchoAction, EchoObservation
+    from ..env_types import EchoAction, EchoObservation
 except ImportError:
     # Standalone imports (when environment is standalone with openenv from pip)
     from openenv.core.env_server.interfaces import Environment
     from openenv.core.env_server.types import State
-    from models import EchoAction, EchoObservation
+    from env_types import EchoAction, EchoObservation
 
 
 class EchoEnvironment(Environment):

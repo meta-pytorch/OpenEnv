@@ -16,7 +16,7 @@ import nltk
 
 from openenv.core.env_server.interfaces import Environment
 
-from ..models import (
+from ..env_types import (
     TextArenaAction,
     TextArenaMessage,
     TextArenaObservation,

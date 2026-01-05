@@ -1,7 +1,7 @@
 """FastAPI application for the Connect4 Environment."""
 
 from openenv.core.env_server import create_app
-from ..models import Connect4Action, Connect4Observation
+from ..env_types import Connect4Action, Connect4Observation
 from .connect4_environment import Connect4Environment
 
 # Create the FastAPI app

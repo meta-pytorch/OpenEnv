@@ -19,7 +19,7 @@ import random
 import requests
 import chardet
 
-from models import WebContent, WebSearchAction, WebSearchObservation
+from env_types import WebContent, WebSearchAction, WebSearchObservation
 
 
 class WebSearchTool:

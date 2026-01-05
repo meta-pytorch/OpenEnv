@@ -46,7 +46,7 @@ my_env/
 ├── __init__.py
 ├── README.md
 ├── client.py
-├── models.py
+├── env_types.py
 ├── openenv.yaml
 ├── pyproject.toml
 ├── uv.lock
@@ -62,10 +62,10 @@ Python classes are generated for the action, observation, environment, and clien
 
 ### 2. Define Models
 
-Edit `models.py` to describe your action and observation using Pydantic:
+Edit `env_types.py` to describe your action and observation using Pydantic:
 
 ```python
-# models.py
+# env_types.py
 from pydantic import Field
 from openenv.core.env_server.types import Action, Observation
 
@@ -89,7 +89,7 @@ Customize `server/my_environment.py` by extending `Environment`:
 from uuid import uuid4
 from openenv.core.env_server.interfaces import Environment
 from openenv.core.env_server.types import State
-from models import MyAction, MyObservation
+from env_types import MyAction, MyObservation
 
 class MyEnvironment(Environment):
     def __init__(self):
@@ -119,7 +119,7 @@ class MyEnvironment(Environment):
 ```python
 # server/app.py
 from openenv.core.env_server import create_app
-from ..models import MyAction, MyObservation
+from ..env_types import MyAction, MyObservation
 from .my_environment import MyEnvironment
 
 # Pass the class (factory) - each WebSocket session gets its own instance
@@ -132,7 +132,7 @@ For environments with constructor arguments, create a factory function:
 # server/app.py
 import os
 from openenv.core.env_server import create_app
-from ..models import MyAction, MyObservation
+from ..env_types import MyAction, MyObservation
 from .my_environment import MyEnvironment
 
 # Read config from environment variables
@@ -155,7 +155,7 @@ app = create_app(create_my_environment, MyAction, MyObservation, env_name="my_en
 # client.py
 from openenv.core.env_client import EnvClient
 from openenv.core.client_types import StepResult
-from .models import MyAction, MyObservation, MyState
+from .env_types import MyAction, MyObservation, MyState
 
 class MyEnv(EnvClient[MyAction, MyObservation, MyState]):
     def _step_payload(self, action: MyAction) -> dict:

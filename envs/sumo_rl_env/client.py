@@ -17,7 +17,7 @@ from openenv.core.client_types import StepResult
 
 from openenv.core.env_client import EnvClient
 
-from .models import SumoAction, SumoObservation, SumoState
+from .env_types import SumoAction, SumoObservation, SumoState
 
 
 class SumoRLEnv(EnvClient[SumoAction, SumoObservation, SumoState]):

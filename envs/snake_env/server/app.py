@@ -25,12 +25,12 @@ Usage:
 try:
     # In-repo imports (when running from OpenEnv repository)
     from core.env_server.http_server import create_app
-    from ..models import SnakeAction, SnakeObservation
+    from ..env_types import SnakeAction, SnakeObservation
     from .snake_environment import SnakeEnvironment
 except ImportError:
     # Standalone imports (when environment is standalone with openenv-core from pip)
     from openenv_core.env_server.http_server import create_app
-    from models import SnakeAction, SnakeObservation
+    from env_types import SnakeAction, SnakeObservation
     from server.snake_environment import SnakeEnvironment
 
 # Create the environment instance

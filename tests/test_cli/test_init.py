@@ -43,7 +43,7 @@ def test_init_creates_directory_structure(tmp_path: Path) -> None:
 
     # Check for required files
     assert (env_dir / "__init__.py").exists()
-    assert (env_dir / "models.py").exists()
+    assert (env_dir / "env_types.py").exists()
     assert (env_dir / "client.py").exists()
     assert (env_dir / "README.md").exists()
     assert (env_dir / "openenv.yaml").exists()
@@ -216,7 +216,7 @@ def test_init_handles_empty_directory(tmp_path: Path) -> None:
 
     # Should work - empty directory is okay
     assert result.exit_code == 0
-    assert (env_dir / "models.py").exists()
+    assert (env_dir / "env_types.py").exists()
 
 
 def test_init_with_output_dir(tmp_path: Path) -> None:
@@ -234,7 +234,7 @@ def test_init_with_output_dir(tmp_path: Path) -> None:
 
     assert result.exit_code == 0
     assert env_dir.exists()
-    assert (env_dir / "models.py").exists()
+    assert (env_dir / "env_types.py").exists()
 
 
 def test_init_filename_templating(tmp_path: Path) -> None:
@@ -311,7 +311,7 @@ def test_init_server_app_imports(tmp_path: Path) -> None:
     # For 'test_env', prefix is 'Test' (removes trailing '_env')
     # Template uses direct imports (PYTHONPATH includes env dir in Docker)
     assert f"from .{env_name}_environment import" in app_content
-    assert "from models import" in app_content  # Direct import for Docker compatibility
+    assert "from env_types import" in app_content  # Direct import for Docker compatibility
     assert "TestEnvironment" in app_content  # Prefix is 'Test', not 'TestEnv'
     assert "TestAction" in app_content  # Prefix is 'Test', not 'TestEnv'
     assert "TestObservation" in app_content  # Prefix is 'Test', not 'TestEnv'

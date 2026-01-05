@@ -9,7 +9,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../.
 pytest.importorskip("nltk", reason="nltk not installed")
 
 from envs.textarena_env.server.environment import TextArenaEnvironment
-from envs.textarena_env.models import TextArenaMessage, TextArenaAction
+from envs.textarena_env.env_types import TextArenaMessage, TextArenaAction
 
 
 def test_convert_messages_coalesces_consecutive_characters():

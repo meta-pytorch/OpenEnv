@@ -19,7 +19,7 @@ from openenv.core.client_types import StepResult
 from openenv.core.env_server.interfaces import Message
 from openenv.core.env_client import EnvClient
 
-from .models import ChatAction, ChatObservation, ChatState
+from .env_types import ChatAction, ChatObservation, ChatState
 
 
 class ChatEnv(EnvClient[ChatAction, ChatObservation, ChatState]):

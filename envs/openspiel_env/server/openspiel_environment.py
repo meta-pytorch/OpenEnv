@@ -16,7 +16,7 @@ from typing import Any, Dict
 
 from openenv.core.env_server import Action, Environment, Observation
 
-from ..models import OpenSpielAction, OpenSpielObservation, OpenSpielState
+from ..env_types import OpenSpielAction, OpenSpielObservation, OpenSpielState
 from .opponent_policies import get_opponent_policy, OpponentPolicy
 
 # Import OpenSpiel

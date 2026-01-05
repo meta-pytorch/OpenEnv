@@ -24,9 +24,9 @@ try:
     from core.env_server.interfaces import Environment
     from core.env_server.types import State
 
-    from ..models import SnakeAction, SnakeObservation
+    from ..env_types import SnakeAction, SnakeObservation
 except ImportError:
-    from models import SnakeAction, SnakeObservation
+    from env_types import SnakeAction, SnakeObservation
 
     # Standalone imports (when environment is standalone with openenv-core from pip)
     from openenv_core.env_server.interfaces import Environment

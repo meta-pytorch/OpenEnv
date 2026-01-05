@@ -17,7 +17,7 @@ from openenv_core.client_types import StepResult
 from openenv_core.env_server.types import State
 from openenv_core.http_env_client import HTTPEnvClient
 
-from .models import WebSearchAction, WebSearchObservation
+from .env_types import WebSearchAction, WebSearchObservation
 
 
 class WebSearchEnv(HTTPEnvClient[WebSearchAction, WebSearchObservation]):

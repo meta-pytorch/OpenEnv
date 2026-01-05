@@ -15,7 +15,7 @@ from typing import TYPE_CHECKING
 from openenv.core.client_types import StepResult
 from openenv.core.env_client import EnvClient
 
-from .models import GitAction, GitObservation, GitState
+from .env_types import GitAction, GitObservation, GitState
 
 if TYPE_CHECKING:
     from openenv.core.containers.runtime import ContainerProvider

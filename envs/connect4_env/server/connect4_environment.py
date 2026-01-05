@@ -2,7 +2,7 @@ import uuid
 import numpy as np
 from openenv.core.env_server import Environment
 
-from ..models import Connect4Action, Connect4Observation, Connect4State
+from ..env_types import Connect4Action, Connect4Observation, Connect4State
 
 class Connect4Environment(Environment):
     ROWS = 6

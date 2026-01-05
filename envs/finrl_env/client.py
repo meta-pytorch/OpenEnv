@@ -18,7 +18,7 @@ from openenv.core.client_types import StepResult
 from openenv.core.env_server.types import State
 from openenv.core.env_client import EnvClient
 
-from .models import FinRLAction, FinRLObservation
+from .env_types import FinRLAction, FinRLObservation
 
 
 class FinRLEnv(EnvClient[FinRLAction, FinRLObservation, State]):

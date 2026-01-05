@@ -13,7 +13,7 @@ for efficient multi-step interactions:
 
 from openenv.core.client_types import StepResult
 from openenv.core.env_client import EnvClient
-from .models import DIPGAction, DIPGObservation, DIPGState
+from .env_types import DIPGAction, DIPGObservation, DIPGState
 
 
 class DIPGSafetyEnv(EnvClient[DIPGAction, DIPGObservation, DIPGState]):

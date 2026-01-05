@@ -19,7 +19,7 @@ from openenv.core.client_types import StepResult
 
 from openenv.core.env_client import EnvClient
 
-from .models import AtariAction, AtariObservation, AtariState
+from .env_types import AtariAction, AtariObservation, AtariState
 
 if TYPE_CHECKING:
     from openenv.core.containers.runtime import ContainerProvider

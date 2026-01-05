@@ -9,7 +9,7 @@ over HTTP and WebSocket endpoints, compatible with EnvClient.
 import os
 from openenv.core.env_server import create_app
 from .dipg_environment import DIPGEnvironment
-from ..models import DIPGAction, DIPGObservation
+from ..env_types import DIPGAction, DIPGObservation
 
 # Get the dataset path from an environment variable.
 # If it's not set, raise an error so the server fails fast.

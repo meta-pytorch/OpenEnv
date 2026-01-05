@@ -15,7 +15,7 @@ import uuid
 from openenv.core.env_server import Action, Environment, Observation
 from openenv.core.tools import GitServerClient
 
-from ..models import GitAction, GitObservation, GitState
+from ..env_types import GitAction, GitObservation, GitState
 
 
 class GitTaskEnvironment(Environment):

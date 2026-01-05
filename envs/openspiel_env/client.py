@@ -19,7 +19,7 @@ from openenv.core.client_types import StepResult
 
 from openenv.core.env_client import EnvClient
 
-from .models import OpenSpielAction, OpenSpielObservation, OpenSpielState
+from .env_types import OpenSpielAction, OpenSpielObservation, OpenSpielState
 
 if TYPE_CHECKING:
     from openenv.core.containers.runtime import ContainerProvider
