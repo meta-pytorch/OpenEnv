@@ -27,7 +27,7 @@ import os
 
 from openenv.core.env_server import create_app
 
-from ..models import GitAction, GitObservation
+from ..env_types import GitAction, GitObservation
 from .git_task_environment import GitTaskEnvironment
 
 # Read configuration from environment variables

@@ -16,7 +16,7 @@ import numpy as np
 from openenv.core.env_server.interfaces import Environment
 from openenv.core.env_server.types import State
 
-from ..models import FinRLAction, FinRLObservation
+from ..env_types import FinRLAction, FinRLObservation
 
 
 class FinRLEnvironment(Environment):

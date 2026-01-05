@@ -23,7 +23,7 @@ Usage:
 
 from openenv.core.env_server import create_app
 
-from coding_env.models import CodeAction, CodeObservation
+from coding_env.env_types import CodeAction, CodeObservation
 from coding_env.server.python_codeact_env import PythonCodeActEnv
 
 # Create the app with web interface and README integration

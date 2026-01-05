@@ -62,7 +62,7 @@ Evaluation Example (WebArena - requires backend):
 """
 
 from .client import BrowserGymEnv
-from .models import BrowserGymAction, BrowserGymObservation, BrowserGymState
+from .env_types import BrowserGymAction, BrowserGymObservation, BrowserGymState
 
 __all__ = [
     "BrowserGymEnv",

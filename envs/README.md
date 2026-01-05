@@ -5,7 +5,7 @@ This guide shows you how to create a custom environment using the EnvTorch frame
 ## Overview
 
 Creating an environment involves five main steps:
-1. Define your models (Action, Observation, State)
+1. Define your env_types (Action, Observation, State)
 2. Implement the environment APIs: step, reset, state
 3. Create the FastAPI server
 4. Build a Docker image and push it to a public docker repo for community to access it
@@ -13,12 +13,12 @@ Creating an environment involves five main steps:
 
 ## Step-by-Step Guide
 
-### 1. Define Models
+### 1. Define Env Types
 
-Create your action, observation, and state models using Python dataclasses:
+Create your action, observation, and state types using Python dataclasses:
 
 ```python
-# models.py
+# env_types.py
 from dataclasses import dataclass
 from openenv.core.env_server import Action, Observation, State
 
@@ -48,7 +48,7 @@ Implement the three core methods: `reset()`, `step()`, and `state`:
 # server/my_environment.py
 import uuid
 from openenv.core.env_server import Environment
-from ..models import MyAction, MyObservation, MyState
+from ..env_types import MyAction, MyObservation, MyState
 
 class MyEnvironment(Environment):
     def __init__(self):
@@ -77,7 +77,7 @@ Use the `create_fastapi_app` helper to create your HTTP server:
 ```python
 # server/app.py
 from openenv.core.env_server import create_fastapi_app
-from ..models import MyAction, MyObservation
+from ..env_types import MyAction, MyObservation
 from .my_environment import MyEnvironment
 
 env = MyEnvironment()
@@ -191,7 +191,7 @@ Create a client that extends `HTTPEnvClient`:
 # client.py
 from openenv.core.http_env_client import HTTPEnvClient
 from openenv.core.types import StepResult
-from .models import MyAction, MyObservation, MyState
+from .env_types import MyAction, MyObservation, MyState
 
 class MyEnv(HTTPEnvClient[MyAction, MyObservation]):
     def _step_payload(self, action: MyAction) -> dict:
@@ -254,7 +254,7 @@ Organize your environment following this structure:
 ```
 envs/my_env/
 ├── __init__.py           # Export MyAction, MyObservation, MyState, MyEnv
-├── models.py             # Action, Observation, State definitions
+├── env_types.py          # Action, Observation, State definitions
 ├── client.py             # MyEnv client implementation
 ├── README.md             # Environment documentation
 └── server/

@@ -6,7 +6,7 @@ import pytest
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
 
 from envs.dipg_safety_env.client import DIPGSafetyEnv
-from envs.dipg_safety_env.models import DIPGAction
+from envs.dipg_safety_env.env_types import DIPGAction
 
 
 def test_invalid_url():

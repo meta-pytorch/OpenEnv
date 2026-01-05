@@ -25,12 +25,12 @@ Usage:
 try:
     # In-repo imports (when running from OpenEnv repository)
     from openenv.core.env_server.http_server import create_app
-    from ..models import EchoAction, EchoObservation
+    from ..env_types import EchoAction, EchoObservation
     from .echo_environment import EchoEnvironment
 except ImportError:
     # Standalone imports (when environment is standalone with openenv from pip)
     from openenv.core.env_server.http_server import create_app
-    from models import EchoAction, EchoObservation
+    from env_types import EchoAction, EchoObservation
     from server.echo_environment import EchoEnvironment
 
 # Create the app with web interface and README integration

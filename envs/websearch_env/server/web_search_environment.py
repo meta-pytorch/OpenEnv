@@ -15,7 +15,7 @@ import os
 import logging
 from uuid import uuid4
 
-from models import WebSearchAction, WebSearchObservation
+from env_types import WebSearchAction, WebSearchObservation
 from openenv_core.env_server.interfaces import Environment
 from openenv_core.env_server.types import State
 from .web_search_tool import WebSearchTool

@@ -12,7 +12,7 @@ import os
 
 from openenv.core.env_server.http_server import create_app
 
-from ..models import TextArenaAction, TextArenaObservation
+from ..env_types import TextArenaAction, TextArenaObservation
 from .environment import TextArenaEnvironment
 
 

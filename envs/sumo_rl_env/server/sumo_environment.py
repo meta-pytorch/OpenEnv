@@ -20,7 +20,7 @@ os.environ.setdefault("SUMO_HOME", "/usr/share/sumo")
 
 from openenv.core.env_server import Action, Environment, Observation
 
-from ..models import SumoAction, SumoObservation, SumoState
+from ..env_types import SumoAction, SumoObservation, SumoState
 
 # Import SUMO-RL
 try:

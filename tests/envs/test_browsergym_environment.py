@@ -12,7 +12,7 @@ import pytest
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
 
 from envs.browsergym_env.client import BrowserGymEnv
-from envs.browsergym_env.models import BrowserGymAction
+from envs.browsergym_env.env_types import BrowserGymAction
 
 # Skip all tests if gunicorn is not installed
 pytestmark = pytest.mark.skipif(

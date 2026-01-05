@@ -7,7 +7,7 @@
 """__ENV_TITLE_NAME__ Environment."""
 
 from .client import __ENV_CLASS_NAME__Env
-from .models import __ENV_CLASS_NAME__Action, __ENV_CLASS_NAME__Observation
+from .env_types import __ENV_CLASS_NAME__Action, __ENV_CLASS_NAME__Observation
 
 __all__ = [
     "__ENV_CLASS_NAME__Action",

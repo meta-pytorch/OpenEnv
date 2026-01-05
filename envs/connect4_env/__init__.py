@@ -25,6 +25,6 @@ Example:
 """
 
 from .client import Connect4Env
-from .models import Connect4Action, Connect4Observation, Connect4State
+from .env_types import Connect4Action, Connect4Observation, Connect4State
 
 __all__ = ["Connect4Env", "Connect4Action", "Connect4Observation", "Connect4State"]

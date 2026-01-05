@@ -20,9 +20,9 @@ try:
     from core.env_server.types import State
     from core.http_env_client import HTTPEnvClient
 
-    from .models import SnakeAction, SnakeObservation
+    from .env_types import SnakeAction, SnakeObservation
 except ImportError:
-    from models import SnakeAction, SnakeObservation
+    from env_types import SnakeAction, SnakeObservation
 
     # Standalone imports (when environment is standalone with openenv-core from pip)
     from openenv_core.client_types import StepResult

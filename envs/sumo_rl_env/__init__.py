@@ -26,6 +26,6 @@ Example:
 """
 
 from .client import SumoRLEnv
-from .models import SumoAction, SumoObservation, SumoState
+from .env_types import SumoAction, SumoObservation, SumoState
 
 __all__ = ["SumoRLEnv", "SumoAction", "SumoObservation", "SumoState"]

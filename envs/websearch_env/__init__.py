@@ -7,6 +7,6 @@
 """WebSearch Env Environment - A web search environment that uses Google Search API (via Serper.dev)."""
 
 from .client import WebSearchEnv
-from .models import WebSearchAction, WebSearchObservation
+from .env_types import WebSearchAction, WebSearchObservation
 
 __all__ = ["WebSearchAction", "WebSearchObservation", "WebSearchEnv"]

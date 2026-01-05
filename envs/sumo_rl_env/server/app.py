@@ -15,7 +15,7 @@ import os
 
 from openenv.core.env_server import create_app
 
-from ..models import SumoAction, SumoObservation
+from ..env_types import SumoAction, SumoObservation
 from .sumo_environment import SumoEnvironment
 
 # Get configuration from environment variables

@@ -167,7 +167,7 @@ class TestSmokeFactoryPattern:
         """Test that create_app accepts a class (not instance)."""
         from openenv.core.env_server.http_server import create_app
         from envs.echo_env.server.echo_environment import EchoEnvironment
-        from envs.echo_env.models import EchoAction, EchoObservation
+        from envs.echo_env.env_types import EchoAction, EchoObservation
 
         # Should not raise TypeError
         app = create_app(EchoEnvironment, EchoAction, EchoObservation, env_name="test")
@@ -177,7 +177,7 @@ class TestSmokeFactoryPattern:
         """Test that create_app accepts a factory function."""
         from openenv.core.env_server.http_server import create_app
         from envs.echo_env.server.echo_environment import EchoEnvironment
-        from envs.echo_env.models import EchoAction, EchoObservation
+        from envs.echo_env.env_types import EchoAction, EchoObservation
 
         def create_echo_env():
             return EchoEnvironment()
@@ -190,7 +190,7 @@ class TestSmokeFactoryPattern:
         """Test that create_app rejects an instance (not callable)."""
         from openenv.core.env_server.http_server import create_app
         from envs.echo_env.server.echo_environment import EchoEnvironment
-        from envs.echo_env.models import EchoAction, EchoObservation
+        from envs.echo_env.env_types import EchoAction, EchoObservation
 
         # Create an instance (wrong pattern)
         instance = EchoEnvironment()
@@ -283,7 +283,7 @@ class TestProtocolWebSocketClient:
     def test_protocol_client_step(self, echo_server):
         """Test client can step via WebSocket."""
         from envs.echo_env.client import EchoEnv
-        from envs.echo_env.models import EchoAction
+        from envs.echo_env.env_types import EchoAction
 
         with EchoEnv(base_url=echo_server) as client:
             client.reset()
@@ -294,7 +294,7 @@ class TestProtocolWebSocketClient:
     def test_protocol_client_state(self, echo_server):
         """Test client can get state via WebSocket."""
         from envs.echo_env.client import EchoEnv
-        from envs.echo_env.models import EchoAction
+        from envs.echo_env.env_types import EchoAction
 
         with EchoEnv(base_url=echo_server) as client:
             client.reset()
@@ -307,7 +307,7 @@ class TestProtocolWebSocketClient:
     def test_protocol_client_multiple_episodes(self, echo_server):
         """Test client can run multiple episodes."""
         from envs.echo_env.client import EchoEnv
-        from envs.echo_env.models import EchoAction
+        from envs.echo_env.env_types import EchoAction
 
         with EchoEnv(base_url=echo_server) as client:
             # Episode 1
@@ -358,7 +358,7 @@ class TestConcurrencyMultipleSessions:
     def test_concurrency_two_independent_sessions(self, echo_server_concurrent):
         """Test that two clients can run independently."""
         from envs.echo_env.client import EchoEnv
-        from envs.echo_env.models import EchoAction
+        from envs.echo_env.env_types import EchoAction
 
         with EchoEnv(base_url=echo_server_concurrent) as client1:
             with EchoEnv(base_url=echo_server_concurrent) as client2:
@@ -386,7 +386,7 @@ class TestConcurrencyMultipleSessions:
     def test_concurrency_session_isolation(self, echo_server_concurrent):
         """Test that session state is isolated between clients."""
         from envs.echo_env.client import EchoEnv
-        from envs.echo_env.models import EchoAction
+        from envs.echo_env.env_types import EchoAction
 
         with EchoEnv(base_url=echo_server_concurrent) as client1:
             client1.reset()
@@ -417,7 +417,7 @@ class TestEchoEnvironment:
     def test_echo_message_echoed(self, server):
         """Test that messages are echoed correctly."""
         from envs.echo_env.client import EchoEnv
-        from envs.echo_env.models import EchoAction
+        from envs.echo_env.env_types import EchoAction
 
         with EchoEnv(base_url=server) as client:
             client.reset()

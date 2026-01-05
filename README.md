@@ -115,7 +115,7 @@ To use the web interface:
 
 ```python
 from openenv.core.env_server import create_web_interface_app
-from your_env.models import YourAction, YourObservation
+from your_env.env_types import YourAction, YourObservation
 from your_env.server.your_environment import YourEnvironment
 
 env = YourEnvironment()

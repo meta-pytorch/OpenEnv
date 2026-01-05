@@ -6,7 +6,7 @@ import pytest
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
 
 from envs.websearch_env.server import WebSearchEnvironment
-from envs.websearch_env.models import WebSearchAction, WebSearchObservation
+from envs.websearch_env.env_types import WebSearchAction, WebSearchObservation
 
 
 @pytest.mark.skipif(
