@@ -103,17 +103,13 @@ The Docker image can be built in standalone mode using only public base images:
 
 ```bash
 # Build from project root
-docker build -t openapp-env:latest -f envs/openapp_env/server/Dockerfile envs/openapp_env
-
-# Or build from the openapp_env directory
-cd envs/openapp_env
-docker build -t openapp-env:latest -f server/Dockerfile .
+docker build -t openapp-env:latest -f envs/openapp_env/server/Dockerfile .
 ```
 
 **Note for Meta/Corporate Networks:** If you're behind a proxy (HTTP_PROXY/HTTPS_PROXY set), you may need to bypass it for localhost connections:
 ```bash
 export NO_PROXY=localhost,127.0.0.1
-docker build -t openapp-env:latest -f envs/openapp_env/server/Dockerfile envs/openapp_env
+docker build -t openapp-env:latest -f envs/openapp_env/server/Dockerfile .
 ```
 
 **What gets installed in Docker:**
@@ -505,7 +501,7 @@ This environment integrates:
 If you're behind a corporate proxy (Meta/Facebook networks), set `NO_PROXY`:
 ```bash
 export NO_PROXY=localhost,127.0.0.1
-docker build -t openapp-env:latest -f envs/openapp_env/server/Dockerfile envs/openapp_env
+docker build -t openapp-env:latest -f envs/openapp_env/server/Dockerfile .
 ```
 
 **Error: `Environment variable 'USER' not found`**
