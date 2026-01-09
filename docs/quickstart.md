@@ -15,11 +15,19 @@ pip install openenv-core
 
 Let's start by using the Echo Environment. This is a simple environment that echoes back messages.
 
+Install the echo environment client package:
+
+```bash
+pip install git+https://huggingface.co/spaces/openenv/echo-env 
+```
+
+Then you can use the environment via its HTTP interface.
+
 ```python
 from echo_env import EchoAction, EchoEnv
 
 # Automatically start container and connect
-client = EchoEnv.from_docker_image("echo-env:latest")
+client = EchoEnv(base_url="https://openenv-echo-env.hf.space")
 
 # Reset the environment
 result = client.reset()
