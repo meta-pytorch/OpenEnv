@@ -8,7 +8,7 @@
 # This image provides OpenApps web application simulation for UI agent training
 #
 # This Dockerfile works for both local builds and HuggingFace Spaces deployment:
-# - Local build from project root: docker build -t openapp-env:latest -f src/envs/openapp_env/server/Dockerfile src/envs/openapp_env
+# - Local build from project root: docker build -t openapp-env:latest -f envs/openapp_env/server/Dockerfile .
 # - HuggingFace: Automatically deployed via `openenv push`
 #
 # Run with web interface:
@@ -65,8 +65,8 @@ ENV PYTHONUNBUFFERED=1
 # Set working directory
 WORKDIR /app/env
 
-# Copy environment files
-COPY . .
+# Copy environment files from envs/openapp_env (context is project root)
+COPY envs/openapp_env/ .
 
 # Install openapp_env and all its dependencies from pyproject.toml
 # This includes: openenv-core, fastapi, uvicorn, pydantic, requests, browsergym, playwright
@@ -92,7 +92,7 @@ RUN python -c "import open_apps; print('✓ OpenApps installed')"
 
 # Copy startup script
 WORKDIR /app/env
-COPY server/start.sh /app/start.sh
+COPY envs/openapp_env/server/start.sh /app/start.sh
 RUN chmod +x /app/start.sh
 
 # OpenApp-specific environment variables (can be overridden at runtime)
