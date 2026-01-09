@@ -39,8 +39,10 @@ COPY . .
 # Make start script executable
 RUN chmod +x /app/env/server/start.sh
 
-# Install Python dependencies using pip install -e . (from pyproject.toml)
-RUN pip install --no-cache-dir -e .
+# Install Python dependencies
+# First install the core openenv package, then the browsergym_env package
+RUN pip install --no-cache-dir -e . && \
+    pip install --no-cache-dir -e envs/browsergym_env
 
 # Install Playwright browsers (Chromium by default)
 # Use python -m since playwright command might not be in PATH

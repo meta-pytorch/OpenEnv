@@ -13,7 +13,9 @@ RUN apt-get update && apt-get install -y \
 COPY . .
 
 # Install Python dependencies
-RUN pip install --no-cache-dir -e .
+# First install the core openenv package, then the coding_env package
+RUN pip install --no-cache-dir -e . && \
+    pip install --no-cache-dir -e envs/coding_env
 
 # Expose port
 EXPOSE 8000
