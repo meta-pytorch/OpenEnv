@@ -80,6 +80,9 @@ jobs:
           - name: git-env
             dockerfile: envs/git_env/server/Dockerfile
           - name: my-env  # Add your environment here
+            dockerfile: src/envs/connect4_env/server/Dockerfile
+          - name: minesweeper-env
+            dockerfile: src/envs/minesweeper_env/server/Dockerfile
             dockerfile: envs/connect4_env/server/Dockerfile
           - name: textarena-env
             dockerfile: envs/textarena_env/server/Dockerfile
