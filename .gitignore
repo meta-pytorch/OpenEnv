@@ -109,3 +109,9 @@ outputs/
 .uv/
 
 *.backup*/
+
+# ignore the log_output
+log_outputs/*
+
+# .sesskey
+*.sesskey
