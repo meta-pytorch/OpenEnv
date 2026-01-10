@@ -1,6 +1,6 @@
 # Building Your Own Environment with OpenEnv
 
-This guide walks you through creating a custom environment using the `OpenEnv` framework and the `openenv` CLI. 
+This guide walks you through creating a custom environment using the `OpenEnv` framework and the `openenv` CLI.
 
 The CLI handles scaffolding, builds, validation, and deployment so you can stay focused on environment logic.
 
@@ -15,7 +15,7 @@ A typical workflow looks like:
 5. Use the CLI (`openenv build`, `openenv validate`, `openenv push`) to package and share your work.
 
 !!! note
-    These integrations are handled automatically by the `openenv` CLI when you run `openenv init`. 
+    These integrations are handled automatically by the `openenv` CLI when you run `openenv init`.
 
 ### Prerequisites
 
@@ -37,7 +37,7 @@ openenv init my_env
 openenv init my_env --output-dir /Users/you/envs
 ```
 
-The command creates a fully-typed template with `openenv.yaml`, `pyproject.toml`, `uv.lock`, Docker assets, and stub implementations. If you're working inside this repo, move the generated folder under `envs/`. 
+The command creates a fully-typed template with `openenv.yaml`, `pyproject.toml`, `uv.lock`, Docker assets, and stub implementations. If you're working inside this repo, move the generated folder under `envs/`.
 
 Typical layout:
 

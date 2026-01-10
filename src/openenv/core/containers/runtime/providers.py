@@ -238,9 +238,12 @@ class LocalDockerProvider(ContainerProvider):
         start_time = time.time()
         health_url = f"{base_url}/health"
 
+        # Bypass proxy for localhost to avoid proxy issues
+        proxies = {"http": None, "https": None}
+
         while time.time() - start_time < timeout_s:
             try:
-                response = requests.get(health_url, timeout=2.0)
+                response = requests.get(health_url, timeout=2.0, proxies=proxies)
                 if response.status_code == 200:
                     return
             except requests.RequestException:
@@ -470,9 +473,12 @@ class DockerSwarmProvider(ContainerProvider):
         deadline = time.time() + timeout_s
         health_url = f"{base_url}/health"
 
+        # Bypass proxy for localhost to avoid proxy issues
+        proxies = {"http": None, "https": None}
+
         while time.time() < deadline:
             try:
-                response = requests.get(health_url, timeout=2.0)
+                response = requests.get(health_url, timeout=2.0, proxies=proxies)
                 if response.status_code == 200:
                     return
             except requests.RequestException:

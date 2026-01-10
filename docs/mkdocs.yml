@@ -66,11 +66,13 @@ markdown_extensions:
 watch:
   - ../src/openenv/core
   - ../src/openenv/cli
+  - ../src/openenv/auto
 
 nav:
   - Get Started:
     - What is OpenEnv?: index.md
     - Quick Start: quickstart.md
+    - Auto-Discovery API: auto-discovery.md
     - Building an Environment: environment-builder.md
   - Tutorials:
     - OpenEnv Tutorial: tutorials/openenv-tutorial.md

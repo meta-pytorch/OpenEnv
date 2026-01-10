@@ -4,7 +4,9 @@ Unified OpenEnv package bundling the CLI and core runtime.
 
 from importlib import metadata
 
-__all__ = ["core", "cli"]
+from .auto import AutoAction, AutoEnv
+
+__all__ = ["core", "cli", "AutoEnv", "AutoAction"]
 
 try:
     __version__ = metadata.version("openenv")  # type: ignore[arg-type]

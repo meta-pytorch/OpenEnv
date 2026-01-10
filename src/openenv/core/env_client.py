@@ -15,6 +15,7 @@ the overhead of HTTP request/response cycles.
 from __future__ import annotations
 
 import json
+import os
 from abc import ABC, abstractmethod
 from typing import Any, Dict, Generic, Optional, Type, TYPE_CHECKING, TypeVar
 
@@ -97,6 +98,21 @@ class EnvClient(ABC, Generic[ActT, ObsT, StateT]):
         if self._ws is not None:
             return self
 
+        # Bypass proxy for localhost connections
+        ws_url_lower = self._ws_url.lower()
+        is_localhost = "localhost" in ws_url_lower or "127.0.0.1" in ws_url_lower
+
+        old_no_proxy = os.environ.get("NO_PROXY")
+        if is_localhost:
+            # Set NO_PROXY to bypass proxy for localhost
+            current_no_proxy = old_no_proxy or ""
+            if "localhost" not in current_no_proxy.lower():
+                os.environ["NO_PROXY"] = (
+                    f"{current_no_proxy},localhost,127.0.0.1"
+                    if current_no_proxy
+                    else "localhost,127.0.0.1"
+                )
+
         try:
             self._ws = ws_connect(
                 self._ws_url,
@@ -104,6 +120,13 @@ class EnvClient(ABC, Generic[ActT, ObsT, StateT]):
             )
         except Exception as e:
             raise ConnectionError(f"Failed to connect to {self._ws_url}: {e}") from e
+        finally:
+            # Restore original NO_PROXY value
+            if is_localhost:
+                if old_no_proxy is None:
+                    os.environ.pop("NO_PROXY", None)
+                else:
+                    os.environ["NO_PROXY"] = old_no_proxy
 
         return self
 
@@ -187,7 +210,7 @@ class EnvClient(ABC, Generic[ActT, ObsT, StateT]):
         return client
 
     @classmethod
-    def from_hub(
+    def from_env(
         cls: Type[EnvClientT],
         repo_id: str,
         *,
@@ -218,13 +241,13 @@ class EnvClient(ABC, Generic[ActT, ObsT, StateT]):
 
         Examples:
             >>> # Pull and run from HF Docker registry
-            >>> env = MyEnv.from_hub("openenv/echo-env")
+            >>> env = MyEnv.from_env("openenv/echo-env")
             >>>
             >>> # Run locally with UV (clones the space)
-            >>> env = MyEnv.from_hub("openenv/echo-env", use_docker=False)
+            >>> env = MyEnv.from_env("openenv/echo-env", use_docker=False)
             >>>
             >>> # Run from a local checkout
-            >>> env = MyEnv.from_hub(
+            >>> env = MyEnv.from_env(
             ...     "openenv/echo-env",
             ...     use_docker=False,
             ...     project_path="/path/to/local/checkout"
@@ -339,7 +362,7 @@ class EnvClient(ABC, Generic[ActT, ObsT, StateT]):
         """
         Close the WebSocket connection and clean up resources.
 
-        If this client was created via from_docker_image() or from_hub(),
+        If this client was created via from_docker_image() or from_env(),
         this will also stop and remove the associated container/process.
         """
         self.disconnect()

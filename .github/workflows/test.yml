@@ -41,6 +41,7 @@ jobs:
             --ignore=tests/envs/test_browsergym_environment.py \
             --ignore=tests/envs/test_dipg_environment.py \
             --ignore=tests/envs/test_websearch_environment.py \
+            -m "not integration and not network and not docker" \
             -v \
             --tb=short
         env:
