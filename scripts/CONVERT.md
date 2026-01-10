@@ -157,11 +157,8 @@ dev = [
 server = "my_env.server.app:main"
 
 [tool.setuptools]
-packages = ["my_env"]
-
-[tool.setuptools]
 packages = ["{env_name}", "{env_name}.server"]
-package-dir = { "{env_name}" = ".", "{env_name}.server" = "server" }    
+package-dir = { "{env_name}" = ".", "{env_name}.server" = "server" }
 ```
 
 **Important**: Replace `my_env` with your actual environment name throughout the file.
