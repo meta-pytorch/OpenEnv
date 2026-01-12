@@ -124,7 +124,7 @@ COPY envs/my_env/server/requirements.txt /tmp/requirements.txt
 RUN pip install --no-cache-dir -r /tmp/requirements.txt && rm /tmp/requirements.txt
 
 # Copy environment code
-COPY src/core/ /app/src/core/
+COPY src/openenv/core/ /app/src/openenv/core/
 COPY envs/my_env/ /app/envs/my_env/
 
 # Health check
@@ -148,7 +148,7 @@ RUN chmod +x /tmp/install_deps.sh && \
     rm /tmp/install_deps.sh /tmp/requirements.txt
 
 # Copy environment code
-COPY src/core/ /app/src/core/
+COPY src/openenv/core/ /app/src/openenv/core/
 COPY envs/my_env/ /app/envs/my_env/
 
 # Health check
@@ -185,15 +185,14 @@ Once added, every push to `main` will automatically:
 
 ### 6. Implement Client
 
-Create a client that extends `HTTPEnvClient`:
+Create a client that extends `EnvClient`:
 
 ```python
 # client.py
-from openenv.core.http_env_client import HTTPEnvClient
-from openenv.core.types import StepResult
+from openenv.core import EnvClient, StepResult
 from .models import MyAction, MyObservation, MyState
 
-class MyEnv(HTTPEnvClient[MyAction, MyObservation]):
+class MyEnv(EnvClient[MyAction, MyObservation, MyState]):
     def _step_payload(self, action: MyAction) -> dict:
         return {"command": action.command, "parameters": action.parameters}
 
@@ -215,7 +214,7 @@ class MyEnv(HTTPEnvClient[MyAction, MyObservation]):
 
 ```bash
 # First, build the base image (if not already built)
-docker build -t openenv-base:latest -f src/core/containers/images/Dockerfile .
+docker build -t openenv-base:latest -f src/openenv/core/containers/images/Dockerfile .
 
 # Then build your environment image
 docker build -t my-env:latest -f envs/my_env/server/Dockerfile .

@@ -80,10 +80,10 @@ Below is a list of active and historical RFCs for OpenEnv. RFCs are proposals fo
 │                    Client Application                   │
 │  ┌────────────────┐              ┌──────────────────┐   │
 │  │  EchoEnv       │              │  CodingEnv       │   │
-│  │ (HTTPEnvClient)│              │  (HTTPEnvClient) │   │
+│  │  (EnvClient)   │              │   (EnvClient)    │   │
 │  └────────┬───────┘              └────────┬─────────┘   │
 └───────────┼───────────────────────────────┼─────────────┘
-            │ HTTP                          │ HTTP
+            │ WebSocket                     │ WebSocket
             │ (reset, step, state)          │
 ┌───────────▼───────────────────────────────▼─────────────┐
 │              Docker Containers (Isolated)               │
@@ -130,9 +130,9 @@ Base class for implementing environment logic:
 - **`step(action)`**: Execute an `Action`, returns resulting `Observation`
 - **`state()`**: Access episode metadata (`State` with episode_id, step_count, etc.)
 
-#### 3. HTTPEnvClient (Client-Side)
-Base class for HTTP communication:
-- Handles HTTP requests to environment server
+#### 3. EnvClient (Client-Side)
+Base class for environment communication:
+- Handles WebSocket connections to environment server
 - Contains a utility to spin up a docker container locally for the corresponding environment
 - Type-safe action/observation parsing
 
@@ -165,7 +165,7 @@ my_env/
 ├── .dockerignore        # Docker build exclusions
 ├── __init__.py           # Export YourAction, YourObservation, YourEnv
 ├── models.py             # Define Action, Observation, State dataclasses
-├── client.py             # Implement YourEnv(HTTPEnvClient)
+├── client.py             # Implement YourEnv(EnvClient)
 ├── README.md             # Document your environment
 ├── openenv.yaml          # Environment manifest
 ├── pyproject.toml        # Dependencies and package configuration
@@ -245,29 +245,6 @@ For detailed options: `openenv init --help` and `openenv push --help`.
 2. **Type Safety**: Strongly-typed actions, observations, and state
 3. **Container Isolation**: Each environment runs in its own container
 4. **Simple APIs**: Minimal, intuitive interfaces
-
-## Quick Start
-
-### Using the Echo Environment(Example)
-
-```python
-from envs.echo_env import EchoAction, EchoEnv
-
-# Automatically start container and connect
-client = EchoEnv.from_docker_image("echo-env:latest")
-
-# Reset the environment
-result = client.reset()
-print(result.observation.echoed_message)  # "Echo environment ready!"
-
-# Send messages
-result = client.step(EchoAction(message="Hello, World!"))
-print(result.observation.echoed_message)  # "Hello, World!"
-print(result.reward)  # 1.3 (based on message length)
-
-# Cleanup
-client.close()  # Stops and removes container
-```
 
 ## Requirements
 

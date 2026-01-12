@@ -36,7 +36,7 @@ Total: 465 MB (base shared, minimal duplication)
 
 ```bash
 # From project root
-docker build -t openenv-base:latest -f src/core/containers/images/Dockerfile .
+docker build -t openenv-base:latest -f src/openenv/core/containers/images/Dockerfile .
 ```
 
 ## Usage in Environment Dockerfiles
@@ -47,7 +47,7 @@ Each environment Dockerfile should start with:
 FROM openenv-base:latest
 
 # Copy only environment-specific files
-COPY src/core/ /app/src/core/
+COPY src/openenv/core/ /app/src/openenv/core/
 COPY envs/my_env/ /app/envs/my_env/
 
 # Run the server
@@ -66,7 +66,7 @@ CMD ["uvicorn", "envs.my_env.server.app:app", "--host", "0.0.0.0", "--port", "80
 
 ```bash
 # Step 1: Build base image (do this once)
-docker build -t openenv-base:latest -f src/core/containers/images/Dockerfile .
+docker build -t openenv-base:latest -f src/openenv/core/containers/images/Dockerfile .
 
 # Step 2: Build echo environment (uses base)
 docker build -t echo-env:latest -f envs/echo_env/server/Dockerfile .
@@ -79,13 +79,13 @@ docker run -p 8000:8000 echo-env:latest
 
 When dependencies need updating:
 
-1. Update `src/core/containers/images/Dockerfile`
+1. Update `src/openenv/core/containers/images/Dockerfile`
 2. Rebuild base image
 3. Rebuild all environment images (they'll use new base)
 
 ```bash
 # Update base
-docker build -t openenv-base:latest -f src/core/containers/images/Dockerfile .
+docker build -t openenv-base:latest -f src/openenv/core/containers/images/Dockerfile .
 
 # Rebuild environments (they automatically use new base)
 docker build -t echo-env:latest -f envs/echo_env/server/Dockerfile .
