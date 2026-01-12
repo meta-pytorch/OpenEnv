@@ -156,12 +156,16 @@ class TestHealthEndpoint:
 
     def test_health_endpoint_returns_200(self, server):
         """Test that the health endpoint returns 200 OK."""
-        response = requests.get(f"{server}/health", proxies={"http": None, "https": None})
+        response = requests.get(
+            f"{server}/health", proxies={"http": None, "https": None}
+        )
         assert response.status_code == 200
 
     def test_health_endpoint_returns_status(self, server):
         """Test that the health endpoint returns status field."""
-        response = requests.get(f"{server}/health", proxies={"http": None, "https": None})
+        response = requests.get(
+            f"{server}/health", proxies={"http": None, "https": None}
+        )
         data = response.json()
         assert "status" in data
         assert data["status"] == "healthy"
@@ -184,7 +188,6 @@ class TestUnityEnvClient:
             assert hasattr(result.observation, "action_spec_info")
             assert result.observation.done is False
 
-    
     def test_reset_with_different_environments(self, server):
         """Test that reset() can switch between environments."""
         with UnityEnv(base_url=server) as env:
@@ -198,7 +201,6 @@ class TestUnityEnvClient:
             assert result2.observation.behavior_name is not None
             assert "3DBall" in result2.observation.behavior_name
 
-    
     def test_step_discrete_action(self, server):
         """Test that step() works with discrete actions (PushBlock)."""
         with UnityEnv(base_url=server) as env:
@@ -213,7 +215,6 @@ class TestUnityEnvClient:
             assert isinstance(result.reward, (int, float)) or result.reward is None
             assert isinstance(result.done, bool)
 
-    
     def test_step_continuous_action(self, server):
         """Test that step() works with continuous actions (3DBall)."""
         with UnityEnv(base_url=server) as env:
@@ -228,7 +229,6 @@ class TestUnityEnvClient:
             assert isinstance(result.reward, (int, float)) or result.reward is None
             assert isinstance(result.done, bool)
 
-    
     def test_step_multiple_times(self, server):
         """Test that step() can be called multiple times."""
         with UnityEnv(base_url=server) as env:
@@ -239,7 +239,6 @@ class TestUnityEnvClient:
                 result = env.step(action)
                 assert result.observation is not None
 
-    
     def test_state_endpoint(self, server):
         """Test that state() returns valid state information."""
         with UnityEnv(base_url=server) as env:
@@ -256,7 +255,6 @@ class TestUnityEnvClient:
             assert hasattr(state, "action_spec")
             assert state.env_id == "PushBlock"
 
-    
     def test_step_count_increments(self, server):
         """Test that step count increments correctly."""
         with UnityEnv(base_url=server) as env:
@@ -276,7 +274,6 @@ class TestUnityEnvClient:
             state3 = env.state()
             assert state3.step_count == 2
 
-    
     def test_reset_resets_step_count(self, server):
         """Test that reset() resets the step count."""
         with UnityEnv(base_url=server) as env:
@@ -296,7 +293,6 @@ class TestUnityEnvClient:
             state2 = env.state()
             assert state2.step_count == 0
 
-    
     def test_episode_id_changes_on_reset(self, server):
         """Test that episode ID changes on each reset."""
         with UnityEnv(base_url=server) as env:
@@ -308,7 +304,6 @@ class TestUnityEnvClient:
 
             assert state1.episode_id != state2.episode_id
 
-    
     def test_action_spec_info(self, server):
         """Test that action spec info is provided correctly."""
         with UnityEnv(base_url=server) as env:
@@ -395,7 +390,6 @@ class TestAvailableEnvironments:
         assert "PushBlock" in envs
         assert "3DBall" in envs
 
-    
     def test_available_envs_from_state(self, server):
         """Test getting available environments from state."""
         with UnityEnv(base_url=server) as env:
