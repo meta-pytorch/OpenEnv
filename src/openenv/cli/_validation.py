@@ -12,8 +12,12 @@ configured for multi-mode deployment (Docker, direct Python, notebooks, clusters
 """
 
 import subprocess
-import tomllib
 from pathlib import Path
+
+try:
+    import tomllib
+except ModuleNotFoundError:
+    import tomli as tomllib
 
 
 def validate_multi_mode_deployment(env_path: Path) -> tuple[bool, list[str]]:
