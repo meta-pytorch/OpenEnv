@@ -5,8 +5,8 @@ on:
     branches:
       - main
     paths:
-      - 'src/**/Dockerfile'
-      - 'src/**/*.py'
+      - 'envs/**/Dockerfile'
+      - 'envs/**/*.py'
       - '.github/workflows/docker-build.yml'
   workflow_dispatch:  # Allow manual trigger
 
@@ -79,7 +79,7 @@ jobs:
             dockerfile: envs/atari_env/server/Dockerfile
           - name: git-env
             dockerfile: envs/git_env/server/Dockerfile
-          - name: my-env  # Add your environment here
+          - name: connect4_env
             dockerfile: envs/connect4_env/server/Dockerfile
           - name: textarena-env
             dockerfile: envs/textarena_env/server/Dockerfile
@@ -87,6 +87,9 @@ jobs:
             dockerfile: envs/browsergym_env/server/Dockerfile
           - name: snake-env
             dockerfile: envs/snake_env/server/Dockerfile
+          - name: unity-env
+            dockerfile: server/Dockerfile
+            context: envs/unity_env
 
     steps:
       - name: Checkout code
@@ -114,7 +117,7 @@ jobs:
       - name: Build and push environment image
         uses: docker/build-push-action@v5
         with:
-          context: .
+          context: ${{ matrix.image.context || '.' }}
           file: ${{ matrix.image.dockerfile }}
           push: true
           platforms: linux/amd64,linux/arm64
