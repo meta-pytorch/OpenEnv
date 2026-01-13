@@ -1,3 +1,5 @@
+# Quick Start
+
 On this page we will walk you through the process of using an OpenEnv environment. If you want to build your own environment, please see the [Building an Environment](environment-builder.md) page.
 
 ## Installation
@@ -44,7 +46,7 @@ from echo_env import EchoEnv
 client = EchoEnv.from_hub("meta-pytorch/echo-env")
 ```
 
-In the background, the environment will be pulled from Hugging Face and a container will be started on your local machine. 
+In the background, the environment will be pulled from Hugging Face and a container will be started on your local machine.
 
 You can also connect to the remote space on Hugging Face by passing the base URL to the environment class.
 
@@ -64,7 +66,7 @@ from echo_env import EchoEnv
 client = EchoEnv.from_docker_image("registry.hf.space/openenv-echo-env:latest")
 ```
 
-In the background, the environment will be pulled from Docker Hub and a container will be started on your local machine. 
+In the background, the environment will be pulled from Docker Hub and a container will be started on your local machine.
 
 As above, you can also connect to the docker container by passing the base URL to the environment class.
 

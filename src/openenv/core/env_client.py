@@ -18,13 +18,14 @@ import json
 from abc import ABC, abstractmethod
 from typing import Any, Dict, Generic, Optional, Type, TYPE_CHECKING, TypeVar
 
-from .client_types import StepResult, StateT
+from .client_types import StateT, StepResult
 from .containers.runtime import LocalDockerProvider, UVProvider
 from .utils import convert_to_ws_url
 
 if TYPE_CHECKING:
-    from .containers.runtime import ContainerProvider, RuntimeProvider
     from websockets.sync.client import ClientConnection
+
+    from .containers.runtime import ContainerProvider, RuntimeProvider
 
 from websockets.sync.client import connect as ws_connect
 
@@ -166,7 +167,7 @@ class EnvClient(ABC, Generic[ActT, ObsT, StateT]):
         Args:
             image: Docker image name to run (e.g., "coding-env:latest")
             provider: Container provider to use (defaults to LocalDockerProvider)
-            **kwargs: Additional arguments to pass to provider.start_container()
+            ``**kwargs``: Additional arguments to pass to provider.start_container()
 
         Returns:
             Connected client instance
@@ -201,11 +202,11 @@ class EnvClient(ABC, Generic[ActT, ObsT, StateT]):
         Args:
             repo_id: Hugging Face space identifier ``{org}/{space}``.
             use_docker: When ``True`` (default) pull from the HF registry and
-                launch via :class:`LocalDockerProvider`. When ``False`` run the
-                space locally with :class:`UVProvider`.
+                launch via ``LocalDockerProvider``. When ``False`` run the
+                space locally with ``UVProvider``.
             provider: Optional provider instance to reuse. Must be a
-                :class:`ContainerProvider` when ``use_docker=True`` and a
-                :class:`RuntimeProvider` otherwise.
+                ``ContainerProvider`` when ``use_docker=True`` and a
+                ``RuntimeProvider`` otherwise.
             provider_kwargs: Additional keyword arguments forwarded to
                 either the container provider's ``start_container`` (docker)
                 or to the ``UVProvider`` constructor/start (uv). When
@@ -291,10 +292,10 @@ class EnvClient(ABC, Generic[ActT, ObsT, StateT]):
         Reset the environment with optional parameters.
 
         Args:
-            **kwargs: Optional parameters passed to the environment's reset method.
-                     Common parameters include:
-                     - seed: Random seed for reproducibility
-                     - episode_id: Custom episode identifier
+            ``**kwargs``: Optional parameters passed to the environment's reset method.
+                Common parameters include:
+                seed: Random seed for reproducibility,
+                episode_id: Custom episode identifier
 
         Returns:
             StepResult containing initial observation
@@ -312,7 +313,7 @@ class EnvClient(ABC, Generic[ActT, ObsT, StateT]):
 
         Args:
             action: The action to execute
-            **kwargs: Optional parameters (currently ignored)
+            ``**kwargs``: Optional parameters (currently ignored)
 
         Returns:
             StepResult containing observation, reward, and done status

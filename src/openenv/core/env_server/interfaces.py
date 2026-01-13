@@ -7,7 +7,7 @@
 from abc import ABC, abstractmethod
 from typing import Any, Generic, Optional, Protocol, TypedDict, TypeVar
 
-from .types import Action, Observation, State, EnvironmentMetadata
+from .types import Action, EnvironmentMetadata, Observation, State
 
 ActT = TypeVar("ActT", bound=Action)
 ObsT = TypeVar("ObsT", bound=Observation)
@@ -45,7 +45,7 @@ class ModelTokenizer(Protocol):
             conversation: List of message dictionaries with 'role' and 'content'
             tokenize: Whether to tokenize the output
             return_tensors: Format for returned tensors ('pt' for PyTorch)
-            **kwargs: Additional arguments
+            ``**kwargs``: Additional arguments
 
         Returns:
             Formatted and optionally tokenized conversation
@@ -60,7 +60,7 @@ class ModelTokenizer(Protocol):
         Args:
             token_ids: Token IDs to decode
             skip_special_tokens: Whether to skip special tokens in output
-            **kwargs: Additional arguments
+            ``**kwargs``: Additional arguments
 
         Returns:
             Decoded text string
