@@ -217,6 +217,37 @@ Full integration testing (105 tests with ~90% coverage) will require:
 - **RFC 003**: Environment lifecycle (reset/step/state) ✅
 - **RFC 004**: ToolCallAction pattern (tool_name + parameters) ✅
 
+#### 7. **OpenEnv Principles Alignment**
+
+**Rewards Inside Environment** (PRINCIPLES.md:31, INVARIANTS.md:64-67):
+- ✅ **Compliance**: Rewards are computed entirely within the environment boundary
+- **How**: The `AndroidEnvironment` wrapper delegates to `android_env.step()`, which:
+  1. Executes the action in the emulator
+  2. Checks task completion criteria (defined in task textproto)
+  3. Computes reward based on task-specific logic
+  4. Returns reward as part of the timestep
+- **Agent Perspective**: Agent receives `AndroidObservation.reward` field but cannot influence reward computation
+- **Location**: All reward logic lives in android_env's task definitions (external to agent)
+
+**Agent Isolation from Reset** (INVARIANTS.md:45-57):
+- ✅ **Compliance**: Agents cannot trigger environment resets
+- **Architecture**:
+  - **Orchestration Layer**: HTTP/WebSocket endpoints (`/reset`, `/step`) - controlled by training loop
+  - **Agent Layer**: Receives observations and returns actions only (no reset capability)
+  - **No MCP Tools Exposed**: This environment does not expose any MCP tools to agents
+- **How Isolation Works**:
+  1. Agent interacts via `step(action)` only
+  2. Training orchestrator calls `reset()` between episodes
+  3. `android_env` library does not expose reset to action space
+  4. EmulatorPool manages lifecycle (agent has no access)
+- **Dual API Boundary**: Training code uses HTTP/WebSocket API (has reset). Agent code uses action-only interface (no reset).
+
+**Note on HTTP vs WebSocket** (INVARIANTS.md:69-73):
+- ⚠️ **Current State**: This PR implements HTTP-only communication
+- **Reason**: INVARIANTS.md:73 acknowledges "both protocols are currently available" during transition
+- **Future Work**: Migration to WebSocket will be needed when OpenEnv completes WebSocket-only transition (see PR #252)
+- **Impact**: No architectural changes needed - just swap HTTPEnvClient for WebSocketEnvClient
+
 ### ⚠️ Limitations and Future Work
 
 #### What We Intentionally Skipped (Not in Spec)
