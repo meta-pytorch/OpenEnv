@@ -97,12 +97,16 @@ class NLEEnvironment(Environment):
         )
 
         # Episode tracking
-        self._episode_id: str = f"nle_init_{int(time.time() * 1000000)}"
+        self._episode_id: str = self._generate_episode_id()
         self._step_count = 0
         self._last_reward = 0.0
         self._last_done = False
         self._end_status = "RUNNING"
         self._in_normal_game = False
+
+    def _generate_episode_id(self) -> str:
+        """Generate a unique episode ID using timestamp."""
+        return f"nle_{int(time.time() * 1_000_000)}"
 
     def reset(self) -> NLEObservation:
         """
@@ -122,7 +126,7 @@ class NLEEnvironment(Environment):
             gym_obs = reset_result  # Old API
 
         # Initialize episode tracking
-        self._episode_id = f"nle_{int(time.time() * 1000000)}"
+        self._episode_id = self._generate_episode_id()
         self._step_count = 0
         self._last_reward = 0.0
         self._last_done = False
