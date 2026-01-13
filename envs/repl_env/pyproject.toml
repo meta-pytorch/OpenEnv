@@ -9,9 +9,9 @@ requires = ["setuptools>=45", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "openenv-echo-env"
+name = "openenv-repl"
 version = "0.1.0"
-description = "Echo Environment for OpenEnv - simple test environment that echoes back messages"
+description = "Recursive Language Model REPL Environment for OpenEnv"
 requires-python = ">=3.10"
 dependencies = [
     # Core OpenEnv dependencies (required for server functionality)
@@ -20,7 +20,10 @@ dependencies = [
     "pydantic>=2.0.0",
     "uvicorn>=0.24.0",
     "requests>=2.31.0",
-    # No additional environment-specific dependencies needed for echo_env
+    # Environment-specific dependencies
+    "smolagents>=1.22.0,<2",
+    # LLM support via HuggingFace Inference API
+    "huggingface_hub>=0.20.0",
 ]
 
 [project.optional-dependencies]
@@ -31,10 +34,10 @@ dev = [
 
 [project.scripts]
 # Server entry point - enables running via: uv run --project . server
-# or: python -m echo_env.server.app
-server = "echo_env.server.app:main"
+# or: python -m repl_env.server.app
+server = "repl_env.server.app:main"
 
 [tool.setuptools]
-include-package-data = true
-packages = ["echo_env", "echo_env.server"]
-package-dir = { "echo_env" = ".", "echo_env.server" = "server" }
+# Explicitly list packages - "repl_env" maps to current dir
+packages = ["repl_env", "repl_env.server"]
+package-dir = {"repl_env" = ".", "repl_env.server" = "server"}

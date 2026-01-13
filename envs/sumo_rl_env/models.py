@@ -11,13 +11,12 @@ This module defines the Action, Observation, and State types for traffic
 signal control using SUMO (Simulation of Urban MObility).
 """
 
-from dataclasses import dataclass, field
+from pydantic import Field
 from typing import Dict, List, Optional
 
 from openenv.core.env_server import Action, Observation, State
 
 
-@dataclass
 class SumoAction(Action):
     """
     Action for SUMO traffic signal control environment.
@@ -33,7 +32,6 @@ class SumoAction(Action):
     ts_id: str = "0"
 
 
-@dataclass
 class SumoObservation(Observation):
     """
     Observation from SUMO traffic signal environment.
@@ -54,16 +52,15 @@ class SumoObservation(Observation):
         metadata: Additional info (system metrics, etc.)
     """
 
-    observation: List[float] = field(default_factory=list)
-    observation_shape: List[int] = field(default_factory=list)
-    action_mask: List[int] = field(default_factory=list)
+    observation: List[float] = Field(default_factory=list)
+    observation_shape: List[int] = Field(default_factory=list)
+    action_mask: List[int] = Field(default_factory=list)
     sim_time: float = 0.0
     done: bool = False
     reward: Optional[float] = None
-    metadata: Dict = field(default_factory=dict)
+    metadata: Dict = Field(default_factory=dict)
 
 
-@dataclass
 class SumoState(State):
     """
     State of SUMO traffic signal environment.

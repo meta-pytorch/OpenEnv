@@ -11,10 +11,41 @@ An e2e framework for creating, deploying and using isolated execution environmen
 
 **🚀 Featured Example:** Train LLMs to play BlackJack using [torchforge](https://github.com/meta-pytorch/torchforge) (PyTorch's agentic RL framework): [`examples/grpo_blackjack/`](examples/grpo_blackjack/)
 
+## Quick Start
+
+Install OpenEnv with pip from this repo like so: 
+
+```sh
+pip install https://github.com/meta-pytorch/OpenEnv.git
+```
+
+You can then use an OpenEnv from the Hugging Face hub like so:
+
+```python
+from envs.echo_env import EchoAction, EchoEnv
+
+# Automatically start container and connect
+client = EchoEnv.from_hub("openenv/echo-env")
+
+# Reset the environment
+result = client.reset()
+print(result.observation.echoed_message)  # "Echo environment ready!"
+
+# Send messages
+result = client.step(EchoAction(message="Hello, World!"))
+print(result.observation.echoed_message)  # "Hello, World!"
+print(result.reward)  # 1.3 (based on message length)
+
+# Cleanup
+client.close()  # Stops and removes container
+```
+
+For a detailed quick start, check out the [docs page](https://meta-pytorch.org/OpenEnv/quickstart/).
+
 ## OpenEnv on partner platforms:
 
 - [Lightning AI Studio](https://lightning.ai/environments?section=featured)
-- [TRL example](https://huggingface.co/docs/trl/main/en/openenv)
+- [TRL example](https://huggingface.co/docs/trl/openenv)
 - [Unsloth Google Colab](https://colab.research.google.com/github/unslothai/notebooks/blob/main/nb/OpenEnv_gpt_oss_(20B)_Reinforcement_Learning_2048_Game.ipynb)
 - [ART example](https://art.openpipe.ai/integrations/openenv-integration)
 - [Oumi example](https://github.com/oumi-ai/oumi/blob/main/notebooks/Oumi%20-%20OpenEnv%20GRPO%20with%20trl.ipynb)
@@ -254,7 +285,7 @@ The goal of this project is to support a broad set of open and closed tools to h
 See GRPO BlackJack training example: [`examples/grpo_blackjack/`](examples/grpo_blackjack/)
 
 ### TRL
-See the [TRL example](https://huggingface.co/docs/trl/main/en/openenv) on how to integrate OpenEnv environments with GRPO training.
+See the [TRL example](https://huggingface.co/docs/trl/openenv) on how to integrate OpenEnv environments with GRPO training.
 
 ### Unsloth
 See the 2048 game example based on gpt-oss: [Colab notebook](https://colab.research.google.com/github/unslothai/notebooks/blob/main/nb/OpenEnv_gpt_oss_(20B)_Reinforcement_Learning_2048_Game.ipynb)

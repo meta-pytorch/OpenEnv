@@ -11,14 +11,13 @@ This module defines the Action, Observation, and State types for OpenSpiel games
 """
 
 from __future__ import annotations
+from pydantic import Field
 
-from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
 
 from openenv.core.env_server import Action, Observation, State
 
 
-@dataclass
 class OpenSpielAction(Action):
     """
     Action for OpenSpiel environments.
@@ -30,10 +29,9 @@ class OpenSpielAction(Action):
     """
     action_id: int
     game_name: str = "catch"
-    game_params: Dict[str, Any] = field(default_factory=dict)
+    game_params: Dict[str, Any] = Field(default_factory=dict)
 
 
-@dataclass
 class OpenSpielObservation(Observation):
     """
     Observation from OpenSpiel environment.
@@ -57,7 +55,6 @@ class OpenSpielObservation(Observation):
     opponent_last_action: Optional[int] = None
 
 
-@dataclass
 class OpenSpielState(State):
     """
     State for OpenSpiel environment.
@@ -72,5 +69,5 @@ class OpenSpielState(State):
     game_name: str = "catch"
     agent_player: int = 0
     opponent_policy: str = "random"
-    game_params: Dict[str, Any] = field(default_factory=dict)
+    game_params: Dict[str, Any] = Field(default_factory=dict)
     num_players: int = 1

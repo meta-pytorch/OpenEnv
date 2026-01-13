@@ -7,7 +7,7 @@
 # Multi-stage build using openenv-base
 # This Dockerfile is flexible and works for both:
 # - In-repo environments (with local src/core)
-# - Standalone environments (with openenv-core from pip)
+# - Standalone environments (with openenv from pip)
 # The build script (openenv build) handles context detection and sets appropriate build args.
 
 ARG BASE_IMAGE=ghcr.io/meta-pytorch/openenv-base:latest
@@ -17,6 +17,7 @@ WORKDIR /app
 
 # Build argument to control whether we're building standalone or in-repo
 ARG BUILD_MODE=in-repo
+ARG ENV_NAME=repl_env
 
 # Copy environment code (always at root of build context)
 COPY . /app/env
@@ -38,8 +39,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 # Install dependencies using uv sync
-# First pass: install dependencies without the project (for better caching)
-# Second pass: install the project itself
+# If uv.lock exists, use it; otherwise resolve on the fly
 RUN --mount=type=cache,target=/root/.cache/uv \
     if [ -f uv.lock ]; then \
         uv sync --frozen --no-install-project --no-editable; \

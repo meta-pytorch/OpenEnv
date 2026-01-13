@@ -6,59 +6,43 @@
 # LICENSE file in the root directory of this source tree.
 
 """Quickstart example for the generic TextArena environment."""
-
 from __future__ import annotations
-
-import sys
-from pathlib import Path
-
-# Add project src/ to import path
-sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
 from textarena_env import TextArenaEnv, TextArenaAction
 
 
 def main() -> None:
-    
     print("=" * 60)
-    print("💬 TextArena Hello World - GuessTheNumber-v0")
+    print("💬 TextArena Hello World - Wordle-v0")
     print("=" * 60)
 
-    env = TextArenaEnv.from_docker_image(
-        "textarena-env:latest",
-        env_vars={
-            "TEXTARENA_ENV_ID": "GuessTheNumber-v0",
-            "TEXTARENA_NUM_PLAYERS": "1",
-        },
-        ports={8000: 8000},
-    )
+    # TODO: move to openenv org
+    env = TextArenaEnv(base_url="https://burtenshaw-wordle.hf.space")
 
     try:
         print("\n📍 Resetting environment...")
         result = env.reset()
         print(f"   Prompt:\n{result.observation.prompt}\n")
 
-        # Simple heuristic: if prompt mentions a range, start with midpoint
-        guess = "[10]"
+        # Wordle guesses - common starting words
+        guesses = ["[crane]", "[slate]", "[audio]", "[pride]", "[money]", "[ghost]"]
 
-        for step in range(5):
+        for step, guess in enumerate(guesses):
             print(f"🎯 Step {step + 1}: sending guess {guess}")
             result = env.step(TextArenaAction(message=guess))
 
+            # Show the feedback
             for message in result.observation.messages:
-                print(f"   [{message.category}] {message.content}")
+                # Extract just the feedback part
+                content = message.content
+                if "Feedback:" in content:
+                    feedback_part = content.split("Feedback:")[-1].strip()
+                    print(f"   Feedback:\n{feedback_part}")
 
             if result.done:
+                if result.reward and result.reward > 0:
+                    print("\n🎉 You won!")
                 break
-
-            # Basic update: look for 'higher' or 'lower' hints
-            feedback = " ".join(msg.content for msg in result.observation.messages)
-            if "higher" in feedback:
-                guess = "[15]"
-            elif "lower" in feedback:
-                guess = "[5]"
-            else:
-                guess = "[10]"
 
         print("\n✅ Episode finished!")
         print(f"   Reward: {result.reward}")
@@ -72,10 +56,9 @@ def main() -> None:
 
     except Exception as exc:  # pragma: no cover - demonstration script
         print(f"\n❌ Error: {exc}")
-        print("\nMake sure you have built the Docker image first:")
-        print("  docker build -f envs/textarena_env/server/Dockerfile -t textarena-env:latest .")
-        print("\nAlternatively run the server manually:")
-        print("  python -m envs.textarena_env.server.app")
+        print("\nMake sure the server is running:")
+        print("  cd envs/textarena_env && source .venv/bin/activate")
+        print("  python -m uvicorn server.app:app --reload")
 
     finally:
         env.close()
@@ -84,4 +67,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-

@@ -11,7 +11,7 @@ The Chat environment provides a chat-based interface for LLMs with support
 for tokenization and message history management.
 """
 
-from dataclasses import dataclass, field
+from pydantic import Field
 
 import torch
 
@@ -19,7 +19,6 @@ from openenv.core.env_server.interfaces import Message
 from openenv.core.env_server.types import Action, Observation, State
 
 
-@dataclass
 class ChatAction(Action):
     """Action for chat environments.
 
@@ -27,25 +26,23 @@ class ChatAction(Action):
     This interfaces directly with models.
     """
 
-    tokens: torch.Tensor = field(default_factory=lambda: torch.tensor([]))
+    tokens: torch.Tensor = Field(default_factory=lambda: torch.tensor([]))
 
     def __post_init__(self):
-        """Validate required fields after initialization."""
+        """Validate required Fields after initialization."""
         if self.tokens.numel() == 0:
             raise ValueError("tokens is required and cannot be empty")
 
 
-@dataclass
 class ChatState(State):
     """State of the ChatEnvironment containing message history."""
 
-    history_messages: list[Message] = field(default_factory=list)
-    history_tokens: list[torch.Tensor] = field(
+    history_messages: list[Message] = Field(default_factory=list)
+    history_tokens: list[torch.Tensor] = Field(
         default_factory=list
     )  # Same len as messages
 
 
-@dataclass(kw_only=True)
 class ChatObservation(Observation):
     """Observation returned by ChatEnvironment.
 
@@ -62,6 +59,6 @@ class ChatObservation(Observation):
     tokens = tensor([1, 2, 3, 4, 5, ...])  # tokenized entire conversation
     """
 
-    messages: list[Message] = field(default_factory=list)
-    tokens: torch.Tensor = field(default_factory=lambda: torch.tensor([]))
-    # Inherited fields from Observation ABC: reward, done, metadata
+    messages: list[Message] = Field(default_factory=list)
+    tokens: torch.Tensor = Field(default_factory=lambda: torch.tensor([]))
+    # Inherited Fields from Observation ABC: reward, done, metadata

@@ -4,11 +4,16 @@
 # This source code is licensed under the BSD-style license found in the
 # LICENSE file in the root directory of this source tree.
 
-"""Client for the generic TextArena environment."""
+"""
+TextArena Environment HTTP Client.
+
+This module provides the client for connecting to a TextArena Environment server
+over HTTP.
+"""
 
 from __future__ import annotations
 
-from typing import Any, Dict, TYPE_CHECKING
+from typing import Any, Dict
 
 from openenv.core.client_types import StepResult
 from openenv.core.env_client import EnvClient
@@ -20,19 +25,56 @@ from .models import (
     TextArenaState,
 )
 
-if TYPE_CHECKING:
-    from openenv.core.containers.runtime import ContainerProvider
-
 
 class TextArenaEnv(EnvClient[TextArenaAction, TextArenaObservation, TextArenaState]):
-    """Client for the TextArena environment server."""
+    """
+    HTTP client for the TextArena Environment.
 
-    def _step_payload(self, action: TextArenaAction) -> Dict[str, Any]:
-        return {"message": action.message}
+    This client connects to a TextArenaEnvironment HTTP server and provides
+    methods to interact with it: reset(), step(), and state access.
 
-    def _parse_result(
-        self, payload: Dict[str, Any]
-    ) -> StepResult[TextArenaObservation]:
+    Example:
+        >>> # Connect to a running server
+        >>> client = TextArenaEnv(base_url="<ENV_HTTP_URL_HERE>")
+        >>> result = client.reset()
+        >>> print(result.observation.prompt)
+        >>>
+        >>> # Send an action
+        >>> result = client.step(TextArenaAction(message="[crane]"))
+        >>> print(result.observation.messages)
+        >>> print(result.reward)
+
+    Example with Docker:
+        >>> # Automatically start container and connect
+        >>> client = TextArenaEnv.from_docker_image("textarena-env:latest")
+        >>> result = client.reset()
+        >>> result = client.step(TextArenaAction(message="Test"))
+    """
+
+    def _step_payload(self, action: TextArenaAction) -> Dict:
+        """
+        Convert TextArenaAction to JSON payload for step request.
+
+        Args:
+            action: TextArenaAction instance
+
+        Returns:
+            Dictionary representation suitable for JSON encoding
+        """
+        return {
+            "message": action.message,
+        }
+
+    def _parse_result(self, payload: Dict) -> StepResult[TextArenaObservation]:
+        """
+        Parse server response into StepResult[TextArenaObservation].
+
+        Args:
+            payload: JSON response from server
+
+        Returns:
+            StepResult with TextArenaObservation
+        """
         obs_data = payload.get("observation", {})
         messages_payload = obs_data.get("messages", [])
         messages = [
@@ -73,4 +115,3 @@ class TextArenaEnv(EnvClient[TextArenaAction, TextArenaObservation, TextArenaSta
             last_info=payload.get("last_info", {}),
             raw_state=payload.get("raw_state", {}),
         )
-

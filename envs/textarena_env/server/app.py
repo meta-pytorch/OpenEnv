@@ -12,8 +12,14 @@ import os
 
 from openenv.core.env_server.http_server import create_app
 
-from ..models import TextArenaAction, TextArenaObservation
-from .environment import TextArenaEnvironment
+try:
+    # When running as installed package
+    from textarena_env.models import TextArenaAction, TextArenaObservation
+    from textarena_env.server.environment import TextArenaEnvironment
+except ImportError:
+    # When running uvicorn directly from textarena_env/
+    from models import TextArenaAction, TextArenaObservation
+    from .environment import TextArenaEnvironment
 
 
 def _parse_env_kwargs(prefix: str = "TEXTARENA_KW_") -> dict[str, str]:
@@ -50,11 +56,35 @@ def create_textarena_environment():
 
 # Create the FastAPI app
 # Pass the factory function instead of an instance for WebSocket session support
-app = create_app(create_textarena_environment, TextArenaAction, TextArenaObservation, env_name="textarena_env")
+app = create_app(
+    create_textarena_environment,
+    TextArenaAction,
+    TextArenaObservation,
+    env_name="textarena_env",
+)
+
+
+def main(host: str = "0.0.0.0", port: int = 8000):
+    """
+    Entry point for direct execution via uv run or python -m.
+
+    This function enables running the server without Docker:
+        uv run --project . server
+        uv run --project . server --port 8001
+        python -m textarena_env.server.app
+
+    Args:
+        host: Host address to bind to (default: "0.0.0.0")
+        port: Port number to listen on (default: 8000)
+
+    For production deployments, consider using uvicorn directly with
+    multiple workers:
+        uvicorn textarena_env.server.app:app --workers 4
+    """
+    import uvicorn
+
+    uvicorn.run(app, host=host, port=port)
 
 
 if __name__ == "__main__":
-    import uvicorn
-
-    uvicorn.run(app, host="0.0.0.0", port=8000)
-
+    main()

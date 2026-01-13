@@ -8,13 +8,12 @@ Action/Observation types for the Git environment with Gitea server.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from pydantic import Field
 from typing import Optional
 
 from openenv.core.env_server import Action, Observation, State
 
 
-@dataclass
 class GitAction(Action):
     """
     Action for Git environment operations.
@@ -39,7 +38,6 @@ class GitAction(Action):
     working_dir: str = ""
 
 
-@dataclass
 class GitObservation(Observation):
     """
     Result of executing a Git action.
@@ -56,10 +54,9 @@ class GitObservation(Observation):
     message: str = ""
     output: str = ""
     error: str = ""
-    repos: list[dict[str, str]] = field(default_factory=list)
+    repos: list[dict[str, str]] = Field(default_factory=list)
 
 
-@dataclass
 class GitState(State):
     """
     State for Git environment.

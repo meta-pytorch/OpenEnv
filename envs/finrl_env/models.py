@@ -11,12 +11,11 @@ The FinRL environment wraps FinRL's StockTradingEnv for reinforcement learning
 based stock trading.
 """
 
-from dataclasses import dataclass, field
+from pydantic import Field
 
 from openenv.core.env_server.types import Action, Observation
 
 
-@dataclass(kw_only=True)
 class FinRLAction(Action):
     """
     Action for the FinRL environment.
@@ -36,7 +35,6 @@ class FinRLAction(Action):
     actions: list[float]
 
 
-@dataclass(kw_only=True)
 class FinRLObservation(Observation):
     """
     Observation from the FinRL environment.

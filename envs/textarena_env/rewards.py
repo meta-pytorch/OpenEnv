@@ -5,7 +5,10 @@ from __future__ import annotations
 import re
 from typing import Dict, List, Protocol, Tuple
 
-from .models import TextArenaAction, TextArenaObservation
+try:
+    from textarena_env.models import TextArenaAction, TextArenaObservation
+except ImportError:
+    from models import TextArenaAction, TextArenaObservation
 
 
 class RewardProvider(Protocol):

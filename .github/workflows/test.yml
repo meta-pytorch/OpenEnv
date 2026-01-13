@@ -33,7 +33,7 @@ jobs:
       - name: Install dependencies
         run: |
           uv sync --all-extras
-          uv pip install pytest numpy nltk
+          uv pip install pytest numpy nltk smolagents
 
       - name: Run tests
         run: |
@@ -44,7 +44,7 @@ jobs:
             -v \
             --tb=short
         env:
-          PYTHONPATH: src
+          PYTHONPATH: src:envs
 
   lint:
     runs-on: ubuntu-latest

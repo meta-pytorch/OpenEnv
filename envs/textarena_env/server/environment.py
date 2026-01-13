@@ -16,17 +16,39 @@ import nltk
 
 from openenv.core.env_server.interfaces import Environment
 
-from ..models import (
-    TextArenaAction,
-    TextArenaMessage,
-    TextArenaObservation,
-    TextArenaState,
-)
-from ..rewards import RewardProvider, build_reward_providers
+try:
+    # When running as installed package
+    from textarena_env.models import (
+        TextArenaAction,
+        TextArenaMessage,
+        TextArenaObservation,
+        TextArenaState,
+    )
+    from textarena_env.rewards import RewardProvider, build_reward_providers
+except ImportError:
+    # When running uvicorn directly from textarena_env/
+    from models import (
+        TextArenaAction,
+        TextArenaMessage,
+        TextArenaObservation,
+        TextArenaState,
+    )
+    from rewards import RewardProvider, build_reward_providers
 
 
 _TEXTARENA_MODULE: Any | None = None
 _TEXTARENA_IMPORT_ERROR: Exception | None = None
+_NLTK_DOWNLOADED: bool = False
+
+
+def _ensure_nltk_data() -> None:
+    """Download NLTK data once per process."""
+    global _NLTK_DOWNLOADED
+    if _NLTK_DOWNLOADED:
+        return
+    nltk.download("words", quiet=True)
+    nltk.download("averaged_perceptron_tagger_eng", quiet=True)
+    _NLTK_DOWNLOADED = True
 
 
 def _import_textarena() -> Any:
@@ -74,8 +96,7 @@ class TextArenaEnvironment(Environment):
         ta = _import_textarena()
 
         if download_nltk:
-            nltk.download("words", quiet=True)
-            nltk.download("averaged_perceptron_tagger_eng", quiet=True)
+            _ensure_nltk_data()
 
         self.env_id = env_id
         self.num_players = num_players
@@ -93,10 +114,20 @@ class TextArenaEnvironment(Environment):
         self._reward_providers: List[RewardProvider] = build_reward_providers(env_id)
         self._last_reward_signals: Dict[str, float] = {}
 
+        # Initialize environment state - TextArena envs require reset() to be called
+        # before step() can be used, as the internal state object isn't created until reset.
+        # This ensures the environment is always in a valid state after construction.
+        self._ta_env.reset(num_players=self.num_players)
+
     # ------------------------------------------------------------------
     # Environment interface
     # ------------------------------------------------------------------
-    def reset(self) -> TextArenaObservation:
+    def reset(
+        self,
+        seed: Optional[int] = None,
+        episode_id: Optional[str] = None,
+        **kwargs: Any,
+    ) -> TextArenaObservation:
         # TextArena observation wrappers (LLMObservationWrapper, etc.) accumulate
         # observations in self.full_observations across resets. Since we can't modify TextArena,
         # we need to manually clear this state to prevent history accumulation.
@@ -114,7 +145,7 @@ class TextArenaEnvironment(Environment):
         for provider in self._reward_providers:
             provider.reset()
 
-        self._state.episode_id = str(uuid4())
+        self._state.episode_id = episode_id if episode_id is not None else str(uuid4())
         self._state.step_count = 0
         self._state.turn = 0
         self._state.last_reward = 0.0
@@ -145,9 +176,7 @@ class TextArenaEnvironment(Environment):
         observation.reward = reward
         self._state.last_reward = reward
 
-        reward_signals = self._compute_reward_signals(
-            action=action, observation=observation
-        )
+        reward_signals = self._compute_reward_signals(action=action, observation=observation)
         if reward_signals:
             observation.info.setdefault("reward_signals", {}).update(reward_signals)
             observation.metadata.setdefault("reward_signals", {}).update(reward_signals)
@@ -218,9 +247,7 @@ class TextArenaEnvironment(Environment):
 
     def _legal_players(self) -> List[int]:
         role_mapping = getattr(self._ta_env.state, "role_mapping", {}) or {}
-        players = [
-            pid for pid in role_mapping.keys() if isinstance(pid, int) and pid >= 0
-        ]
+        players = [pid for pid in role_mapping.keys() if isinstance(pid, int) and pid >= 0]
         return sorted(players)
 
     def _convert_messages(self, messages: Iterable[Any]) -> List[TextArenaMessage]:
@@ -257,11 +284,7 @@ class TextArenaEnvironment(Environment):
             sender_id = int(sender) if isinstance(sender, (int, float)) else -1
             text = str(content)
 
-            if (
-                buffered_content
-                and buffered_category == category_name
-                and buffered_sender == sender_id
-            ):
+            if buffered_content and buffered_category == category_name and buffered_sender == sender_id:
                 buffered_content.append(text)
             else:
                 flush_buffer()

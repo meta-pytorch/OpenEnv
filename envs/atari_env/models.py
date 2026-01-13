@@ -13,13 +13,11 @@ via the Arcade Learning Environment (ALE).
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
 from typing import Any, Dict, List, Literal, Optional
 
 from openenv.core.env_server import Action, Observation, State
 
 
-@dataclass
 class AtariAction(Action):
     """
     Action for Atari environments.
@@ -36,7 +34,6 @@ class AtariAction(Action):
     full_action_space: bool = False
 
 
-@dataclass
 class AtariObservation(Observation):
     """
     Observation from Atari environment.
@@ -63,7 +60,6 @@ class AtariObservation(Observation):
     frame_number: int = 0
 
 
-@dataclass
 class AtariState(State):
     """
     State for Atari environment.

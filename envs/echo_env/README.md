@@ -1,8 +1,8 @@
 ---
 title: Echo Environment Server
 emoji: 🔊
-colorFrom: '#00C9FF'
-colorTo: '#1B2845'
+colorFrom: blue
+colorTo: blue
 sdk: docker
 pinned: false
 app_port: 8000
