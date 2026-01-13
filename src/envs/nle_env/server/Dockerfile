@@ -33,8 +33,8 @@ RUN pip install --no-cache-dir \
     numpy
 
 # Install NLE (this will compile NetHack from source)
-# Using the stable version from PyPI
-RUN pip install --no-cache-dir nle gym
+# Pin gym version for reproducibility and API compatibility
+RUN pip install --no-cache-dir nle gym==0.26.2
 
 # Copy OpenEnv core
 COPY src/core/ /app/src/core/

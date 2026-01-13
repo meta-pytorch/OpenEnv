@@ -1,0 +1,56 @@
+# Git
+.git/
+.gitignore
+.github/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+dist/
+build/
+*.egg
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+venv/
+env/
+ENV/
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Documentation (keep README.md as it's explicitly copied)
+*.md
+!README.md
+docs/
+
+# CI/CD
+.travis.yml
+.gitlab-ci.yml
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Test and development files
+tests/
+*.test
+test_*
+
+# Environment files
+.env
+.env.local
+*.log
+
+# Temporary files
+tmp/
+temp/
+*.tmp

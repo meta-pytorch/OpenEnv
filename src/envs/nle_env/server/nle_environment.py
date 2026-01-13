@@ -32,9 +32,6 @@ class NLEEnvironment(Environment):
     This environment wraps NLE's gym interface and provides OpenEnv-compatible
     reset(), step(), and state access.
 
-    With beefy compute, we use simple JSON serialization and include all
-    observation types by default. No optimization needed - compute handles it.
-
     Example:
         >>> env = NLEEnvironment()
         >>> obs = env.reset()
@@ -90,7 +87,6 @@ class NLEEnvironment(Environment):
         self._observation_keys = observation_keys
 
         # Create NLE gym environment
-        # With beefy compute: no ttyrec saving, all observations enabled
         self.nle_env = NLE(
             character=character,
             observation_keys=observation_keys,
@@ -101,7 +97,7 @@ class NLEEnvironment(Environment):
         )
 
         # Episode tracking
-        self._episode_id: Optional[str] = None
+        self._episode_id: str = f"nle_init_{int(time.time() * 1000000)}"
         self._step_count = 0
         self._last_reward = 0.0
         self._last_done = False
@@ -208,8 +204,7 @@ class NLEEnvironment(Environment):
         """
         Convert NLE gym observation to NLEObservation.
 
-        With beefy compute, we just convert numpy arrays to lists.
-        No compression, no optimization - simplicity first.
+        Converts numpy arrays to lists for JSON serialization.
 
         Args:
             gym_obs: Dictionary from NLE gym env
@@ -226,7 +221,7 @@ class NLEEnvironment(Environment):
         }
 
         # Convert each observation type from numpy array to nested list
-        # This is simple and works perfectly with JSON + beefy compute
+        # for JSON serialization
         for key in self._observation_keys:
             if key in gym_obs:
                 array = gym_obs[key]
