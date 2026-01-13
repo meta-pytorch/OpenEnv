@@ -541,7 +541,7 @@ python app.py
 ```
 browsergym_env/
 ├── __init__.py              # Module exports
-├── models.py                # Action, Observation, State dataclasses
+├── env_types.py             # Action, Observation, State dataclasses
 ├── client.py                # HTTPEnvClient implementation
 ├── README.md                # This file
 └── server/

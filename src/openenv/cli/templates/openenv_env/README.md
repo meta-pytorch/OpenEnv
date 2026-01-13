@@ -246,7 +246,7 @@ __ENV_NAME__/
 ├── pyproject.toml         # Project metadata and dependencies
 ├── uv.lock                # Locked dependencies (generated)
 ├── client.py              # __ENV_CLASS_NAME__Env client
-├── models.py              # Action and Observation models
+├── env_types.py           # Action and Observation types
 └── server/
     ├── __init__.py        # Server module exports
     ├── __ENV_NAME___environment.py  # Core environment logic

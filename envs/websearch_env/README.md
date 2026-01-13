@@ -226,7 +226,7 @@ web_search/
 ├── pyproject.toml         # Project metadata and dependencies
 ├── uv.lock                # Locked dependencies (generated)
 ├── client.py              # WebSearchEnv client implementation
-├── models.py              # Action and Observation models
+├── env_types.py           # Action and Observation types
 └── server/
     ├── __init__.py        # Server module exports
     ├── websearch_env_environment.py  # Core environment logic

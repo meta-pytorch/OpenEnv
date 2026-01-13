@@ -328,7 +328,7 @@ print("💡 Tip: Run cells top-to-bottom for the best experience.\n")
 
 ```
 src/envs/your_env/
-├── 📝 models.py          ← Type-safe contracts
+├── 📝 env_types.py       ← Type-safe contracts
 │                           (Action, Observation, State)
 │
 ├── 📱 client.py          ← What YOU import
@@ -1025,7 +1025,7 @@ result = client.reset()  # Now playing Tic-Tac-Toe!
 
 Want to wrap your own environment in OpenEnv? Here's how:
 
-### Step 1: Define Types (`models.py`)
+### Step 1: Define Types (`env_types.py`)
 
 ```python
 from dataclasses import dataclass

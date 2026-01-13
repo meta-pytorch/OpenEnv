@@ -406,7 +406,7 @@ my_env_standalone/
 ├── uv.lock              # Locked dependencies
 ├── __init__.py          # Module exports
 ├── client.py            # Environment client
-├── models.py            # Action/Observation models
+├── env_types.py         # Action/Observation types
 └── server/
     ├── __init__.py
     ├── app.py           # FastAPI app (with main())
@@ -477,7 +477,7 @@ uv pip install -e .
 # Run locally
 uv run server
 
-# Make changes to client.py, models.py, etc.
+# Make changes to client.py, env_types.py, etc.
 
 # Test changes
 openenv validate

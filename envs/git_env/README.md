@@ -185,7 +185,7 @@ See [`examples/local_git_env.py`](../../../examples/local_git_env.py) for comple
 git_env/
 ├── README.md                      # This file
 ├── __init__.py                    # Exports
-├── models.py                      # Action, Observation, State definitions
+├── env_types.py                   # Action, Observation, State definitions
 ├── client.py                      # GitEnv HTTP client
 ├── docker-compose.gitea.yml       # Shared Gitea service
 └── server/
