@@ -45,6 +45,11 @@ class NLEObservation(Observation):
     Contains a subset of NLE's 14+ observation types. All numpy arrays are
     serialized as nested lists for JSON compatibility.
 
+    Note: All observation fields are optional because NLE supports configurable
+    observation spaces. The environment can be configured with `observation_keys`
+    to include only a subset of available observations, allowing flexibility in
+    balancing information richness with data size.
+
     Observation types (all optional, configured at env creation):
         - glyphs: (21, 79) - Symbolic dungeon map representation
         - chars: (21, 79) - ASCII character display
@@ -60,8 +65,6 @@ class NLEObservation(Observation):
         - tty_colors: (24, 80) - Full terminal colors
         - tty_cursor: (2,) - Terminal cursor position [row, col]
         - screen_descriptions: (21, 79, 80) - Text descriptions of dungeon
-
-    With beefy compute, we include all observations by default.
     """
 
     # Core observations (always useful)

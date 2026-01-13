@@ -2,6 +2,10 @@
 
 A reinforcement learning environment based on NetHack 3.6.6, wrapped for the OpenEnv framework.
 
+**Note**: This environment currently uses HTTP-based communication. OpenEnv is transitioning
+to WebSocket-based communication for the Gym-like API, so this implementation may need
+migration in the future.
+
 ## Overview
 
 NetHack is one of the oldest and most challenging roguelike games, featuring:
@@ -45,8 +49,7 @@ env.close()
 ### Building the Docker Image
 
 ```bash
-# Build from repository root (not from server directory)
-cd /Users/sanyambhutani/GH/OpenEnv
+# Build from repository root
 docker build -f src/envs/nle_env/server/Dockerfile -t nle-env:latest .
 ```
 
@@ -94,7 +97,7 @@ For a complete action mapping, see [NLE Actions Documentation](https://github.co
 
 ## Observation Space
 
-NLE provides rich observations about the game state. With OpenEnv's beefy compute assumption, all observations are included by default:
+NLE provides rich observations about the game state. All observations are included by default:
 
 ### Core Observations
 - **glyphs** `(21, 79)`: Symbolic dungeon map representation
@@ -245,11 +248,10 @@ env.close()
 
 ## Performance Considerations
 
-With **beefy compute** (64+ cores, 256GB+ RAM, 10Gbps network):
+Typical performance characteristics:
 - Observation size: ~140KB per step (all observation types)
-- Network overhead: Negligible (<1ms on fast network)
 - Memory: ~200-500MB per container
-- Throughput: 100+ parallel environments easily
+- Throughput: 100+ parallel environments on multi-core systems
 
 **Optimizations are NOT needed** - just run it simple with JSON serialization!
 
@@ -288,7 +290,7 @@ Common issues:
 
 ### Slow Performance
 
-If you experience slowness even with beefy compute:
+If you experience slow performance:
 1. Check network latency: `ping <server-ip>`
 2. Monitor CPU: NLE is CPU-intensive for dungeon generation
 3. Check Docker resources: Ensure containers have sufficient CPU allocation

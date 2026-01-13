@@ -26,10 +26,6 @@ class NLEEnv(HTTPEnvClient[NLEAction, NLEObservation]):
     This client connects to an NLEEnvironment HTTP server and provides
     methods to interact with NetHack: reset(), step(), and state access.
 
-    With beefy compute, we use simple JSON serialization. The server sends
-    all observation arrays as nested lists, which we keep as-is or convert
-    back to numpy arrays as needed.
-
     Example:
         >>> # Connect to a running server
         >>> client = NLEEnv(base_url="http://localhost:8000")
@@ -72,9 +68,7 @@ class NLEEnv(HTTPEnvClient[NLEAction, NLEObservation]):
         """
         Parse server response into StepResult[NLEObservation].
 
-        The server sends all arrays as nested lists. With beefy compute,
-        we just keep them as lists - no need to convert back to numpy
-        unless the user specifically needs it.
+        The server sends all arrays as nested lists for JSON compatibility.
 
         Args:
             payload: JSON response from server
@@ -90,7 +84,7 @@ class NLEEnv(HTTPEnvClient[NLEAction, NLEObservation]):
         metadata = obs_data.get("metadata", {})
 
         # Build observation with all the array fields
-        # Keep them as lists - simple and works great with beefy compute
+        # Keep them as lists for JSON compatibility
         observation = NLEObservation(
             # Core observations
             glyphs=obs_data.get("glyphs"),
