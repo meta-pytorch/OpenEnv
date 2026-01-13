@@ -1,7 +1,7 @@
 """Smoke tests for Android environment.
 
-This test suite verifies that the Android environment can be imported and basic
-functionality works. These are smoke tests that don't require Docker or android_env.
+This test suite verifies that the Android environment modules can be imported and basic
+functionality works without requiring a Docker container or running Android emulator.
 
 Full integration tests with Docker and android_env will be added in a future PR.
 """
