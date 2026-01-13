@@ -25,6 +25,8 @@ dependencies = [
     "tomli>=2.3.0",
     "tomli-w>=1.2.0",
     "websockets>=15.0.1",
+    # MCP support
+    "fastmcp>=2.0.0",
 ]
 
 [project.optional-dependencies]
