@@ -20,7 +20,7 @@ import os
 import time
 import uuid
 from concurrent.futures import ThreadPoolExecutor
-from typing import Any, Callable, Dict, Optional, Type, Union
+from typing import Any, Callable, Dict, Optional, Type
 
 from fastapi import Body, FastAPI, HTTPException, WebSocket, WebSocketDisconnect, status
 from pydantic import ValidationError
@@ -56,10 +56,6 @@ from .types import (
 from .mcp_types import (
     WSMCPMessage,
     WSMCPResponse,
-    ListToolsAction,
-    CallToolAction,
-    ListToolsObservation,
-    CallToolObservation,
 )
 from .exceptions import (
     ConcurrencyConfigurationError,

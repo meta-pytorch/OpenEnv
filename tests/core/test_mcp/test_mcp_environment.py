@@ -7,7 +7,6 @@
 """Tests for MCPEnvironment base class."""
 
 import pytest
-from unittest.mock import MagicMock, patch
 
 from openenv.core.env_server.mcp_types import (
     ListToolsAction,

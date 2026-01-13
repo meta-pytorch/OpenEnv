@@ -62,7 +62,7 @@ from .mcp_types import (
     ToolError,
     ToolErrorType,
 )
-from .types import Action, Observation, State
+from .types import Action, Observation
 
 
 # Default timeout for MCP tool calls in seconds
