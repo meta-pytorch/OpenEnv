@@ -206,8 +206,8 @@ class AndroidEnvironment(Environment):
             try:
                 self._shared_mem.close()
                 self._shared_mem.unlink()
-            except:
-                pass
+            except Exception as e:
+                logger.warning(f"Failed to clean up shared memory: {e}")
         logger.info("Android environment closed")
 
     def _convert_action_to_gestures(self, action: AndroidAction) -> List[dict]:

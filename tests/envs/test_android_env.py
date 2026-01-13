@@ -1,16 +1,9 @@
-"""Integration test for Android environment.
+"""Smoke tests for Android environment.
 
-This test verifies that the Android environment can be imported and basic
-functionality works. Full integration tests with emulator are in
-src/envs/android_env/tests/.
+This test suite verifies that the Android environment can be imported and basic
+functionality works. These are smoke tests that don't require Docker or android_env.
 
-Note: This is a smoke test. Full test coverage (105 tests, 90% coverage)
-is in src/envs/android_env/tests/:
-- test_models.py: 18 unit tests
-- test_gestures.py: 13 unit tests
-- test_edge_cases.py: 32 unit tests
-- test_environment_mocked.py: 18 integration tests
-- test_emulator_pool.py: 24 integration tests
+Full integration tests with Docker and android_env will be added in a future PR.
 """
 
 import pytest

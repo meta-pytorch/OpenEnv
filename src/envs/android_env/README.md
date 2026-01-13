@@ -170,47 +170,46 @@ pixels = np.ndarray((1920, 1080, 3), dtype=np.uint8, buffer=shm.buf)
 # pixels now points directly to emulator's screen buffer
 ```
 
-#### 5. **Comprehensive Test Suite** (tests/ - 105 tests, 90% coverage)
+#### 5. **Test Suite** (9 smoke tests)
 
-**Unit Tests** (63 tests - no dependencies):
-- `test_models.py`: 18 tests - RFC 004 compliance, action/observation validation
-- `test_gestures.py`: 13 tests - Gesture primitives, ADB commands, escaping
-- `test_edge_cases.py`: 32 tests - Boundaries, unicode, special chars, long strings
+**Current Status**: This PR includes smoke tests to verify basic functionality. Full integration tests requiring Docker and android_env will be added in a future PR.
 
-**Integration Tests** (42 tests - require Docker):
-- `test_environment_mocked.py`: 18 tests - Action conversion, coordinate clipping, ADB execution, workflows
-- `test_emulator_pool.py`: 24 tests - Thread safety, pool exhaustion, cleanup, multi-task
+**Smoke Tests** (9 tests - in `tests/envs/test_android_env.py`):
+- `test_android_models_import`: Verify AndroidAction and AndroidObservation models can be imported
+- `test_android_action_all_types`: Test creation of all 10 action types (tap, swipe, long_press, etc.)
+- `test_android_observation_structure`: Verify observation structure and fields
+- `test_gesture_builder_tap`: Test GestureBuilder tap primitive (TOUCH + LIFT)
+- `test_gesture_builder_swipe`: Test GestureBuilder swipe with interpolation
+- `test_adb_commands_text_input`: Test ADB text input command generation with escaping
+- `test_adb_commands_keyevent`: Test ADB keyevent command generation (HOME, BACK)
+- `test_coordinate_clipping`: Test out-of-bounds coordinate handling
+- `test_android_environment_full_integration`: Placeholder for future Docker-based tests (skipped)
 
-**What We Test**:
-- ✅ Coordinate pass-through (x=0.5, y=0.5 → touch_position=[0.5, 0.5])
-- ✅ Coordinate clipping (x=1.5 → 1.0, y=-0.5 → 0.0)
-- ✅ ADB execution (execute_adb_call actually called with correct commands)
-- ✅ Gesture sequencing (tap=2 primitives, swipe=10+ primitives)
-- ✅ Shared memory (obs.screen_image = "shm://..." when enabled)
-- ✅ Observation decode (base64 → valid image with correct dimensions)
-- ✅ Multi-action workflows (tap → swipe → text → button in sequence)
-- ✅ Multi-episode lifecycle (reset → steps → reset with new episode_id)
-- ✅ Thread safety (64 workers competing for 5 emulators)
-- ✅ Text escaping (quotes, unicode 世界, emojis 🌍, shell chars $;|)
+**What These Tests Verify**:
+- ✅ RFC 004 compliance (ToolCallAction pattern)
+- ✅ All 10 action types can be created
+- ✅ Observation structure is correct
+- ✅ GestureBuilder generates correct primitives (TOUCH, REPEAT, LIFT)
+- ✅ ADB commands are properly formatted
+- ✅ Text escaping for spaces and special characters
+- ✅ Coordinate handling for gestures
 
 **Run tests**:
 ```bash
-# Unit tests (instant, no dependencies)
-cd src/envs/android_env/tests
-./run_unit_tests.sh
-# 63/63 PASSED ✅
+# Run all smoke tests
+pytest tests/envs/test_android_env.py -v
 
-# Integration tests (require Docker with android_env)
-./run_docker_tests.sh
-# 42/42 PASSED ✅
+# Run specific test
+pytest tests/envs/test_android_env.py::test_android_models_import -v
 ```
 
-**Coverage**:
-- models.py: ~95%
-- gestures.py: ~90%
-- emulator_pool.py: ~85%
-- android_environment.py: ~90%
-- **Overall: ~90%** (up from 58% before testing push)
+**Future Work**:
+Full integration testing (105 tests with ~90% coverage) will require:
+- Docker with android_env installed
+- Android SDK and emulator setup
+- Unit tests for models, gestures, edge cases (63 tests)
+- Integration tests for environment and pool (42 tests)
+- These will be added in a follow-up PR once the basic environment is validated
 
 #### 6. **OpenEnv RFC Compliance**
 - **RFC 001**: HTTP-based environment server ✅
