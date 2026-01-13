@@ -53,7 +53,7 @@ class ContainerProvider(ABC):
             image: Container image name (e.g., "echo-env:latest")
             port: Port to expose (if None, provider chooses)
             env_vars: Environment variables to pass to container
-            **kwargs: Provider-specific options
+            ``**kwargs``: Provider-specific options
 
         Returns:
             Base URL to connect to the container (e.g., "http://localhost:8000")
@@ -141,7 +141,7 @@ class LocalDockerProvider(ContainerProvider):
             image: Docker image name
             port: Port to expose (if None, finds available port)
             env_vars: Environment variables for the container
-            **kwargs: Additional Docker run options
+            ``**kwargs``: Additional Docker run options
 
         Returns:
             Base URL to connect to the container
@@ -233,6 +233,7 @@ class LocalDockerProvider(ContainerProvider):
             TimeoutError: If container doesn't become ready
         """
         import time
+
         import requests
 
         start_time = time.time()
@@ -468,6 +469,7 @@ class DockerSwarmProvider(ContainerProvider):
         replicas may still be starting when this returns.
         """
         import time
+
         import requests
 
         deadline = time.time() + timeout_s
@@ -635,7 +637,7 @@ class RuntimeProvider(ABC):
             image: Runtime image name
             port: Port to expose (if None, provider chooses)
             env_vars: Environment variables for the runtime
-            **kwargs: Additional runtime options
+            ``**kwargs``: Additional runtime options
         """
 
     @abstractmethod

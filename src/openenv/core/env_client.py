@@ -10,40 +10,24 @@ Environment client for persistent sessions.
 This module provides a WebSocket-based client that maintains a persistent connection
 to an environment server, enabling efficient multi-step interactions without
 the overhead of HTTP request/response cycles.
-
-The client is async by default. For synchronous usage, use the `.sync()` method
-to get a `SyncEnvClient` wrapper.
-
-Example (async):
-    >>> async with GenericEnvClient(base_url="ws://localhost:8000") as env:
-    ...     result = await env.reset()
-    ...     result = await env.step({"code": "print('hello')"})
-
-Example (sync wrapper):
-    >>> env = GenericEnvClient(base_url="ws://localhost:8000").sync()
-    >>> with env:
-    ...     result = env.reset()
-    ...     result = env.step({"code": "print('hello')"})
 """
 
 from __future__ import annotations
 
-import asyncio
 import json
-import os
 from abc import ABC, abstractmethod
 from typing import Any, Dict, Generic, Optional, Type, TYPE_CHECKING, TypeVar
 
-from .client_types import StepResult, StateT
+from .client_types import StateT, StepResult
 from .containers.runtime import LocalDockerProvider, UVProvider
 from .utils import convert_to_ws_url
 
 if TYPE_CHECKING:
-    from .containers.runtime import ContainerProvider, RuntimeProvider
-    from .sync_client import SyncEnvClient
-    from websockets.asyncio.client import ClientConnection
+    from websockets.sync.client import ClientConnection
 
-from websockets.asyncio.client import connect as ws_connect
+    from .containers.runtime import ContainerProvider, RuntimeProvider
+
+from websockets.sync.client import connect as ws_connect
 
 ActT = TypeVar("ActT")
 ObsT = TypeVar("ObsT")
@@ -52,36 +36,26 @@ EnvClientT = TypeVar("EnvClientT", bound="EnvClient")
 
 class EnvClient(ABC, Generic[ActT, ObsT, StateT]):
     """
-    Async environment client for persistent sessions.
+    Environment client for persistent sessions.
 
     This client maintains a persistent WebSocket connection to an environment
     server, enabling efficient multi-step interactions. Each client instance
     corresponds to a dedicated environment session on the server.
 
-    The client is async by default. For synchronous usage, use the `.sync()`
-    method to get a `SyncEnvClient` wrapper.
-
     Features:
     - Lower latency for sequential interactions
     - Session state is maintained server-side
     - Better suited for long-running episodes
-    - Async by default for modern Python async/await patterns
 
-    Example (async):
+    Example:
         >>> from envs.coding_env.client import CodingEnv
         >>>
-        >>> # Connect to a server using async context manager
-        >>> async with CodingEnv(base_url="ws://localhost:8000") as env:
-        ...     result = await env.reset(seed=42)
+        >>> # Connect to a server
+        >>> with CodingEnv(base_url="ws://localhost:8000") as env:
+        ...     result = env.reset(seed=42)
         ...     while not result.done:
         ...         action = agent.predict(result.observation)
-        ...         result = await env.step(action)
-
-    Example (sync wrapper):
-        >>> env = CodingEnv(base_url="ws://localhost:8000").sync()
-        >>> with env:
-        ...     result = env.reset(seed=42)
-        ...     result = env.step(action)
+        ...         result = env.step(action)
     """
 
     def __init__(
@@ -90,7 +64,6 @@ class EnvClient(ABC, Generic[ActT, ObsT, StateT]):
         connect_timeout_s: float = 10.0,
         message_timeout_s: float = 60.0,
         provider: Optional["ContainerProvider | RuntimeProvider"] = None,
-        mode: Optional[str] = None,
     ):
         """
         Initialize environment client.
@@ -102,26 +75,7 @@ class EnvClient(ABC, Generic[ActT, ObsT, StateT]):
             message_timeout_s: Timeout for receiving responses to messages
             provider: Optional container/runtime provider for lifecycle management.
                      Can be a ContainerProvider (Docker) or RuntimeProvider (UV).
-            mode: Communication mode: 'simulation' for Gym-style API (default) or
-                 'production' for MCP JSON-RPC protocol. Can also be set via the
-                 OPENENV_CLIENT_MODE environment variable. Constructor parameter
-                 takes precedence over environment variable. Case-insensitive.
         """
-        # Determine mode (constructor > env var > default)
-        if mode is None:
-            mode = os.environ.get("OPENENV_CLIENT_MODE", "simulation")
-
-        # Normalize and validate mode
-        mode = mode.lower()
-        if mode not in ("simulation", "production"):
-            raise ValueError(
-                f"Invalid mode: '{mode}'. Must be 'simulation' or 'production'. "
-                f"Set via constructor parameter or OPENENV_CLIENT_MODE environment variable."
-            )
-
-        # Store mode (use object.__setattr__ to bypass immutability)
-        object.__setattr__(self, "_mode", mode)
-
         # Convert HTTP URL to WebSocket URL
         ws_url = convert_to_ws_url(base_url)
 
@@ -131,13 +85,7 @@ class EnvClient(ABC, Generic[ActT, ObsT, StateT]):
         self._provider = provider
         self._ws: Optional[ClientConnection] = None
 
-    def __setattr__(self, name: str, value: Any) -> None:
-        """Prevent modification of _mode after initialization."""
-        if name == "_mode" and hasattr(self, "_mode"):
-            raise AttributeError("Cannot modify mode after initialization")
-        super().__setattr__(name, value)
-
-    async def connect(self) -> "EnvClient":
+    def connect(self) -> "EnvClient":
         """
         Establish WebSocket connection to the server.
 
@@ -150,73 +98,51 @@ class EnvClient(ABC, Generic[ActT, ObsT, StateT]):
         if self._ws is not None:
             return self
 
-        # Bypass proxy for localhost connections
-        ws_url_lower = self._ws_url.lower()
-        is_localhost = "localhost" in ws_url_lower or "127.0.0.1" in ws_url_lower
-
-        old_no_proxy = os.environ.get("NO_PROXY")
-        if is_localhost:
-            # Set NO_PROXY to bypass proxy for localhost
-            current_no_proxy = old_no_proxy or ""
-            if "localhost" not in current_no_proxy.lower():
-                os.environ["NO_PROXY"] = (
-                    f"{current_no_proxy},localhost,127.0.0.1"
-                    if current_no_proxy
-                    else "localhost,127.0.0.1"
-                )
-
         try:
-            self._ws = await ws_connect(
+            self._ws = ws_connect(
                 self._ws_url,
                 open_timeout=self._connect_timeout,
             )
         except Exception as e:
             raise ConnectionError(f"Failed to connect to {self._ws_url}: {e}") from e
-        finally:
-            # Restore original NO_PROXY value
-            if is_localhost:
-                if old_no_proxy is None:
-                    os.environ.pop("NO_PROXY", None)
-                else:
-                    os.environ["NO_PROXY"] = old_no_proxy
 
         return self
 
-    async def disconnect(self) -> None:
+    def disconnect(self) -> None:
         """Close the WebSocket connection."""
         if self._ws is not None:
             try:
                 # Send close message
-                await self._send({"type": "close"})
+                self._send({"type": "close"})
             except Exception:
                 pass  # Best effort
             try:
-                await self._ws.close()
+                self._ws.close()
             except Exception:
                 pass
             self._ws = None
 
-    async def _ensure_connected(self) -> None:
+    def _ensure_connected(self) -> None:
         """Ensure WebSocket connection is established."""
         if self._ws is None:
-            await self.connect()
+            self.connect()
 
-    async def _send(self, message: Dict[str, Any]) -> None:
+    def _send(self, message: Dict[str, Any]) -> None:
         """Send a message over the WebSocket."""
-        await self._ensure_connected()
+        self._ensure_connected()
         assert self._ws is not None
-        await self._ws.send(json.dumps(message))
+        self._ws.send(json.dumps(message))
 
-    async def _receive(self) -> Dict[str, Any]:
+    def _receive(self) -> Dict[str, Any]:
         """Receive and parse a message from the WebSocket."""
         assert self._ws is not None
-        raw = await asyncio.wait_for(self._ws.recv(), timeout=self._message_timeout)
+        raw = self._ws.recv(timeout=self._message_timeout)
         return json.loads(raw)
 
-    async def _send_and_receive(self, message: Dict[str, Any]) -> Dict[str, Any]:
+    def _send_and_receive(self, message: Dict[str, Any]) -> Dict[str, Any]:
         """Send a message and wait for response."""
-        await self._send(message)
-        response = await self._receive()
+        self._send(message)
+        response = self._receive()
 
         # Check for error response
         if response.get("type") == "error":
@@ -229,7 +155,7 @@ class EnvClient(ABC, Generic[ActT, ObsT, StateT]):
         return response
 
     @classmethod
-    async def from_docker_image(
+    def from_docker_image(
         cls: Type[EnvClientT],
         image: str,
         provider: Optional["ContainerProvider"] = None,
@@ -241,7 +167,7 @@ class EnvClient(ABC, Generic[ActT, ObsT, StateT]):
         Args:
             image: Docker image name to run (e.g., "coding-env:latest")
             provider: Container provider to use (defaults to LocalDockerProvider)
-            **kwargs: Additional arguments to pass to provider.start_container()
+            ``**kwargs``: Additional arguments to pass to provider.start_container()
 
         Returns:
             Connected client instance
@@ -257,12 +183,12 @@ class EnvClient(ABC, Generic[ActT, ObsT, StateT]):
 
         # Create and connect client
         client = cls(base_url=base_url, provider=provider)
-        await client.connect()
+        client.connect()
 
         return client
 
     @classmethod
-    async def from_env(
+    def from_hub(
         cls: Type[EnvClientT],
         repo_id: str,
         *,
@@ -276,11 +202,11 @@ class EnvClient(ABC, Generic[ActT, ObsT, StateT]):
         Args:
             repo_id: Hugging Face space identifier ``{org}/{space}``.
             use_docker: When ``True`` (default) pull from the HF registry and
-                launch via :class:`LocalDockerProvider`. When ``False`` run the
-                space locally with :class:`UVProvider`.
+                launch via ``LocalDockerProvider``. When ``False`` run the
+                space locally with ``UVProvider``.
             provider: Optional provider instance to reuse. Must be a
-                :class:`ContainerProvider` when ``use_docker=True`` and a
-                :class:`RuntimeProvider` otherwise.
+                ``ContainerProvider`` when ``use_docker=True`` and a
+                ``RuntimeProvider`` otherwise.
             provider_kwargs: Additional keyword arguments forwarded to
                 either the container provider's ``start_container`` (docker)
                 or to the ``UVProvider`` constructor/start (uv). When
@@ -293,13 +219,13 @@ class EnvClient(ABC, Generic[ActT, ObsT, StateT]):
 
         Examples:
             >>> # Pull and run from HF Docker registry
-            >>> env = await MyEnv.from_env("openenv/echo-env")
+            >>> env = MyEnv.from_hub("openenv/echo-env")
             >>>
             >>> # Run locally with UV (clones the space)
-            >>> env = await MyEnv.from_env("openenv/echo-env", use_docker=False)
+            >>> env = MyEnv.from_hub("openenv/echo-env", use_docker=False)
             >>>
             >>> # Run from a local checkout
-            >>> env = await MyEnv.from_env(
+            >>> env = MyEnv.from_hub(
             ...     "openenv/echo-env",
             ...     use_docker=False,
             ...     project_path="/path/to/local/checkout"
@@ -322,7 +248,7 @@ class EnvClient(ABC, Generic[ActT, ObsT, StateT]):
             docker_provider.wait_for_ready(base_url)
 
             client = cls(base_url=base_url, provider=docker_provider)
-            await client.connect()
+            client.connect()
             return client
         else:
             # UV mode: clone and run with uv
@@ -343,7 +269,7 @@ class EnvClient(ABC, Generic[ActT, ObsT, StateT]):
             provider.wait_for_ready()
 
             client = cls(base_url=base_url, provider=provider)
-            await client.connect()
+            client.connect()
             return client
 
     @abstractmethod
@@ -361,15 +287,15 @@ class EnvClient(ABC, Generic[ActT, ObsT, StateT]):
         """Convert a JSON response from the state endpoint to a State object."""
         raise NotImplementedError
 
-    async def reset(self, **kwargs: Any) -> StepResult[ObsT]:
+    def reset(self, **kwargs: Any) -> StepResult[ObsT]:
         """
         Reset the environment with optional parameters.
 
         Args:
-            **kwargs: Optional parameters passed to the environment's reset method.
-                     Common parameters include:
-                     - seed: Random seed for reproducibility
-                     - episode_id: Custom episode identifier
+            ``**kwargs``: Optional parameters passed to the environment's reset method.
+                Common parameters include:
+                seed: Random seed for reproducibility,
+                episode_id: Custom episode identifier
 
         Returns:
             StepResult containing initial observation
@@ -378,16 +304,16 @@ class EnvClient(ABC, Generic[ActT, ObsT, StateT]):
             "type": "reset",
             "data": kwargs,
         }
-        response = await self._send_and_receive(message)
+        response = self._send_and_receive(message)
         return self._parse_result(response.get("data", {}))
 
-    async def step(self, action: ActT, **kwargs: Any) -> StepResult[ObsT]:
+    def step(self, action: ActT, **kwargs: Any) -> StepResult[ObsT]:
         """
         Execute an action in the environment.
 
         Args:
             action: The action to execute
-            **kwargs: Optional parameters (currently ignored)
+            ``**kwargs``: Optional parameters (currently ignored)
 
         Returns:
             StepResult containing observation, reward, and done status
@@ -396,10 +322,10 @@ class EnvClient(ABC, Generic[ActT, ObsT, StateT]):
             "type": "step",
             "data": self._step_payload(action),
         }
-        response = await self._send_and_receive(message)
+        response = self._send_and_receive(message)
         return self._parse_result(response.get("data", {}))
 
-    async def state(self) -> StateT:
+    def state(self) -> StateT:
         """
         Get the current environment state from the server.
 
@@ -407,17 +333,17 @@ class EnvClient(ABC, Generic[ActT, ObsT, StateT]):
             State object with environment state information
         """
         message = {"type": "state"}
-        response = await self._send_and_receive(message)
+        response = self._send_and_receive(message)
         return self._parse_state(response.get("data", {}))
 
-    async def close(self) -> None:
+    def close(self) -> None:
         """
         Close the WebSocket connection and clean up resources.
 
-        If this client was created via from_docker_image() or from_env(),
+        If this client was created via from_docker_image() or from_hub(),
         this will also stop and remove the associated container/process.
         """
-        await self.disconnect()
+        self.disconnect()
 
         if self._provider is not None:
             # Handle both ContainerProvider and RuntimeProvider
@@ -426,51 +352,11 @@ class EnvClient(ABC, Generic[ActT, ObsT, StateT]):
             elif hasattr(self._provider, "stop"):
                 self._provider.stop()
 
-    async def __aenter__(self) -> "EnvClient":
-        """Enter async context manager, ensuring connection is established."""
-        await self.connect()
+    def __enter__(self) -> "EnvClient":
+        """Enter context manager, ensuring connection is established."""
+        self.connect()
         return self
 
-    async def __aexit__(self, exc_type, exc_val, exc_tb) -> None:
-        """Exit async context manager, closing connection."""
-        await self.close()
-
-    def __enter__(self) -> "EnvClient":
-        """Sync context manager entry - raises error suggesting async usage."""
-        raise TypeError(
-            "EnvClient is async by default. Use 'async with' instead of 'with', "
-            "or call .sync() to get a synchronous wrapper:\n"
-            "  async with client:  # async usage\n"
-            "  with client.sync():  # sync wrapper"
-        )
-
     def __exit__(self, exc_type, exc_val, exc_tb) -> None:
-        """Sync context manager exit - should not be reached."""
-        pass  # pragma: no cover
-
-    def sync(self) -> "SyncEnvClient":
-        """
-        Return a synchronous wrapper around this async client.
-
-        Use this method when you need synchronous access to the environment
-        without async/await syntax. This is useful for:
-        - Integration with synchronous codebases
-        - Interactive/REPL usage
-        - Stopping async from "infecting" the call stack
-
-        Returns:
-            SyncEnvClient wrapper that provides synchronous methods
-
-        Example:
-            >>> # Create async client and get sync wrapper
-            >>> async_client = GenericEnvClient(base_url="http://localhost:8000")
-            >>> sync_client = async_client.sync()
-            >>>
-            >>> # Use synchronous API
-            >>> with sync_client:
-            ...     result = sync_client.reset()
-            ...     result = sync_client.step({"code": "print('hello')"})
-        """
-        from .sync_client import SyncEnvClient
-
-        return SyncEnvClient(self)
+        """Exit context manager, closing connection."""
+        self.close()

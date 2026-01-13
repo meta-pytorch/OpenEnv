@@ -20,94 +20,41 @@ import os
 import time
 import uuid
 from concurrent.futures import ThreadPoolExecutor
-from typing import Any, Callable, Dict, Optional, Type
+from typing import Any, Callable, Dict, Optional, Type, Union
 
-from fastapi import (
-    Body,
-    FastAPI,
-    HTTPException,
-    Request,
-    WebSocket,
-    WebSocketDisconnect,
-    status,
-)
+from fastapi import Body, FastAPI, HTTPException, status, WebSocket, WebSocketDisconnect
 from pydantic import ValidationError
-
-from .interfaces import Environment
-from .route_config import (
-    GetEndpointConfig,
-    register_get_endpoints,
-)
-from .serialization import deserialize_action, serialize_observation
-from .types import (
-    Action,
-    Observation,
-    ResetRequest,
-    ResetResponse,
-    State,
-    StepRequest,
-    StepResponse,
-    EnvironmentMetadata,
-    SchemaResponse,
-    HealthResponse,
-    HealthStatus,
-    ServerMode,
-    WSErrorCode,
-    WSResetMessage,
-    WSStepMessage,
-    WSStateMessage,
-    WSCloseMessage,
-    WSObservationResponse,
-    WSStateResponse,
-    WSErrorResponse,
-    ConcurrencyConfig,
-    ServerCapacityStatus,
-    SessionInfo,
-)
-from .mcp_types import (
-    JsonRpcErrorCode,
-    JsonRpcRequest,
-    JsonRpcResponse,
-    McpMethod,
-    WSMCPMessage,
-    WSMCPResponse,
-)
-
-
-def _make_json_serializable(obj: Any) -> Any:
-    """
-    Convert an object to a JSON-serializable form.
-
-    Handles Pydantic models, dataclasses, and other common types.
-
-    Args:
-        obj: The object to convert
-
-    Returns:
-        A JSON-serializable representation of the object
-    """
-    if obj is None:
-        return None
-    if isinstance(obj, (str, int, float, bool)):
-        return obj
-    if isinstance(obj, (list, tuple)):
-        return [_make_json_serializable(item) for item in obj]
-    if isinstance(obj, dict):
-        return {k: _make_json_serializable(v) for k, v in obj.items()}
-    if hasattr(obj, "model_dump"):
-        # Pydantic model
-        return obj.model_dump()
-    if hasattr(obj, "__dict__"):
-        # Object with __dict__
-        return {k: _make_json_serializable(v) for k, v in obj.__dict__.items()}
-    # Fallback to string representation
-    return str(obj)
-
 
 from .exceptions import (
     ConcurrencyConfigurationError,
-    SessionCapacityError,
     EnvironmentFactoryError,
+    SessionCapacityError,
+)
+
+from .interfaces import Environment
+from .route_config import GetEndpointConfig, register_get_endpoints
+from .serialization import deserialize_action, serialize_observation
+from .types import (
+    Action,
+    ConcurrencyConfig,
+    EnvironmentMetadata,
+    HealthResponse,
+    Observation,
+    ResetRequest,
+    ResetResponse,
+    SchemaResponse,
+    ServerCapacityStatus,
+    SessionInfo,
+    State,
+    StepRequest,
+    StepResponse,
+    WSCloseMessage,
+    WSErrorResponse,
+    WSObservationResponse,
+    WSResetMessage,
+    WSStateMessage,
+    WSStateResponse,
+    WSStepMessage,
 )
 
 
@@ -408,31 +355,13 @@ class HTTPEnvServer:
         """Return the concurrency configuration."""
         return self._concurrency_config
 
-    def register_routes(
-        self, app: FastAPI, mode: ServerMode | str = ServerMode.SIMULATION
-    ) -> None:
+    def register_routes(self, app: FastAPI) -> None:
         """
         Register HTTP routes on a FastAPI application.
 
         Args:
             app: FastAPI application instance
-            mode: Server mode - either SIMULATION or PRODUCTION (or string equivalents).
-                  In production mode, simulation control endpoints (/reset, /step, /state)
-                  are NOT registered. Only safe endpoints (/health, /schema, /metadata, /ws)
-                  are available. Defaults to SIMULATION for backwards compatibility.
-
-        Raises:
-            ValueError: If mode is not a valid ServerMode or string equivalent.
         """
-        # Convert string to ServerMode enum for backwards compatibility
-        if isinstance(mode, str):
-            try:
-                mode = ServerMode(mode.lower())
-            except ValueError:
-                valid_modes = [m.value for m in ServerMode]
-                raise ValueError(
-                    f"Invalid mode: '{mode}'. Must be one of: {valid_modes}"
-                )
 
         # Helper function to handle reset endpoint
         async def reset_handler(
@@ -500,228 +429,43 @@ class HTTPEnvServer:
             finally:
                 _env.close()
 
-        # Helper function to handle MCP endpoint
-        async def mcp_handler(
-            request: JsonRpcRequest, session_env: Optional[Environment] = None
-        ) -> JsonRpcResponse:
-            """
-            Handle MCP JSON-RPC requests.
-
-            Supports tools/list and tools/call methods in JSON-RPC 2.0 format.
-            """
-            method = request.method
-            request_id = request.id
-
-            # Use provided session environment or create temporary one
-            if session_env is not None:
-                _env = session_env
-                should_close = False
-            else:
-                _env = self._env_factory()
-                should_close = True
-            try:
-                if method == McpMethod.TOOLS_LIST:
-                    # Check if environment is MCP-enabled
-                    if not hasattr(_env, "mcp_client"):
-                        return JsonRpcResponse.error_response(
-                            JsonRpcErrorCode.INTERNAL_ERROR,
-                            "Environment does not support MCP",
-                            request_id=request_id,
-                        )
-
-                    # Use async context manager for MCP client
-                    async with _env.mcp_client:
-                        tools = await _env.mcp_client.list_tools()
-
-                    return JsonRpcResponse.success(
-                        result={
-                            "tools": [
-                                t.model_dump() if hasattr(t, "model_dump") else dict(t)
-                                for t in tools
-                            ]
-                        },
-                        request_id=request_id,
-                    )
-
-                elif method == McpMethod.TOOLS_CALL:
-                    params = request.params
-                    tool_name = params.get("name")
-                    arguments = params.get("arguments", {})
-
-                    if not hasattr(_env, "mcp_client"):
-                        return JsonRpcResponse.error_response(
-                            JsonRpcErrorCode.INTERNAL_ERROR,
-                            "Environment does not support MCP",
-                            request_id=request_id,
-                        )
-
-                    if not tool_name:
-                        return JsonRpcResponse.error_response(
-                            JsonRpcErrorCode.INVALID_REQUEST,
-                            "Missing 'name' in params",
-                            request_id=request_id,
-                        )
-
-                    # Use async context manager for MCP client
-                    async with _env.mcp_client:
-                        result = await _env.mcp_client.call_tool(
-                            name=tool_name, arguments=arguments
-                        )
-
-                    # Ensure result is JSON serializable
-                    serializable_result = _make_json_serializable(result)
-
-                    return JsonRpcResponse.success(
-                        result=serializable_result,
-                        request_id=request_id,
-                    )
-
-                else:
-                    return JsonRpcResponse.error_response(
-                        JsonRpcErrorCode.METHOD_NOT_FOUND,
-                        f"Method not found: {method}",
-                        request_id=request_id,
-                    )
-
-            except Exception as e:
-                return JsonRpcResponse.error_response(
-                    JsonRpcErrorCode.INTERNAL_ERROR,
-                    str(e),
-                    request_id=request_id,
-                )
-            finally:
-                if should_close:
-                    _env.close()
-
-        # Register MCP WebSocket endpoint (available in both production and simulation modes)
-        @app.websocket("/mcp")
-        async def mcp_websocket_endpoint(websocket: WebSocket):
-            """
-            WebSocket endpoint for MCP JSON-RPC requests.
-
-            Each WebSocket connection gets its own environment instance for MCP operations.
-
-            Message Protocol:
-            - Client sends: JSON-RPC 2.0 request (tools/list, tools/call)
-            - Server responds: JSON-RPC 2.0 response (result or error)
-            """
-            await websocket.accept()
-
-            session_id = None
-            session_env = None
-
-            try:
-                # Create session with dedicated environment
-                session_id, session_env = await self._create_session()
-
-                while True:
-                    # Receive message from client
-                    raw_message = await websocket.receive_text()
-
-                    try:
-                        jsonrpc_dict = json.loads(raw_message)
-                        jsonrpc_request = JsonRpcRequest(**jsonrpc_dict)
-                    except json.JSONDecodeError as e:
-                        error_resp = JsonRpcResponse.error_response(
-                            JsonRpcErrorCode.PARSE_ERROR,
-                            f"Parse error: {e}",
-                        )
-                        await websocket.send_text(error_resp.model_dump_json())
-                        continue
-                    except ValidationError as e:
-                        error_resp = JsonRpcResponse.error_response(
-                            JsonRpcErrorCode.INVALID_REQUEST,
-                            f"Invalid request: {e}",
-                        )
-                        await websocket.send_text(error_resp.model_dump_json())
-                        continue
-
-                    try:
-                        # Call mcp_handler with session environment
-                        response = await mcp_handler(
-                            jsonrpc_request, session_env=session_env
-                        )
-                        await websocket.send_text(response.model_dump_json())
-                    except Exception as e:
-                        error_resp = JsonRpcResponse.error_response(
-                            JsonRpcErrorCode.INTERNAL_ERROR,
-                            str(e),
-                            request_id=jsonrpc_request.id,
-                        )
-                        await websocket.send_text(error_resp.model_dump_json())
-
-            except WebSocketDisconnect:
-                pass
-            except SessionCapacityError as e:
-                error_resp = JsonRpcResponse.error_response(
-                    JsonRpcErrorCode.SERVER_ERROR,
-                    str(e),
-                    data={
-                        "active_sessions": e.active_sessions,
-                        "max_sessions": e.max_sessions,
-                    },
-                )
-                await websocket.send_text(error_resp.model_dump_json())
-            except EnvironmentFactoryError as e:
-                error_resp = JsonRpcResponse.error_response(
-                    JsonRpcErrorCode.SERVER_ERROR,
-                    str(e),
-                    data={"factory_name": e.factory_name},
-                )
-                await websocket.send_text(error_resp.model_dump_json())
-            except Exception as e:
-                error_resp = JsonRpcResponse.error_response(
-                    JsonRpcErrorCode.SERVER_ERROR,
-                    str(e),
-                )
-                await websocket.send_text(error_resp.model_dump_json())
-            finally:
-                if session_id:
-                    await self._destroy_session(session_id)
-                try:
-                    await websocket.close()
-                except RuntimeError:
-                    pass
-
-        # Register simulation control routes only in simulation mode
-        if mode == ServerMode.SIMULATION:
-
-            @app.post(
-                "/reset",
-                response_model=ResetResponse,
-                tags=["Environment Control"],
-                summary="Reset the environment",
-                description="""
+        # Register routes using the helpers
+        @app.post(
+            "/reset",
+            response_model=ResetResponse,
+            tags=["Environment Control"],
+            summary="Reset the environment",
+            description="""
 Reset the environment to its initial state and return the first observation.
 
 You can optionally provide a seed for reproducibility and an episode_id for tracking.
-                """,
-                responses={
-                    200: {
-                        "description": "Environment reset successfully",
-                        "content": {
-                            "application/json": {
-                                "example": {
-                                    "observation": {"status": "ready", "data": {}},
-                                    "reward": None,
-                                    "done": False,
-                                }
+            """,
+            responses={
+                200: {
+                    "description": "Environment reset successfully",
+                    "content": {
+                        "application/json": {
+                            "example": {
+                                "observation": {"status": "ready", "data": {}},
+                                "reward": None,
+                                "done": False,
                             }
-                        },
-                    }
-                },
-            )
-            async def reset(
-                request: ResetRequest = Body(default_factory=ResetRequest),
-            ) -> ResetResponse:
-                return await reset_handler(request)
+                        }
+                    },
+                }
+            },
+        )
+        async def reset(
+            request: ResetRequest = Body(default_factory=ResetRequest),
+        ) -> ResetResponse:
+            return await reset_handler(request)
 
-            @app.post(
-                "/step",
-                response_model=StepResponse,
-                tags=["Environment Control"],
-                summary="Execute an action in the environment",
-                description="""
+        @app.post(
+            "/step",
+            response_model=StepResponse,
+            tags=["Environment Control"],
+            summary="Execute an action in the environment",
+            description="""
 Execute an action in the environment and receive the resulting observation.
 
 The action must conform to the environment's action schema, which can be
@@ -732,44 +476,42 @@ The response includes:
 - **observation**: The environment's response to the action
 - **reward**: Optional reward signal (float or None)
 - **done**: Boolean indicating if the episode has terminated
-                """,
-                responses={
-                    200: {
-                        "description": "Action executed successfully",
-                        "content": {
-                            "application/json": {
-                                "example": {
-                                    "observation": {"status": "success", "data": {}},
-                                    "reward": 1.0,
-                                    "done": False,
-                                }
+            """,
+            responses={
+                200: {
+                    "description": "Action executed successfully",
+                    "content": {
+                        "application/json": {
+                            "example": {
+                                "observation": {"status": "success", "data": {}},
+                                "reward": 1.0,
+                                "done": False,
                             }
-                        },
-                    },
-                    422: {
-                        "description": "Validation error - invalid action format or values",
-                        "content": {
-                            "application/json": {
-                                "example": {
-                                    "detail": [
-                                        {
-                                            "type": "string_too_short",
-                                            "loc": ["body", "action", "message"],
-                                            "msg": "String should have at least 1 character",
-                                            "input": "",
-                                        }
-                                    ]
-                                }
-                            }
-                        },
-                    },
-                    500: {
-                        "description": "Internal server error during action execution"
+                        }
                     },
                 },
-            )
-            async def step(request: StepRequest) -> StepResponse:
-                return await step_handler(request)
+                422: {
+                    "description": "Validation error - invalid action format or values",
+                    "content": {
+                        "application/json": {
+                            "example": {
+                                "detail": [
+                                    {
+                                        "type": "string_too_short",
+                                        "loc": ["body", "action", "message"],
+                                        "msg": "String should have at least 1 character",
+                                        "input": "",
+                                    }
+                                ]
+                            }
+                        }
+                    },
+                },
+                500: {"description": "Internal server error during action execution"},
+            },
+        )
+        async def step(request: StepRequest) -> StepResponse:
+            return await step_handler(request)
 
         def get_state_handler() -> State:
             _env = self._env_factory()
@@ -785,8 +527,19 @@ The response includes:
             finally:
                 _env.close()
 
-        # Build list of GET endpoints based on mode
         get_endpoints = [
+            GetEndpointConfig(
+                path="/state",
+                handler=get_state_handler,
+                response_model=State,
+                tag="State Management",
+                summary="Get current environment state",
+                description="""
+Retrieve the current internal state of the environment.
+
+The structure of the state object is defined by the environment's State model.
+                """,
+            ),
             GetEndpointConfig(
                 path="/metadata",
                 handler=get_metadata_handler,
@@ -802,32 +555,13 @@ version, author, and documentation links.
             ),
             GetEndpointConfig(
                 path="/health",
-                handler=lambda: HealthResponse(status=HealthStatus.HEALTHY),
+                handler=lambda: HealthResponse(status="healthy"),
                 response_model=HealthResponse,
                 tag="Health",
                 summary="Health check",
                 description="Check if the environment server is running and healthy.",
             ),
         ]
-
-        # Only register /state endpoint in simulation mode
-        if mode == ServerMode.SIMULATION:
-            get_endpoints.insert(
-                0,
-                GetEndpointConfig(
-                    path="/state",
-                    handler=get_state_handler,
-                    response_model=State,
-                    tag="State Management",
-                    summary="Get current environment state",
-                    description="""
-Retrieve the current internal state of the environment.
-
-The structure of the state object is defined by the environment's State model.
-                    """,
-                ),
-            )
-
         register_get_endpoints(app, get_endpoints)
 
         # Register combined schema endpoint
@@ -841,7 +575,7 @@ Get JSON schemas for actions, observations, and state in a single response.
 
 Returns a combined schema object containing:
 - **action**: JSON schema for actions accepted by this environment
-- **observation**: JSON schema for observations returned by this environment
+- **observation**: JSON schema for observations returned by this environment  
 - **state**: JSON schema for environment state objects
 
 This is more efficient than calling individual schema endpoints and provides
@@ -879,152 +613,6 @@ all schema information needed to interact with the environment.
                 state=State.model_json_schema(),
             )
 
-        # Register MCP endpoint for production mode (direct MCP access)
-        @app.post("/mcp")
-        async def mcp_endpoint(request_raw: Request) -> Dict[str, Any]:
-            """
-            MCP JSON-RPC endpoint for production mode.
-
-            Bypasses step() overhead and provides direct access to MCP tools.
-            Supports tools/list and tools/call methods.
-            """
-            # Parse JSON manually to handle parse errors gracefully
-            try:
-                body = await request_raw.body()
-                request_dict = json.loads(body)
-                request = JsonRpcRequest(**request_dict)
-            except json.JSONDecodeError:
-                return JsonRpcResponse.error_response(
-                    JsonRpcErrorCode.PARSE_ERROR
-                ).model_dump()
-            except ValidationError as e:
-                return JsonRpcResponse.error_response(
-                    JsonRpcErrorCode.INVALID_REQUEST,
-                    f"Invalid request: {e}",
-                ).model_dump()
-            except Exception:
-                return JsonRpcResponse.error_response(
-                    JsonRpcErrorCode.PARSE_ERROR
-                ).model_dump()
-
-            method = request.method
-            params = request.params
-            request_id = request.id
-
-            # Create a temporary environment for MCP access
-            _env = self._env_factory()
-
-            try:
-                # Check if environment supports MCP
-                if not hasattr(_env, "mcp_client") and not hasattr(_env, "mcp_server"):
-                    return JsonRpcResponse.error_response(
-                        JsonRpcErrorCode.INTERNAL_ERROR,
-                        "Environment does not support MCP",
-                        request_id=request_id,
-                    ).model_dump()
-
-                if method == McpMethod.TOOLS_LIST:
-                    # List tools from MCP server
-                    if hasattr(_env, "mcp_client") and _env.mcp_client:
-                        async with _env.mcp_client:
-                            tools = await _env.mcp_client.list_tools()
-                        return JsonRpcResponse.success(
-                            result={
-                                "tools": [
-                                    t.model_dump()
-                                    if hasattr(t, "model_dump")
-                                    else dict(t)
-                                    for t in tools
-                                ]
-                            },
-                            request_id=request_id,
-                        ).model_dump()
-                    elif hasattr(_env, "mcp_server") and _env.mcp_server:
-                        # Use server directly
-                        tools = []
-                        if hasattr(_env.mcp_server, "_tool_manager"):
-                            tool_manager = _env.mcp_server._tool_manager
-                            if hasattr(tool_manager, "_tools"):
-                                for tool_name, tool in tool_manager._tools.items():
-                                    tool_dict = {
-                                        "name": tool.name,
-                                        "description": tool.description or "",
-                                        "inputSchema": tool.parameters or {},
-                                    }
-                                    tools.append(tool_dict)
-                        return JsonRpcResponse.success(
-                            result={"tools": tools},
-                            request_id=request_id,
-                        ).model_dump()
-                    else:
-                        return JsonRpcResponse.error_response(
-                            JsonRpcErrorCode.INTERNAL_ERROR,
-                            "MCP server not available",
-                            request_id=request_id,
-                        ).model_dump()
-
-                elif method == McpMethod.TOOLS_CALL:
-                    tool_name = params.get("name")
-                    arguments = params.get("arguments", {})
-
-                    if not tool_name:
-                        return JsonRpcResponse.error_response(
-                            JsonRpcErrorCode.INVALID_PARAMS,
-                            "Invalid params - 'name' is required",
-                            request_id=request_id,
-                        ).model_dump()
-
-                    # Call tool via MCP
-                    if hasattr(_env, "mcp_client") and _env.mcp_client:
-                        async with _env.mcp_client:
-                            result = await _env.mcp_client.call_tool(
-                                name=tool_name, arguments=arguments
-                            )
-                    elif hasattr(_env, "mcp_server") and hasattr(
-                        _env.mcp_server, "_tool_manager"
-                    ):
-                        # Call tool directly on FastMCP server
-                        tool_manager = _env.mcp_server._tool_manager
-                        if tool_name in tool_manager._tools:
-                            tool = tool_manager._tools[tool_name]
-                            result = tool.fn(**arguments)
-                        else:
-                            return JsonRpcResponse.error_response(
-                                JsonRpcErrorCode.INVALID_PARAMS,
-                                f"Tool not found: {tool_name}",
-                                request_id=request_id,
-                            ).model_dump()
-                    else:
-                        return JsonRpcResponse.error_response(
-                            JsonRpcErrorCode.INTERNAL_ERROR,
-                            "MCP server not available",
-                            request_id=request_id,
-                        ).model_dump()
-
-                    # Make result JSON serializable
-                    serializable_result = _make_json_serializable(result)
-
-                    return JsonRpcResponse.success(
-                        result=serializable_result,
-                        request_id=request_id,
-                    ).model_dump()
-
-                else:
-                    return JsonRpcResponse.error_response(
-                        JsonRpcErrorCode.METHOD_NOT_FOUND,
-                        f"Method not found: {method}",
-                        request_id=request_id,
-                    ).model_dump()
-
-            except Exception as e:
-                return JsonRpcResponse.error_response(
-                    JsonRpcErrorCode.INTERNAL_ERROR,
-                    str(e),
-                    request_id=request_id,
-                ).model_dump()
-            finally:
-                _env.close()
-
         # Register WebSocket endpoint for persistent sessions
         @app.websocket("/ws")
         async def websocket_endpoint(websocket: WebSocket):
@@ -1056,7 +644,7 @@ all schema information needed to interact with the environment.
                         error_resp = WSErrorResponse(
                             data={
                                 "message": f"Invalid JSON: {e}",
-                                "code": WSErrorCode.INVALID_JSON,
+                                "code": "INVALID_JSON",
                             }
                         )
                         await websocket.send_text(error_resp.model_dump_json())
@@ -1090,7 +678,7 @@ all schema information needed to interact with the environment.
                                 self._update_session_activity(session_id)
 
                                 response = WSObservationResponse(
-                                    data=serialize_observation(observation),
+                                    data=serialize_observation(observation)
                                 )
 
                             case "step":
@@ -1131,27 +719,11 @@ all schema information needed to interact with the environment.
                                 msg = WSCloseMessage(**message_dict)
                                 break
 
-                            case "mcp":
-                                msg = WSMCPMessage(**message_dict)
-                                try:
-                                    rpc_request = JsonRpcRequest(**msg.data)
-                                except (ValidationError, Exception) as e:
-                                    rpc_response = JsonRpcResponse.error_response(
-                                        JsonRpcErrorCode.INVALID_REQUEST,
-                                        f"Invalid request: {e}",
-                                    )
-                                else:
-                                    rpc_response = await mcp_handler(
-                                        rpc_request,
-                                        session_env=session_env,
-                                    )
-                                response = WSMCPResponse(data=rpc_response.model_dump())
-
                             case _:
                                 response = WSErrorResponse(
                                     data={
                                         "message": f"Unknown message type: {msg_type}",
-                                        "code": WSErrorCode.UNKNOWN_TYPE,
+                                        "code": "UNKNOWN_TYPE",
                                     }
                                 )
 
@@ -1161,17 +733,14 @@ all schema information needed to interact with the environment.
                         error_resp = WSErrorResponse(
                             data={
                                 "message": "Invalid message",
-                                "code": WSErrorCode.VALIDATION_ERROR,
+                                "code": "VALIDATION_ERROR",
                                 "errors": e.errors(),
                             }
                         )
                         await websocket.send_text(error_resp.model_dump_json())
                     except Exception as e:
                         error_resp = WSErrorResponse(
-                            data={
-                                "message": str(e),
-                                "code": WSErrorCode.EXECUTION_ERROR,
-                            }
+                            data={"message": str(e), "code": "EXECUTION_ERROR"}
                         )
                         await websocket.send_text(error_resp.model_dump_json())
 
@@ -1181,7 +750,7 @@ all schema information needed to interact with the environment.
                 error_resp = WSErrorResponse(
                     data={
                         "message": str(e),
-                        "code": WSErrorCode.CAPACITY_REACHED,
+                        "code": "CAPACITY_REACHED",
                         "active_sessions": e.active_sessions,
                         "max_sessions": e.max_sessions,
                     }
@@ -1191,14 +760,14 @@ all schema information needed to interact with the environment.
                 error_resp = WSErrorResponse(
                     data={
                         "message": str(e),
-                        "code": WSErrorCode.FACTORY_ERROR,
+                        "code": "FACTORY_ERROR",
                         "factory_name": e.factory_name,
                     }
                 )
                 await websocket.send_text(error_resp.model_dump_json())
             except Exception as e:
                 error_resp = WSErrorResponse(
-                    data={"message": str(e), "code": WSErrorCode.SESSION_ERROR}
+                    data={"message": str(e), "code": "SESSION_ERROR"}
                 )
                 await websocket.send_text(error_resp.model_dump_json())
             finally:
@@ -1230,9 +799,9 @@ def create_app(
         observation_cls: The Observation subclass this environment returns
         env_name: Optional environment name for README loading
         max_concurrent_envs: Maximum concurrent WebSocket sessions.
-                             Mutually exclusive with concurrency_config.
+        Mutually exclusive with concurrency_config.
         concurrency_config: Optional ConcurrencyConfig for advanced concurrency settings.
-                            Mutually exclusive with max_concurrent_envs.
+        Mutually exclusive with max_concurrent_envs.
 
     Returns:
         FastAPI application instance with or without web interface and README integration
@@ -1279,9 +848,9 @@ def create_fastapi_app(
         action_cls: The Action subclass this environment expects
         observation_cls: The Observation subclass this environment returns
         max_concurrent_envs: Maximum concurrent WebSocket sessions.
-                             Mutually exclusive with concurrency_config.
+            Mutually exclusive with concurrency_config.
         concurrency_config: Optional ConcurrencyConfig for advanced concurrency settings.
-                            Mutually exclusive with max_concurrent_envs.
+            Mutually exclusive with max_concurrent_envs.
 
     Returns:
         FastAPI application instance
