@@ -235,6 +235,8 @@ class WSCloseMessage(BaseMessage):
 
 
 # Discriminated union for incoming WebSocket messages
+# Note: WSMCPMessage is defined in mcp_types.py to avoid circular imports
+# The union here covers the core message types; MCP messages are handled separately
 WSIncomingMessage = Annotated[
     WSResetMessage | WSStepMessage | WSStateMessage | WSCloseMessage,
     Field(discriminator="type"),

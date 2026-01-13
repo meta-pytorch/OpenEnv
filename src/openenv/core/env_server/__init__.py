@@ -43,6 +43,19 @@ from .exceptions import (
     EnvironmentFactoryError,
 )
 from .web_interface import create_web_interface_app, WebInterfaceManager
+from .mcp_types import (
+    Tool,
+    ToolError,
+    ToolErrorType,
+    ListToolsAction,
+    CallToolAction,
+    ListToolsObservation,
+    CallToolObservation,
+    WSMCPMessage,
+    WSMCPResponse,
+    RESERVED_TOOL_NAMES,
+)
+from .mcp_environment import MCPEnvironment
 
 __all__ = [
     # Core interfaces
@@ -93,4 +106,16 @@ __all__ = [
     "serialize_observation",
     # Route configuration
     "GetEndpointConfig",
+    # MCP types
+    "Tool",
+    "ToolError",
+    "ToolErrorType",
+    "ListToolsAction",
+    "CallToolAction",
+    "ListToolsObservation",
+    "CallToolObservation",
+    "WSMCPMessage",
+    "WSMCPResponse",
+    "RESERVED_TOOL_NAMES",
+    "MCPEnvironment",
 ]
