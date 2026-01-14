@@ -86,7 +86,7 @@ pip install mlagents-envs numpy pillow fastapi uvicorn pydantic
 ```bash
 # Test the installation
 cd envs/unity_env
-python -c "from server.unity_environment import UnityMLAgentsEnvironment; print('Installation successful!')"
+python -c "from client import UnityEnv; print('Installation successful!')"
 ```
 
 **Note:** The first run will download Unity environment binaries (~500MB). These are cached in `~/.mlagents-cache/` for future use.
@@ -361,14 +361,14 @@ action = UnityAction(continuous_actions=[0.5, -0.3])
 result = client.step(action)
 ```
 
-### Direct Environment Usage (No Server)
+### Direct Mode (Embedded Server)
 
 ```python
-from envs.unity_env.server.unity_environment import UnityMLAgentsEnvironment
+from envs.unity_env.client import UnityEnv
 from envs.unity_env.models import UnityAction
 
-# Create environment directly
-env = UnityMLAgentsEnvironment(
+# Create client with embedded local server (no separate server needed)
+client = UnityEnv.from_direct(
     env_id="PushBlock",
     no_graphics=False,  # Show graphics window
     width=1280,
@@ -377,18 +377,18 @@ env = UnityMLAgentsEnvironment(
 )
 
 try:
-    obs = env.reset()
-    print(f"Observation: {len(obs.vector_observations)} dimensions")
+    result = client.reset()
+    print(f"Observation: {len(result.observation.vector_observations)} dimensions")
 
     for step in range(100):
         action = UnityAction(discrete_actions=[1])  # Move forward
-        obs = env.step(action)
-        print(f"Step {step}: reward={obs.reward}, done={obs.done}")
+        result = client.step(action)
+        print(f"Step {step}: reward={result.reward}, done={result.done}")
 
-        if obs.done:
-            obs = env.reset()
+        if result.done:
+            result = client.reset()
 finally:
-    env.close()
+    client.close()
 ```
 
 ## Action Spaces
@@ -452,20 +452,21 @@ if result.observation.visual_observations:
 
 ## Configuration
 
-### Constructor Arguments
+### Direct Mode Arguments
 
-When creating `UnityMLAgentsEnvironment` directly:
+When using `UnityEnv.from_direct()` to run with an embedded server:
 
 ```python
-from envs.unity_env.server.unity_environment import UnityMLAgentsEnvironment
+from envs.unity_env.client import UnityEnv
 
-env = UnityMLAgentsEnvironment(
+client = UnityEnv.from_direct(
     env_id="PushBlock",      # Unity environment to load
     no_graphics=False,       # False = show graphics window
     width=1280,              # Window width in pixels
     height=720,              # Window height in pixels
     time_scale=1.0,          # Simulation speed (20.0 for fast training)
     quality_level=5,         # Graphics quality 0-5
+    port=8765,               # Port for embedded server
 )
 ```
 

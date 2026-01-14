@@ -261,3 +261,168 @@ class UnityEnv(EnvClient[UnityAction, UnityObservation, UnityState]):
             "Basic",
             "VisualPushBlock",
         ]
+
+    @classmethod
+    def from_direct(
+        cls,
+        env_id: str = "PushBlock",
+        no_graphics: bool = False,
+        width: int = 1280,
+        height: int = 720,
+        time_scale: float = 1.0,
+        quality_level: int = 5,
+        port: int = 8765,
+    ) -> "UnityEnv":
+        """
+        Create a Unity environment client with an embedded local server.
+
+        This method starts a local uvicorn server in a subprocess and returns
+        a client connected to it. This provides the convenience of direct mode
+        while maintaining the client-server separation.
+
+        Note: The first call will download Unity binaries (~500MB) which may
+        take several minutes. Binaries are cached for subsequent runs.
+
+        Args:
+            env_id: Default Unity environment to use (PushBlock, 3DBall, etc.)
+            no_graphics: If True, run Unity in headless mode (faster for training)
+            width: Window width in pixels (default: 1280)
+            height: Window height in pixels (default: 720)
+            time_scale: Simulation speed multiplier (default: 1.0, use 20.0 for fast training)
+            quality_level: Graphics quality 0-5 (default: 5)
+            port: Port for the local server (default: 8765)
+
+        Returns:
+            UnityEnv client connected to the local server
+
+        Example:
+            >>> # Quick start with direct mode
+            >>> client = UnityEnv.from_direct(no_graphics=True, time_scale=20)
+            >>> try:
+            ...     result = client.reset(env_id="PushBlock")
+            ...     for _ in range(100):
+            ...         result = client.step(UnityAction(discrete_actions=[1]))
+            ... finally:
+            ...     client.close()
+
+            >>> # With custom settings
+            >>> client = UnityEnv.from_direct(
+            ...     env_id="3DBall",
+            ...     no_graphics=True,
+            ...     time_scale=20,
+            ...     port=9000
+            ... )
+        """
+        import os
+        import subprocess
+        import sys
+        import time
+
+        import requests
+
+        # Find the project root and server module
+        # Try to locate the server module
+        try:
+            from pathlib import Path
+
+            # Get the directory containing this file
+            client_dir = Path(__file__).parent
+            server_app = "envs.unity_env.server.app:app"
+            cwd = client_dir.parent.parent  # OpenEnv root
+
+            # Check if we're in the envs/unity_env directory structure
+            if not (cwd / "envs" / "unity_env" / "server" / "app.py").exists():
+                # Try alternative paths
+                if (client_dir / "server" / "app.py").exists():
+                    server_app = "server.app:app"
+                    cwd = client_dir
+        except Exception:
+            server_app = "envs.unity_env.server.app:app"
+            cwd = None
+
+        # Set up environment variables for Unity configuration
+        env = {
+            **os.environ,
+            "UNITY_ENV_ID": env_id,
+            "UNITY_NO_GRAPHICS": "1" if no_graphics else "0",
+            "UNITY_WIDTH": str(width),
+            "UNITY_HEIGHT": str(height),
+            "UNITY_TIME_SCALE": str(time_scale),
+            "UNITY_QUALITY_LEVEL": str(quality_level),
+            # Bypass proxy for localhost
+            "NO_PROXY": "localhost,127.0.0.1",
+            "no_proxy": "localhost,127.0.0.1",
+        }
+
+        # Add src to PYTHONPATH if needed
+        if cwd:
+            src_path = str(cwd / "src")
+            existing_path = env.get("PYTHONPATH", "")
+            env["PYTHONPATH"] = f"{src_path}:{cwd}:{existing_path}" if existing_path else f"{src_path}:{cwd}"
+
+        # Start the server
+        cmd = [
+            sys.executable,
+            "-m",
+            "uvicorn",
+            server_app,
+            "--host",
+            "127.0.0.1",
+            "--port",
+            str(port),
+        ]
+
+        server_process = subprocess.Popen(
+            cmd,
+            env=env,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            cwd=str(cwd) if cwd else None,
+        )
+
+        # Wait for server to become healthy
+        base_url = f"http://127.0.0.1:{port}"
+        healthy = False
+        for _ in range(30):  # Wait up to 30 seconds
+            try:
+                response = requests.get(
+                    f"{base_url}/health",
+                    timeout=2,
+                    proxies={"http": None, "https": None},
+                )
+                if response.status_code == 200:
+                    healthy = True
+                    break
+            except requests.exceptions.RequestException:
+                pass
+            time.sleep(1)
+
+        if not healthy:
+            server_process.kill()
+            raise RuntimeError(
+                f"Failed to start local Unity server on port {port}. "
+                "Check that the port is available and dependencies are installed."
+            )
+
+        # Create a provider to manage the subprocess lifecycle
+        class DirectModeProvider:
+            """Provider that manages the embedded server subprocess."""
+
+            def __init__(self, process: subprocess.Popen):
+                self._process = process
+
+            def stop(self):
+                """Stop the embedded server."""
+                if self._process:
+                    self._process.terminate()
+                    try:
+                        self._process.wait(timeout=10)
+                    except subprocess.TimeoutExpired:
+                        self._process.kill()
+                    self._process = None
+
+        provider = DirectModeProvider(server_process)
+
+        # Create and return the client
+        client = cls(base_url=base_url, provider=provider)
+        return client

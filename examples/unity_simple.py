@@ -340,10 +340,11 @@ def run_with_docker(args) -> None:
 
 def run_direct(args) -> None:
     """
-    Run Unity environment directly without server (for local testing).
+    Run Unity environment in direct mode (local server started automatically).
 
-    This mode runs the Unity environment directly in-process, which is useful
-    for quick testing and debugging. For production, use server or Docker mode.
+    This mode starts an embedded local server and connects to it, providing
+    the convenience of direct execution while maintaining client-server separation.
+    Useful for quick testing and debugging. For production, use server or Docker mode.
     """
     print("=" * 60)
     print("Unity ML-Agents Environment - Direct Mode")
@@ -356,14 +357,12 @@ def run_direct(args) -> None:
     print(f"Time scale: {args.time_scale}x")
     print()
 
-    from envs.unity_env.server.unity_environment import UnityMLAgentsEnvironment
-
-    print("Initializing Unity environment...")
+    print("Starting local Unity server...")
     print("(First run will download binaries - this may take a few minutes)")
     print()
 
-    # Create environment directly
-    env = UnityMLAgentsEnvironment(
+    # Use from_direct() to start an embedded server and get a client
+    client = UnityEnv.from_direct(
         env_id=args.env if args.env != "both" else "PushBlock",
         no_graphics=args.no_graphics,
         time_scale=args.time_scale,
@@ -385,19 +384,19 @@ def run_direct(args) -> None:
                 current_env = args.env
 
             # Reset environment
-            obs = env.reset(env_id=current_env)
+            result = client.reset(env_id=current_env)
 
             if not args.quiet:
                 print(f"Environment: {current_env}")
-                print(f"Behavior: {obs.behavior_name}")
-                print(f"Vector obs dims: {len(obs.vector_observations)}")
-                print(f"Action spec: {obs.action_spec_info}")
+                print(f"Behavior: {result.observation.behavior_name}")
+                print(f"Vector obs dims: {len(result.observation.vector_observations)}")
+                print(f"Action spec: {result.observation.action_spec_info}")
                 print()
 
             episode_reward = 0.0
             step_count = 0
 
-            while not obs.done and step_count < args.max_steps:
+            while not result.done and step_count < args.max_steps:
                 # Generate action based on environment type
                 if current_env == "3DBall":
                     action = UnityAction(
@@ -409,8 +408,8 @@ def run_direct(args) -> None:
                 else:
                     action = UnityAction(discrete_actions=[random.randint(0, 6)])
 
-                obs = env.step(action)
-                episode_reward += obs.reward or 0.0
+                result = client.step(action)
+                episode_reward += result.reward or 0.0
                 step_count += 1
 
                 if not args.quiet and step_count % 100 == 0:
@@ -418,22 +417,22 @@ def run_direct(args) -> None:
                         f"  Step {step_count}: cumulative reward = {episode_reward:.2f}"
                     )
 
-            result = {
+            episode_result = {
                 "steps": step_count,
                 "reward": episode_reward,
-                "done": obs.done,
+                "done": result.done,
             }
-            all_results.append(result)
+            all_results.append(episode_result)
             print(
-                f"Episode {episode + 1}: {result['steps']} steps, "
-                f"reward: {result['reward']:.2f}"
+                f"Episode {episode + 1}: {episode_result['steps']} steps, "
+                f"reward: {episode_result['reward']:.2f}"
             )
 
         print_summary(all_results)
 
     finally:
         print("\nClosing Unity environment...")
-        env.close()
+        client.close()
 
 
 def main():
