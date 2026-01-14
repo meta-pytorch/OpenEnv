@@ -28,9 +28,7 @@ from .serialization import deserialize_action_with_preprocessing, serialize_obse
 from .types import Action, EnvironmentMetadata, Observation, State
 
 
-def load_environment_metadata(
-    env: Environment, env_name: Optional[str] = None
-) -> EnvironmentMetadata:
+def load_environment_metadata(env: Environment, env_name: Optional[str] = None) -> EnvironmentMetadata:
     """
     Load environment metadata including README content.
 
@@ -134,9 +132,7 @@ class ActionLog(BaseModel):
     timestamp: str = Field(description="Timestamp when action was taken")
     action: Dict[str, Any] = Field(description="Action that was taken")
     observation: Dict[str, Any] = Field(description="Observation returned from action")
-    reward: Optional[float] = Field(
-        default=None, description="Reward received from action"
-    )
+    reward: Optional[float] = Field(default=None, description="Reward received from action")
     done: bool = Field(description="Whether the episode is done after this action")
     step_count: int = Field(description="Step count when this action was taken")
 
@@ -148,15 +144,9 @@ class EpisodeState(BaseModel):
 
     episode_id: Optional[str] = Field(default=None, description="Current episode ID")
     step_count: int = Field(description="Current step count in episode")
-    current_observation: Optional[Dict[str, Any]] = Field(
-        default=None, description="Current observation"
-    )
-    action_logs: List[ActionLog] = Field(
-        default_factory=list, description="List of action logs"
-    )
-    is_reset: bool = Field(
-        default=True, description="Whether the episode has been reset"
-    )
+    current_observation: Optional[Dict[str, Any]] = Field(default=None, description="Current observation")
+    action_logs: List[ActionLog] = Field(default_factory=list, description="List of action logs")
+    is_reset: bool = Field(default=True, description="Whether the episode has been reset")
 
 
 class WebInterfaceManager:
@@ -262,15 +252,11 @@ class WebInterfaceManager:
     async def step_environment(self, action_data: Dict[str, Any]) -> Dict[str, Any]:
         """Execute a step in the environment and update state."""
         # Deserialize action with preprocessing for web interface special cases
-        action: Action = deserialize_action_with_preprocessing(
-            action_data, self.action_cls
-        )
+        action: Action = deserialize_action_with_preprocessing(action_data, self.action_cls)
 
         # Run sync step in thread pool to avoid blocking event loop
         # and to support environments using sync libraries (e.g., Playwright)
-        observation: Observation = await self._run_sync_in_thread_pool(
-            self.env.step, action
-        )
+        observation: Observation = await self._run_sync_in_thread_pool(self.env.step, action)
         state: State = self.env.state
 
         # Serialize observation once using shared utility
@@ -329,9 +315,7 @@ def create_web_interface_app(
     from .http_server import create_fastapi_app
 
     # Create the base environment app
-    app = create_fastapi_app(
-        env, action_cls, observation_cls, max_concurrent_envs, concurrency_config
-    )
+    app = create_fastapi_app(env, action_cls, observation_cls, max_concurrent_envs, concurrency_config)
 
     # Load environment metadata
     metadata = load_environment_metadata(env, env_name)
@@ -392,9 +376,7 @@ def create_web_interface_app(
     return app
 
 
-def get_web_interface_html(
-    action_cls: Type[Action], metadata: Optional[EnvironmentMetadata] = None
-) -> str:
+def get_web_interface_html(action_cls: Type[Action], metadata: Optional[EnvironmentMetadata] = None) -> str:
     """Generate the HTML for the web interface."""
 
     # Check if this is a chat environment by looking for tokens field
@@ -1378,9 +1360,7 @@ def _extract_action_fields(action_cls: Type[Action]) -> List[Dict[str, Any]]:
     return action_fields
 
 
-def _determine_input_type_from_schema(
-    field_info: Dict[str, Any], field_name: str
-) -> str:
+def _determine_input_type_from_schema(field_info: Dict[str, Any], field_name: str) -> str:
     """Determine the appropriate HTML input type from JSON schema info."""
     schema_type = field_info.get("type")
 
@@ -1399,11 +1379,7 @@ def _determine_input_type_from_schema(
 
     if schema_type == "string":
         # Check if it should be a textarea
-        if (
-            field_info.get("maxLength", 0) > 100
-            or "message" in field_name.lower()
-            or "code" in field_name.lower()
-        ):
+        if field_info.get("maxLength", 0) > 100 or "message" in field_name.lower() or "code" in field_name.lower():
             return "textarea"
         return "text"
 
@@ -1452,15 +1428,9 @@ def _markdown_to_html(markdown: str) -> str:
     html_content = html.escape(markdown)
 
     # Convert headers
-    html_content = re.sub(
-        r"^# (.*?)$", r"<h1>\1</h1>", html_content, flags=re.MULTILINE
-    )
-    html_content = re.sub(
-        r"^## (.*?)$", r"<h2>\1</h2>", html_content, flags=re.MULTILINE
-    )
-    html_content = re.sub(
-        r"^### (.*?)$", r"<h3>\1</h3>", html_content, flags=re.MULTILINE
-    )
+    html_content = re.sub(r"^# (.*?)$", r"<h1>\1</h1>", html_content, flags=re.MULTILINE)
+    html_content = re.sub(r"^## (.*?)$", r"<h2>\1</h2>", html_content, flags=re.MULTILINE)
+    html_content = re.sub(r"^### (.*?)$", r"<h3>\1</h3>", html_content, flags=re.MULTILINE)
 
     # Convert code blocks
     html_content = re.sub(
@@ -1476,12 +1446,8 @@ def _markdown_to_html(markdown: str) -> str:
     html_content = re.sub(r"\*(.*?)\*", r"<em>\1</em>", html_content)
 
     # Convert lists
-    html_content = re.sub(
-        r"^- (.*?)$", r"<li>\1</li>", html_content, flags=re.MULTILINE
-    )
-    html_content = re.sub(
-        r"(<li>.*</li>)", r"<ul>\1</ul>", html_content, flags=re.DOTALL
-    )
+    html_content = re.sub(r"^- (.*?)$", r"<li>\1</li>", html_content, flags=re.MULTILINE)
+    html_content = re.sub(r"(<li>.*</li>)", r"<ul>\1</ul>", html_content, flags=re.DOTALL)
 
     # Convert line breaks
     html_content = html_content.replace("\n", "<br>")
@@ -1489,9 +1455,7 @@ def _markdown_to_html(markdown: str) -> str:
     return html_content
 
 
-def _generate_action_interface(
-    action_fields: List[Dict[str, Any]], is_chat_env: bool
-) -> str:
+def _generate_action_interface(action_fields: List[Dict[str, Any]], is_chat_env: bool) -> str:
     """Generate either a chat interface or action form based on environment type."""
     if is_chat_env:
         return _generate_chat_interface()
@@ -1615,9 +1579,7 @@ def _generate_single_field(field: Dict[str, Any]) -> str:
 
         for choice in choices:
             selected = "selected" if str(choice) == str(default_value) else ""
-            options_html.append(
-                f'<option value="{choice}" {selected}>{choice}</option>'
-            )
+            options_html.append(f'<option value="{choice}" {selected}>{choice}</option>')
 
         return f"""
             <div class="form-group">
