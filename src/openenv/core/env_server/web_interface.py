@@ -48,23 +48,25 @@ def load_environment_metadata(
 
     # Determine what type of env we received:
     # 1. A class (used as factory) - e.g., PythonCodeActEnv
-    # 2. A function (factory function) - e.g., create_chat_environment
+    # 2. A function/callable (factory function) - e.g., create_chat_environment
     # 3. An actual instance - e.g., SnakeEnvironment()
     is_class = inspect.isclass(env)
-    is_function = inspect.isfunction(env) or inspect.ismethod(env)
-    is_factory = is_class or is_function
+    is_instance = isinstance(env, Environment)
+    # Use callable() check for factory functions since inspect.isfunction()
+    # can fail for functools.partial, callable objects, etc.
+    is_factory = is_class or (callable(env) and not is_instance)
 
     # Try to get metadata from environment if it's an instance with get_metadata
-    if not is_factory and hasattr(env, "get_metadata"):
+    if is_instance and hasattr(env, "get_metadata"):
         return env.get_metadata()
 
     # Determine the class name for default metadata
     if is_class:
         # env is the class itself
         class_name = env.__name__
-    elif is_function:
+    elif is_factory:
         # env is a factory function - use its name or derive from env_name
-        class_name = env_name or env.__name__
+        class_name = env_name or getattr(env, "__name__", "Environment")
     else:
         # env is an instance
         class_name = env.__class__.__name__
@@ -167,13 +169,14 @@ class WebInterfaceManager:
         observation_cls: Type[Observation],
         metadata: Optional[EnvironmentMetadata] = None,
     ):
-        import inspect
-
-        # If env is a class or factory function, instantiate it
-        if inspect.isclass(env) or inspect.isfunction(env):
-            self.env = env()
-        else:
+        # If env is already an Environment instance, use it directly.
+        # Otherwise, it must be a factory (class or callable), so instantiate it.
+        # This is more robust than inspect.isfunction() which fails for
+        # functools.partial, callable objects, and some edge cases.
+        if isinstance(env, Environment):
             self.env = env
+        else:
+            self.env = env()
         self.action_cls = action_cls
         self.observation_cls = observation_cls
         self.metadata = metadata or EnvironmentMetadata(
