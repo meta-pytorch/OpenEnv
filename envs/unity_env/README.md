@@ -154,19 +154,19 @@ pip install requests websockets
 Run the Unity environment directly without a server:
 
 ```bash
-cd envs/unity_env
+# From the OpenEnv repository root:
 
 # Run with graphics (default: 1280x720)
-python example_usage.py --direct
+python examples/unity_simple.py --direct
 
 # Run with custom window size
-python example_usage.py --direct --width 800 --height 600
+python examples/unity_simple.py --direct --width 800 --height 600
 
 # Run headless (faster for training)
-python example_usage.py --direct --no-graphics --time-scale 20
+python examples/unity_simple.py --direct --no-graphics --time-scale 20
 
 # Run 3DBall environment
-python example_usage.py --direct --env 3DBall --episodes 5
+python examples/unity_simple.py --direct --env 3DBall --episodes 5
 ```
 
 ### Option 2: Server Mode
@@ -178,9 +178,9 @@ Start the server and connect with a client:
 cd envs/unity_env
 uv run uvicorn server.app:app --host 0.0.0.0 --port 8000
 
-# Terminal 2: Run the example client
-python example_usage.py --url http://localhost:8000
-python example_usage.py --url http://localhost:8000 --env 3DBall --episodes 5
+# Terminal 2: Run the example client (from repo root)
+python examples/unity_simple.py --url http://localhost:8000
+python examples/unity_simple.py --url http://localhost:8000 --env 3DBall --episodes 5
 ```
 
 ### Option 3: Docker Mode
@@ -188,22 +188,27 @@ python example_usage.py --url http://localhost:8000 --env 3DBall --episodes 5
 Run via Docker container (auto-starts and connects):
 
 ```bash
+# Build the Docker image first
 cd envs/unity_env
+docker build -f server/Dockerfile -t unity-env:latest .
+
+# Run examples from repo root:
+cd ../..
 
 # Run with default settings
-python example_usage.py --docker
+python examples/unity_simple.py --docker
 
 # Run with custom window size
-python example_usage.py --docker --width 1280 --height 720
+python examples/unity_simple.py --docker --width 1280 --height 720
 
 # Run headless (faster for training)
-python example_usage.py --docker --no-graphics --time-scale 20
+python examples/unity_simple.py --docker --no-graphics --time-scale 20
 
 # Run 3DBall for 10 episodes
-python example_usage.py --docker --env 3DBall --episodes 10
+python examples/unity_simple.py --docker --env 3DBall --episodes 10
 
 # Use a custom Docker image
-python example_usage.py --docker --docker-image my-unity-env:v1
+python examples/unity_simple.py --docker --docker-image my-unity-env:v1
 ```
 
 ## Example Scripts
@@ -214,7 +219,7 @@ python example_usage.py --docker --docker-image my-unity-env:v1
 
 ```bash
 # Run PushBlock with graphics (default)
-python example_usage.py --direct
+python examples/unity_simple.py --direct
 
 # Output:
 # ============================================================
@@ -232,7 +237,7 @@ python example_usage.py --direct
 
 ```bash
 # Headless mode with fast simulation (20x speed)
-python example_usage.py --direct --no-graphics --time-scale 20 --episodes 10 --max-steps 1000
+python examples/unity_simple.py --direct --no-graphics --time-scale 20 --episodes 10 --max-steps 1000
 
 # This is ideal for training - no graphics overhead, faster simulation
 ```
@@ -241,7 +246,7 @@ python example_usage.py --direct --no-graphics --time-scale 20 --episodes 10 --m
 
 ```bash
 # Run 3DBall (continuous actions) with larger window
-python example_usage.py --direct --env 3DBall --width 1280 --height 720 --episodes 5
+python examples/unity_simple.py --direct --env 3DBall --width 1280 --height 720 --episodes 5
 ```
 
 #### 4. Docker Mode - Production-like Testing
@@ -251,10 +256,10 @@ python example_usage.py --direct --env 3DBall --width 1280 --height 720 --episod
 docker build -f server/Dockerfile -t unity-env:latest .
 
 # Run via Docker with graphics
-python example_usage.py --docker --width 1280 --height 720
+python examples/unity_simple.py --docker --width 1280 --height 720
 
 # Run via Docker in headless mode for training
-python example_usage.py --docker --no-graphics --time-scale 20 --episodes 20
+python examples/unity_simple.py --docker --no-graphics --time-scale 20 --episodes 20
 ```
 
 #### 5. Server Mode - Separate Server and Client
@@ -264,15 +269,15 @@ python example_usage.py --docker --no-graphics --time-scale 20 --episodes 20
 UNITY_WIDTH=1280 UNITY_HEIGHT=720 uv run uvicorn server.app:app --port 8000
 
 # Terminal 2: Connect and run episodes
-python example_usage.py --url http://localhost:8000 --env PushBlock --episodes 5
-python example_usage.py --url http://localhost:8000 --env 3DBall --episodes 5
+python examples/unity_simple.py --url http://localhost:8000 --env PushBlock --episodes 5
+python examples/unity_simple.py --url http://localhost:8000 --env 3DBall --episodes 5
 ```
 
 #### 6. Alternating Environments
 
 ```bash
 # Run alternating episodes between PushBlock and 3DBall
-python example_usage.py --direct --env both --episodes 6
+python examples/unity_simple.py --direct --env both --episodes 6
 # Episodes 1,3,5 = PushBlock; Episodes 2,4,6 = 3DBall
 ```
 
@@ -515,7 +520,7 @@ Environment shut down with return code -6 (SIGABRT)
 
 1. **Use Direct Mode** (recommended for macOS):
    ```bash
-   python example_usage.py --direct --no-graphics
+   python examples/unity_simple.py --direct --no-graphics
    ```
    Direct mode downloads native macOS binaries which work on Apple Silicon.
 
@@ -525,7 +530,7 @@ Environment shut down with return code -6 (SIGABRT)
    uvicorn server.app:app --host 0.0.0.0 --port 8000
 
    # Terminal 2: Run client
-   python example_usage.py --url http://localhost:8000
+   python examples/unity_simple.py --url http://localhost:8000
    ```
 
 3. **Use an x86_64 Linux machine** for Docker mode:
