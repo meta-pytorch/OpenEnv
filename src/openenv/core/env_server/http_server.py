@@ -22,41 +22,39 @@ import uuid
 from concurrent.futures import ThreadPoolExecutor
 from typing import Any, Callable, Dict, Optional, Type, Union
 
-from fastapi import Body, FastAPI, HTTPException, WebSocket, WebSocketDisconnect, status
+from fastapi import Body, FastAPI, HTTPException, status, WebSocket, WebSocketDisconnect
 from pydantic import ValidationError
 
-from .interfaces import Environment
-from .route_config import (
-    GetEndpointConfig,
-    register_get_endpoints,
+from .exceptions import (
+    ConcurrencyConfigurationError,
+    EnvironmentFactoryError,
+    SessionCapacityError,
 )
+
+from .interfaces import Environment
+from .route_config import GetEndpointConfig, register_get_endpoints
 from .serialization import deserialize_action, serialize_observation
 from .types import (
     Action,
+    ConcurrencyConfig,
+    EnvironmentMetadata,
+    HealthResponse,
     Observation,
     ResetRequest,
     ResetResponse,
+    SchemaResponse,
+    ServerCapacityStatus,
+    SessionInfo,
     State,
     StepRequest,
     StepResponse,
-    EnvironmentMetadata,
-    SchemaResponse,
-    HealthResponse,
-    WSResetMessage,
-    WSStepMessage,
-    WSStateMessage,
     WSCloseMessage,
-    WSObservationResponse,
-    WSStateResponse,
     WSErrorResponse,
-    ConcurrencyConfig,
-    ServerCapacityStatus,
-    SessionInfo,
-)
-from .exceptions import (
-    ConcurrencyConfigurationError,
-    SessionCapacityError,
-    EnvironmentFactoryError,
+    WSObservationResponse,
+    WSResetMessage,
+    WSStateMessage,
+    WSStateResponse,
+    WSStepMessage,
 )
 
 
@@ -801,9 +799,9 @@ def create_app(
         observation_cls: The Observation subclass this environment returns
         env_name: Optional environment name for README loading
         max_concurrent_envs: Maximum concurrent WebSocket sessions.
-                             Mutually exclusive with concurrency_config.
+        Mutually exclusive with concurrency_config.
         concurrency_config: Optional ConcurrencyConfig for advanced concurrency settings.
-                            Mutually exclusive with max_concurrent_envs.
+        Mutually exclusive with max_concurrent_envs.
 
     Returns:
         FastAPI application instance with or without web interface and README integration
@@ -850,9 +848,9 @@ def create_fastapi_app(
         action_cls: The Action subclass this environment expects
         observation_cls: The Observation subclass this environment returns
         max_concurrent_envs: Maximum concurrent WebSocket sessions.
-                             Mutually exclusive with concurrency_config.
+            Mutually exclusive with concurrency_config.
         concurrency_config: Optional ConcurrencyConfig for advanced concurrency settings.
-                            Mutually exclusive with max_concurrent_envs.
+            Mutually exclusive with max_concurrent_envs.
 
     Returns:
         FastAPI application instance
