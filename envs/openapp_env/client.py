@@ -16,21 +16,19 @@ from typing import Any, Dict
 # Support both in-repo and standalone imports
 try:
     # In-repo imports (when running from OpenEnv repository)
-    from core.client_types import StepResult
-    from core.env_server.types import State
-    from core.http_env_client import HTTPEnvClient
-
+    from openenv.core.client_types import StepResult
+    from openenv.core.env_server.types import State
+    from openenv.core.env_client import EnvClient
     from .models import OpenAppAction, OpenAppObservation
 except ImportError:
     # Standalone imports (when environment is standalone with openenv-core from pip)
-    from openenv_core.client_types import StepResult
-    from openenv_core.env_server.types import State
-    from openenv_core.http_env_client import HTTPEnvClient
-
+    from openenv.core.client_types import StepResult
+    from openenv.core.env_server.types import State
+    from openenv.core.env_client import EnvClient
     from openapp_env.models import OpenAppAction, OpenAppObservation
 
 
-class OpenAppEnv(HTTPEnvClient[OpenAppAction, OpenAppObservation]):
+class OpenAppEnv(EnvClient[OpenAppAction, OpenAppObservation, State]):
     """
     HTTP client for the OpenApp Environment.
 
