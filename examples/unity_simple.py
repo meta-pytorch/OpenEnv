@@ -13,7 +13,7 @@ through the OpenEnv interface, with support for direct mode, server mode,
 and Docker-based deployment.
 
 =============================================================================
-USAGE EXAMPLES
+USAGE EXAMPLES (run from the OpenEnv repository root)
 =============================================================================
 
 1. DIRECT MODE (Recommended for quick testing - no server required)
@@ -22,19 +22,19 @@ USAGE EXAMPLES
    This is the simplest way to get started.
 
     # Run with graphics (default: 1280x720 window)
-    python example_usage.py --direct
+    python examples/unity_simple.py --direct
 
     # Run with custom window size
-    python example_usage.py --direct --width 1920 --height 1080
+    python examples/unity_simple.py --direct --width 1920 --height 1080
 
     # Run headless (no graphics, faster for training)
-    python example_usage.py --direct --no-graphics --time-scale 20
+    python examples/unity_simple.py --direct --no-graphics --time-scale 20
 
     # Run 3DBall environment for 5 episodes
-    python example_usage.py --direct --env 3DBall --episodes 5
+    python examples/unity_simple.py --direct --env 3DBall --episodes 5
 
     # Run alternating between PushBlock and 3DBall
-    python example_usage.py --direct --env both --episodes 6
+    python examples/unity_simple.py --direct --env both --episodes 6
 
 
 2. SERVER MODE (For client-server architecture)
@@ -49,9 +49,9 @@ USAGE EXAMPLES
     UNITY_WIDTH=1920 UNITY_HEIGHT=1080 uvicorn server.app:app --port 8000
     UNITY_NO_GRAPHICS=1 UNITY_TIME_SCALE=20 uvicorn server.app:app --port 8000
 
-   Step 2: Run this script (in Terminal 2):
-    python example_usage.py --url http://localhost:8000
-    python example_usage.py --url http://localhost:8000 --env 3DBall --episodes 5
+   Step 2: Run this script (in Terminal 2, from repo root):
+    python examples/unity_simple.py --url http://localhost:8000
+    python examples/unity_simple.py --url http://localhost:8000 --env 3DBall --episodes 5
 
 
 3. DOCKER MODE (For containerized deployment)
@@ -62,11 +62,11 @@ USAGE EXAMPLES
     cd envs/unity_env
     docker build -f server/Dockerfile -t unity-env:latest .
 
-   Then run:
-    python example_usage.py --docker
-    python example_usage.py --docker --width 1280 --height 720
-    python example_usage.py --docker --no-graphics --time-scale 20
-    python example_usage.py --docker --env 3DBall --episodes 10
+   Then run (from repo root):
+    python examples/unity_simple.py --docker
+    python examples/unity_simple.py --docker --width 1280 --height 720
+    python examples/unity_simple.py --docker --no-graphics --time-scale 20
+    python examples/unity_simple.py --docker --env 3DBall --episodes 10
 
 =============================================================================
 
@@ -334,7 +334,7 @@ def run_with_docker(args) -> None:
         print("  2. Build the image first:")
         print(f"     docker build -f server/Dockerfile -t {args.docker_image} .")
         print("  3. Or use server mode instead:")
-        print("     python example_usage.py --url http://localhost:8000")
+        print("     python examples/unity_simple.py --url http://localhost:8000")
         sys.exit(1)
 
 
