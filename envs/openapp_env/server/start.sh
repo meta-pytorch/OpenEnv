@@ -23,8 +23,8 @@ OPENAPPS_PID=$!
 # Wait for OpenApps server to be ready
 echo "Waiting for OpenApps server to be ready..."
 for i in {1..60}; do
-    # Check if port 5001 is listening using Python
-    if python3 -c "import socket; s = socket.socket(); s.settimeout(1); s.connect(('localhost', ${OPENAPPS_PORT:-5001})); s.close()" 2>/dev/null; then
+    # Check if OpenApps server is responding using curl
+    if curl -sf http://localhost:${OPENAPPS_PORT:-5001} >/dev/null 2>&1; then
         echo "OpenApps server is ready on port ${OPENAPPS_PORT:-5001}!"
         break
     fi

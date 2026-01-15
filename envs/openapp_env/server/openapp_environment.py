@@ -12,6 +12,7 @@ This environment provides agent interaction with simulated web apps including
 calendar, todo, messenger, and maps applications.
 """
 
+import logging
 import os
 import subprocess
 import time
@@ -19,6 +20,8 @@ import urllib.request
 from pathlib import Path
 from typing import Any, Dict, Optional, Tuple
 from uuid import uuid4
+
+logger = logging.getLogger(__name__)
 
 # Support both in-repo and standalone imports
 try:
@@ -220,7 +223,7 @@ class OpenAppEnvironment(Environment):
         """
         # If OPENAPPS_URL is set, assume server is already running
         if os.environ.get("OPENAPPS_URL"):
-            print(f"Using existing OpenApps server at {self.openapps_url}")
+            logger.info(f"Using existing OpenApps server at {self.openapps_url}")
             # Wait for server to be available
             self._wait_for_server(max_wait=5)
             return None
@@ -324,7 +327,7 @@ class OpenAppEnvironment(Environment):
             self._current_axtree = obs.get("axtree_txt", "")
             self._app_state = {}
         except Exception as e:
-            print(f"Warning: Failed to reset browser environment: {e}")
+            logger.warning(f"Failed to reset browser environment: {e}")
             # Fallback to placeholder values
             self._current_url = self.openapps_url
             self._current_html = "<html><body>OpenApps Ready</body></html>"

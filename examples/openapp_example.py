@@ -206,6 +206,10 @@ def run_local(num_steps: int = 15, headless: bool = True):
         return 1
 
     try:
+        # NOTE: This example imports from the server module directly for local development.
+        # This is intentional for local testing/debugging where no HTTP server is involved.
+        # In production, use the client API (OpenAppEnv) which communicates over HTTP/WebSocket.
+        # See run_with_docker() for the recommended production pattern.
         from openapp_env.models import OpenAppAction
         from openapp_env.server.openapp_environment import OpenAppEnvironment
     except ImportError as e:

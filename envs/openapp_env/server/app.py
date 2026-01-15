@@ -36,8 +36,11 @@ except ImportError:
     from openapp_env.server.openapp_environment import OpenAppEnvironment
 
 # Create the environment instance
-# Use OPENAPPS_URL environment variable if set (Docker mode)
-# Otherwise, environment will try to auto-launch (not implemented, will fail with helpful error)
+# NOTE: We pass an instance here because the pip-installed openenv-core (used in
+# standalone/Docker mode) expects an instance, not a factory class. The local
+# openenv.core supports factories, but openenv-core from PyPI does not yet.
+# TODO: Switch to factory pattern (pass OpenAppEnvironment class) once openenv-core
+# is updated on PyPI to support the factory pattern for WebSocket session support.
 import os
 openapps_url = os.environ.get("OPENAPPS_URL")
 env = OpenAppEnvironment(openapps_url=openapps_url) if openapps_url else OpenAppEnvironment()

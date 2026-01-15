@@ -15,6 +15,7 @@ description = "OpenApp Environment for OpenEnv - web application simulation envi
 requires-python = ">=3.11,<3.14"
 dependencies = [
     # Core OpenEnv dependencies (required for server functionality)
+    # TODO: Upgrade to openenv-core>=0.2.0 when OpenApps updates openai dependency
     # Using <0.2.0 to avoid openai>=2.7.2 dependency conflict with OpenApps
     # OpenApps requires openai<2 via agentlab dependency
     "openenv-core>=0.1.1,<0.2.0",
