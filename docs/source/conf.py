@@ -91,8 +91,8 @@ html_context = {
     "language_bindings_links": html_theme_options.get("language_bindings_links", []),
 }
 
-# Need a reliable way to acquire the version
-# html_baseurl = f"https://<site>/<siteproject>/{version}/"
+# Base URL for the site (used by sitemap and canonical URLs)
+html_baseurl = "https://meta-pytorch.github.io/OpenEnv/"
 sitemap_locales = [None]
 sitemap_excludes = [
     "search.html",
