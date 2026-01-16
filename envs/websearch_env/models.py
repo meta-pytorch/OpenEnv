@@ -13,21 +13,34 @@ The WebSearch Env environment is an environment that searches the web with Googl
 from __future__ import annotations
 
 from pydantic import Field
-from openenv_core.env_server.types import Action, Observation
+
+# Support both in-repo and standalone imports
+try:
+    from openenv.core.env_server.types import Action, Observation
+except ImportError:
+    from openenv.core.env_server.types import Action, Observation
 
 
 class WebSearchAction(Action):
     """Action for the WebSearch Env environment - just a message to echo."""
 
     query: str = Field(..., description="The query to search the web for")
-    temp_api_key: str | None = Field(None, description="The temporary API key to use for the Serper API (better to use the default API key from the environment variables)")
+    temp_api_key: str | None = Field(
+        None,
+        description="The temporary API key to use for the Serper API (better to use the default API key from the environment variables)",
+    )
 
 
 class WebSearchObservation(Observation):
     """Observation from the WebSearch Env environment - the echoed message."""
 
-    content: str = Field(..., description="The formatted content of the search results or error message if the search failed")
-    web_contents: list[WebContent] = Field(..., description="The web contents of the search results")
+    content: str = Field(
+        ...,
+        description="The formatted content of the search results or error message if the search failed",
+    )
+    web_contents: list[WebContent] = Field(
+        ..., description="The web contents of the search results"
+    )
 
 
 class WebContent:

@@ -5,10 +5,10 @@
 # LICENSE file in the root directory of this source tree.
 
 """
-Snake Environment HTTP Client.
+Snake Environment Client.
 
 This module provides the client for connecting to a Snake Environment server
-over HTTP.
+via WebSocket for persistent sessions.
 """
 
 from typing import Any, Dict
@@ -16,21 +16,19 @@ from typing import Any, Dict
 # Support both in-repo and standalone imports
 try:
     # In-repo imports (when running from OpenEnv repository)
-    from core.client_types import StepResult
-    from core.env_server.types import State
-    from core.http_env_client import HTTPEnvClient
-
+    from openenv.core.client_types import StepResult
+    from openenv.core.env_server.types import State
+    from openenv.core.env_client import EnvClient
     from .models import SnakeAction, SnakeObservation
 except ImportError:
+    # Standalone imports (when environment is standalone with openenv from pip)
+    from openenv.core.client_types import StepResult
+    from openenv.core.env_server.types import State
+    from openenv.core.env_client import EnvClient
     from models import SnakeAction, SnakeObservation
 
-    # Standalone imports (when environment is standalone with openenv-core from pip)
-    from openenv_core.client_types import StepResult
-    from openenv_core.env_server.types import State
-    from openenv_core.http_env_client import HTTPEnvClient
 
-
-class SnakeEnv(HTTPEnvClient[SnakeAction, SnakeObservation]):
+class SnakeEnv(EnvClient[SnakeAction, SnakeObservation, State]):
     """
     HTTP client for the Snake Environment.
 

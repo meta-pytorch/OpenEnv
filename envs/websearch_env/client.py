@@ -5,22 +5,30 @@
 # LICENSE file in the root directory of this source tree.
 
 """
-WebSearch Env Environment HTTP Client.
+WebSearch Env Environment Client.
 
 This module provides the client for connecting to a WebSearch Env Environment server
-over HTTP.
+via WebSocket for persistent sessions.
 """
 
 from typing import Dict
 
-from openenv_core.client_types import StepResult
-from openenv_core.env_server.types import State
-from openenv_core.http_env_client import HTTPEnvClient
+# Support both in-repo and standalone imports
+try:
+    # In-repo imports (when running from OpenEnv repository)
+    from openenv.core.client_types import StepResult
+    from openenv.core.env_server.types import State
+    from openenv.core.env_client import EnvClient
+    from .models import WebSearchAction, WebSearchObservation
+except ImportError:
+    # Standalone imports (when environment is standalone with openenv from pip)
+    from openenv.core.client_types import StepResult
+    from openenv.core.env_server.types import State
+    from openenv.core.env_client import EnvClient
+    from models import WebSearchAction, WebSearchObservation
 
-from .models import WebSearchAction, WebSearchObservation
 
-
-class WebSearchEnv(HTTPEnvClient[WebSearchAction, WebSearchObservation]):
+class WebSearchEnv(EnvClient[WebSearchAction, WebSearchObservation, State]):
     """
     HTTP client for the WebSearch Env Environment.
 

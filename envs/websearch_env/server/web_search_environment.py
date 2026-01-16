@@ -15,9 +15,17 @@ import os
 import logging
 from uuid import uuid4
 
-from models import WebSearchAction, WebSearchObservation
-from openenv_core.env_server.interfaces import Environment
-from openenv_core.env_server.types import State
+# Support both in-repo and standalone imports
+try:
+    # In-repo imports (when running from OpenEnv repository)
+    from openenv.core.env_server.interfaces import Environment
+    from openenv.core.env_server.types import State
+    from ..models import WebSearchAction, WebSearchObservation
+except ImportError:
+    # Standalone imports (when environment is standalone with openenv from pip)
+    from openenv.core.env_server.interfaces import Environment
+    from openenv.core.env_server.types import State
+    from models import WebSearchAction, WebSearchObservation
 from .web_search_tool import WebSearchTool
 
 logger = logging.getLogger(__name__)
@@ -43,17 +51,19 @@ class WebSearchEnvironment(Environment):
         """Initialize the searchr1_env environment."""
         self._state = State(episode_id=str(uuid4()), step_count=0)
         self._reset_count = 0
-        
+
         # Get API key from environment
         api_key = os.environ.get("SERPER_API_KEY")
-        
+
         # Log API key status for debugging (without exposing the full key)
         if api_key:
             logger.info(f"SERPER_API_KEY found (ends with: {api_key[-3:]}...)")
         else:
             logger.warning("SERPER_API_KEY not found in environment variables!")
-            logger.warning("Please set SERPER_API_KEY in Hugging Face Spaces secrets or as an environment variable")
-        
+            logger.warning(
+                "Please set SERPER_API_KEY in Hugging Face Spaces secrets or as an environment variable"
+            )
+
         self._web_search_tool = WebSearchTool(
             api_key=api_key,
             top_k=5,
