@@ -12,19 +12,19 @@ for training and evaluating UI agents that interact with various apps
 (calendar, todo, messenger, maps, etc.) using browser actions.
 """
 
-from dataclasses import dataclass
 from typing import Any, Dict, List, Optional
+
+from pydantic import Field
 
 # Support both in-repo and standalone imports
 try:
     # In-repo imports (when running from OpenEnv repository)
-    from core.env_server.types import Action, Observation
+    from openenv.core.env_server.types import Action, Observation
 except ImportError:
     # Standalone imports (when environment is standalone with openenv-core from pip)
-    from openenv_core.env_server.types import Action, Observation
+    from openenv.core.env_server.types import Action, Observation
 
 
-@dataclass(kw_only=True)
 class OpenAppAction(Action):
     """
     Action for the OpenApp environment.
@@ -45,42 +45,18 @@ class OpenAppAction(Action):
         value: Value to select (for select_option)
         url: URL to navigate to (for goto)
         direction: Scroll direction - 'up' or 'down' (for scroll)
-        metadata: Additional action parameters
     """
 
-    action_type: (
-        str  # "click", "fill", "select_option", "goto", "scroll", "send_keys", "noop"
+    action_type: str = Field(
+        ..., description="Type of action: click, fill, select_option, goto, scroll, send_keys, noop"
     )
-    bid: Optional[str] = None  # BrowserGym element ID
-    text: Optional[str] = None  # For fill or send_keys
-    value: Optional[str] = None  # For select_option
-    url: Optional[str] = None  # For goto
-    direction: Optional[str] = None  # For scroll: "up" or "down"
-    metadata: Dict[str, Any] = None  # Additional parameters
-
-    def __post_init__(self):
-        """Validate action parameters."""
-        if self.metadata is None:
-            self.metadata = {}
-
-        # Validate required parameters for each action type
-        if self.action_type == "click" and not self.bid:
-            raise ValueError("click action requires 'bid' parameter")
-        elif self.action_type == "fill" and (not self.bid or not self.text):
-            raise ValueError("fill action requires 'bid' and 'text' parameters")
-        elif self.action_type == "select_option" and (not self.bid or not self.value):
-            raise ValueError(
-                "select_option action requires 'bid' and 'value' parameters"
-            )
-        elif self.action_type == "goto" and not self.url:
-            raise ValueError("goto action requires 'url' parameter")
-        elif self.action_type == "scroll" and not self.direction:
-            raise ValueError("scroll action requires 'direction' parameter")
-        elif self.action_type == "send_keys" and not self.text:
-            raise ValueError("send_keys action requires 'text' parameter")
+    bid: Optional[str] = Field(default=None, description="BrowserGym element ID")
+    text: Optional[str] = Field(default=None, description="Text content for fill or send_keys")
+    value: Optional[str] = Field(default=None, description="Value for select_option")
+    url: Optional[str] = Field(default=None, description="URL for goto action")
+    direction: Optional[str] = Field(default=None, description="Scroll direction: 'up' or 'down'")
 
 
-@dataclass(kw_only=True)
 class OpenAppObservation(Observation):
     """
     Observation from the OpenApp environment.
@@ -99,21 +75,12 @@ class OpenAppObservation(Observation):
         last_action_error: Error message from last action (if failed)
     """
 
-    html: str = ""
-    url: str = ""
-    open_pages_urls: List[str] = None
-    active_page_index: int = 0
-    screenshot: Optional[str] = None  # Base64-encoded
-    axtree_txt: str = ""  # Accessibility tree
-    app_state: Dict[str, Any] = None  # State of all apps
-    task_info: Optional[Dict[str, Any]] = None  # Current task information
-    last_action_error: Optional[str] = None  # Error from last action
-
-    def __post_init__(self):
-        """Initialize default values."""
-        if self.open_pages_urls is None:
-            self.open_pages_urls = []
-        if self.app_state is None:
-            self.app_state = {}
-        if self.metadata is None:
-            self.metadata = {}
+    html: str = Field(default="", description="Current page HTML content")
+    url: str = Field(default="", description="Current page URL")
+    open_pages_urls: List[str] = Field(default_factory=list, description="List of all open page URLs")
+    active_page_index: int = Field(default=0, ge=0, description="Index of currently active page")
+    screenshot: Optional[str] = Field(default=None, description="Base64-encoded screenshot")
+    axtree_txt: str = Field(default="", description="Accessibility tree as text")
+    app_state: Dict[str, Any] = Field(default_factory=dict, description="State of all apps")
+    task_info: Optional[Dict[str, Any]] = Field(default=None, description="Current task information")
+    last_action_error: Optional[str] = Field(default=None, description="Error from last action")
