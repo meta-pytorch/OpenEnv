@@ -94,12 +94,12 @@ def test_reward_computation(
     action = CodeAction(code=code)
     obs = env.step(action)
 
-    assert obs.reward == pytest.approx(
-        expected_reward, rel=1e-9
-    ), f"{description}: expected reward {expected_reward}, got {obs.reward}"
-    assert (
-        obs.exit_code == expected_exit_code
-    ), f"{description}: expected exit_code {expected_exit_code}, got {obs.exit_code}"
+    assert obs.reward == pytest.approx(expected_reward, rel=1e-9), (
+        f"{description}: expected reward {expected_reward}, got {obs.reward}"
+    )
+    assert obs.exit_code == expected_exit_code, (
+        f"{description}: expected exit_code {expected_exit_code}, got {obs.exit_code}"
+    )
 
 
 # ============================================================================
@@ -118,12 +118,12 @@ def test_metadata_contains_last_code(env):
     action = CodeAction(code=code)
     obs = env.step(action)
 
-    assert (
-        "last_code" in obs.metadata
-    ), "metadata must contain 'last_code' for transform pipeline to evaluate code"
-    assert (
-        obs.metadata["last_code"] == code
-    ), f"metadata['last_code'] should be '{code}', got '{obs.metadata.get('last_code')}'"
+    assert "last_code" in obs.metadata, (
+        "metadata must contain 'last_code' for transform pipeline to evaluate code"
+    )
+    assert obs.metadata["last_code"] == code, (
+        f"metadata['last_code'] should be '{code}', got '{obs.metadata.get('last_code')}'"
+    )
 
 
 @pytest.mark.parametrize(
@@ -145,13 +145,13 @@ def test_metadata_safety_violations(env, code, should_have_violation):
     assert obs.metadata["last_code"] == code
 
     if should_have_violation:
-        assert (
-            "safety_violation" in obs.metadata
-        ), f"Code '{code}' should have safety_violation in metadata"
+        assert "safety_violation" in obs.metadata, (
+            f"Code '{code}' should have safety_violation in metadata"
+        )
     else:
-        assert (
-            "safety_violation" not in obs.metadata
-        ), f"Code '{code}' should NOT have safety_violation in metadata"
+        assert "safety_violation" not in obs.metadata, (
+            f"Code '{code}' should NOT have safety_violation in metadata"
+        )
 
 
 # ============================================================================
@@ -175,9 +175,9 @@ def test_reward_consistency_across_steps(env):
         obs = env.step(action)
 
         assert obs.reward is not None, f"Step {i}: Reward should not be None"
-        assert obs.reward == pytest.approx(
-            0.1, rel=1e-9
-        ), f"Step {i}: Should get consistent 0.1 reward, got {obs.reward}"
+        assert obs.reward == pytest.approx(0.1, rel=1e-9), (
+            f"Step {i}: Should get consistent 0.1 reward, got {obs.reward}"
+        )
 
 
 def test_reset_preserves_transform_functionality(env):
@@ -191,9 +191,9 @@ def test_reset_preserves_transform_functionality(env):
     env.reset()
     action2 = CodeAction(code="y = 2")
     obs2 = env.step(action2)
-    assert obs2.reward == pytest.approx(
-        0.1, rel=1e-9
-    ), "Reward computation should work after reset"
+    assert obs2.reward == pytest.approx(0.1, rel=1e-9), (
+        "Reward computation should work after reset"
+    )
 
 
 # ============================================================================
@@ -251,9 +251,9 @@ def test_all_dangerous_patterns_detected(env, dangerous_pattern):
     obs = env.step(action)
 
     # Concise dangerous code gets -0.9 (-1.0 safety + 0.1 concise)
-    assert obs.reward == pytest.approx(
-        -0.9, rel=1e-9
-    ), f"Pattern '{dangerous_pattern}' should get -0.9 reward, got {obs.reward}"
+    assert obs.reward == pytest.approx(-0.9, rel=1e-9), (
+        f"Pattern '{dangerous_pattern}' should get -0.9 reward, got {obs.reward}"
+    )
     assert "safety_violation" in obs.metadata
 
 

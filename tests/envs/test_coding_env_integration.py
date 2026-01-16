@@ -81,7 +81,9 @@ class TestCodingEnvDocker:
         """Test executing a calculation."""
         coding_env_client.reset()
 
-        result = coding_env_client.step(CodeAction(code="x = 5 + 3\nprint(f'Result: {x}')"))
+        result = coding_env_client.step(
+            CodeAction(code="x = 5 + 3\nprint(f'Result: {x}')")
+        )
 
         assert result.observation.exit_code == 0
         assert "Result: 8" in result.observation.stdout
@@ -90,7 +92,9 @@ class TestCodingEnvDocker:
         """Test importing and using the math module."""
         coding_env_client.reset()
 
-        result = coding_env_client.step(CodeAction(code="import math\nprint(f'Pi: {math.pi:.4f}')"))
+        result = coding_env_client.step(
+            CodeAction(code="import math\nprint(f'Pi: {math.pi:.4f}')")
+        )
 
         assert result.observation.exit_code == 0
         assert "Pi: 3.1416" in result.observation.stdout
@@ -117,7 +121,10 @@ for i in range(1, 4):
         result = coding_env_client.step(CodeAction(code="x = 1 / 0"))
 
         assert result.observation.exit_code == 1
-        assert "ZeroDivisionError" in result.observation.stderr or result.observation.stderr != ""
+        assert (
+            "ZeroDivisionError" in result.observation.stderr
+            or result.observation.stderr != ""
+        )
 
     def test_error_undefined_variable(self, coding_env_client):
         """Test that undefined variable returns an error."""
