@@ -19,22 +19,20 @@ RUN apt-get update && apt-get install -y \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy core and environment packages
+# Copy openenv-core package (root pyproject.toml + src/)
+COPY pyproject.toml ./
 COPY src/ ./src/
+
+# Copy coding_env package
 COPY envs/coding_env/ ./envs/coding_env/
 
-# Install dependencies
-RUN pip install --no-cache-dir \
-    'fastapi>=0.104.0' \
-    'pydantic>=2.0.0' \
-    'uvicorn[standard]>=0.24.0' \
-    'requests>=2.25.0' \
-    'smolagents>=1.22.0,<2'
+# Install openenv-core first (from root), then coding_env
+RUN pip install --no-cache-dir . && \
+    pip install --no-cache-dir ./envs/coding_env/
 
 # Environment variables
 ENV PYTHONUNBUFFERED=1
 ENV ENABLE_WEB_INTERFACE=true
-ENV PYTHONPATH=/app/src:/app/envs
 
 # Expose port
 EXPOSE 8000
