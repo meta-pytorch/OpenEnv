@@ -5,44 +5,57 @@
 # LICENSE file in the root directory of this source tree.
 
 """
-Minesweeper Environment HTTP Client.
+Minesweeper Environment Client.
 
 This module provides the client for connecting to a Minesweeper Environment server
-over HTTP.
+via WebSocket for persistent sessions.
 """
 
 from typing import Any, Dict
 
-from openenv_core.client_types import StepResult
-from openenv_core.env_server.types import State
-from openenv_core.http_env_client import HTTPEnvClient
+# Support both in-repo and standalone imports
+try:
+    # In-repo imports (when running from OpenEnv repository)
+    from openenv.core.client_types import StepResult
+    from openenv.core.env_server.types import State
+    from openenv.core.env_client import EnvClient
+    from .models import MinesweeperAction, MinesweeperObservation
+except ImportError:
+    # Standalone imports (when environment is standalone with openenv from pip)
+    from openenv.core.client_types import StepResult
+    from openenv.core.env_server.types import State
+    from openenv.core.env_client import EnvClient
+    from models import MinesweeperAction, MinesweeperObservation
 
-from .models import MinesweeperAction, MinesweeperObservation
 
-
-class MinesweeperEnv(HTTPEnvClient[MinesweeperAction, MinesweeperObservation]):
+class MinesweeperEnv(EnvClient[MinesweeperAction, MinesweeperObservation, State]):
     """
-    HTTP client for the Minesweeper Environment.
+    Client for the Minesweeper Environment.
 
-    This client connects to a MinesweeperEnvironment HTTP server and provides
-    methods to interact with it: reset(), step(), and state access.
+    This client maintains a persistent WebSocket connection to the environment
+    server, enabling efficient multi-step interactions with lower latency.
+    Each client instance has its own dedicated environment session on the server.
 
     Example:
         >>> # Connect to a running server
-        >>> client = MinesweeperEnv(base_url="http://localhost:8000")
-        >>> result = client.reset()
-        >>> print(result.observation.echoed_message)
-        >>>
-        >>> # Send a message
-        >>> result = client.step(MinesweeperAction(message="Hello!"))
-        >>> print(result.observation.echoed_message)
-        >>> print(result.reward)
+        >>> with MinesweeperEnv(base_url="http://localhost:8000") as client:
+        ...     result = client.reset()
+        ...     print(result.observation.board)
+        ...     print(result.observation.game_status)
+        ...
+        ...     # Reveal a cell
+        ...     result = client.step(MinesweeperAction(row=0, col=0, action_type="reveal"))
+        ...     print(result.observation.board)
+        ...     print(result.reward)
 
     Example with Docker:
         >>> # Automatically start container and connect
-        >>> client = MinesweeperEnv.from_docker_image("minesweeper_env-env:latest")
-        >>> result = client.reset()
-        >>> result = client.step(MinesweeperAction(message="Test"))
+        >>> client = MinesweeperEnv.from_docker_image("minesweeper-env:latest")
+        >>> try:
+        ...     result = client.reset()
+        ...     result = client.step(MinesweeperAction(row=2, col=3, action_type="reveal"))
+        ... finally:
+        ...     client.close()
     """
 
     def _step_payload(self, action: MinesweeperAction) -> Dict:

@@ -7,8 +7,8 @@
 """
 Minesweeper Environment Implementation.
 
-A simple test environment that echoes back messages sent to it.
-Perfect for testing HTTP server infrastructure.
+A Minesweeper game environment where agents must reveal cells and place flags
+to identify mines on a grid board without triggering any mines.
 """
 import random
 from typing import Any, Dict, List, Optional, Set, Tuple
@@ -21,8 +21,15 @@ from ..models import (
     MinesweeperState,
 )
 
-from openenv_core.env_server.interfaces import Environment
-from openenv_core.env_server.types import State
+# Support both in-repo and standalone imports
+try:
+    # In-repo imports (when running from OpenEnv repository)
+    from openenv.core.env_server.interfaces import Environment
+    from openenv.core.env_server.types import State
+except ImportError:
+    # Standalone imports (when environment is standalone with openenv from pip)
+    from openenv.core.env_server.interfaces import Environment
+    from openenv.core.env_server.types import State
 
 
 class MinesweeperEnvironment(Environment):
