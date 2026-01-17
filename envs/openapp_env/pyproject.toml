@@ -14,17 +14,23 @@ version = "0.1.0"
 description = "OpenApp Environment for OpenEnv - web application simulation environment for UI agents"
 requires-python = ">=3.11,<3.14"
 dependencies = [
-    # Core OpenEnv dependencies (required for server functionality)
-    # TODO: Upgrade to openenv-core>=0.2.0 when OpenApps updates openai dependency
-    # Using <0.2.0 to avoid openai>=2.7.2 dependency conflict with OpenApps
-    # OpenApps requires openai<2 via agentlab dependency
-    "openenv-core>=0.1.1,<0.2.0",
+    # NOTE: openenv-core is NOT listed here to avoid openai version conflict
+    # It is installed separately in the Dockerfile with --no-deps to avoid
+    # openai>=2.7.2 conflicting with OpenApps' openai<2 requirement.
+    # For local development, install manually:
+    #   pip install --no-deps "openenv-core @ git+https://github.com/meta-pytorch/OpenEnv.git"
+    #   pip install fastapi pydantic uvicorn requests websockets
+    #
+    # NOTE: open_apps is also NOT listed here for the same reason.
+    # Install manually for local development:
+    #   pip install git+https://github.com/facebookresearch/OpenApps.git
+    #
+    # Server dependencies (these are installed by Dockerfile separately for openenv-core)
     "fastapi>=0.115.0",
     "pydantic>=2.0.0",
     "uvicorn[standard]>=0.24.0",
     "requests>=2.31.0",
-    # OpenApps - installed directly from GitHub
-    "open_apps @ git+https://github.com/facebookresearch/OpenApps.git",
+    "websockets>=15.0.1",
     # BrowserGym dependencies
     "browsergym>=0.13.3",
     "playwright>=1.40.0",
