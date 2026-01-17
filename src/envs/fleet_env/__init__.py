@@ -9,7 +9,15 @@
 from .client import FleetEnvClient
 from .mcp_tools import FleetMCPTools
 from .models import CallToolAction, ListToolsAction
+from .task_env import FleetTaskEnv, make_fleet_task_env
 
-__all__ = ["FleetEnvClient", "FleetMCPTools", "ListToolsAction", "CallToolAction"]
+__all__ = [
+    "FleetEnvClient",
+    "FleetMCPTools",
+    "ListToolsAction",
+    "CallToolAction",
+    "FleetTaskEnv",
+    "make_fleet_task_env",
+]
 
 
