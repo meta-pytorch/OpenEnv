@@ -71,8 +71,23 @@ WORKDIR /app/env
 # - HuggingFace: openenv push uploads env dir as context
 COPY . /app/env
 
-# Install openapp_env and all its dependencies from pyproject.toml
-# This includes: openenv-core, fastapi, uvicorn, pydantic, requests, browsergym, playwright
+# Install OpenApps FIRST to establish openai<2 (required by agentlab)
+# This must happen before openenv-core to avoid version conflict
+WORKDIR /app
+RUN git clone https://github.com/facebookresearch/OpenApps.git openapps && \
+    cd openapps && \
+    pip install --no-cache-dir -e .
+
+# Verify OpenApps installation
+RUN python -c "import open_apps; print('✓ OpenApps installed')"
+
+# Install openenv-core from GitHub with --no-deps to avoid openai>=2.7.2 conflict
+# Then install only the server dependencies (no openai needed for server)
+RUN pip install --no-cache-dir --no-deps "openenv-core @ git+https://github.com/meta-pytorch/OpenEnv.git" && \
+    pip install --no-cache-dir fastapi pydantic uvicorn requests websockets
+
+# Install openapp_env and remaining dependencies
+WORKDIR /app/env
 RUN pip install --no-cache-dir -e .
 
 # Verify installation
@@ -82,16 +97,6 @@ RUN python -c "import openapp_env; print('✓ openapp_env installed')" && \
 # Install Playwright browsers (Chromium for BrowserGym)
 # We already installed system dependencies above, so just install the browser
 RUN playwright install chromium
-
-# Clone and install OpenApps server
-# OpenApps will run as a background service inside the container
-WORKDIR /app
-RUN git clone https://github.com/facebookresearch/OpenApps.git openapps && \
-    cd openapps && \
-    pip install --no-cache-dir -e .
-
-# Verify OpenApps installation
-RUN python -c "import open_apps; print('✓ OpenApps installed')"
 
 # Copy startup script
 WORKDIR /app/env
