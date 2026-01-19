@@ -24,29 +24,20 @@ Usage:
 # Support both in-repo and standalone imports
 try:
     # In-repo imports (when running from OpenEnv repository)
-    from core.env_server.http_server import create_app
-
+    from openenv.core.env_server.http_server import create_app
     from ..models import OpenAppAction, OpenAppObservation
     from .openapp_environment import OpenAppEnvironment
 except ImportError:
     # Standalone imports (when environment is standalone with openenv-core from pip)
-    from openenv_core.env_server.http_server import create_app
-
+    from openenv.core.env_server.http_server import create_app
     from openapp_env.models import OpenAppAction, OpenAppObservation
     from openapp_env.server.openapp_environment import OpenAppEnvironment
 
-# Create the environment instance
-# NOTE: We pass an instance here because the pip-installed openenv-core (used in
-# standalone/Docker mode) expects an instance, not a factory class. The local
-# openenv.core supports factories, but openenv-core from PyPI does not yet.
-# TODO: Switch to factory pattern (pass OpenAppEnvironment class) once openenv-core
-# is updated on PyPI to support the factory pattern for WebSocket session support.
-import os
-openapps_url = os.environ.get("OPENAPPS_URL")
-env = OpenAppEnvironment(openapps_url=openapps_url) if openapps_url else OpenAppEnvironment()
-
 # Create the app with web interface and README integration
-app = create_app(env, OpenAppAction, OpenAppObservation, env_name="openapp_env")
+# Pass the class (factory) instead of an instance for WebSocket session support
+# Each client gets its own environment instance. The environment reads
+# OPENAPPS_URL from environment variables in __init__.
+app = create_app(OpenAppEnvironment, OpenAppAction, OpenAppObservation, env_name="openapp_env")
 
 
 def main():
