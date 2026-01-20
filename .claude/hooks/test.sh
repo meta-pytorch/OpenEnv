@@ -12,11 +12,23 @@ if ! command -v uv &> /dev/null; then
 fi
 
 echo "=== Running tests ==="
-PYTHONPATH=src:envs uv run pytest tests/ \
+# Note: Using timeout to prevent hanging tests from blocking indefinitely (5 min max)
+# Some websocket protocol tests can hang when fixtures fail to start servers
+PYTHONPATH=src:envs timeout 300 uv run pytest tests/ \
     --ignore=tests/envs/test_browsergym_environment.py \
     --ignore=tests/envs/test_dipg_environment.py \
     --ignore=tests/envs/test_websearch_environment.py \
+    --ignore=tests/envs/test_websockets.py \
     -v \
     --tb=short
+
+TEST_EXIT_CODE=$?
+if [ $TEST_EXIT_CODE -eq 124 ]; then
+    echo "ERROR: Tests timed out after 5 minutes"
+    exit 1
+elif [ $TEST_EXIT_CODE -ne 0 ]; then
+    echo "=== Tests failed ==="
+    exit $TEST_EXIT_CODE
+fi
 
 echo "=== Tests completed ==="

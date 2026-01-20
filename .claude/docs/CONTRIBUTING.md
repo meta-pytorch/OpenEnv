@@ -23,6 +23,49 @@ while not working:
 
 Humans intervene only for alignment questions.
 
+## TDD Workflow
+
+OpenEnv uses Test-Driven Development (TDD) enforced through Claude Code hooks.
+
+### Quick Start
+
+```bash
+# From main repo, start working on an issue
+/work-on-issue #42
+
+# Or manually create a worktree
+.claude/scripts/worktree-create.sh my-feature
+cd .worktrees/my-feature
+```
+
+### The Red-Green-Refactor Cycle
+
+1. **Red**: `/write-tests` - Create failing tests that encode requirements
+2. **Green**: `/implement` - Write minimal code to make tests pass
+3. **Refactor**: `/simplify` - Clean up without changing behavior
+4. **Validate**: `/pre-submit-pr` - Ensure everything passes before PR
+
+### When to Use TDD Mode
+
+**Use TDD (worktrees) for:**
+- New features with clear acceptance criteria
+- Bug fixes where you can write a failing test first
+- Refactoring where tests ensure nothing breaks
+
+**Skip TDD (stay in main repo) for:**
+- Quick exploration and prototyping
+- Documentation updates
+- Simple config changes
+- Discussing approaches before implementing
+
+### Bypassing TDD
+
+In a worktree, say "skip TDD" in your message to bypass the edit blocking.
+This is useful for:
+- Fixing typos in code you just wrote
+- Making quick adjustments during iteration
+- Emergency hotfixes
+
 ## When to Write an RFC
 
 **Required for:**
