@@ -133,10 +133,32 @@ def _prepare_inrepo_build(env_path: Path, repo_root: Path, temp_dir: Path) -> Pa
 
     # Copy OpenEnv package to temp directory
     package_src = repo_root / "src" / "openenv"
-    if package_src.exists():
+    repo_pyproject = repo_root / "pyproject.toml"
+    if package_src.exists() and repo_pyproject.exists():
         package_dest = build_dir / "openenv"
-        shutil.copytree(package_src, package_dest, symlinks=True)
-        console.print(f"[cyan]Copied OpenEnv package to:[/cyan] {package_dest}")
+        (package_dest / "src").mkdir(parents=True, exist_ok=True)
+        shutil.copytree(package_src, package_dest / "src" / "openenv", symlinks=True)
+        shutil.copy2(repo_pyproject, package_dest / "pyproject.toml")
+        repo_readme = repo_root / "README.md"
+        if repo_readme.exists():
+            shutil.copy2(repo_readme, package_dest / "README.md")
+        console.print(f"[cyan]Copied OpenEnv project to:[/cyan] {package_dest}")
+
+        # Report OpenEnv version from repo pyproject for traceability.
+        try:
+            import tomli
+
+            with open(repo_pyproject, "rb") as repo_f:
+                repo_project = tomli.load(repo_f)
+            openenv_version = repo_project.get("project", {}).get("version")
+            if openenv_version:
+                console.print(
+                    f"[cyan]OpenEnv version for in-repo build:[/cyan] {openenv_version}"
+                )
+        except Exception:
+            console.print(
+                "[yellow]Warning:[/yellow] Failed to read OpenEnv version from repo pyproject.toml",
+            )
 
         # Update pyproject.toml to reference local OpenEnv copy
         pyproject_path = build_dir / "pyproject.toml"
@@ -162,7 +184,7 @@ def _prepare_inrepo_build(env_path: Path, repo_root: Path, temp_dir: Path) -> Pa
 
                     # Write back with local core reference
                     pyproject["project"]["dependencies"] = new_deps + [
-                        "openenv @ file:///app/env/openenv"
+                        "openenv-core @ file:///app/env/openenv"
                     ]
 
                     # Write updated pyproject.toml

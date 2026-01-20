@@ -11,6 +11,7 @@ This module provides functions to check if environments are properly
 configured for multi-mode deployment (Docker, direct Python, notebooks, clusters).
 """
 
+import re
 import subprocess
 from pathlib import Path
 
@@ -85,18 +86,65 @@ def validate_multi_mode_deployment(env_path: Path) -> tuple[bool, list[str]]:
         )
 
     # Check required dependencies
-    deps = [dep.lower() for dep in pyproject.get("project", {}).get("dependencies", [])]
+    deps = pyproject.get("project", {}).get("dependencies", [])
+    deps_lower = [dep.lower() for dep in deps]
     has_openenv = any(
-        dep.startswith("openenv") and not dep.startswith("openenv-core") for dep in deps
+        dep.startswith("openenv") and not dep.startswith("openenv-core")
+        for dep in deps_lower
     )
-    has_legacy_core = any(dep.startswith("openenv-core") for dep in deps)
+    has_legacy_core = any(dep.startswith("openenv-core") for dep in deps_lower)
 
     if not (has_openenv or has_legacy_core):
-        issues.append("Missing required dependency: openenv>=0.2.0")
-    elif has_legacy_core and not has_openenv:
-        issues.append(
-            "Dependency on openenv-core is deprecated; use openenv>=0.2.0 instead"
-        )
+        issues.append("Missing required dependency: openenv>=0.2.0 or openenv-core")
+    else:
+        required_version = "0.2.0"
+
+        def _version_tuple(version_str: str) -> tuple[int, ...]:
+            match = re.match(r"^(\d+(?:\.\d+)*)", version_str)
+            if not match:
+                return ()
+            return tuple(int(part) for part in match.group(1).split("."))
+
+        def _extract_min_version(dep: str) -> str | None:
+            match = re.search(r"(?:>=|==|~=)\s*([0-9][0-9\.]*)", dep)
+            if match:
+                return match.group(1)
+            return None
+
+        def _find_repo_root(path: Path) -> Path | None:
+            for parent in [path] + list(path.parents):
+                if (parent / ".git").exists():
+                    return parent
+            return None
+
+        def _read_project_version(pyproject_path: Path) -> str | None:
+            try:
+                with open(pyproject_path, "rb") as f:
+                    project = tomllib.load(f)
+                return project.get("project", {}).get("version")
+            except Exception:
+                return None
+
+        detected_version = None
+        for dep in deps:
+            dep_lower = dep.lower()
+            if dep_lower.startswith("openenv") or dep_lower.startswith("openenv-core"):
+                detected_version = _extract_min_version(dep_lower)
+                if detected_version:
+                    break
+
+        if detected_version is None:
+            repo_root = _find_repo_root(env_path)
+            if repo_root:
+                detected_version = _read_project_version(repo_root / "pyproject.toml")
+
+        if detected_version:
+            if _version_tuple(detected_version) and _version_tuple(
+                detected_version
+            ) < _version_tuple(required_version):
+                issues.append(
+                    f"OpenEnv dependency version is below {required_version}: {detected_version}"
+                )
 
     # Check server/app.py exists
     server_app = env_path / "server" / "app.py"

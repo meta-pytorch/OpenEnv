@@ -95,6 +95,9 @@ jobs:
           - name: openapp-env
             dockerfile: server/Dockerfile
             context: envs/openapp_env
+          - name: grid-world-env
+            dockerfile: server/Dockerfile
+            context: envs/grid_world
 
     steps:
       - name: Checkout code
