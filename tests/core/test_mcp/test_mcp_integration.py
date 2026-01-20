@@ -289,8 +289,7 @@ class TestWebSocketMCP:
             observation_cls=EchoObservation,
         )
 
-    @pytest.mark.asyncio
-    async def test_websocket_tools_list(self, app):
+    def test_websocket_tools_list(self, app):
         """Test WebSocket tools/list via JSON-RPC."""
         from starlette.testclient import TestClient
 
@@ -326,8 +325,7 @@ class TestWebSocketMCP:
             assert "echo_message" in tool_names
             assert "echo_with_length" in tool_names
 
-    @pytest.mark.asyncio
-    async def test_websocket_tools_call(self, app):
+    def test_websocket_tools_call(self, app):
         """Test WebSocket tools/call via JSON-RPC."""
         from starlette.testclient import TestClient
 
@@ -359,8 +357,7 @@ class TestWebSocketMCP:
             assert response["data"]["id"] == 2
             assert "result" in response["data"]
 
-    @pytest.mark.asyncio
-    async def test_websocket_mcp_method_not_found(self, app):
+    def test_websocket_mcp_method_not_found(self, app):
         """Test WebSocket returns error for unknown MCP method."""
         from starlette.testclient import TestClient
 
@@ -388,8 +385,7 @@ class TestWebSocketMCP:
             assert response["data"]["error"]["code"] == -32601
             assert "not found" in response["data"]["error"]["message"].lower()
 
-    @pytest.mark.asyncio
-    async def test_websocket_tools_call_missing_name(self, app):
+    def test_websocket_tools_call_missing_name(self, app):
         """Test WebSocket tools/call returns error when name is missing."""
         from starlette.testclient import TestClient
 
