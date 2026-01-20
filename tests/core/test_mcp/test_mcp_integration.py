@@ -148,8 +148,14 @@ class TestEchoEnvironmentMCP:
         assert obs.error is None
         assert obs.done is False
 
-        # Verify result
-        assert obs.result == "Hello, MCP!"
+        # Verify result - MCPEnvironment returns CallToolResult object
+        # Extract the actual value from the result
+        if hasattr(obs.result, "data"):
+            assert obs.result.data == "Hello, MCP!"
+        elif hasattr(obs.result, "content"):
+            assert obs.result.content[0].text == "Hello, MCP!"
+        else:
+            assert obs.result == "Hello, MCP!"
 
     def test_echo_environment_call_tool_echo_with_length(self):
         """Test EchoEnvironment.step(CallToolAction()) for echo_with_length tool."""

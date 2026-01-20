@@ -76,7 +76,9 @@ def main():
 
     assert isinstance(obs, CallToolObservation)
     print(f"Tool: {obs.tool_name}")
-    print(f"Result: {obs.result}")
+    # Extract the actual result value from CallToolResult
+    result_value = obs.result.data if hasattr(obs.result, "data") else obs.result
+    print(f"Result: {result_value}")
     print(f"Error: {obs.error}")
     print()
 
@@ -95,7 +97,9 @@ def main():
 
     assert isinstance(obs, CallToolObservation)
     print(f"Tool: {obs.tool_name}")
-    print(f"Result: {obs.result}")
+    # Extract the actual result value from CallToolResult
+    result_value = obs.result.data if hasattr(obs.result, "data") else obs.result
+    print(f"Result: {result_value}")
     print(f"Error: {obs.error}")
     print()
 
