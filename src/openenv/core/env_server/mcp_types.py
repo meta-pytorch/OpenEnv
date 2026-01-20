@@ -36,7 +36,9 @@ class Tool(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     name: str = Field(description="Unique identifier for the tool")
-    description: str = Field(description="Human-readable description of what the tool does")
+    description: str = Field(
+        description="Human-readable description of what the tool does"
+    )
     input_schema: Dict[str, Any] = Field(
         description="JSON Schema for the tool's input parameters"
     )
@@ -144,9 +146,7 @@ class WSMCPMessage(BaseMessage):
     """
 
     type: Literal["mcp"] = Field(default="mcp", description="Message type")
-    data: Dict[str, Any] = Field(
-        description="JSON-RPC payload (method, params, id)"
-    )
+    data: Dict[str, Any] = Field(description="JSON-RPC payload (method, params, id)")
 
 
 class WSMCPResponse(BaseModel):

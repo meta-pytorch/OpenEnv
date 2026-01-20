@@ -161,9 +161,7 @@ class TestWSMCPMessage:
 
     def test_ws_mcp_message_creation(self):
         """Test creating a WSMCPMessage."""
-        msg = WSMCPMessage(
-            data={"jsonrpc": "2.0", "method": "tools/list", "id": 1}
-        )
+        msg = WSMCPMessage(data={"jsonrpc": "2.0", "method": "tools/list", "id": 1})
         assert msg.type == "mcp"
         assert msg.data["method"] == "tools/list"
 

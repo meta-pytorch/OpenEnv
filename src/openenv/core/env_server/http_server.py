@@ -734,58 +734,95 @@ all schema information needed to interact with the environment.
                                 try:
                                     if method == "tools/list":
                                         # Check if environment is MCP-enabled
-                                        if not hasattr(session_env, 'mcp_client'):
-                                            response = WSMCPResponse(data={
-                                                "jsonrpc": "2.0",
-                                                "error": {"code": -32603, "message": "Environment does not support MCP"},
-                                                "id": request_id
-                                            })
+                                        if not hasattr(session_env, "mcp_client"):
+                                            response = WSMCPResponse(
+                                                data={
+                                                    "jsonrpc": "2.0",
+                                                    "error": {
+                                                        "code": -32603,
+                                                        "message": "Environment does not support MCP",
+                                                    },
+                                                    "id": request_id,
+                                                }
+                                            )
                                         else:
                                             tools = await session_env.mcp_client.list_tools()
-                                            response = WSMCPResponse(data={
-                                                "jsonrpc": "2.0",
-                                                "result": {"tools": [t.model_dump() if hasattr(t, 'model_dump') else dict(t) for t in tools]},
-                                                "id": request_id
-                                            })
+                                            response = WSMCPResponse(
+                                                data={
+                                                    "jsonrpc": "2.0",
+                                                    "result": {
+                                                        "tools": [
+                                                            t.model_dump()
+                                                            if hasattr(t, "model_dump")
+                                                            else dict(t)
+                                                            for t in tools
+                                                        ]
+                                                    },
+                                                    "id": request_id,
+                                                }
+                                            )
                                     elif method == "tools/call":
                                         params = jsonrpc_request.get("params", {})
                                         tool_name = params.get("name")
                                         arguments = params.get("arguments", {})
 
-                                        if not hasattr(session_env, 'mcp_client'):
-                                            response = WSMCPResponse(data={
-                                                "jsonrpc": "2.0",
-                                                "error": {"code": -32603, "message": "Environment does not support MCP"},
-                                                "id": request_id
-                                            })
-                                        elif not tool_name:
-                                            response = WSMCPResponse(data={
-                                                "jsonrpc": "2.0",
-                                                "error": {"code": -32600, "message": "Missing 'name' in params"},
-                                                "id": request_id
-                                            })
-                                        else:
-                                            result = await session_env.mcp_client.call_tool(
-                                                name=tool_name,
-                                                arguments=arguments
+                                        if not hasattr(session_env, "mcp_client"):
+                                            response = WSMCPResponse(
+                                                data={
+                                                    "jsonrpc": "2.0",
+                                                    "error": {
+                                                        "code": -32603,
+                                                        "message": "Environment does not support MCP",
+                                                    },
+                                                    "id": request_id,
+                                                }
                                             )
-                                            response = WSMCPResponse(data={
-                                                "jsonrpc": "2.0",
-                                                "result": result,
-                                                "id": request_id
-                                            })
+                                        elif not tool_name:
+                                            response = WSMCPResponse(
+                                                data={
+                                                    "jsonrpc": "2.0",
+                                                    "error": {
+                                                        "code": -32600,
+                                                        "message": "Missing 'name' in params",
+                                                    },
+                                                    "id": request_id,
+                                                }
+                                            )
+                                        else:
+                                            result = (
+                                                await session_env.mcp_client.call_tool(
+                                                    name=tool_name, arguments=arguments
+                                                )
+                                            )
+                                            response = WSMCPResponse(
+                                                data={
+                                                    "jsonrpc": "2.0",
+                                                    "result": result,
+                                                    "id": request_id,
+                                                }
+                                            )
                                     else:
-                                        response = WSMCPResponse(data={
-                                            "jsonrpc": "2.0",
-                                            "error": {"code": -32601, "message": f"Method not found: {method}"},
-                                            "id": request_id
-                                        })
+                                        response = WSMCPResponse(
+                                            data={
+                                                "jsonrpc": "2.0",
+                                                "error": {
+                                                    "code": -32601,
+                                                    "message": f"Method not found: {method}",
+                                                },
+                                                "id": request_id,
+                                            }
+                                        )
                                 except Exception as e:
-                                    response = WSMCPResponse(data={
-                                        "jsonrpc": "2.0",
-                                        "error": {"code": -32603, "message": str(e)},
-                                        "id": request_id
-                                    })
+                                    response = WSMCPResponse(
+                                        data={
+                                            "jsonrpc": "2.0",
+                                            "error": {
+                                                "code": -32603,
+                                                "message": str(e),
+                                            },
+                                            "id": request_id,
+                                        }
+                                    )
 
                             case _:
                                 response = WSErrorResponse(

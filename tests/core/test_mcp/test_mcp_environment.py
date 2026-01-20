@@ -48,11 +48,13 @@ class TestMCPEnvironmentImports:
     def test_import_mcp_environment(self):
         """Test that MCPEnvironment can be imported."""
         from openenv.core.env_server.mcp_environment import MCPEnvironment
+
         assert MCPEnvironment is not None
 
     def test_import_from_package(self):
         """Test that MCPEnvironment is exported from the package."""
         from openenv.core.env_server import MCPEnvironment
+
         assert MCPEnvironment is not None
 
 
@@ -66,10 +68,7 @@ class TestMCPActions:
 
     def test_call_tool_action_stores_values(self):
         """Test CallToolAction stores tool_name and arguments."""
-        action = CallToolAction(
-            tool_name="my_tool",
-            arguments={"key": "value"}
-        )
+        action = CallToolAction(tool_name="my_tool", arguments={"key": "value"})
         assert action.tool_name == "my_tool"
         assert action.arguments == {"key": "value"}
 
@@ -90,10 +89,7 @@ class TestMCPObservations:
 
     def test_call_tool_observation_success(self):
         """Test CallToolObservation for successful call."""
-        obs = CallToolObservation(
-            tool_name="test_tool",
-            result="success result"
-        )
+        obs = CallToolObservation(tool_name="test_tool", result="success result")
         assert obs.tool_name == "test_tool"
         assert obs.result == "success result"
         assert obs.error is None

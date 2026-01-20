@@ -200,7 +200,9 @@ class MCPEnvironment(Environment):
                 Tool(
                     name=tool.name,
                     description=tool.description or "",
-                    input_schema=tool.inputSchema if hasattr(tool, "inputSchema") else {},
+                    input_schema=tool.inputSchema
+                    if hasattr(tool, "inputSchema")
+                    else {},
                 )
                 for tool in tools_result
             ]
@@ -272,9 +274,15 @@ class MCPEnvironment(Environment):
             error_message = str(e)
 
             # Determine error type based on the exception
-            if "not found" in error_message.lower() or "unknown tool" in error_message.lower():
+            if (
+                "not found" in error_message.lower()
+                or "unknown tool" in error_message.lower()
+            ):
                 error_type = ToolErrorType.TOOL_NOT_FOUND
-            elif "invalid" in error_message.lower() or "argument" in error_message.lower():
+            elif (
+                "invalid" in error_message.lower()
+                or "argument" in error_message.lower()
+            ):
                 error_type = ToolErrorType.INVALID_ARGS
             else:
                 error_type = ToolErrorType.EXECUTION_ERROR
