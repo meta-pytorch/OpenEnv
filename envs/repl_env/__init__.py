@@ -53,7 +53,7 @@ from .prompts import (
     build_initial_prompt,
     # Parsing utilities
     extract_code_blocks,
-    format_observation,
+    format_observations,
 )
 
 __all__ = [
@@ -74,5 +74,5 @@ __all__ = [
     "build_initial_prompt",
     # Parsing utilities
     "extract_code_blocks",
-    "format_observation",
+    "format_observations",
 ]
