@@ -74,7 +74,9 @@ class EchoEnvironment(Environment):
         self._state = State(episode_id=str(uuid4()), step_count=0)
         self._reset_count = 0
         # Initialize MCP client for the local MCP server
+        # Exposed as both private and public for WebSocket MCP support
         self._mcp_client = Client(mcp)
+        self.mcp_client = self._mcp_client
 
     def reset(self) -> EchoObservation:
         """
@@ -146,8 +148,8 @@ class EchoEnvironment(Environment):
             async with self._mcp_client:
                 return await self._mcp_client.list_tools()
 
-        # Run async operation synchronously
-        tools_result = asyncio.get_event_loop().run_until_complete(_list_tools())
+        # Run async operation synchronously using asyncio.run()
+        tools_result = asyncio.run(_list_tools())
 
         # Convert to Tool objects
         tools = [
@@ -184,8 +186,8 @@ class EchoEnvironment(Environment):
                 )
 
         try:
-            # Run async operation synchronously
-            result = asyncio.get_event_loop().run_until_complete(_call_tool())
+            # Run async operation synchronously using asyncio.run()
+            result = asyncio.run(_call_tool())
 
             # Extract result content
             if result.content:

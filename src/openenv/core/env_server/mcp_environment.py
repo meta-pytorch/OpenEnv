@@ -136,11 +136,18 @@ class MCPEnvironment(Environment):
         Raises:
             ValueError: If any tool uses a reserved name.
         """
-        # FastMCP stores tools in _tool_manager.tools dict
+        # FastMCP stores tools in _tool_manager._tools dict
         if hasattr(mcp_server, "_tool_manager"):
             tool_manager = mcp_server._tool_manager
-            if hasattr(tool_manager, "tools"):
-                tool_names = set(tool_manager.tools.keys())
+            # Check both possible attribute names for tools storage
+            tools_dict = None
+            if hasattr(tool_manager, "_tools"):
+                tools_dict = tool_manager._tools
+            elif hasattr(tool_manager, "tools"):
+                tools_dict = tool_manager.tools
+
+            if tools_dict:
+                tool_names = set(tools_dict.keys())
                 conflicts = tool_names & RESERVED_TOOL_NAMES
                 if conflicts:
                     raise ValueError(

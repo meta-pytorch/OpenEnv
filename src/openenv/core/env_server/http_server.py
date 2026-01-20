@@ -746,7 +746,9 @@ all schema information needed to interact with the environment.
                                                 }
                                             )
                                         else:
-                                            tools = await session_env.mcp_client.list_tools()
+                                            # Use async context manager for MCP client
+                                            async with session_env.mcp_client:
+                                                tools = await session_env.mcp_client.list_tools()
                                             response = WSMCPResponse(
                                                 data={
                                                     "jsonrpc": "2.0",
@@ -789,11 +791,11 @@ all schema information needed to interact with the environment.
                                                 }
                                             )
                                         else:
-                                            result = (
-                                                await session_env.mcp_client.call_tool(
+                                            # Use async context manager for MCP client
+                                            async with session_env.mcp_client:
+                                                result = await session_env.mcp_client.call_tool(
                                                     name=tool_name, arguments=arguments
                                                 )
-                                            )
                                             response = WSMCPResponse(
                                                 data={
                                                     "jsonrpc": "2.0",
