@@ -64,4 +64,4 @@ ENV PYTHONPATH="/app/env:$PYTHONPATH"
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s CMD curl -f http://localhost:8000/health || exit 1
 
 # Run the FastAPI server
-CMD ["/app/.venv/bin/uvicorn", "minesweeper.server.app:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["/app/.venv/bin/uvicorn", "server.app:app", "--host", "0.0.0.0", "--port", "8000"]

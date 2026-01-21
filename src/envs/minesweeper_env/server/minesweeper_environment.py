@@ -161,7 +161,7 @@ class MinesweeperEnvironment(Environment):
         self._mine_counts = [[0 for _ in range(self.width)] for _ in range(self.height)]
         for row in range(self.height):
             for col in range(self.width):
-                if (row,col) not in self._mine_positions:
+                if (row, col) not in self._mine_positions:
                     count = self._count_adjacent_mines(row, col)
                     self._mine_counts[row][col] = count
     
@@ -181,8 +181,6 @@ class MinesweeperEnvironment(Environment):
         """Reveal the cell at (row, col). Returns the reward for the action."""
         if (row, col) in self._revealed_cells or (row, col) in self._flags_placed:
             return -0.05  # Penalty for revealing already revealed or flagged cell
-
-        self._revealed_cells.add((row, col))
 
         if (row, col) in self._mine_positions:
             self._game_status = GameStatus.LOST
@@ -296,7 +294,7 @@ class MinesweeperEnvironment(Environment):
             MinesweeperState representing the full internal state
         """
         return MinesweeperState(
-            episode_id=self._state.episode_id,
+            episode_id=self._state.episode_id or "",
             step_count=self._state.step_count,
             board_height=self.height,
             board_width=self.width,
