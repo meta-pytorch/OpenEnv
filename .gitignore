@@ -109,3 +109,6 @@ outputs/
 .uv/
 
 *.backup*/
+
+# logs
+*.log

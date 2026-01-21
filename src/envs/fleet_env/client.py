@@ -61,7 +61,7 @@ class FleetEnvClient(HTTPEnvClient[Action, Observation]):
         except ImportError as e:
             raise ImportError(
                 "Fleet support requires the optional dependency set. "
-                "Install with `pip install openenv-core[fleet]`."
+                "Install with `pip install openenv[fleet]`."
             ) from e
 
         # Use synchronous Fleet client for the orchestrator handle.
