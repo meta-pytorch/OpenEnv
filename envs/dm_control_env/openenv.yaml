@@ -1,5 +1,5 @@
 spec_version: 1
-name: dmcontrol_env
+name: dm_control_env
 type: space
 runtime: fastapi
 app: server.app:app

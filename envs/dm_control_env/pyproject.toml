@@ -40,9 +40,9 @@ interactive = [
 
 [project.scripts]
 # Server entry point - enables running via: uv run --project . server
-server = "dmcontrol_env.server.app:main"
+server = "dm_control_env.server.app:main"
 
 [tool.setuptools]
 include-package-data = true
-packages = ["dmcontrol_env", "dmcontrol_env.server"]
-package-dir = { "dmcontrol_env" = ".", "dmcontrol_env.server" = "server" }
+packages = ["dm_control_env", "dm_control_env.server"]
+package-dir = { "dm_control_env" = ".", "dm_control_env.server" = "server" }

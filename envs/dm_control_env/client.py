@@ -36,14 +36,14 @@ except ImportError:
         )
     except ImportError:
         try:
-            from dmcontrol_env.models import (
+            from dm_control_env.models import (
                 AVAILABLE_ENVIRONMENTS,
                 DMControlAction,
                 DMControlObservation,
                 DMControlState,
             )
         except ImportError:
-            from envs.dmcontrol_env.models import (
+            from envs.dm_control_env.models import (
                 AVAILABLE_ENVIRONMENTS,
                 DMControlAction,
                 DMControlObservation,
@@ -282,15 +282,15 @@ class DMControlEnv(EnvClient[DMControlAction, DMControlObservation, DMControlSta
             from pathlib import Path
 
             client_dir = Path(__file__).parent
-            server_app = "envs.dmcontrol_env.server.app:app"
+            server_app = "envs.dm_control_env.server.app:app"
             cwd = client_dir.parent.parent
 
-            if not (cwd / "envs" / "dmcontrol_env" / "server" / "app.py").exists():
+            if not (cwd / "envs" / "dm_control_env" / "server" / "app.py").exists():
                 if (client_dir / "server" / "app.py").exists():
                     server_app = "server.app:app"
                     cwd = client_dir
         except Exception:
-            server_app = "envs.dmcontrol_env.server.app:app"
+            server_app = "envs.dm_control_env.server.app:app"
             cwd = None
 
         env = {

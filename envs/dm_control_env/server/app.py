@@ -40,13 +40,13 @@ except ImportError:
         from server.dm_control_environment import DMControlEnvironment
     except ImportError:
         try:
-            from dmcontrol_env.models import DMControlAction, DMControlObservation
-            from dmcontrol_env.server.dm_control_environment import (
+            from dm_control_env.models import DMControlAction, DMControlObservation
+            from dm_control_env.server.dm_control_environment import (
                 DMControlEnvironment,
             )
         except ImportError:
-            from envs.dmcontrol_env.models import DMControlAction, DMControlObservation
-            from envs.dmcontrol_env.server.dm_control_environment import (
+            from envs.dm_control_env.models import DMControlAction, DMControlObservation
+            from envs.dm_control_env.server.dm_control_environment import (
                 DMControlEnvironment,
             )
 
@@ -56,7 +56,7 @@ app = create_app(
     DMControlEnvironment,
     DMControlAction,
     DMControlObservation,
-    env_name="dmcontrol_env",
+    env_name="dm_control_env",
 )
 
 
@@ -66,8 +66,8 @@ def main():
 
     This function enables running the server without Docker:
         uv run --project . server
-        python -m envs.dmcontrol_env.server.app
-        openenv serve dmcontrol_env
+        python -m envs.dm_control_env.server.app
+        openenv serve dm_control_env
     """
     import uvicorn
 

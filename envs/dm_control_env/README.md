@@ -28,7 +28,7 @@ A generic OpenEnv environment for [dm_control.suite](https://github.com/google-d
 ### Using the Client
 
 ```python
-from envs.dm_control import DMControlEnv, DMControlAction
+from envs.dm_control_env import DMControlEnv, DMControlAction
 
 # Connect to a running server
 with DMControlEnv(base_url="http://localhost:8000") as env:
@@ -63,7 +63,7 @@ result = env.step(action)
 
 ```bash
 # From OpenEnv root
-cd envs/dm_control
+cd envs/dm_control_env
 uvicorn server.app:app --host 0.0.0.0 --port 8000
 
 # Or using uv

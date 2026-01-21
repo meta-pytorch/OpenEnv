@@ -44,13 +44,13 @@ except ImportError:
         from models import DMControlAction, DMControlObservation, DMControlState
     except ImportError:
         try:
-            from dmcontrol_env.models import (
+            from dm_control_env.models import (
                 DMControlAction,
                 DMControlObservation,
                 DMControlState,
             )
         except ImportError:
-            from envs.dmcontrol_env.models import (
+            from envs.dm_control_env.models import (
                 DMControlAction,
                 DMControlObservation,
                 DMControlState,
