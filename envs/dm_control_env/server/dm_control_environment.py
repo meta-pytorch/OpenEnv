@@ -375,6 +375,7 @@ class DMControlEnvironment(Environment):
             )
         else:
             import asyncio
+
             return await asyncio.to_thread(
                 self.reset,
                 domain_name=domain_name,
@@ -401,6 +402,7 @@ class DMControlEnvironment(Environment):
             return self.step(action, render=render, **kwargs)
         else:
             import asyncio
+
             return await asyncio.to_thread(self.step, action, render=render, **kwargs)
 
     @property

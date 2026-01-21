@@ -363,7 +363,9 @@ def main():
         print(f"Failed to connect: {e}")
         print("\nMake sure the server is running:")
         print("  cd OpenEnv")
-        print("  PYTHONPATH=src:envs uvicorn envs.dm_control_env.server.app:app --port 8000")
+        print(
+            "  PYTHONPATH=src:envs uvicorn envs.dm_control_env.server.app:app --port 8000"
+        )
         sys.exit(1)
 
 

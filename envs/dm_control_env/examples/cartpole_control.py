@@ -145,7 +145,9 @@ def run_interactive(env: DMControlEnv, task: str = "balance"):
             step_count = 0
 
         # Update display
-        direction = "<--" if action_value < 0 else ("-->" if action_value > 0 else "---")
+        direction = (
+            "<--" if action_value < 0 else ("-->" if action_value > 0 else "---")
+        )
         screen.fill((30, 30, 30))
         text = font.render(
             f"Step: {step_count} | Reward: {total_reward:.1f} | {direction}",
@@ -321,7 +323,9 @@ def main():
         print(f"Failed to connect: {e}")
         print("\nMake sure the server is running:")
         print("  cd OpenEnv")
-        print("  PYTHONPATH=src:envs uvicorn envs.dm_control_env.server.app:app --port 8000")
+        print(
+            "  PYTHONPATH=src:envs uvicorn envs.dm_control_env.server.app:app --port 8000"
+        )
         sys.exit(1)
 
 
