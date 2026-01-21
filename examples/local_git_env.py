@@ -21,7 +21,7 @@ load_dotenv()
 # Add src to path
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
-from envs.git_env import GitAction, GitEnv
+from git_env import GitAction, GitEnv
 
 
 def main():

@@ -1,0 +1,41 @@
+# Copyright (c) Meta Platforms, Inc. and affiliates.
+# All rights reserved.
+#
+# This source code is licensed under the BSD-style license found in the
+# LICENSE file in the root directory of this source tree.
+
+[build-system]
+requires = ["setuptools>=45", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "openenv-openspiel-env"
+version = "0.1.0"
+description = "OpenSpiel Environment for OpenEnv - integration with DeepMind's game research framework"
+requires-python = ">=3.10"
+dependencies = [
+    # Core OpenEnv dependencies (required for server functionality)
+    "openenv-core @ git+https://github.com/meta-pytorch/OpenEnv.git@main",
+    "fastapi>=0.115.0",
+    "pydantic>=2.0.0",
+    "uvicorn>=0.24.0",
+    "requests>=2.31.0",
+    # Note: OpenSpiel (pyspiel) is built from source in the Docker image
+    # and is not available as a pip package. The Docker build compiles it
+    # from https://github.com/google-deepmind/open_spiel
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0.0",
+    "pytest-cov>=4.0.0",
+]
+
+[project.scripts]
+# Server entry point
+server = "openspiel_env.server.app:main"
+
+[tool.setuptools]
+include-package-data = true
+packages = ["openspiel_env", "openspiel_env.server"]
+package-dir = { "openspiel_env" = ".", "openspiel_env.server" = "server" }

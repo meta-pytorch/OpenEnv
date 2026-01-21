@@ -7,7 +7,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.animation import FuncAnimation
 from matplotlib.patches import Circle
-from envs.connect4_env import Connect4Action, Connect4Env
+from connect4_env import Connect4Action, Connect4Env
 
 
 def render_connect4_board(board, ax, player_colors={1: "red", 2: "yellow", -1: "yellow"}, show=True):

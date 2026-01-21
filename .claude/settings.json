@@ -1,0 +1,92 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(gh auth status:*)"
+    ]
+  },
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": ".claude/hooks/session-start.sh"
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": ".claude/hooks/pre-commit-check.sh"
+          }
+        ]
+      },
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": ".claude/hooks/no-direct-code.sh"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "TodoWrite",
+        "hooks": [
+          {
+            "type": "command",
+            "command": ".claude/hooks/delegate-todos.sh"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "prompt",
+            "prompt": "First, perform quick checks to avoid unnecessary TDD evaluation:\n\n1. SKIP CHECK: If the user's message contains phrases like 'skip TDD', 'no TDD', 'just discussing', 'exploration only', or similar opt-out language, return 'stop' immediately.\n\n2. EDIT CHECK: Look at Claude's actions in this turn. Did Claude edit any implementation files (*.py files in src/ or envs/)? If NO implementation files were edited, return 'stop' immediately.\n\n3. TDD EVALUATION: Only if implementation files were edited AND no opt-out phrase was used, evaluate TDD compliance: (a) Did tests for the edited functionality exist first? (b) If starting new work, were requirements gathered and tests written before implementing? (c) If creating a PR or commit, is it linked to a GitHub issue?\n\nReturn 'continue' with corrective instructions if TDD was violated. Return 'stop' if workflow was followed or checks 1-2 passed."
+          }
+        ]
+      }
+    ],
+    "SubagentStop": [
+      {
+        "matcher": "tester",
+        "hooks": [
+          {
+            "type": "command",
+            "command": ".claude/hooks/after-tester.sh"
+          }
+        ]
+      },
+      {
+        "matcher": "implementer",
+        "hooks": [
+          {
+            "type": "command",
+            "command": ".claude/hooks/after-implementer.sh"
+          }
+        ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "prompt",
+            "prompt": "Evaluate if the subagent completed its task successfully. For issue-worker: did it extract actionable requirements and acceptance criteria? For tester: did it produce tests with clear assertions? For pre-submit: did validation complete? Return 'continue' if the agent needs to do more work, 'stop' if complete."
+          }
+        ]
+      }
+    ]
+  },
+  "enabledPlugins": {
+    "code-simplifier@claude-plugins-official": true,
+    "pr-review-toolkit@claude-plugins-official": true
+  }
+}

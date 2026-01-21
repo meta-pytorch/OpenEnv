@@ -1,0 +1,58 @@
+# Copyright (c) Meta Platforms, Inc. and affiliates.
+# All rights reserved.
+#
+# This source code is licensed under the BSD-style license found in the
+# LICENSE file in the root directory of this source tree.
+
+[build-system]
+requires = ["setuptools>=45", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "openenv-openapp_env"
+version = "0.1.0"
+description = "OpenApp Environment for OpenEnv - web application simulation environment for UI agents"
+requires-python = ">=3.11,<3.14"
+dependencies = [
+    # NOTE: openenv-core is NOT listed here to avoid openai version conflict
+    # It is installed separately in the Dockerfile with --no-deps to avoid
+    # openai>=2.7.2 conflicting with OpenApps' openai<2 requirement.
+    # For local development, install manually:
+    #   pip install --no-deps "openenv-core @ git+https://github.com/meta-pytorch/OpenEnv.git"
+    #   pip install fastapi pydantic uvicorn requests websockets
+    #
+    # NOTE: open_apps is also NOT listed here for the same reason.
+    # Install manually for local development:
+    #   pip install git+https://github.com/facebookresearch/OpenApps.git
+    #
+    # Server dependencies (these are installed by Dockerfile separately for openenv-core)
+    "fastapi>=0.115.0",
+    "pydantic>=2.0.0",
+    "uvicorn[standard]>=0.24.0",
+    "requests>=2.31.0",
+    "websockets>=15.0.1",
+    # BrowserGym dependencies
+    "browsergym>=0.13.3",
+    "playwright>=1.40.0",
+    # Additional dependencies for web app interaction
+    "python-multipart>=0.0.20",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0.0",
+    "pytest-cov>=4.0.0",
+]
+
+[project.scripts]
+server = "openapp_env.server.app:main"
+
+[tool.setuptools]
+packages = ["openapp_env", "openapp_env.server"]
+package-dir = { "openapp_env" = ".", "openapp_env.server" = "server" }
+
+[tool.setuptools.package-data]
+openapp_env = ["**/*.yaml", "**/*.yml", "**/*.md"]
+
+[tool.hatch.metadata]
+allow-direct-references = true

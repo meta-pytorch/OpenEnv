@@ -1,6 +1,6 @@
 # Converting Your Environment to OpenEnv Standard
 
-This guide helps you convert an existing `src/envs/<env_name>` environment to a standalone, OpenEnv CLI-compatible environment that can be independently developed, versioned, and deployed.
+This guide helps you convert an existing `envs/<env_name>` environment to a standalone, OpenEnv CLI-compatible environment that can be independently developed, versioned, and deployed.
 
 ## Overview
 
@@ -23,7 +23,7 @@ We provide a script to automate most of the conversion process:
 
 ```bash
 # From the OpenEnv repository root
-./scripts/convert_env.sh src/envs/my_env /path/to/new/my_env_standalone
+./scripts/convert_env.sh envs/my_env /path/to/new/my_env_standalone
 ```
 
 > **Note:** The converter requires `python3` on your PATH and works with the default Bash shipped on macOS. When prompted, answer `y` to proceed and leave the optional naming prompts blank to accept the defaults.
@@ -35,7 +35,7 @@ This script will:
 4. Update Dockerfile for standalone builds
 5. Initialize a new git repository
 6. Create necessary configuration files
-7. Rewrite imports so the environment depends on `openenv-core` and installs as a proper Python package
+7. Rewrite imports so the environment depends on `openenv` and installs as a proper Python package
 
 After running the script, jump to [Step 4: Testing Your Conversion](#step-4-testing-your-conversion).
 
@@ -51,7 +51,7 @@ mkdir -p ~/my_projects/my_env_standalone
 cd ~/my_projects/my_env_standalone
 
 # Copy your existing environment
-cp -r /path/to/OpenEnv/src/envs/my_env/* .
+cp -r /path/to/OpenEnv/envs/my_env/* .
 
 # Initialize git repository
 git init
@@ -96,7 +96,7 @@ description = "{env_name.replace('_', ' ').title()} Environment for OpenEnv"
 requires-python = ">=3.10"
 dependencies = [
 {deps_str}
-    "openenv-core>=0.1.0",
+    "openenv[core]>=0.2.0",
 ]
 
 [project.optional-dependencies]
@@ -138,7 +138,7 @@ version = "0.1.0"
 description = "My Environment for OpenEnv"
 requires-python = ">=3.10"
 dependencies = [
-    "openenv-core>=0.1.0",
+    "openenv[core]>=0.2.0",
     "fastapi>=0.115.0",
     "pydantic>=2.0.0",
     "uvicorn>=0.24.0",
@@ -447,12 +447,12 @@ uv pip install openenv-cli
 server = "my_env.server.app:main"  # Replace my_env with your name
 ```
 
-### Issue: Missing openenv-core Dependency
+### Issue: Missing openenv Dependency
 
 **Solution**: Add to `pyproject.toml`:
 ```toml
 dependencies = [
-    "openenv-core>=0.1.0",
+    "openenv[core]>=0.2.0",
     # ... other dependencies
 ]
 ```

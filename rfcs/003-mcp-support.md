@@ -505,8 +505,6 @@ obs = env.step(action)
 # obs.result = {"results": [...]}
 ```
 
-##### Environment Implementation
-
 ```py
 from mcp_client import MCPClient
 

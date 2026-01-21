@@ -20,7 +20,7 @@ Usage:
 
 import numpy as np
 
-from envs.sumo_rl_env import SumoAction, SumoRLEnv
+from sumo_rl_env import SumoAction, SumoRLEnv
 
 
 def main():

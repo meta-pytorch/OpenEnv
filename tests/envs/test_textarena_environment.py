@@ -1,5 +1,7 @@
-from envs.textarena_env.server.environment import TextArenaEnvironment
-from envs.textarena_env.models import TextArenaMessage, TextArenaAction
+import pytest
+
+from textarena_env.server.environment import TextArenaEnvironment
+from textarena_env.models import TextArenaMessage, TextArenaAction
 
 
 def test_convert_messages_coalesces_consecutive_characters():
@@ -29,6 +31,7 @@ def test_wordle_reset_clears_accumulated_state():
     This test verifies the workaround for TextArena's LLMObservationWrapper,
     which accumulates observations in self.full_observations across resets.
     """
+    pytest.importorskip("textarena", reason="textarena not installed")
     env = TextArenaEnvironment(
         env_id="Wordle-v0",
         num_players=1,

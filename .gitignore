@@ -91,10 +91,21 @@ Desktop.ini
 # Docker
 /.dockerignore
 
-# Exclude anything containing "claude" (case-insensitive)
-*claude*
-*Claude*
-*CLAUDE*
+# Claude Code - exclude personal/temporary files, allow shared workflow files
+.claude/settings.local.json
+.claude/plans/
+.claude/convo_history.txt
+.claude/references/
+.claude/*_survey.md
+.claude/*_critique.md
+.claude/*_design_document.md
+
+# Keep these (committed for agentic-first workflow):
+# - CLAUDE.md (main guidance file)
+# - .claude/docs/ (alignment documents)
+# - .claude/commands/ (skill instructions)
+# - .claude/hooks/ (automation scripts)
+# - .claude/agents/ (subagent definitions)
 
 # OpenEnv-specific
 # Environment outputs (logs, evaluations, etc.)
@@ -109,3 +120,9 @@ outputs/
 .uv/
 
 *.backup*/
+
+# ignore the log_output
+log_outputs/*
+
+# .sesskey
+*.sesskey

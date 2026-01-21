@@ -1,0 +1,5 @@
+name: coding_env
+version: "0.1.0"
+description: "Coding environment for OpenEnv"
+action: CodeAction
+observation: CodeObservation
