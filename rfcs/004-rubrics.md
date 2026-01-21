@@ -47,6 +47,32 @@ The API is modeled after PyTorch's `nn.Module`:
 - Hooks provide observability without polluting the base class
 - `state_dict()` / `load_state_dict()` for serialization
 
+### Rubrics Live Inside Environments
+
+Rubrics are **server-side only**. Each environment defines its rubric in `__init__`, and the rubric executes during `step()`. Access via `env.rubric`:
+
+```python
+class CodeEnvironment(Environment):
+    def __init__(self):
+        super().__init__()
+        self.rubric = CodeRubric()  # Required attribute
+
+    def step(self, action: CodeAction) -> CodeObservation:
+        # ... execute action ...
+        reward = self.rubric(action, observation)
+        return observation.with_reward(reward)
+```
+
+Training infrastructure accesses rubrics for introspection:
+
+```python
+# Log all component scores
+for name, r in env.rubric.named_rubrics():
+    print(f"{name}: {r.last_score}")
+```
+
+**Important**: The `Environment` base class requires a `rubric` attribute. All environments must define `self.rubric` in their constructor.
+
 ---
 
 ## Usage Examples
@@ -102,6 +128,24 @@ The core Rubric spec is just `forward(action, observation) -> float`. Together w
 
 - **RubricList**: A container for dynamic lists of rubrics, analogous to `nn.ModuleList`. Does not define aggregation—use within a parent rubric that implements custom logic.
 
+- **RubricDict**: A container for named rubrics, analogous to `nn.ModuleDict`. Enables keyed access for multi-task environments where different tasks require different rubrics:
+
+  ```python
+  class AtariRubric(Rubric):
+      def __init__(self):
+          super().__init__()
+          self.games = RubricDict({
+              "pong": PongRubric(),
+              "breakout": BreakoutRubric(),
+              "space_invaders": SpaceInvadersRubric(),
+          })
+
+      def forward(self, action, obs) -> float:
+          return self.games[obs.game_id](action, obs)
+  ```
+
+  Access: `env.rubric.games["pong"]`
+
 - **LLMJudge**: A rubric that calls an LLM endpoint to evaluate the response. Takes a prompt template and endpoint configuration. The LLM call happens via the configured MCP service, keeping the rubric portable across deployments.
 
 These containers compose naturally:
@@ -132,23 +176,28 @@ wandb.log(scores)  # {"compiles": 1.0, "tests": 0.8, "style": 0.7}
 
 Hooks also enable extensions like caching, timing, or validation without modifying the base class.
 
-### Async Batch Evaluation
+### Batch Evaluation via Environment Stacking
 
-Rubric authors write synchronous `forward()` methods—no async knowledge required. The framework provides async evaluation for training loops that need parallel execution.
+**Key architectural decision**: Environments do not support multiplexed trajectories. One environment instance handles one trajectory. To generate batches, stack multiple environment instances.
 
-Each rubric has an `evaluate()` method that runs `forward()` in a thread pool, returning an awaitable. The helper function `evaluate_batch()` evaluates multiple (action, observation) pairs concurrently using `asyncio.gather()`:
+Rubric authors write synchronous `forward()` methods—no async knowledge required. For batch evaluation, the training infrastructure manages a pool of environments:
 
 ```python
 async def train():
-    rubric = CodeRubric()
+    # Stack of 64 environments, each with its own rubric
+    envs = EnvPool("code_env", n=64)
+
     for batch in dataloader:
         actions = await model.generate(batch.prompts)
-        # All 64 samples evaluated concurrently via thread pool
-        rewards = await evaluate_batch(rubric, actions, batch.observations)
+        # EnvPool orchestrates calls across all environments
+        observations = await envs.step_batch(actions)
+        rewards = [obs.reward for obs in observations]
         loss = compute_loss(rewards)
 ```
 
-This design mirrors PyTorch's CUDA programming model: users write sync-looking code, the system handles parallelism. For simple scripts, just call `rubric(action, observation)` synchronously.
+Each environment computes its own reward via `self.rubric(action, observation)` during `step()`. The `EnvPool` helper orchestrates parallel execution across the stack—training code never instantiates rubrics directly.
+
+For single-environment scripts, just call `env.step(action)` synchronously. The reward is computed inside the environment and returned in the observation.
 
 ---
 
@@ -156,10 +205,26 @@ This design mirrors PyTorch's CUDA programming model: users write sync-looking c
 
 | Component | Change |
 |-----------|--------|
-| New `Rubric` base class | `forward(action, observation) -> float`, auto-registration, hooks |
-| New containers | `Sequential`, `Gate`, `WeightedSum`, `RubricList`, `LLMJudge` |
-| New async helper | `evaluate_batch()` for parallel evaluation |
-| Environment interface | Environments define a `Rubric` for reward computation |
+| New `Rubric` base class | `forward(action, observation) -> float`, auto-registration, hooks, `get_rubric()` |
+| New containers | `Sequential`, `Gate`, `WeightedSum`, `RubricList`, `RubricDict`, `LLMJudge` |
+| `Environment` base class | Requires `rubric: Rubric` attribute; `step()` uses rubric for reward |
+| New `EnvPool` helper | Orchestrates batch evaluation across stacked environments |
+
+### Environment Base Class Changes
+
+The `Environment` base class gains a required `rubric` attribute:
+
+```python
+class Environment(Generic[ActT, ObsT, StateT]):
+    rubric: Rubric  # Required - must be set in __init__
+
+    def step(self, action: ActT) -> ObsT:
+        # Implementation calls self.rubric(action, observation)
+        # Reward returned in observation
+        ...
+```
+
+All environments must define `self.rubric` in their constructor. The framework validates this at environment startup.
 
 ---
 
@@ -176,6 +241,7 @@ This design mirrors PyTorch's CUDA programming model: users write sync-looking c
 | `register_forward_pre_hook(fn)` | Called before `forward()`. Signature: `(rubric, action, obs)` |
 | `children()` / `named_children()` | Iterate immediate child rubrics. |
 | `rubrics()` / `named_rubrics()` | Iterate all descendant rubrics. |
+| `get_rubric(path: str)` | Access nested rubric by dot-separated path (e.g., `"code.syntax"`). |
 | `state_dict()` / `load_state_dict(d)` | Serialize/deserialize configuration. |
 
 ### Container Rubrics
@@ -186,6 +252,7 @@ This design mirrors PyTorch's CUDA programming model: users write sync-looking c
 | `Gate(rubric, threshold=1.0)` | Return 0 if score < threshold |
 | `WeightedSum(rubrics, weights)` | Weighted combination |
 | `RubricList(rubrics)` | Container for dynamic lists (no aggregation) |
+| `RubricDict(rubrics: Dict[str, Rubric])` | Container for named rubrics with keyed access |
 | `LLMJudge(prompt_template, endpoint)` | Call LLM via MCP for evaluation |
 
 ---
@@ -224,6 +291,36 @@ Currently, exceptions in `forward()` propagate to the caller. Rubric authors sho
 
 The `evaluate_batch()` helper accepts an optional `max_workers` parameter to configure thread pool size. The default is 32 workers.
 
+---
+
+## Implementation Plan
+
+This RFC will be implemented in stacked PRs:
+
+### PR 1: Rubric Base Class
+
+- `Rubric` base class with `forward()`, `__call__()`, child auto-registration
+- Container rubrics: `Sequential`, `Gate`, `WeightedSum`, `RubricList`
+- `RubricDict` for multi-task dispatch
+- `get_rubric(path)` for nested access
+- Unit tests for all containers
+
+### PR 2: Environment Integration
+
+- Update `Environment` base class to require `rubric` attribute
+- Update `step()` to wire rubric output to observation reward
+- Update environment documentation
+
+### PR 3: Migrate Existing Environments
+
+- Migrate `textarena_env` from `RewardProvider` to `Rubric`
+- Update any other environments using custom reward patterns
+
+### PR 4: EnvPool (Future)
+
+- Batch orchestration across stacked environments
+- `step_batch()` helper for parallel execution
+- May require separate RFC depending on scope
 
 ---
 
