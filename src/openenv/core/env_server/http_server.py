@@ -57,6 +57,38 @@ from .mcp_types import (
     WSMCPMessage,
     WSMCPResponse,
 )
+
+
+def _make_json_serializable(obj: Any) -> Any:
+    """
+    Convert an object to a JSON-serializable form.
+
+    Handles Pydantic models, dataclasses, and other common types.
+
+    Args:
+        obj: The object to convert
+
+    Returns:
+        A JSON-serializable representation of the object
+    """
+    if obj is None:
+        return None
+    if isinstance(obj, (str, int, float, bool)):
+        return obj
+    if isinstance(obj, (list, tuple)):
+        return [_make_json_serializable(item) for item in obj]
+    if isinstance(obj, dict):
+        return {k: _make_json_serializable(v) for k, v in obj.items()}
+    if hasattr(obj, "model_dump"):
+        # Pydantic model
+        return obj.model_dump()
+    if hasattr(obj, "__dict__"):
+        # Object with __dict__
+        return {k: _make_json_serializable(v) for k, v in obj.__dict__.items()}
+    # Fallback to string representation
+    return str(obj)
+
+
 from .exceptions import (
     ConcurrencyConfigurationError,
     SessionCapacityError,
@@ -796,10 +828,14 @@ all schema information needed to interact with the environment.
                                                 result = await session_env.mcp_client.call_tool(
                                                     name=tool_name, arguments=arguments
                                                 )
+                                            # Ensure result is JSON serializable
+                                            serializable_result = (
+                                                _make_json_serializable(result)
+                                            )
                                             response = WSMCPResponse(
                                                 data={
                                                     "jsonrpc": "2.0",
-                                                    "result": result,
+                                                    "result": serializable_result,
                                                     "id": request_id,
                                                 }
                                             )
