@@ -54,6 +54,8 @@ class FleetEnvClient(HTTPEnvClient[Action, Observation]):
         ttl_seconds: Optional[int] = 3600,
         env_variables: Optional[Dict[str, Any]] = None,
         image_type: Optional[str] = None,
+        data_key: Optional[str] = None,
+        data_version: Optional[str] = None,
         **kwargs: Any,
     ) -> Tuple["FleetEnvClient", FleetMCPTools]:
         try:
@@ -73,6 +75,8 @@ class FleetEnvClient(HTTPEnvClient[Action, Observation]):
             ttl_seconds=ttl_seconds,
             env_variables=env_variables,
             image_type=image_type,
+            data_key=data_key,
+            data_version=data_version,
         )
 
         root = env.urls.root

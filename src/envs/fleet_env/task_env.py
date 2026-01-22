@@ -97,17 +97,13 @@ class FleetTaskEnv:
             return f"{env_key}:{env_version}"
         return env_key
 
-    def _build_data_spec(self) -> Optional[str]:
-        """Build data_key:version spec for Fleet.make()."""
-        data_key = self.task.get("data_key")
-        data_version = self.task.get("data_version")
+    def _get_data_key(self) -> Optional[str]:
+        """Get data_key from task config."""
+        return self.task.get("data_key")
 
-        if not data_key:
-            return None
-
-        if data_version:
-            return f"{data_key}:{data_version}"
-        return data_key
+    def _get_data_version(self) -> Optional[str]:
+        """Get data_version from task config."""
+        return self.task.get("data_version")
 
     def reset(self, seed: Optional[int] = None) -> Dict[str, Any]:
         """Reset the environment and return initial observation.
@@ -130,13 +126,13 @@ class FleetTaskEnv:
 
         # Build specs
         env_spec = self._build_env_spec()
-        data_spec = self._build_data_spec()
 
         # Create new instance
         self._orch, self._tools = FleetEnvClient.from_fleet(
             api_key=self.api_key,
             env_key=env_spec,
-            data_key=data_spec,
+            data_key=self._get_data_key(),
+            data_version=self._get_data_version(),
             ttl_seconds=self.ttl_seconds,
         )
 
