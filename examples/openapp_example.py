@@ -23,6 +23,9 @@ Usage:
     # Run with custom number of steps
     python examples/openapp_example.py --mode docker --num-steps 20
 
+    # Test screenshot feature
+    python examples/openapp_example.py --mode local --test-screenshots
+
 Visualization Options:
     # To SEE the browser window and watch agent interactions in real-time:
     #
@@ -52,6 +55,7 @@ Important:
 """
 
 import argparse
+import base64
 import os
 import sys
 import time
@@ -61,13 +65,30 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 
-def run_with_docker(num_steps: int = 15, headless: bool = True):
+def save_screenshot(screenshot_b64: str, filename: str) -> str:
+    """Save base64 screenshot to file and return the path."""
+    if not screenshot_b64:
+        return None
+
+    output_dir = Path(__file__).parent / "screenshot_output"
+    output_dir.mkdir(exist_ok=True)
+
+    filepath = output_dir / filename
+    with open(filepath, "wb") as f:
+        f.write(base64.b64decode(screenshot_b64))
+
+    return str(filepath)
+
+
+def run_with_docker(num_steps: int = 15, headless: bool = True, test_screenshots: bool = False):
     """Run OpenApp environment using Docker container."""
     from openapp_env import OpenAppAction, OpenAppEnv
 
     print("=" * 70)
     print("Starting OpenApp environment with Docker...")
     print(f"Headless mode: {headless}")
+    if test_screenshots:
+        print("Screenshot testing: ENABLED")
     print("=" * 70)
 
     try:
@@ -81,6 +102,12 @@ def run_with_docker(num_steps: int = 15, headless: bool = True):
         print(f"  Starting URL: {result.observation.url}")
         print(f"  Open pages: {len(result.observation.open_pages_urls)}")
         print(f"  HTML length: {len(result.observation.html)} characters")
+
+        if test_screenshots:
+            print(f"  Screenshot present: {result.observation.screenshot is not None}")
+            if result.observation.screenshot:
+                filepath = save_screenshot(result.observation.screenshot, "docker_reset.png")
+                print(f"  ✓ Screenshot saved to: {filepath}")
 
         # Example actions to demonstrate different action types
         actions = [
@@ -133,6 +160,15 @@ def run_with_docker(num_steps: int = 15, headless: bool = True):
             print(f"    Reward: {result.reward}")
             print(f"    Done: {result.done}")
 
+            if test_screenshots:
+                print(f"    Screenshot present: {result.observation.screenshot is not None}")
+                if result.observation.screenshot:
+                    filepath = save_screenshot(
+                        result.observation.screenshot,
+                        f"docker_step_{i+1}_{action_info['action'].action_type}.png"
+                    )
+                    print(f"    ✓ Screenshot saved to: {filepath}")
+
             if result.observation.last_action_error:
                 print(f"    ⚠️  Error: {result.observation.last_action_error}")
 
@@ -162,9 +198,17 @@ def run_with_docker(num_steps: int = 15, headless: bool = True):
         print(f"  Final URL: {result.observation.url}")
         print(f"  Episode complete: {result.done}")
 
+        if test_screenshots:
+            output_dir = Path(__file__).parent / "screenshot_output"
+            screenshots = list(output_dir.glob("docker_*.png"))
+            print(f"\n  Screenshots saved: {len(screenshots)}")
+            for s in screenshots:
+                size_kb = s.stat().st_size / 1024
+                print(f"    - {s.name} ({size_kb:.1f} KB)")
+
         # Web interface info
         print(f"\n" + "=" * 70)
-        print(f"💡 TIP: Access the web interface at http://localhost:8000/web")
+        print(f"TIP: Access the web interface at http://localhost:8000/web")
         print(f"    - Interactive UI for manual testing")
         print(f"    - API documentation at http://localhost:8000/docs")
         print(f"=" * 70)
@@ -183,7 +227,7 @@ def run_with_docker(num_steps: int = 15, headless: bool = True):
     return 0
 
 
-def run_local(num_steps: int = 15, headless: bool = True):
+def run_local(num_steps: int = 15, headless: bool = True, test_screenshots: bool = False):
     """Run OpenApp environment locally without Docker."""
 
     # Check if OPENAPPS_URL is set
@@ -223,6 +267,8 @@ def run_local(num_steps: int = 15, headless: bool = True):
     print("Starting OpenApp environment locally...")
     print(f"Using OpenApps server at: {os.environ.get('OPENAPPS_URL')}")
     print(f"Headless mode: {headless}")
+    if test_screenshots:
+        print("Screenshot testing: ENABLED")
     print("=" * 70)
 
     try:
@@ -241,17 +287,27 @@ def run_local(num_steps: int = 15, headless: bool = True):
         print(f"  Starting URL: {result.url}")
         print(f"  HTML length: {len(result.html)} characters")
 
+        if test_screenshots:
+            print(f"  Screenshot present: {result.screenshot is not None}")
+            if result.screenshot:
+                print(f"  Screenshot length: {len(result.screenshot)} chars (base64)")
+                filepath = save_screenshot(result.screenshot, "local_reset.png")
+                print(f"  ✓ Screenshot saved to: {filepath}")
+            else:
+                print("  ⚠️  No screenshot returned from reset()")
+
         # Take some example steps
+        openapps_url = os.environ.get("OPENAPPS_URL")
         print(f"\n[3/4] Running {num_steps} steps...")
         for i in range(num_steps):
             # Simple actions for demonstration
             actions = [
                 OpenAppAction(
-                    action_type="goto", url=f"{os.environ.get('OPENAPPS_URL')}/calendar"
+                    action_type="goto", url=f"{openapps_url}/calendar"
                 ),
                 OpenAppAction(action_type="scroll", direction="down"),
                 OpenAppAction(
-                    action_type="goto", url=f"{os.environ.get('OPENAPPS_URL')}/todo"
+                    action_type="goto", url=f"{openapps_url}/todo"
                 ),
                 OpenAppAction(action_type="noop"),
             ]
@@ -259,12 +315,24 @@ def run_local(num_steps: int = 15, headless: bool = True):
             action = actions[i % len(actions)]
             result = env.step(action)
 
-            if i % 5 == 0 or result.done:
+            if i % 5 == 0 or result.done or test_screenshots:
                 print(f"Step {i+1}:")
                 print(f"  Action: {action.action_type}")
                 print(f"  URL: {result.url}")
                 print(f"  Reward: {result.reward}")
                 print(f"  Done: {result.done}")
+
+                if test_screenshots:
+                    print(f"  Screenshot present: {result.screenshot is not None}")
+                    if result.screenshot:
+                        print(f"  Screenshot length: {len(result.screenshot)} chars (base64)")
+                        filepath = save_screenshot(
+                            result.screenshot,
+                            f"local_step_{i+1}_{action.action_type}.png"
+                        )
+                        print(f"  ✓ Screenshot saved to: {filepath}")
+                    else:
+                        print(f"  ⚠️  No screenshot returned")
 
             if result.done:
                 print(f"\n✓ Episode finished at step {i+1}!")
@@ -274,6 +342,19 @@ def run_local(num_steps: int = 15, headless: bool = True):
         print(f"\n[4/4] Final state:")
         print(f"  Episode ID: {env.state.episode_id}")
         print(f"  Total steps: {env.state.step_count}")
+
+        if test_screenshots:
+            output_dir = Path(__file__).parent / "screenshot_output"
+            screenshots = list(output_dir.glob("local_*.png"))
+            print(f"\n  Screenshots saved: {len(screenshots)}")
+            for s in screenshots:
+                size_kb = s.stat().st_size / 1024
+                print(f"    - {s.name} ({size_kb:.1f} KB)")
+
+            if len(screenshots) > 0:
+                print("\n✓ Screenshot feature is working!")
+            else:
+                print("\n⚠️  No screenshots were saved. Check logs above.")
 
     except Exception as e:
         print(f"\n❌ Error: {e}")
@@ -307,6 +388,10 @@ Examples:
   # Run with custom number of steps
   python examples/openapp_example.py --mode docker --num-steps 20
 
+  # Test screenshot feature
+  python examples/openapp_example.py --mode local --test-screenshots
+  python examples/openapp_example.py --mode docker --test-screenshots
+
 Visualization:
   - Use --show-browser to see the browser window and watch agent interactions
   - Access OpenApps web interface at http://localhost:5001 (when server is running)
@@ -339,6 +424,12 @@ Note:
         default=False,
         help="Show browser window (opposite of --headless, easier to remember)",
     )
+    parser.add_argument(
+        "--test-screenshots",
+        action="store_true",
+        default=False,
+        help="Test screenshot feature: verify screenshots are returned and save them to disk",
+    )
 
     args = parser.parse_args()
 
@@ -351,11 +442,13 @@ Note:
     print(f"Mode: {args.mode}")
     print(f"Steps: {args.num_steps}")
     print(f"Headless: {headless}")
+    if args.test_screenshots:
+        print(f"Test Screenshots: {args.test_screenshots}")
 
     if args.mode == "docker":
-        return run_with_docker(args.num_steps, headless)
+        return run_with_docker(args.num_steps, headless, args.test_screenshots)
     else:
-        return run_local(args.num_steps, headless)
+        return run_local(args.num_steps, headless, args.test_screenshots)
 
 
 if __name__ == "__main__":
