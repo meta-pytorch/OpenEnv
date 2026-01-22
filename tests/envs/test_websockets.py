@@ -252,13 +252,20 @@ class TestProtocolHttpEndpoints:
         assert "observation" in data
 
     def test_protocol_step_endpoint(self, echo_server):
-        """Test /step endpoint."""
+        """Test /step endpoint with MCP action."""
         # First reset
         requests.post(f"{echo_server}/reset", json={})
 
-        # Then step
+        # Then step with MCP CallToolAction format
         response = requests.post(
-            f"{echo_server}/step", json={"action": {"message": "Hello"}}
+            f"{echo_server}/step",
+            json={
+                "action": {
+                    "type": "call_tool",
+                    "tool_name": "echo_message",
+                    "arguments": {"message": "Hello"},
+                }
+            },
         )
         assert response.status_code == 200
         data = response.json()
