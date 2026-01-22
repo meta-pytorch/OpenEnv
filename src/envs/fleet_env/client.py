@@ -69,14 +69,22 @@ class FleetEnvClient(HTTPEnvClient[Action, Observation]):
         # Use synchronous Fleet client for the orchestrator handle.
         # This ensures .close() and other lifecycle methods are synchronous.
         fleet = Fleet(api_key=api_key)
+
+        # Fleet SDK expects data_key in "key:version" format
+        data_key_spec = None
+        if data_key:
+            if data_version:
+                data_key_spec = f"{data_key}:{data_version}"
+            else:
+                data_key_spec = data_key
+
         env = fleet.make(
             env_key=env_key,
             region=region,
             ttl_seconds=ttl_seconds,
             env_variables=env_variables,
             image_type=image_type,
-            data_key=data_key,
-            data_version=data_version,
+            data_key=data_key_spec,
         )
 
         root = env.urls.root
