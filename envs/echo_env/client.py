@@ -26,13 +26,7 @@ Example:
     ...     print(result)  # {"message": "Test", "length": 4}
 """
 
-# Support both in-repo and standalone imports
-try:
-    # In-repo imports (when running from OpenEnv repository)
-    from openenv.core.mcp_client import MCPToolClient
-except ImportError:
-    # Standalone imports (when environment is standalone with openenv from pip)
-    from openenv.core.mcp_client import MCPToolClient
+from openenv.core.mcp_client import MCPToolClient
 
 
 class EchoEnv(MCPToolClient):

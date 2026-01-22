@@ -24,9 +24,6 @@ Example:
 from .client import EchoEnv
 
 # Re-export MCP types for convenience
-try:
-    from openenv.core.env_server.mcp_types import CallToolAction, ListToolsAction
-except ImportError:
-    from openenv.core.env_server.mcp_types import CallToolAction, ListToolsAction
+from openenv.core.env_server.mcp_types import CallToolAction, ListToolsAction
 
 __all__ = ["EchoEnv", "CallToolAction", "ListToolsAction"]
