@@ -53,7 +53,7 @@ class FleetEnvClient(HTTPEnvClient[Action, Observation]):
         region: Optional[str] = None,
         ttl_seconds: Optional[int] = 3600,
         env_variables: Optional[Dict[str, Any]] = None,
-        image_type: str = "mcp",
+        image_type: Optional[str] = None,
         **kwargs: Any,
     ) -> Tuple["FleetEnvClient", FleetMCPTools]:
         try:
