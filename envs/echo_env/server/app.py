@@ -8,7 +8,7 @@
 FastAPI application for the Echo Environment.
 
 This module creates an HTTP server that exposes the EchoEnvironment
-over HTTP and WebSocket endpoints, compatible with EnvClient.
+over HTTP and WebSocket endpoints, compatible with MCPToolClient.
 
 Usage:
     # Development (with auto-reload):
@@ -25,17 +25,20 @@ Usage:
 try:
     # In-repo imports (when running from OpenEnv repository)
     from openenv.core.env_server.http_server import create_app
-    from ..models import EchoAction, EchoObservation
+    from openenv.core.env_server.mcp_types import CallToolAction, CallToolObservation
     from .echo_environment import EchoEnvironment
 except ImportError:
     # Standalone imports (when environment is standalone with openenv from pip)
     from openenv.core.env_server.http_server import create_app
-    from models import EchoAction, EchoObservation
+    from openenv.core.env_server.mcp_types import CallToolAction, CallToolObservation
     from server.echo_environment import EchoEnvironment
 
 # Create the app with web interface and README integration
 # Pass the class (factory) instead of an instance for WebSocket session support
-app = create_app(EchoEnvironment, EchoAction, EchoObservation, env_name="echo_env")
+# Use MCP types for action/observation since this is a pure MCP environment
+app = create_app(
+    EchoEnvironment, CallToolAction, CallToolObservation, env_name="echo_env"
+)
 
 
 def main():

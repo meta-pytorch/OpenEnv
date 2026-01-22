@@ -11,7 +11,12 @@ from .env_server import *  # noqa: F403
 from . import env_server
 from .env_client import EnvClient
 from .generic_client import GenericEnvClient, GenericAction
+from .mcp_client import MCPClientBase, MCPToolClient
 
-# Note: MCP module doesn't export anything yet
-
-__all__ = ["EnvClient", "GenericEnvClient", "GenericAction"] + env_server.__all__  # type: ignore
+__all__ = [
+    "EnvClient",
+    "GenericEnvClient",
+    "GenericAction",
+    "MCPClientBase",
+    "MCPToolClient",
+] + env_server.__all__  # type: ignore

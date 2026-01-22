@@ -167,37 +167,50 @@ class TestSmokeFactoryPattern:
         """Test that create_app accepts a class (not instance)."""
         from openenv.core.env_server.http_server import create_app
         from envs.echo_env.server.echo_environment import EchoEnvironment
-        from envs.echo_env.models import EchoAction, EchoObservation
+        from openenv.core.env_server.mcp_types import (
+            CallToolAction,
+            CallToolObservation,
+        )
 
         # Should not raise TypeError
-        app = create_app(EchoEnvironment, EchoAction, EchoObservation, env_name="test")
+        app = create_app(
+            EchoEnvironment, CallToolAction, CallToolObservation, env_name="test"
+        )
         assert app is not None
 
     def test_smoke_create_app_accepts_factory_function(self):
         """Test that create_app accepts a factory function."""
         from openenv.core.env_server.http_server import create_app
         from envs.echo_env.server.echo_environment import EchoEnvironment
-        from envs.echo_env.models import EchoAction, EchoObservation
+        from openenv.core.env_server.mcp_types import (
+            CallToolAction,
+            CallToolObservation,
+        )
 
         def create_echo_env():
             return EchoEnvironment()
 
         # Should not raise TypeError
-        app = create_app(create_echo_env, EchoAction, EchoObservation, env_name="test")
+        app = create_app(
+            create_echo_env, CallToolAction, CallToolObservation, env_name="test"
+        )
         assert app is not None
 
     def test_smoke_create_app_rejects_instance(self):
         """Test that create_app rejects an instance (not callable)."""
         from openenv.core.env_server.http_server import create_app
         from envs.echo_env.server.echo_environment import EchoEnvironment
-        from envs.echo_env.models import EchoAction, EchoObservation
+        from openenv.core.env_server.mcp_types import (
+            CallToolAction,
+            CallToolObservation,
+        )
 
         # Create an instance (wrong pattern)
         instance = EchoEnvironment()
 
         # Should raise TypeError
         with pytest.raises(TypeError, match="must be a callable"):
-            create_app(instance, EchoAction, EchoObservation, env_name="test")
+            create_app(instance, CallToolAction, CallToolObservation, env_name="test")
 
         instance.close()
 
@@ -283,22 +296,20 @@ class TestProtocolWebSocketClient:
     def test_protocol_client_step(self, echo_server):
         """Test client can step via WebSocket."""
         from envs.echo_env.client import EchoEnv
-        from envs.echo_env.models import EchoAction
 
         with EchoEnv(base_url=echo_server) as client:
             client.reset()
-            result = client.step(EchoAction(message="Hello"))
+            result = client.call_tool("echo_message", message="Hello")
             assert result is not None
-            assert result.observation.echoed_message == "Hello"
+            assert result == "Hello"
 
     def test_protocol_client_state(self, echo_server):
         """Test client can get state via WebSocket."""
         from envs.echo_env.client import EchoEnv
-        from envs.echo_env.models import EchoAction
 
         with EchoEnv(base_url=echo_server) as client:
             client.reset()
-            client.step(EchoAction(message="Test"))
+            client.call_tool("echo_message", message="Test")
 
             state = client.state()
             assert state is not None
@@ -307,13 +318,12 @@ class TestProtocolWebSocketClient:
     def test_protocol_client_multiple_episodes(self, echo_server):
         """Test client can run multiple episodes."""
         from envs.echo_env.client import EchoEnv
-        from envs.echo_env.models import EchoAction
 
         with EchoEnv(base_url=echo_server) as client:
             # Episode 1
             client.reset()
-            client.step(EchoAction(message="E1S1"))
-            client.step(EchoAction(message="E1S2"))
+            client.call_tool("echo_message", message="E1S1")
+            client.call_tool("echo_message", message="E1S2")
 
             state1 = client.state()
             assert state1.step_count == 2
@@ -323,7 +333,7 @@ class TestProtocolWebSocketClient:
             state2 = client.state()
             assert state2.step_count == 0
 
-            client.step(EchoAction(message="E2S1"))
+            client.call_tool("echo_message", message="E2S1")
             state3 = client.state()
             assert state3.step_count == 1
 
@@ -358,7 +368,6 @@ class TestConcurrencyMultipleSessions:
     def test_concurrency_two_independent_sessions(self, echo_server_concurrent):
         """Test that two clients can run independently."""
         from envs.echo_env.client import EchoEnv
-        from envs.echo_env.models import EchoAction
 
         with EchoEnv(base_url=echo_server_concurrent) as client1:
             with EchoEnv(base_url=echo_server_concurrent) as client2:
@@ -368,10 +377,10 @@ class TestConcurrencyMultipleSessions:
 
                 # Client 1 takes 3 steps
                 for i in range(3):
-                    client1.step(EchoAction(message=f"C1-{i}"))
+                    client1.call_tool("echo_message", message=f"C1-{i}")
 
                 # Client 2 takes 1 step
-                client2.step(EchoAction(message="C2-0"))
+                client2.call_tool("echo_message", message="C2-0")
 
                 # Check states are independent
                 state1 = client1.state()
@@ -386,19 +395,18 @@ class TestConcurrencyMultipleSessions:
     def test_concurrency_session_isolation(self, echo_server_concurrent):
         """Test that session state is isolated between clients."""
         from envs.echo_env.client import EchoEnv
-        from envs.echo_env.models import EchoAction
 
         with EchoEnv(base_url=echo_server_concurrent) as client1:
             client1.reset()
-            result1 = client1.step(EchoAction(message="Secret from C1"))
+            result1 = client1.call_tool("echo_message", message="Secret from C1")
 
             with EchoEnv(base_url=echo_server_concurrent) as client2:
                 client2.reset()
-                result2 = client2.step(EchoAction(message="Secret from C2"))
+                result2 = client2.call_tool("echo_message", message="Secret from C2")
 
                 # Messages should not leak between sessions
-                assert result1.observation.echoed_message == "Secret from C1"
-                assert result2.observation.echoed_message == "Secret from C2"
+                assert result1 == "Secret from C1"
+                assert result2 == "Secret from C2"
 
 
 # =============================================================================
@@ -417,13 +425,21 @@ class TestEchoEnvironment:
     def test_echo_message_echoed(self, server):
         """Test that messages are echoed correctly."""
         from envs.echo_env.client import EchoEnv
-        from envs.echo_env.models import EchoAction
 
         with EchoEnv(base_url=server) as client:
             client.reset()
-            result = client.step(EchoAction(message="Hello World!"))
-            assert result.observation.echoed_message == "Hello World!"
-            assert result.observation.message_length == len("Hello World!")
+            result = client.call_tool("echo_message", message="Hello World!")
+            assert result == "Hello World!"
+
+    def test_echo_with_length(self, server):
+        """Test that echo_with_length returns message and length."""
+        from envs.echo_env.client import EchoEnv
+
+        with EchoEnv(base_url=server) as client:
+            client.reset()
+            result = client.call_tool("echo_with_length", message="Hello World!")
+            assert result["message"] == "Hello World!"
+            assert result["length"] == len("Hello World!")
 
 
 class TestConnect4Environment:
