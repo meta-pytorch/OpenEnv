@@ -137,7 +137,8 @@ class FleetTaskEnv:
         )
 
         # Reset the environment
-        reset_result = self._orch.reset(seed=seed)
+        # Note: seed parameter not yet supported by HTTPEnvClient
+        reset_result = self._orch.reset()
 
         # Reset state
         self._step_count = 0
