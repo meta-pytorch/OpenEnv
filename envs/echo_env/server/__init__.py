@@ -7,6 +7,5 @@
 """Echo environment server components."""
 
 from .echo_environment import EchoEnvironment
-from .mcp_server import mcp
 
-__all__ = ["EchoEnvironment", "mcp"]
+__all__ = ["EchoEnvironment"]

@@ -30,7 +30,7 @@ except ImportError:
     from openenv.core.env_server.types import Action, Observation, State
     from models import EchoAction, EchoObservation
 
-from .mcp_server import mcp
+from fastmcp import FastMCP
 
 
 class EchoEnvironment(MCPEnvironment):
@@ -63,6 +63,35 @@ class EchoEnvironment(MCPEnvironment):
 
     def __init__(self):
         """Initialize the echo environment with MCP server."""
+        # Create MCP server and define tools inline
+        mcp = FastMCP("echo_env")
+
+        @mcp.tool
+        def echo_message(message: str) -> str:
+            """
+            Echo back the provided message.
+
+            Args:
+                message: The message to echo back
+
+            Returns:
+                The same message that was provided
+            """
+            return message
+
+        @mcp.tool
+        def echo_with_length(message: str) -> dict:
+            """
+            Echo back the message with its length.
+
+            Args:
+                message: The message to echo back
+
+            Returns:
+                Dictionary with the message and its length
+            """
+            return {"message": message, "length": len(message)}
+
         # Pass the MCP server to the base class
         super().__init__(mcp)
         self._state = State(episode_id=str(uuid4()), step_count=0)
