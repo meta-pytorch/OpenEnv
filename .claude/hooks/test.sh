@@ -13,12 +13,12 @@ fi
 
 echo "=== Running tests ==="
 # Note: Using timeout to prevent hanging tests from blocking indefinitely (5 min max)
-# Some websocket protocol tests can hang when fixtures fail to start servers
+# Matches .github/workflows/test.yml exactly to catch CI failures before push
 PYTHONPATH=src:envs timeout 300 uv run pytest tests/ \
     --ignore=tests/envs/test_browsergym_environment.py \
     --ignore=tests/envs/test_dipg_environment.py \
     --ignore=tests/envs/test_websearch_environment.py \
-    --ignore=tests/envs/test_websockets.py \
+    -m "not integration and not network and not docker" \
     -v \
     --tb=short
 

@@ -220,6 +220,7 @@ class TestSmokeFactoryPattern:
 # =============================================================================
 
 
+@pytest.mark.integration
 class TestProtocolHttpEndpoints:
     """Test that HTTP endpoints work correctly."""
 
@@ -282,6 +283,7 @@ class TestProtocolHttpEndpoints:
         assert "step_count" in data
 
 
+@pytest.mark.integration
 class TestProtocolWebSocketClient:
     """Test that WebSocket client (EnvClient) works correctly."""
 
@@ -350,6 +352,7 @@ class TestProtocolWebSocketClient:
 # =============================================================================
 
 
+@pytest.mark.integration
 class TestConcurrencyMultipleSessions:
     """Test that multiple concurrent sessions work correctly.
 
@@ -421,6 +424,7 @@ class TestConcurrencyMultipleSessions:
 # =============================================================================
 
 
+@pytest.mark.integration
 class TestEchoEnvironment:
     """Test EchoEnvironment specifically."""
 
@@ -449,6 +453,7 @@ class TestEchoEnvironment:
             assert result["length"] == len("Hello World!")
 
 
+@pytest.mark.integration
 class TestConnect4Environment:
     """Test Connect4Environment specifically."""
 

@@ -245,9 +245,13 @@ class MCPToolClient(MCPClientBase):
         # Return the result
         if isinstance(obs, CallToolObservation):
             result = obs.result
-            # Handle FastMCP CallToolResult objects which have .data attribute
+            # Handle FastMCP CallToolResult objects
+            # - As object: has .data attribute
+            # - As dict (from JSON): has "data" key
             if hasattr(result, "data"):
                 return result.data
+            if isinstance(result, dict) and "data" in result:
+                return result["data"]
             return result
 
         # Fallback for unexpected observation types
