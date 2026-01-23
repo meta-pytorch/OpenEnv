@@ -43,7 +43,10 @@ class TestPythonExecutor:
         # Exceptions are captured in stderr
         result = executor.execute("raise RuntimeError('error message')")
         assert not result["success"]
-        assert "error message" in result["stderr"] or "error message" in result["exception"]
+        assert (
+            "error message" in result["stderr"]
+            or "error message" in result["exception"]
+        )
 
     def test_exception_handling(self):
         """Test exception handling."""
@@ -178,7 +181,9 @@ class TestREPLEnvironment:
         """Test explicit is_final=True."""
         env = REPLEnvironment()
         env.reset()
-        obs = env.step(REPLAction(code="", is_final=True, final_answer="explicit answer"))
+        obs = env.step(
+            REPLAction(code="", is_final=True, final_answer="explicit answer")
+        )
         assert obs.done
         assert env.state.final_answer == "explicit answer"
 
@@ -236,6 +241,7 @@ class TestREPLEnvironment:
 
     def test_llm_functions_injected(self):
         """Test LLM functions are injected when provided."""
+
         def mock_query(prompt):
             return f"Response to: {prompt}"
 
