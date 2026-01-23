@@ -34,6 +34,7 @@ class FleetTaskEnv:
         api_key: Fleet API key (defaults to FLEET_API_KEY env var)
         ttl_seconds: Instance TTL in seconds (default: 600)
         max_steps: Maximum steps per episode (default: 50)
+        request_timeout_s: HTTP request timeout in seconds (default: 60.0)
 
     Example:
         >>> task_config = {
@@ -55,11 +56,13 @@ class FleetTaskEnv:
         api_key: Optional[str] = None,
         ttl_seconds: int = 600,
         max_steps: int = 50,
+        request_timeout_s: float = 60.0,
     ):
         self.task = task_config
         self.api_key = api_key or os.environ.get("FLEET_API_KEY")
         self.ttl_seconds = ttl_seconds
         self.max_steps = max_steps
+        self.request_timeout_s = request_timeout_s
 
         if not self.api_key:
             raise ValueError("Fleet API key required (pass api_key or set FLEET_API_KEY)")
@@ -134,6 +137,7 @@ class FleetTaskEnv:
             data_key=self._get_data_key(),
             data_version=self._get_data_version(),
             ttl_seconds=self.ttl_seconds,
+            request_timeout_s=self.request_timeout_s,
         )
 
         # Reset the environment
