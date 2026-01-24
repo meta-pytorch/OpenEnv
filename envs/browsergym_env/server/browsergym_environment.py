@@ -19,7 +19,7 @@ from uuid import uuid4
 import gymnasium as gym
 
 from openenv.core.env_server.interfaces import Environment
-from browsergym_env.models import (
+from envs.browsergym_env.models import (
     BrowserGymAction,
     BrowserGymObservation,
     BrowserGymState,
@@ -472,8 +472,8 @@ class BrowserGymEnvironment(Environment):
             goal=custom_obs.goal,
             axtree_txt=custom_obs.text,  # Reuse text for compatibility
             pruned_html="",
-            error="",
-            last_action_error="",
+            error=custom_obs.error,
+            last_action_error=custom_obs.last_action_error,
             done=custom_obs.done,
             reward=custom_obs.reward,
             metadata=custom_obs.metadata,

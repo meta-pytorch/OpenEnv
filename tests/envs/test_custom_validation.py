@@ -14,7 +14,6 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
 
 def test_imports():
     """Verify all custom task modules can be imported."""
-    print("Testing imports...")
     try:
         from envs.browsergym_env.server.custom.custom_base import (  # noqa: F401
             CustomBrowserGymEnvironment,
@@ -29,49 +28,36 @@ def test_imports():
             get_custom_task,
             register_custom_task,
         )
-
-        print("  PASS: All imports successful")
         return True
     except ImportError as e:
-        print(f"  FAIL: Import failed: {e}")
+        print(f"Import failed: {e}")
         return False
 
 
 def test_task_registration():
     """Verify custom tasks are registered."""
-    print("\nTesting task registration...")
     try:
         from envs.browsergym_env.server.custom.custom_tasks import (
             _CUSTOM_TASKS,
             get_custom_task,
         )
 
-        print(f"  Registered tasks: {list(_CUSTOM_TASKS.keys())}")
-
         expected_tasks = ["copy-paste", "copy-paste-multitab"]
         for task_name in expected_tasks:
-            if task_name in _CUSTOM_TASKS:
-                print(f"  PASS: Task '{task_name}' registered")
-            else:
-                print(f"  FAIL: Task '{task_name}' NOT found")
+            if task_name not in _CUSTOM_TASKS:
+                print(f"Task '{task_name}' not registered")
                 return False
 
-        # Test retrieval (returns instance, not class)
-        task_instance = get_custom_task("copy-paste")
-        print(f"  PASS: Retrieved task instance: {task_instance.__class__.__name__}")
+        get_custom_task("copy-paste")
         return True
 
     except Exception as e:
-        print(f"  FAIL: Registration test failed: {e}")
-        import traceback
-
-        traceback.print_exc()
+        print(f"Registration test failed: {e}")
         return False
 
 
 def test_task_interface():
     """Verify task classes implement required methods."""
-    print("\nTesting task interface...")
     try:
         from envs.browsergym_env.server.custom.custom_tasks import get_custom_task
 
@@ -86,21 +72,15 @@ def test_task_interface():
             "close",
         ]
 
-        all_present = True
         for method_name in required_methods:
-            if hasattr(task_instance, method_name):
-                print(f"  PASS: {method_name}()")
-            else:
-                print(f"  FAIL: {method_name}() MISSING")
-                all_present = False
+            if not hasattr(task_instance, method_name):
+                print(f"  Missing method: {method_name}")
+                return False
 
-        return all_present
+        return True
 
     except Exception as e:
-        print(f"  FAIL: Interface test failed: {e}")
-        import traceback
-
-        traceback.print_exc()
+        print(f"  Interface test failed: {e}")
         return False
 
 
@@ -149,9 +129,7 @@ def test_models():
 
 def main():
     """Run all validation tests."""
-    print("=" * 60)
-    print("Custom BrowserGym Task System - Validation Tests")
-    print("=" * 60)
+    print("Custom BrowserGym Task System - Validation Tests\n")
 
     tests = [
         ("Imports", test_imports),
@@ -163,33 +141,23 @@ def main():
     results = []
     for test_name, test_func in tests:
         try:
-            passed = test_func()
-            results.append((test_name, passed))
+            results.append((test_name, test_func()))
         except Exception as e:
-            print(f"\n❌ {test_name} crashed: {e}")
-            import traceback
-
-            traceback.print_exc()
+            print(f"{test_name} crashed: {e}")
             results.append((test_name, False))
 
-    print("\n" + "=" * 60)
-    print("Summary")
-    print("=" * 60)
-
+    print("\nResults:")
     all_passed = True
     for test_name, passed in results:
-        status = "✅ PASS" if passed else "❌ FAIL"
-        print(f"{status}: {test_name}")
+        status = "✅" if passed else "❌"
+        print(f"{status} {test_name}")
         if not passed:
             all_passed = False
 
-    print("\n" + "=" * 60)
     if all_passed:
-        print("ALL TESTS PASSED")
-        print("Custom task contribution is working correctly.")
+        print("\n✅ All tests passed")
     else:
-        print("Some tests failed.")
-        print("Please fix the issues above.")
+        print("\n❌ Some tests failed")
 
     return 0 if all_passed else 1
 
