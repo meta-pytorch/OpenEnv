@@ -255,14 +255,31 @@ class TestFleetMCPClientExtractToolResult:
         assert result == "EmptyResult()"
 
 
-class TestFleetTaskEnvResetReturnsTools:
-    """Tests for reset() returning tools via reset_async()."""
+class TestFleetTaskEnvInitFetchesTools:
+    """Tests for FleetTaskEnv fetching tools during __init__()."""
 
-    @pytest.mark.anyio
-    async def test_reset_async_returns_tools(self, monkeypatch):
-        """reset_async should fetch and return tools."""
+    def test_init_fetches_tools(self, monkeypatch):
+        """__init__ should create env and fetch tools."""
+        from unittest.mock import MagicMock
+
+        mock_orch = MagicMock()
+        mock_tools = MagicMock()
+
+        # Create a proper coroutine for list_tools
+        async def mock_list_tools():
+            return MagicMock(
+                tools=[{"type": "function", "function": {"name": "bash"}}]
+            )
+
+        mock_tools.list_tools = mock_list_tools
+
+        # Monkeypatch BEFORE importing/creating FleetTaskEnv
+        monkeypatch.setattr(
+            "envs.fleet_env.task_env.FleetEnvClient.from_fleet",
+            lambda **kwargs: (mock_orch, mock_tools)
+        )
+
         from envs.fleet_env.task_env import FleetTaskEnv
-        from unittest.mock import AsyncMock, MagicMock
 
         task_config = {
             "task_key": "test-task",
@@ -271,33 +288,38 @@ class TestFleetTaskEnvResetReturnsTools:
             "task_modality": "tool_use",
         }
 
+        # Tools should be fetched during __init__
         env = FleetTaskEnv(task_config, api_key="test-key")
 
-        # Mock the FleetEnvClient.from_fleet
-        mock_orch = MagicMock()
-        mock_orch.reset.return_value = MagicMock(observation=MagicMock(metadata={}))
+        # Verify tools were cached
+        assert env._tools_cache is not None
+        assert len(env._tools_cache) == 1
+        assert env._tools_cache[0]["function"]["name"] == "bash"
 
+    def test_reset_returns_cached_tools(self, monkeypatch):
+        """reset() should return cached tools from __init__."""
+        from unittest.mock import MagicMock
+
+        mock_orch = MagicMock()
         mock_tools = MagicMock()
-        mock_tools.list_tools = AsyncMock(return_value=MagicMock(
-            tools=[{"type": "function", "function": {"name": "bash"}}]
-        ))
+        list_tools_call_count = 0
+
+        # Create a proper coroutine for list_tools that tracks calls
+        async def mock_list_tools():
+            nonlocal list_tools_call_count
+            list_tools_call_count += 1
+            return MagicMock(
+                tools=[{"type": "function", "function": {"name": "search"}}]
+            )
+
+        mock_tools.list_tools = mock_list_tools
 
         monkeypatch.setattr(
             "envs.fleet_env.task_env.FleetEnvClient.from_fleet",
             lambda **kwargs: (mock_orch, mock_tools)
         )
 
-        obs = await env.reset_async()
-
-        assert "tools" in obs
-        assert len(obs["tools"]) == 1
-        assert obs["tools"][0]["function"]["name"] == "bash"
-
-    @pytest.mark.anyio
-    async def test_reset_sync_calls_reset_async(self, monkeypatch):
-        """Sync reset() should be a wrapper around reset_async()."""
         from envs.fleet_env.task_env import FleetTaskEnv
-        from unittest.mock import AsyncMock, MagicMock
 
         task_config = {
             "task_key": "test-task",
@@ -308,22 +330,52 @@ class TestFleetTaskEnvResetReturnsTools:
 
         env = FleetTaskEnv(task_config, api_key="test-key")
 
-        # Mock reset_async directly to verify it's called
-        expected_obs = {
-            "prompt": "Test prompt",
-            "tools": [{"type": "function", "function": {"name": "search"}}],
-            "step": 0,
-        }
-        env.reset_async = AsyncMock(return_value=expected_obs)
+        # reset should return cached tools (no new fetch)
+        obs = env.reset()
 
-        # Call sync reset() - it should call reset_async internally
-        # We test this indirectly by checking the implementation
-        import asyncio
-        obs = await env.reset_async()
-
-        # Verify reset_async was called and returned tools
         assert "tools" in obs
         assert len(obs["tools"]) == 1
         assert obs["tools"][0]["function"]["name"] == "search"
+
+        # Verify list_tools was only called once (during __init__)
+        assert list_tools_call_count == 1
+
+    def test_reset_sync_returns_cached_tools(self, monkeypatch):
+        """Sync reset() should return cached tools."""
+        from unittest.mock import MagicMock
+
+        mock_orch = MagicMock()
+        mock_tools = MagicMock()
+
+        # Create a proper coroutine for list_tools
+        async def mock_list_tools():
+            return MagicMock(
+                tools=[{"type": "function", "function": {"name": "computer"}}]
+            )
+
+        mock_tools.list_tools = mock_list_tools
+
+        monkeypatch.setattr(
+            "envs.fleet_env.task_env.FleetEnvClient.from_fleet",
+            lambda **kwargs: (mock_orch, mock_tools)
+        )
+
+        from envs.fleet_env.task_env import FleetTaskEnv
+
+        task_config = {
+            "task_key": "test-task",
+            "prompt": "Test prompt",
+            "env_key": "test-env",
+            "task_modality": "tool_use",
+        }
+
+        env = FleetTaskEnv(task_config, api_key="test-key")
+
+        # Sync reset should return cached tools
+        obs = env.reset()
+
+        assert "tools" in obs
+        assert len(obs["tools"]) == 1
+        assert obs["tools"][0]["function"]["name"] == "computer"
 
 

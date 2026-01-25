@@ -58,6 +58,8 @@ class FleetTaskEnv:
         max_steps: int = 50,
         request_timeout_s: float = 60.0,
     ):
+        import asyncio
+
         self.task = task_config
         self.api_key = api_key or os.environ.get("FLEET_API_KEY")
         self.ttl_seconds = ttl_seconds
@@ -67,11 +69,25 @@ class FleetTaskEnv:
         if not self.api_key:
             raise ValueError("Fleet API key required (pass api_key or set FLEET_API_KEY)")
 
-        self._orch: Optional[FleetEnvClient] = None
-        self._tools: Optional[FleetMCPTools] = None
         self._step_count = 0
         self._done = False
         self._tools_cache: Optional[List[Dict]] = None
+
+        # Create Fleet environment instance (provisions cloud resources)
+        env_spec = self._build_env_spec()
+        self._orch, self._tools = FleetEnvClient.from_fleet(
+            api_key=self.api_key,
+            env_key=env_spec,
+            data_key=self._get_data_key(),
+            data_version=self._get_data_version(),
+            ttl_seconds=self.ttl_seconds,
+            request_timeout_s=self.request_timeout_s,
+        )
+
+        # Fetch tools for tool_use tasks (sync wrapper for async call)
+        if self.modality == "tool_use" and self._tools:
+            tools_result = asyncio.run(self._tools.list_tools())
+            self._tools_cache = tools_result.tools
 
     @property
     def task_key(self) -> str:
@@ -124,62 +140,51 @@ class FleetTaskEnv:
                 - step: Current step number (0)
         """
         import asyncio
-        return asyncio.get_event_loop().run_until_complete(self.reset_async(seed=seed))
+        return asyncio.run(self.reset_async(seed=seed))
 
     async def reset_async(self, seed: Optional[int] = None) -> Dict[str, Any]:
-        """Reset the environment and return initial observation.
+        """Reset episode state and return initial observation.
 
-        Creates a new Fleet environment instance with the task's env/data versions,
-        resets it, and returns an observation that includes the task prompt and tools.
+        Environment is already initialized in __init__(). This method resets
+        the episode state and returns the observation with cached tools.
 
         Args:
-            seed: Optional random seed (passed to env reset)
+            seed: Optional random seed (currently unused)
 
         Returns:
             Observation dict with keys:
                 - prompt: The task instruction
-                - observation: Raw observation from env reset
+                - observation: Observation from env reset (or empty if reset fails)
                 - tools: List of available tools (if tool_use modality)
                 - step: Current step number (0)
         """
-        # Close existing instance if any
-        self.close()
+        import logging
 
-        # Build specs
-        env_spec = self._build_env_spec()
+        logger = logging.getLogger(__name__)
 
-        # Create new instance
-        self._orch, self._tools = FleetEnvClient.from_fleet(
-            api_key=self.api_key,
-            env_key=env_spec,
-            data_key=self._get_data_key(),
-            data_version=self._get_data_version(),
-            ttl_seconds=self.ttl_seconds,
-            request_timeout_s=self.request_timeout_s,
-        )
-
-        # Reset the environment
-        # Note: seed parameter not yet supported by HTTPEnvClient
-        reset_result = self._orch.reset()
-
-        # Reset state
+        # Reset episode state
         self._step_count = 0
         self._done = False
-        self._tools_cache = None
 
-        # Build observation
+        # Reset the environment
+        reset_metadata = {}
+        if self._orch:
+            try:
+                reset_result = self._orch.reset()
+                reset_metadata = reset_result.observation.metadata if reset_result else {}
+            except Exception as e:
+                logger.warning(f"Fleet env reset failed, continuing with empty observation: {e}")
+
+        # Build observation with cached tools
         obs = {
             "prompt": self.prompt,
-            "observation": reset_result.observation.metadata if reset_result else {},
+            "observation": reset_metadata,
             "step": 0,
             "task_key": self.task_key,
             "modality": self.modality,
         }
 
-        # Fetch tools for tool_use tasks
-        if self.modality == "tool_use" and self._tools:
-            tools_result = await self._tools.list_tools()
-            self._tools_cache = tools_result.tools
+        if self._tools_cache:
             obs["tools"] = self._tools_cache
 
         return obs
@@ -199,7 +204,7 @@ class FleetTaskEnv:
             Tuple of (observation, reward, done, info)
         """
         import asyncio
-        return asyncio.get_event_loop().run_until_complete(self.step_async(action))
+        return asyncio.run(self.step_async(action))
 
     async def step_async(self, action: Dict[str, Any]) -> Tuple[Dict[str, Any], float, bool, Dict]:
         """Execute a step in the environment.
