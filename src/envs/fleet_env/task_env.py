@@ -8,8 +8,11 @@ This module provides a task-oriented wrapper around FleetEnvClient that:
 4. Executes verifier for reward on episode completion
 """
 
+import logging
 import os
 from typing import Any, Dict, List, Optional, Tuple
+
+logger = logging.getLogger(__name__)
 
 from .client import FleetEnvClient
 from .mcp_tools import FleetMCPTools
@@ -297,7 +300,10 @@ class FleetTaskEnv:
             return 1.0 if result else 0.0
         except Exception as e:
             # Verifier failed - treat as unsuccessful
-            print(f"Verifier execution failed: {e}")
+            logger.error(
+                f"Verifier execution failed for task {self.task_key}: {e}\n"
+                f"Verifier code:\n{verifier_code}"
+            )
             return 0.0
 
     async def _execute_verifier_local(self, verifier_code: str) -> bool:
@@ -313,12 +319,19 @@ class FleetTaskEnv:
         namespace = {}
 
         # Execute the verifier code to define the function
-        exec(verifier_code, namespace)
+        try:
+            exec(verifier_code, namespace)
+        except SyntaxError as e:
+            raise ValueError(f"Verifier code has syntax error: {e}") from e
 
         # Get the verify function
         verify_func = namespace.get("verify")
         if not verify_func:
-            raise ValueError("Verifier code must define a 'verify' function")
+            defined_funcs = [k for k, v in namespace.items() if callable(v) and not k.startswith("_")]
+            raise ValueError(
+                f"Verifier code must define a 'verify' function. "
+                f"Found functions: {defined_funcs or 'none'}"
+            )
 
         # Call verifier with the orchestrator (env handle)
         result = await verify_func(self._orch)
