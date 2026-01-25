@@ -21,7 +21,7 @@ dependencies = [
     "uvicorn>=0.24.0",
     "requests>=2.31.0",
     # Environment-specific dependency
-    "reasoning-gym>=0.4.0",
+    "reasoning-gym>=0.1.24",
 ]
 
 [project.optional-dependencies]
