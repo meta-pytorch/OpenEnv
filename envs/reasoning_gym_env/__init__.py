@@ -25,6 +25,4 @@ Example:
 
 from .client import ReasoningGymEnv
 
-from openenv.core.env_server.mcp_types import CallToolAction, ListToolsAction
-
-__all__ = ["ReasoningGymEnv", "CallToolAction", "ListToolsAction"]
+__all__ = ["ReasoningGymEnv"]
