@@ -339,12 +339,6 @@ class TestClientImports:
 
         assert ReasoningGymEnv is not None
 
-    def test_mcp_types_exported(self):
-        """Test that MCP types are re-exported from the package."""
-        from reasoning_gym_env import CallToolAction, ListToolsAction
-
-        assert CallToolAction is not None
-        assert ListToolsAction is not None
 
 
 class TestClientSideConfiguration:

@@ -89,6 +89,7 @@ envs/
 │       └── Dockerfile                # Container definition
 │
 ├── coding_env/               # Python code execution environment
+├── reasoning_gym_env/        # Reasoning tasks (Reasoning Gym integration)
 ├── chat_env/                 # Conversational environment
 ├── textarena_env/            # Text-based games (TextArena)
 ├── browsergym_env/           # Browser automation (BrowserGym)
