@@ -109,10 +109,28 @@ class FleetTaskEnv:
         return self.task.get("data_version")
 
     def reset(self, seed: Optional[int] = None) -> Dict[str, Any]:
+        """Reset the environment and return initial observation (sync wrapper).
+
+        This is a sync wrapper around reset_async(). For async code, use reset_async() directly.
+
+        Args:
+            seed: Optional random seed (passed to env reset)
+
+        Returns:
+            Observation dict with keys:
+                - prompt: The task instruction
+                - observation: Raw observation from env reset
+                - tools: List of available tools (if tool_use modality)
+                - step: Current step number (0)
+        """
+        import asyncio
+        return asyncio.get_event_loop().run_until_complete(self.reset_async(seed=seed))
+
+    async def reset_async(self, seed: Optional[int] = None) -> Dict[str, Any]:
         """Reset the environment and return initial observation.
 
         Creates a new Fleet environment instance with the task's env/data versions,
-        resets it, and returns an observation that includes the task prompt.
+        resets it, and returns an observation that includes the task prompt and tools.
 
         Args:
             seed: Optional random seed (passed to env reset)
@@ -158,16 +176,7 @@ class FleetTaskEnv:
             "modality": self.modality,
         }
 
-        return obs
-
-    async def reset_async(self, seed: Optional[int] = None) -> Dict[str, Any]:
-        """Async version of reset.
-
-        Same as reset() but fetches tools asynchronously.
-        """
-        obs = self.reset(seed=seed)
-
-        # Fetch tools asynchronously for tool_use tasks
+        # Fetch tools for tool_use tasks
         if self.modality == "tool_use" and self._tools:
             tools_result = await self._tools.list_tools()
             self._tools_cache = tools_result.tools
