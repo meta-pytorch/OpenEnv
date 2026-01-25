@@ -340,7 +340,6 @@ class TestClientImports:
         assert ReasoningGymEnv is not None
 
 
-
 class TestClientSideConfiguration:
     """Tests for client-side configuration via reset() kwargs."""
 
