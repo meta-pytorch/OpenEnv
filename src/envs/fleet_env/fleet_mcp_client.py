@@ -48,7 +48,47 @@ class FleetMCPClient:
         ) as streams:
             async with ClientSession(read_stream=streams[0], write_stream=streams[1]) as session:
                 await session.initialize()
-                return await session.call_tool(name, arguments)
+                result = await session.call_tool(name, arguments)
+                return self._extract_tool_result(result)
+
+    def _extract_tool_result(self, result: Any) -> Any:
+        """Extract readable content from CallToolResult.
+
+        MCP's call_tool returns a CallToolResult with content list.
+        This extracts the text content for use in agent observations.
+        """
+        import json
+
+        # Handle error case
+        if hasattr(result, "isError") and result.isError:
+            if hasattr(result, "content") and result.content:
+                for content in result.content:
+                    if hasattr(content, "text"):
+                        return {"error": content.text}
+            return {"error": "Tool execution failed"}
+
+        # Extract content from CallToolResult
+        if hasattr(result, "content") and result.content:
+            texts = []
+            for content in result.content:
+                if hasattr(content, "text"):
+                    texts.append(content.text)
+            if len(texts) == 1:
+                # Single text result - try to parse as JSON
+                try:
+                    return json.loads(texts[0])
+                except json.JSONDecodeError:
+                    return texts[0]
+            elif texts:
+                # Multiple text results - return as list
+                return texts
+
+        # Fallback to structured content if available
+        if hasattr(result, "structuredContent") and result.structuredContent:
+            return result.structuredContent
+
+        # Last resort - return string representation
+        return str(result)
 
     def has_tool(self, name: str, tools_list: Optional[List[Tool]] = None) -> bool:
         if not tools_list:
