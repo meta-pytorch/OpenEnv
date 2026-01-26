@@ -28,12 +28,20 @@ docker build -t finqa-env:latest -f src/envs/finqa_env/server/Dockerfile .
 
 # Run the server
 docker run -p 8000:8000 finqa-env:latest
+
+# To run evaluation script (example model gpt-5)
+API_BASE_URL=https://api.openai.com/v1 API_KEY=$OPENAI_API_KEY MODEL=gpt-5 python examples/finqa_inference.py 
 ```
 
 ### Local Development
 
 ```bash
+# Install dependencies
 uv pip install pandas
+
+# Download data from HuggingFace
+cd src/envs/finqa_env
+./download_data.sh
 ```
 
 ### Using the Client
@@ -135,7 +143,7 @@ class FinQAObservation(Observation):
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `FINQA_DATA_PATH` | `/app/src/envs/finqa_env/data` | Path to data directory |
-| `FINQA_MAX_STEPS` | `20` | Maximum tool calls per episode |
+| `FINQA_MAX_STEPS` | `50` | Maximum tool calls per episode |
 | `FINQA_TASK` | `finqa` | Task name |
 
 ## Reward Computation
@@ -193,11 +201,13 @@ finqa_env/
 ├── models.py             # Data models
 ├── client.py             # HTTP client
 ├── README.md             # This file
-├── data/                 # Benchmark data (symlink to FinQABenchmark)
+├── data/                 # Benchmark data (run download_data.sh)
 │   ├── benchmark_questions/
 │   │   └── finqa.csv
 │   └── input_companies/
 │       └── [company folders]
+├── download_data.sh      # Downloads data from HuggingFace
+├── tool_schema.py        # Auto-generates OpenAI tool schemas
 └── server/
     ├── __init__.py
     ├── finqa_environment.py  # Core environment logic

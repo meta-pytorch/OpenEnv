@@ -37,7 +37,7 @@ COPY src/envs/finqa_env/ /app/src/envs/finqa_env/
 
 # Environment variables with defaults
 ENV FINQA_DATA_PATH="/app/src/envs/finqa_env/data"
-ENV FINQA_MAX_STEPS="20"
+ENV FINQA_MAX_STEPS="50"
 ENV FINQA_TASK="finqa"
 
 EXPOSE 8000

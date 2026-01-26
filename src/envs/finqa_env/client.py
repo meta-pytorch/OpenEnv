@@ -50,15 +50,16 @@ class FinQAEnv(HTTPEnvClient[FinQAAction, FinQAObservation]):
     logic for FinQA-specific action and observation types.
     """
 
-    def __init__(self, base_url: str, timeout: float = 120.0):
+    def __init__(self, base_url: str, timeout: float = 120.0, provider=None):
         """
         Initialize the client.
 
         Args:
             base_url: URL of the running environment server
             timeout: Request timeout in seconds (default: 120s for SQL queries)
+            provider: Optional container provider for lifecycle management
         """
-        super().__init__(base_url=base_url, request_timeout_s=timeout)
+        super().__init__(base_url=base_url, request_timeout_s=timeout, provider=provider)
 
     def _step_payload(self, action: FinQAAction) -> dict:
         """

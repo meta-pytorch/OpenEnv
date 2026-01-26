@@ -8,17 +8,23 @@ calculations, etc.) on SEC 10-K filing data.
 """
 
 from dataclasses import dataclass, field
-from typing import Dict, List, Any, Optional
+from typing import Dict, List, Any
 
 from core.env_server import Action, Observation, State
 
 
-AVAILABLE_TOOLS = [
-    "get_descriptions",
-    "get_table_info",
-    "sql_query",
-    "submit_answer",
-]
+# Tool names - defined statically to avoid circular imports
+AVAILABLE_TOOLS = ["get_descriptions", "get_table_info", "sql_query", "submit_answer"]
+
+
+def get_tool_schemas():
+    """Get tool schemas, generating them on first call.
+
+    Uses lazy loading to avoid circular imports.
+    """
+    from .tool_schema import generate_tool_schemas
+    from .server.tools import FinQATools
+    return generate_tool_schemas(FinQATools, AVAILABLE_TOOLS)
 
 
 @dataclass
@@ -61,6 +67,8 @@ class FinQAState(State):
     """
     Internal environment state for tracking the current episode.
 
+    All fields are set during reset() and are essential for episode tracking.
+
     Attributes:
         current_question: The question being asked
         current_company: The company the question is about
@@ -68,7 +76,7 @@ class FinQAState(State):
         question_id: Identifier for the current question
         # Inherited from State: episode_id, step_count
     """
-    current_question: Optional[str] = None
-    current_company: Optional[str] = None
-    ground_truth: Optional[str] = None
-    question_id: Optional[str] = None
+    current_question: str = ""
+    current_company: str = ""
+    ground_truth: str = ""
+    question_id: str = ""

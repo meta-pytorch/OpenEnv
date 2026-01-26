@@ -93,7 +93,7 @@ class FinQATools:
 
     def get_table_info(self, company_name: str, table_name: str) -> str:
         """
-        Get metadata about a specific table.
+        Get table metadata: description, columns, types, unique values.
 
         Args:
             company_name: The name of the company
@@ -153,7 +153,9 @@ class FinQATools:
 
     def sql_query(self, company_name: str, table_name: str, query: str) -> str:
         """
-        Execute a SQL query on a table.
+        Execute a SQL query on a table. Select * not allowed (too inefficient).
+
+        Filters are required to query: WHERE, HAVING, IN, NOT IN, EXISTS, NOT EXISTS, ANY, SOME, ALL, LIKE, NOT LIKE, BETWEEN, NOT BETWEEN, IS NULL, IS NOT NULL, CASE, FILTER.
 
         Args:
             company_name: The name of the company

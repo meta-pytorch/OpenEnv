@@ -33,16 +33,15 @@ class FinQAEnvironment(Environment):
     - Submitting final answers
 
     Args:
-    # TODO: Add better paths for data directory
         data_path: Path to the data directory containing benchmark_questions/ and input_companies/
-        max_steps: Maximum number of tool calls per episode (default: 20)
+        max_steps: Maximum number of tool calls per episode (default: 50)
         task: Task name - currently only 'finqa' supported (default: 'finqa')
     """
 
     def __init__(
         self,
         data_path: str = "./data",
-        max_steps: int = 20,
+        max_steps: int = 50,
         task: str = "finqa",
     ):
         super().__init__()
