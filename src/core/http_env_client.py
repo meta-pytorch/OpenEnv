@@ -41,6 +41,11 @@ class HTTPEnvClient(ABC, Generic[ActT, ObsT]):
         self._headers = default_headers or {}
         self._provider = provider
 
+    @property
+    def base_url(self) -> str:
+        """Return the base URL of the environment server."""
+        return self._base
+
     @classmethod
     def from_docker_image(
         cls: Type[EnvClientT],
@@ -106,21 +111,26 @@ class HTTPEnvClient(ABC, Generic[ActT, ObsT]):
         return cls(base_url=base_url, provider=provider)
 
     @classmethod
-    def from_hub(cls: Type[EnvClientT], repo_id: str, provider: Optional["ContainerProvider"] = None, **kwargs: Any) -> EnvClientT:
+    def from_hub(
+        cls: Type[EnvClientT],
+        repo_id: str,
+        provider: Optional["ContainerProvider"] = None,
+        **kwargs: Any,
+    ) -> EnvClientT:
         """
         Create an environment client by pulling from a Hugging Face model hub.
         """
-        
+
         if provider is None:
             provider = LocalDockerProvider()
-        
+
         if "tag" in kwargs:
             tag = kwargs["tag"]
         else:
             tag = "latest"
-        
+
         base_url = f"registry.hf.space/{repo_id.replace('/', '-')}:{tag}"
-        
+
         return cls.from_docker_image(image=base_url, provider=provider)
 
     @abstractmethod

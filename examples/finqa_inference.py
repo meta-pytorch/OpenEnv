@@ -69,9 +69,11 @@ When submitting your final answer, provide ONLY the numerical value (e.g., '6.11
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 def fetch_tools_from_server(base_url: str) -> List[dict]:
     """Fetch tool schemas from the FinQA server."""
     import requests
+
     response = requests.get(f"{base_url}/tools")
     response.raise_for_status()
     return response.json()
@@ -89,6 +91,7 @@ def make_initial_messages(company: str, question: str) -> List[Dict[str, Any]]:
 # Gameplay
 # ---------------------------------------------------------------------------
 
+
 def play_finqa_episode(
     env: FinQAEnv,
     client: OpenAI,
@@ -102,9 +105,9 @@ def play_finqa_episode(
     obs = result.observation
 
     if VERBOSE:
-        print(f"\n{'='*60}")
+        print(f"\n{'=' * 60}")
         print(f"Episode {episode_num}")
-        print(f"{'='*60}")
+        print(f"{'=' * 60}")
         print(f"Company: {obs.company}")
         print(f"Question: {obs.question}")
 
@@ -133,24 +136,27 @@ def play_finqa_episode(
             tool_name = "submit_answer"
             tool_args = {"answer": message.content or "unknown"}
             tool_call_id = "none"
+            tool_args_raw = json.dumps(tool_args)
         else:
             tool_call_obj = message.tool_calls[0]
             tool_name = tool_call_obj.function.name
             tool_args = json.loads(tool_call_obj.function.arguments)
             tool_call_id = tool_call_obj.id
+            tool_args_raw = tool_call_obj.function.arguments
 
-        chat_history.append({
-            "role": "assistant",
-            "content": None,
-            "tool_calls": [{
-                "id": tool_call_id,
-                "type": "function",
-                "function": {
-                    "name": tool_name,
-                    "arguments": tool_call_obj.function.arguments
-                }
-            }]
-        })
+        chat_history.append(
+            {
+                "role": "assistant",
+                "content": None,
+                "tool_calls": [
+                    {
+                        "id": tool_call_id,
+                        "type": "function",
+                        "function": {"name": tool_name, "arguments": tool_args_raw},
+                    }
+                ],
+            }
+        )
 
         if VERBOSE:
             print(f"Tool: {tool_name}({json.dumps(tool_args)})"[:100])
@@ -166,18 +172,22 @@ def play_finqa_episode(
         result = env.step(action)
         obs = result.observation
 
-        tool_calls.append({
-            "tool": tool_name,
-            "args": tool_args,
-            "result": obs.tool_result or "",
-        })
+        tool_calls.append(
+            {
+                "tool": tool_name,
+                "args": tool_args,
+                "result": obs.tool_result or "",
+            }
+        )
 
         if not result.done:
-            chat_history.append({
-                "role": "tool",
-                "tool_call_id": tool_call_id,
-                "content": obs.tool_result or "No result"
-            })
+            chat_history.append(
+                {
+                    "role": "tool",
+                    "tool_call_id": tool_call_id,
+                    "content": obs.tool_result or "No result",
+                }
+            )
 
         if VERBOSE:
             result_preview = (obs.tool_result or "")[:200]
@@ -215,6 +225,7 @@ def play_finqa_episode(
 # Entrypoint
 # ---------------------------------------------------------------------------
 
+
 def main() -> None:
     if not API_KEY:
         raise SystemExit("API_KEY (or HF_TOKEN) must be set to query the model.")
@@ -222,7 +233,7 @@ def main() -> None:
     client = OpenAI(base_url=API_BASE_URL, api_key=API_KEY)
 
     env = FinQAEnv.from_docker_image("finqa-env:latest")
-    tools = fetch_tools_from_server(env._base)
+    tools = fetch_tools_from_server(env.base_url)
 
     if VERBOSE:
         tool_names = [t["function"]["name"] for t in tools]
@@ -238,15 +249,17 @@ def main() -> None:
             results.append(episode_result)
 
         # Summary
-        print(f"\n{'='*60}")
+        print(f"\n{'=' * 60}")
         print("SUMMARY")
-        print(f"{'='*60}")
+        print(f"{'=' * 60}")
 
         correct = sum(1 for r in results if r["reward"] > 0)
         avg_steps = sum(r["steps"] for r in results) / len(results)
 
         print(f"Episodes: {len(results)}")
-        print(f"Correct: {correct}/{len(results)} ({100*correct/len(results):.1f}%)")
+        print(
+            f"Correct: {correct}/{len(results)} ({100 * correct / len(results):.1f}%)"
+        )
         print(f"Average steps: {avg_steps:.1f}")
 
     finally:
