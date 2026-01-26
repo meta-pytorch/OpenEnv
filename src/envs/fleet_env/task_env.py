@@ -278,73 +278,70 @@ class FleetTaskEnv:
         return obs, reward, self._done, info
 
     async def _compute_reward(self) -> float:
-        """Compute reward by executing the verifier.
+        """Compute reward by executing the verifier using Fleet SDK.
+
+        Uses Fleet SDK's Task.verify_detailed() which properly sets up the
+        verifier namespace with Environment type, helper functions, etc.
 
         Returns:
             1.0 if verifier passes, 0.0 otherwise
         """
-        verifier_code = self.task.get("verifier_code")
+        # Support both field names: verifier_code (OpenEnv) and verifier_func (Fleet SDK)
+        verifier_code = self.task.get("verifier_code") or self.task.get("verifier_func")
 
         if not verifier_code:
             # No verifier - return neutral reward
+            logger.debug(f"Task {self.task_key}: no verifier_code, returning 0.0")
             return 0.0
 
         if not self._orch:
+            logger.warning(f"Task {self.task_key}: no orchestrator, returning 0.0")
+            return 0.0
+
+        # Get the Fleet env handle from the orchestrator
+        fleet_env = getattr(self._orch, "_fleet_env", None)
+        if not fleet_env:
+            logger.warning(f"Task {self.task_key}: no Fleet env handle, returning 0.0")
             return 0.0
 
         try:
-            # Execute verifier
-            # For now, use local execution
-            # TODO: Add remote verifier execution support
-            result = await self._execute_verifier_local(verifier_code)
-            return 1.0 if result else 0.0
+            # Use Fleet SDK's Task.verify_detailed() for proper verifier execution
+            from fleet.tasks import Task as FleetTask
+
+            # Create a Fleet SDK Task object with the verifier
+            fleet_task = FleetTask(
+                key=self.task_key,
+                prompt=self.prompt,
+                env_id=self.task.get("env_key", "unknown"),
+                verifier_func=verifier_code,
+            )
+
+            # Execute verifier via Fleet SDK (handles namespace setup, Environment type, etc.)
+            response = fleet_task.verify_detailed(fleet_env)
+
+            # Extract result from response
+            # response.success is bool, response.result is the verifier's return value (0.0 or 1.0)
+            if response.success and response.result is not None:
+                score = float(response.result)
+            elif response.success:
+                # Verifier succeeded but returned None - treat as success
+                score = 1.0
+            else:
+                # Verifier failed (exception or explicit failure)
+                score = 0.0
+
+            logger.info(f"Task {self.task_key}: verifier returned success={response.success}, result={response.result}, score={score}")
+            return score
+
+        except ImportError as e:
+            logger.error(f"Fleet SDK not available for verifier execution: {e}")
+            return 0.0
         except Exception as e:
-            # Verifier failed - treat as unsuccessful
             logger.error(
                 f"Verifier execution failed for task {self.task_key}: {e}\n"
                 f"Verifier code:\n{verifier_code}"
             )
             return 0.0
-
-    async def _execute_verifier_local(self, verifier_code: str) -> bool:
-        """Execute verifier code locally.
-
-        Args:
-            verifier_code: Python code string containing verify() function
-
-        Returns:
-            True if verification passes, False otherwise
-        """
-        # Create namespace for verifier execution
-        namespace = {}
-
-        # Execute the verifier code to define the function
-        try:
-            exec(verifier_code, namespace)
-        except SyntaxError as e:
-            raise ValueError(f"Verifier code has syntax error: {e}") from e
-
-        # Get the verify function
-        verify_func = namespace.get("verify")
-        if not verify_func:
-            defined_funcs = [k for k, v in namespace.items() if callable(v) and not k.startswith("_")]
-            raise ValueError(
-                f"Verifier code must define a 'verify' function. "
-                f"Found functions: {defined_funcs or 'none'}"
-            )
-
-        # Call verifier with the orchestrator (env handle)
-        result = await verify_func(self._orch)
-
-        # Handle different result formats
-        if isinstance(result, bool):
-            return result
-        if isinstance(result, (int, float)):
-            return result > 0
-        if isinstance(result, dict):
-            return result.get("success", False) or result.get("score", 0) > 0
-
-        return bool(result)
 
     def close(self):
         """Close the environment and cleanup resources."""

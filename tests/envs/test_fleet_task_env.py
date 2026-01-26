@@ -2,76 +2,11 @@
 
 import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
-import sys
-import types
-
-
-class _FakeResp:
-    def __init__(self, payload):
-        self._payload = payload
-        self.status_code = 200
-
-    def raise_for_status(self):
-        return None
-
-    def json(self):
-        return self._payload
-
-
-class _FakeSession:
-    def __init__(self):
-        self.calls = []
-
-    def post(self, url, json=None, headers=None, timeout=None):
-        self.calls.append(("POST", url, json))
-        return _FakeResp({"observation": {"metadata": {}}, "reward": 0.0, "done": False})
-
-    def get(self, url, headers=None, timeout=None):
-        self.calls.append(("GET", url, None))
-        return _FakeResp({"episode_id": "e1", "step_count": 0})
 
 
 @pytest.fixture
 def anyio_backend():
     return "asyncio"
-
-
-@pytest.fixture
-def fake_requests_session(monkeypatch):
-    fake_requests = types.SimpleNamespace(Session=_FakeSession)
-    monkeypatch.setitem(sys.modules, "requests", fake_requests)
-
-
-@pytest.fixture
-def fake_fleet_module(monkeypatch):
-    """Create a fake fleet module with Fleet.make returning an env with urls."""
-
-    class _Urls:
-        def __init__(self):
-            self.root = "https://example/"
-
-            class _Mgr:
-                api = "https://example/api/v1/env"
-
-            self.manager = _Mgr()
-
-    class _Env:
-        def __init__(self):
-            self.urls = _Urls()
-            self.closed = False
-
-        def close(self):
-            self.closed = True
-
-    class _Fleet:
-        def __init__(self, api_key=None):
-            self.api_key = api_key
-
-        def make(self, **kwargs):
-            return _Env()
-
-    mod = types.SimpleNamespace(Fleet=_Fleet)
-    monkeypatch.setitem(sys.modules, "fleet", mod)
 
 
 @pytest.fixture
@@ -86,7 +21,6 @@ def sample_task_config():
         "data_version": "v0.0.12",
         "verifier_code": "async def verify(env): return True",
         "task_modality": "tool_use",
-        "tool_use_workflow": [{"tool": "search"}],
     }
 
 
@@ -101,10 +35,26 @@ def sample_task_config_no_version():
     }
 
 
+@pytest.fixture
+def mock_fleet_env_client():
+    """Create a mock FleetEnvClient.from_fleet that returns mocks.
+
+    Returns tools=None to avoid triggering asyncio.run() in __init__
+    which conflicts with pytest-asyncio's event loop.
+    """
+    mock_orch = MagicMock()
+    mock_orch._fleet_env = MagicMock()  # Fleet env handle for verifier
+
+    with patch("envs.fleet_env.task_env.FleetEnvClient") as MockClient:
+        # Return tools=None to skip the asyncio.run(list_tools()) call in __init__
+        MockClient.from_fleet.return_value = (mock_orch, None)
+        yield mock_orch, None
+
+
 class TestFleetTaskEnvInit:
     """Tests for FleetTaskEnv initialization."""
 
-    def test_init_with_api_key(self, sample_task_config):
+    def test_init_with_api_key(self, sample_task_config, mock_fleet_env_client):
         """Should initialize with explicit API key."""
         from envs.fleet_env.task_env import FleetTaskEnv
 
@@ -114,7 +64,7 @@ class TestFleetTaskEnvInit:
         assert env.prompt == "Search for flights from NYC to LA on January 15"
         assert env.modality == "tool_use"
 
-    def test_init_from_env_var(self, sample_task_config, monkeypatch):
+    def test_init_from_env_var(self, sample_task_config, mock_fleet_env_client, monkeypatch):
         """Should use FLEET_API_KEY env var if no api_key provided."""
         from envs.fleet_env.task_env import FleetTaskEnv
 
@@ -134,7 +84,7 @@ class TestFleetTaskEnvInit:
 class TestFleetTaskEnvSpecs:
     """Tests for env/data spec building."""
 
-    def test_build_env_spec_with_version(self, sample_task_config):
+    def test_build_env_spec_with_version(self, sample_task_config, mock_fleet_env_client):
         """Should build env_key:version spec."""
         from envs.fleet_env.task_env import FleetTaskEnv
 
@@ -142,7 +92,7 @@ class TestFleetTaskEnvSpecs:
         spec = env._build_env_spec()
         assert spec == "booking-com:v1.2.3"
 
-    def test_build_env_spec_without_version(self, sample_task_config_no_version):
+    def test_build_env_spec_without_version(self, sample_task_config_no_version, mock_fleet_env_client):
         """Should return just env_key when no version."""
         from envs.fleet_env.task_env import FleetTaskEnv
 
@@ -150,135 +100,191 @@ class TestFleetTaskEnvSpecs:
         spec = env._build_env_spec()
         assert spec == "test-env"
 
-    def test_build_data_spec_with_version(self, sample_task_config):
-        """Should build data_key:version spec."""
+    def test_get_data_key_with_data(self, sample_task_config, mock_fleet_env_client):
+        """Should return data_key from config."""
         from envs.fleet_env.task_env import FleetTaskEnv
 
         env = FleetTaskEnv(sample_task_config, api_key="test")
-        spec = env._build_data_spec()
-        assert spec == "consumer:v0.0.12"
+        assert env._get_data_key() == "consumer"
+        assert env._get_data_version() == "v0.0.12"
 
-    def test_build_data_spec_without_data_key(self, sample_task_config_no_version):
+    def test_get_data_key_without_data(self, sample_task_config_no_version, mock_fleet_env_client):
         """Should return None when no data_key."""
         from envs.fleet_env.task_env import FleetTaskEnv
 
         env = FleetTaskEnv(sample_task_config_no_version, api_key="test")
-        spec = env._build_data_spec()
-        assert spec is None
+        assert env._get_data_key() is None
+        assert env._get_data_version() is None
 
-    def test_build_env_spec_raises_without_env_key(self):
-        """Should raise when env_key is missing."""
+    def test_build_env_spec_raises_without_env_key(self, mock_fleet_env_client):
+        """Should raise when env_key is missing during init."""
         from envs.fleet_env.task_env import FleetTaskEnv
 
         task = {"task_key": "test", "prompt": "test"}
-        env = FleetTaskEnv(task, api_key="test")
+        # The error is raised during __init__ when _build_env_spec is called
         with pytest.raises(ValueError, match="missing env_key"):
-            env._build_env_spec()
+            FleetTaskEnv(task, api_key="test")
 
 
 class TestFleetTaskEnvVerifier:
-    """Tests for verifier execution."""
+    """Tests for verifier execution using Fleet SDK."""
 
     @pytest.mark.anyio
-    async def test_execute_verifier_local_returns_true(self, sample_task_config):
-        """Should return True when verifier passes."""
+    async def test_compute_reward_returns_score_on_success(self, sample_task_config, mock_fleet_env_client):
+        """Should return verifier result score when Fleet SDK verifier succeeds."""
+        from envs.fleet_env.task_env import FleetTaskEnv
+
+        mock_orch, _ = mock_fleet_env_client
+        env = FleetTaskEnv(sample_task_config, api_key="test")
+
+        # Mock Fleet SDK Task.verify_detailed
+        mock_response = MagicMock()
+        mock_response.success = True
+        mock_response.result = 1.0
+
+        with patch("fleet.tasks.Task") as MockTask:
+            mock_task = MagicMock()
+            mock_task.verify_detailed.return_value = mock_response
+            MockTask.return_value = mock_task
+
+            result = await env._compute_reward()
+            assert result == 1.0
+            mock_task.verify_detailed.assert_called_once_with(mock_orch._fleet_env)
+
+    @pytest.mark.anyio
+    async def test_compute_reward_returns_zero_on_failure(self, sample_task_config, mock_fleet_env_client):
+        """Should return 0.0 when Fleet SDK verifier fails."""
         from envs.fleet_env.task_env import FleetTaskEnv
 
         env = FleetTaskEnv(sample_task_config, api_key="test")
-        env._orch = MagicMock()
 
-        verifier_code = "async def verify(env): return True"
-        result = await env._execute_verifier_local(verifier_code)
-        assert result is True
+        # Mock Fleet SDK Task.verify_detailed with failure
+        mock_response = MagicMock()
+        mock_response.success = False
+        mock_response.result = None
+
+        with patch("fleet.tasks.Task") as MockTask:
+            mock_task = MagicMock()
+            mock_task.verify_detailed.return_value = mock_response
+            MockTask.return_value = mock_task
+
+            result = await env._compute_reward()
+            assert result == 0.0
 
     @pytest.mark.anyio
-    async def test_execute_verifier_local_returns_false(self, sample_task_config):
-        """Should return False when verifier fails."""
+    async def test_compute_reward_returns_zero_when_no_verifier(self, sample_task_config_no_version, mock_fleet_env_client):
+        """Should return 0.0 when no verifier code is present."""
+        from envs.fleet_env.task_env import FleetTaskEnv
+
+        env = FleetTaskEnv(sample_task_config_no_version, api_key="test")
+
+        result = await env._compute_reward()
+        assert result == 0.0
+
+    @pytest.mark.anyio
+    async def test_compute_reward_returns_zero_when_no_orch(self, sample_task_config, mock_fleet_env_client):
+        """Should return 0.0 when no orchestrator is available."""
         from envs.fleet_env.task_env import FleetTaskEnv
 
         env = FleetTaskEnv(sample_task_config, api_key="test")
-        env._orch = MagicMock()
+        env._orch = None
 
-        verifier_code = "async def verify(env): return False"
-        result = await env._execute_verifier_local(verifier_code)
-        assert result is False
+        result = await env._compute_reward()
+        assert result == 0.0
 
     @pytest.mark.anyio
-    async def test_execute_verifier_local_handles_numeric_result(self, sample_task_config):
-        """Should handle numeric verifier results."""
+    async def test_compute_reward_returns_zero_when_no_fleet_env(self, sample_task_config, mock_fleet_env_client):
+        """Should return 0.0 when no Fleet env handle is available."""
         from envs.fleet_env.task_env import FleetTaskEnv
 
         env = FleetTaskEnv(sample_task_config, api_key="test")
-        env._orch = MagicMock()
+        env._orch._fleet_env = None  # No Fleet env handle
 
-        # Positive number = pass
-        verifier_code = "async def verify(env): return 1.0"
-        result = await env._execute_verifier_local(verifier_code)
-        assert result is True
-
-        # Zero = fail
-        verifier_code = "async def verify(env): return 0.0"
-        result = await env._execute_verifier_local(verifier_code)
-        assert result is False
+        result = await env._compute_reward()
+        assert result == 0.0
 
     @pytest.mark.anyio
-    async def test_execute_verifier_local_handles_dict_result(self, sample_task_config):
-        """Should handle dict verifier results."""
+    async def test_compute_reward_handles_verifier_exception(self, sample_task_config, mock_fleet_env_client):
+        """Should return 0.0 when verifier raises an exception."""
         from envs.fleet_env.task_env import FleetTaskEnv
 
         env = FleetTaskEnv(sample_task_config, api_key="test")
-        env._orch = MagicMock()
 
-        # success=True
-        verifier_code = "async def verify(env): return {'success': True}"
-        result = await env._execute_verifier_local(verifier_code)
-        assert result is True
+        with patch("fleet.tasks.Task") as MockTask:
+            mock_task = MagicMock()
+            mock_task.verify_detailed.side_effect = Exception("Verifier error")
+            MockTask.return_value = mock_task
 
-        # score > 0
-        verifier_code = "async def verify(env): return {'score': 1.0}"
-        result = await env._execute_verifier_local(verifier_code)
-        assert result is True
-
-        # score = 0
-        verifier_code = "async def verify(env): return {'score': 0}"
-        result = await env._execute_verifier_local(verifier_code)
-        assert result is False
+            result = await env._compute_reward()
+            assert result == 0.0
 
     @pytest.mark.anyio
-    async def test_execute_verifier_local_raises_on_missing_function(self, sample_task_config):
-        """Should raise when verify function not defined."""
+    async def test_compute_reward_handles_success_with_none_result(self, sample_task_config, mock_fleet_env_client):
+        """Should return 1.0 when verifier succeeds but returns None."""
         from envs.fleet_env.task_env import FleetTaskEnv
 
         env = FleetTaskEnv(sample_task_config, api_key="test")
-        env._orch = MagicMock()
 
-        verifier_code = "x = 1"  # No verify function
-        with pytest.raises(ValueError, match="must define a 'verify' function"):
-            await env._execute_verifier_local(verifier_code)
+        mock_response = MagicMock()
+        mock_response.success = True
+        mock_response.result = None
+
+        with patch("fleet.tasks.Task") as MockTask:
+            mock_task = MagicMock()
+            mock_task.verify_detailed.return_value = mock_response
+            MockTask.return_value = mock_task
+
+            result = await env._compute_reward()
+            assert result == 1.0
+
+    @pytest.mark.anyio
+    async def test_compute_reward_supports_verifier_func_field(self, mock_fleet_env_client):
+        """Should support 'verifier_func' field name (Fleet SDK format)."""
+        from envs.fleet_env.task_env import FleetTaskEnv
+
+        # Task config using 'verifier_func' instead of 'verifier_code'
+        task_config = {
+            "task_key": "test-task-003",
+            "prompt": "Test prompt",
+            "env_key": "test-env",
+            "verifier_func": "def verify(env): return 1.0",  # Fleet SDK field name
+            "task_modality": "tool_use",
+        }
+
+        env = FleetTaskEnv(task_config, api_key="test")
+
+        mock_response = MagicMock()
+        mock_response.success = True
+        mock_response.result = 1.0
+
+        with patch("fleet.tasks.Task") as MockTask:
+            mock_task = MagicMock()
+            mock_task.verify_detailed.return_value = mock_response
+            MockTask.return_value = mock_task
+
+            result = await env._compute_reward()
+            assert result == 1.0
 
 
 class TestFleetTaskEnvFactories:
     """Tests for factory methods."""
 
-    def test_make_fleet_task_env(self, sample_task_config):
+    def test_make_fleet_task_env(self, sample_task_config, mock_fleet_env_client):
         """Should create FleetTaskEnv via factory function."""
         from envs.fleet_env.task_env import make_fleet_task_env
 
         env = make_fleet_task_env(sample_task_config, api_key="test")
-        assert isinstance(env, object)  # Can't import FleetTaskEnv here
         assert env.task_key == "test-task-001"
 
 
 class TestFleetTaskEnvContextManager:
     """Tests for context manager protocol."""
 
-    def test_context_manager_closes_on_exit(self, sample_task_config):
+    def test_context_manager_closes_on_exit(self, sample_task_config, mock_fleet_env_client):
         """Should close environment on context exit."""
         from envs.fleet_env.task_env import FleetTaskEnv
 
         env = FleetTaskEnv(sample_task_config, api_key="test")
-        env._orch = MagicMock()
-        env._tools = MagicMock()
 
         with env:
             pass  # Context enters and exits
@@ -292,14 +298,14 @@ class TestFleetTaskEnvContextManager:
 class TestFleetTaskEnvProperties:
     """Tests for property accessors."""
 
-    def test_task_key_property(self, sample_task_config):
+    def test_task_key_property(self, sample_task_config, mock_fleet_env_client):
         """Should return task_key from config."""
         from envs.fleet_env.task_env import FleetTaskEnv
 
         env = FleetTaskEnv(sample_task_config, api_key="test")
         assert env.task_key == "test-task-001"
 
-    def test_task_key_default(self):
+    def test_task_key_default(self, mock_fleet_env_client):
         """Should return 'unknown' when task_key missing."""
         from envs.fleet_env.task_env import FleetTaskEnv
 
@@ -307,21 +313,21 @@ class TestFleetTaskEnvProperties:
         env = FleetTaskEnv(task, api_key="test")
         assert env.task_key == "unknown"
 
-    def test_prompt_property(self, sample_task_config):
+    def test_prompt_property(self, sample_task_config, mock_fleet_env_client):
         """Should return prompt from config."""
         from envs.fleet_env.task_env import FleetTaskEnv
 
         env = FleetTaskEnv(sample_task_config, api_key="test")
         assert env.prompt == "Search for flights from NYC to LA on January 15"
 
-    def test_modality_property(self, sample_task_config):
+    def test_modality_property(self, sample_task_config, mock_fleet_env_client):
         """Should return task_modality from config."""
         from envs.fleet_env.task_env import FleetTaskEnv
 
         env = FleetTaskEnv(sample_task_config, api_key="test")
         assert env.modality == "tool_use"
 
-    def test_modality_default(self):
+    def test_modality_default(self, mock_fleet_env_client):
         """Should default to 'tool_use' when modality missing."""
         from envs.fleet_env.task_env import FleetTaskEnv
 
