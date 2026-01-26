@@ -87,10 +87,10 @@ class FleetTaskEnv:
             request_timeout_s=self.request_timeout_s,
         )
 
-        # Fetch tools for tool_use tasks (sync wrapper for async call)
-        if self.modality == "tool_use" and self._tools:
-            tools_result = asyncio.run(self._tools.list_tools())
-            self._tools_cache = tools_result.tools
+        # Fetch tools for tool_use tasks
+        # Note: tools are fetched lazily on first reset_async() to avoid
+        # asyncio.run() issues when __init__ is called from async context
+        self._tools_fetched = False
 
     @property
     def task_key(self) -> str:
@@ -177,6 +177,17 @@ class FleetTaskEnv:
                 reset_metadata = reset_result.observation.metadata if reset_result else {}
             except Exception as e:
                 logger.warning(f"Fleet env reset failed, continuing with empty observation: {e}")
+
+        # Fetch tools lazily on first reset (avoids asyncio.run in __init__)
+        if self.modality == "tool_use" and self._tools and not self._tools_fetched:
+            try:
+                tools_result = await self._tools.list_tools()
+                self._tools_cache = tools_result.tools
+                self._tools_fetched = True
+            except Exception as e:
+                logger.warning(f"Failed to fetch tools: {e}")
+                self._tools_cache = []
+                self._tools_fetched = True
 
         # Build observation with cached tools
         obs = {
