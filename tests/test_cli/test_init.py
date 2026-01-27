@@ -454,3 +454,20 @@ def test_init_handles_file_path_collision(tmp_path: Path) -> None:
     ), (
         f"Expected BadParameter error about file collision. Exit code: {result.exit_code}, Output: {result.output}"
     )
+
+
+def test_init_client_uses_three_generics(tmp_path: Path) -> None:
+    """Test that generated client.py uses EnvClient with 3 generic parameters."""
+    env_name = "test_env"
+    env_dir = tmp_path / env_name
+
+    old_cwd = os.getcwd()
+    try:
+        os.chdir(str(tmp_path))
+        result = runner.invoke(app, ["init", env_name], input="\n")
+    finally:
+        os.chdir(old_cwd)
+
+    assert result.exit_code == 0
+    client_content = (env_dir / "client.py").read_text()
+    assert "EnvClient[TestAction, TestObservation, State]" in client_content
