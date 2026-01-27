@@ -1,0 +1,202 @@
+# src/envs/finqa_env/server/rewards.py
+"""
+Reward computation for the FinQA environment.
+
+Uses fuzzy numerical matching to compare predicted answers against ground truth.
+Handles various formats: \boxed{}, percentages, fractions, decimals.
+"""
+
+import re
+from fractions import Fraction
+from typing import Optional, Tuple
+
+
+def extract_boxed_answer(text: str) -> Optional[str]:
+    """
+    Extract answer from \boxed{...} format.
+
+    Args:
+        text: Text potentially containing \boxed{answer}
+
+    Returns:
+        The extracted answer or None if not found
+    """
+    # Match \boxed{...} pattern
+    match = re.search(r"\\boxed\{([^}]+)\}", text)
+    if match:
+        return match.group(1).strip()
+    return None
+
+
+def extract_all_boxed_answers(text: str) -> list:
+    """
+    Extract all answers from \boxed{...} format.
+
+    Args:
+        text: Text potentially containing multiple \boxed{answer}
+
+    Returns:
+        List of extracted answers
+    """
+    matches = re.findall(r"\\boxed\{([^}]+)\}", text)
+    return [m.strip() for m in matches]
+
+
+def parse_number(text: str) -> Optional[float]:
+    """
+    Parse a string into a float, handling various formats.
+
+    Handles:
+    - Plain numbers: "6.118", "-3.14"
+    - Percentages: "20.9%", "20.9 %"
+    - Fractions: "1/2", "3/4"
+    - Thousands separators: "1,234.56"
+    - Negative numbers in parens: "(100)"
+
+    Args:
+        text: String to parse
+
+    Returns:
+        Float value or None if parsing fails
+    """
+    if text is None:
+        return None
+
+    text = text.strip()
+
+    if not text:
+        return None
+
+    try:
+        # Remove LaTeX annotations like \text{million}, \text{%}, etc.
+        text = re.sub(r"\\text\{[^}]*\}", "", text)
+
+        # Remove currency symbols ($ and \$)
+        text = text.replace("\\$", "").replace("$", "").strip()
+
+        # Handle percentage (including LaTeX escaped \%)
+        if "%" in text or "\\%" in text:
+            text = text.replace("\\%", "").replace("%", "").strip()
+            return float(text.replace(",", "")) / 100
+
+        # Handle parentheses for negative numbers
+        if text.startswith("(") and text.endswith(")"):
+            text = "-" + text[1:-1]
+
+        # Handle fractions (e.g., "1/2", "3/4")
+        if "/" in text and not text.startswith("-"):
+            try:
+                return float(Fraction(text))
+            except (ValueError, ZeroDivisionError):
+                pass
+
+        # Handle negative fractions
+        if text.startswith("-") and "/" in text:
+            try:
+                return -float(Fraction(text[1:]))
+            except (ValueError, ZeroDivisionError):
+                pass
+
+        # Remove thousands separators and parse
+        text = text.replace(",", "")
+        return float(text)
+
+    except (ValueError, TypeError):
+        return None
+
+
+def normalize_answer(answer: str) -> Tuple[Optional[float], str]:
+    """
+    Normalize an answer string to a comparable format.
+
+    Args:
+        answer: Raw answer string
+
+    Returns:
+        Tuple of (parsed_number, cleaned_string)
+    """
+    if answer is None:
+        return None, ""
+
+    # Try to extract from \boxed{} first
+    boxed = extract_boxed_answer(answer)
+    if boxed:
+        answer = boxed
+
+    # Clean up whitespace
+    answer = answer.strip()
+
+    # Try to parse as number
+    num = parse_number(answer)
+
+    return num, answer.lower()
+
+
+def compare_single_values(pred_num: Optional[float], truth_num: Optional[float],
+                          pred_str: str, truth_str: str,
+                          tolerance: float = 0.01, max_absolute_diff: float = 1.0) -> bool:
+    """Compare two single values."""
+    # If both are numbers, compare numerically with tolerance
+    if pred_num is not None and truth_num is not None:
+        # Handle zero case
+        if truth_num == 0:
+            return abs(pred_num) < 0.001
+
+        # Calculate both errors
+        abs_diff = abs(pred_num - truth_num)
+        relative_error = abs_diff / abs(truth_num)
+
+        # BOTH conditions must pass
+        return relative_error <= tolerance and abs_diff <= max_absolute_diff
+
+    # If one is a number and other isn't, not equal
+    if (pred_num is None) != (truth_num is None):
+        return False
+
+    # Fall back to string comparison
+    return pred_str == truth_str
+
+
+def compute_reward(predicted: str, ground_truth: str, tolerance: float = 0.01, max_absolute_diff: float = 1.0) -> float:
+    """
+    Compute reward based on answer correctness.
+
+    Uses fuzzy numerical matching with BOTH relative and absolute tolerance checks.
+    A prediction is correct only if it passes BOTH conditions.
+
+    Handles multiple values (e.g., ground truth with multiple \boxed{} values).
+
+    Args:
+        predicted: The predicted answer from the agent
+        ground_truth: The expected correct answer
+        tolerance: Relative tolerance for numerical comparison (default 1%)
+        max_absolute_diff: Maximum absolute difference allowed (default 1.0)
+
+    Returns:
+        1.0 if correct, 0.0 if incorrect
+    """
+    # Check for multiple boxed answers in ground truth
+    truth_boxed = extract_all_boxed_answers(ground_truth)
+
+    if len(truth_boxed) > 1:
+        # Multiple ground truth values - split prediction by comma/semicolon
+        pred_values = re.split(r'[,;]\s*', predicted.strip())
+
+        if len(pred_values) != len(truth_boxed):
+            return 0.0  # Different number of values
+
+        # Compare each pair
+        for pred_val, truth_val in zip(pred_values, truth_boxed):
+            pred_num, pred_str = normalize_answer(pred_val)
+            truth_num, truth_str = normalize_answer(truth_val)
+
+            if not compare_single_values(pred_num, truth_num, pred_str, truth_str, tolerance, max_absolute_diff):
+                return 0.0
+
+        return 1.0  # All values matched
+
+    # Single value comparison
+    pred_num, pred_str = normalize_answer(predicted)
+    truth_num, truth_str = normalize_answer(ground_truth)
+
+    return 1.0 if compare_single_values(pred_num, truth_num, pred_str, truth_str, tolerance, max_absolute_diff) else 0.0
