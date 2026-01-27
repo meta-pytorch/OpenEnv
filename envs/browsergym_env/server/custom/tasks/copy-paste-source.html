@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Source Page</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            padding: 20px;
+        }
+        #source-text {
+            font-weight: bold;
+            margin: 20px 0;
+        }
+        button {
+            padding: 8px 20px;
+            margin-top: 10px;
+        }
+    </style>
+</head>
+<body>
+    <h2>Source Page</h2>
+    <p>Text to copy:</p>
+    <div id="source-text">Hello from the source page!</div>
+    <button id="open-target-btn" onclick="openTargetPage()">Open Target Page</button>
+    
+    <script>
+        function openTargetPage() {
+            const currentPath = window.location.pathname;
+            const directory = currentPath.substring(0, currentPath.lastIndexOf('/'));
+            const targetPath = directory + '/copy-paste-target.html';
+            window.location.href = 'file://' + targetPath;
+        }
+    </script>
+</body>
+</html>
