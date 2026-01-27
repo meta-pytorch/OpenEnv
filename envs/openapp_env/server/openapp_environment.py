@@ -81,9 +81,7 @@ class GenericOpenAppsTask:
         self.timezone_id = None
         self.geolocation = None
 
-    def setup(
-        self, page: "playwright.sync_api.Page"
-    ) -> Tuple[str, Dict[str, Any]]:
+    def setup(self, page: "playwright.sync_api.Page") -> Tuple[str, Dict[str, Any]]:
         """
         Set up the task by navigating to the base URL.
 
@@ -116,9 +114,7 @@ class GenericOpenAppsTask:
         # Generic task never completes automatically
         return 0.0, False, "", {}
 
-    def cheat(
-        self, page: "playwright.sync_api.Page", chat_messages: list[str]
-    ) -> None:
+    def cheat(self, page: "playwright.sync_api.Page", chat_messages: list[str]) -> None:
         """Cheat method (no-op for generic task)."""
         pass
 
@@ -181,6 +177,7 @@ class OpenAppEnvironment(Environment):
         self._current_html = ""
         self._current_url = ""
         self._current_axtree = ""
+        self._current_screenshot: Optional[str] = None
         self._app_state = {}
         self._last_action_error = None
         self._episode_reward = 0.0
@@ -281,6 +278,7 @@ class OpenAppEnvironment(Environment):
                 "url": self.openapps_url,
                 "open_pages_urls": [self.openapps_url],
                 "active_page_index": 0,
+                "screenshot": None,
                 "axtree_txt": "",
                 "app_state": {},
             }
@@ -292,9 +290,63 @@ class OpenAppEnvironment(Environment):
             "url": self._current_url,
             "open_pages_urls": [self._current_url],
             "active_page_index": 0,
+            "screenshot": self._current_screenshot,
             "axtree_txt": self._current_axtree,
             "app_state": self._app_state,
         }
+
+    def _extract_screenshot(self, obs: Dict[str, Any]) -> Optional[str]:
+        """
+        Extract and encode screenshot from BrowserGym observation.
+
+        BrowserGym returns screenshot as a numpy array. This method converts
+        it to a base64-encoded PNG string for serialization.
+
+        Args:
+            obs: BrowserGym observation dictionary
+
+        Returns:
+            Base64-encoded PNG screenshot string, or None if not available
+        """
+        screenshot = obs.get("screenshot")
+        if screenshot is None:
+            return None
+
+        try:
+            import base64
+            import io
+
+            # BrowserGym returns screenshot as numpy array (RGB image)
+            # Convert to PNG and base64 encode
+            from PIL import Image
+            import numpy as np
+
+            if isinstance(screenshot, np.ndarray):
+                # Convert numpy array to PIL Image
+                img = Image.fromarray(screenshot.astype("uint8"))
+
+                # Save to bytes buffer as PNG
+                buffer = io.BytesIO()
+                img.save(buffer, format="PNG")
+                buffer.seek(0)
+
+                # Encode to base64
+                return base64.b64encode(buffer.getvalue()).decode("utf-8")
+            elif isinstance(screenshot, bytes):
+                # Already bytes, just base64 encode
+                return base64.b64encode(screenshot).decode("utf-8")
+            elif isinstance(screenshot, str):
+                # Already a string (possibly base64), return as-is
+                return screenshot
+            else:
+                logger.warning(f"Unknown screenshot type: {type(screenshot)}")
+                return None
+        except ImportError as e:
+            logger.warning(f"PIL/numpy not available for screenshot encoding: {e}")
+            return None
+        except Exception as e:
+            logger.warning(f"Failed to encode screenshot: {e}")
+            return None
 
     def reset(self) -> OpenAppObservation:
         """
@@ -323,6 +375,7 @@ class OpenAppEnvironment(Environment):
             self._current_url = obs.get("url", self.openapps_url)
             self._current_html = obs.get("dom_txt", "")
             self._current_axtree = obs.get("axtree_txt", "")
+            self._current_screenshot = self._extract_screenshot(obs)
             self._app_state = {}
         except Exception as e:
             logger.warning(f"Failed to reset browser environment: {e}")
@@ -330,6 +383,7 @@ class OpenAppEnvironment(Environment):
             self._current_url = self.openapps_url
             self._current_html = "<html><body>OpenApps Ready</body></html>"
             self._current_axtree = ""
+            self._current_screenshot = None
             self._app_state = {}
 
         obs_data = self._get_current_observation()
@@ -339,6 +393,7 @@ class OpenAppEnvironment(Environment):
             url=obs_data["url"],
             open_pages_urls=obs_data["open_pages_urls"],
             active_page_index=obs_data["active_page_index"],
+            screenshot=obs_data["screenshot"],
             axtree_txt=obs_data["axtree_txt"],
             app_state=obs_data["app_state"],
             task_info={"task_name": self.task_name} if self.task_name else None,
@@ -399,6 +454,7 @@ class OpenAppEnvironment(Environment):
             url=obs_data["url"],
             open_pages_urls=obs_data["open_pages_urls"],
             active_page_index=obs_data["active_page_index"],
+            screenshot=obs_data["screenshot"],
             axtree_txt=obs_data["axtree_txt"],
             app_state=obs_data["app_state"],
             task_info={"task_name": self.task_name} if self.task_name else None,
@@ -421,7 +477,7 @@ class OpenAppEnvironment(Environment):
 
         try:
             # Check if bid is a CSS selector (starts with # or other CSS selector chars)
-            if bid.startswith('#') or bid.startswith('.') or bid.startswith('['):
+            if bid.startswith("#") or bid.startswith(".") or bid.startswith("["):
                 # Use Playwright directly for CSS selectors
                 return self._execute_click_playwright(bid)
 
@@ -433,6 +489,7 @@ class OpenAppEnvironment(Environment):
             self._current_url = obs.get("url", self._current_url)
             self._current_html = obs.get("dom_txt", self._current_html)
             self._current_axtree = obs.get("axtree_txt", self._current_axtree)
+            self._current_screenshot = self._extract_screenshot(obs)
 
             return float(reward) if reward else 0.0
         except Exception as e:
@@ -452,7 +509,7 @@ class OpenAppEnvironment(Environment):
 
         try:
             # Check if bid is a CSS selector (starts with # or other CSS selector chars)
-            if bid.startswith('#') or bid.startswith('.') or bid.startswith('['):
+            if bid.startswith("#") or bid.startswith(".") or bid.startswith("["):
                 # Use Playwright directly for CSS selectors
                 return self._execute_fill_playwright(bid, text)
 
@@ -464,6 +521,7 @@ class OpenAppEnvironment(Environment):
             self._current_url = obs.get("url", self._current_url)
             self._current_html = obs.get("dom_txt", self._current_html)
             self._current_axtree = obs.get("axtree_txt", self._current_axtree)
+            self._current_screenshot = self._extract_screenshot(obs)
 
             return float(reward) if reward else 0.0
         except Exception as e:
@@ -536,8 +594,18 @@ class OpenAppEnvironment(Environment):
         """Update internal observation state from Playwright page."""
         try:
             self._current_url = page.url
+            # Capture screenshot from Playwright page
+            try:
+                import base64
+
+                screenshot_bytes = page.screenshot()
+                self._current_screenshot = base64.b64encode(screenshot_bytes).decode(
+                    "utf-8"
+                )
+            except Exception as e:
+                logger.warning(f"Failed to capture screenshot from Playwright: {e}")
             # Note: We can't easily get axtree from Playwright directly,
-            # so we'll just update URL. The next BrowserGym action will sync the state.
+            # so we'll just update URL and screenshot. The next BrowserGym action will sync the state.
         except Exception:
             pass
 
@@ -555,6 +623,7 @@ class OpenAppEnvironment(Environment):
             self._current_url = obs.get("url", self._current_url)
             self._current_html = obs.get("dom_txt", self._current_html)
             self._current_axtree = obs.get("axtree_txt", self._current_axtree)
+            self._current_screenshot = self._extract_screenshot(obs)
 
             return float(reward) if reward else 0.0
         except Exception as e:
@@ -576,6 +645,7 @@ class OpenAppEnvironment(Environment):
             self._current_url = obs.get("url", url)
             self._current_html = obs.get("dom_txt", self._current_html)
             self._current_axtree = obs.get("axtree_txt", self._current_axtree)
+            self._current_screenshot = self._extract_screenshot(obs)
 
             return float(reward) if reward else 0.0
         except Exception as e:
@@ -597,6 +667,7 @@ class OpenAppEnvironment(Environment):
             self._current_url = obs.get("url", self._current_url)
             self._current_html = obs.get("dom_txt", self._current_html)
             self._current_axtree = obs.get("axtree_txt", self._current_axtree)
+            self._current_screenshot = self._extract_screenshot(obs)
 
             return float(reward) if reward else 0.0
         except Exception as e:
@@ -621,6 +692,7 @@ class OpenAppEnvironment(Environment):
             self._current_url = obs.get("url", self._current_url)
             self._current_html = obs.get("dom_txt", self._current_html)
             self._current_axtree = obs.get("axtree_txt", self._current_axtree)
+            self._current_screenshot = self._extract_screenshot(obs)
 
             return float(reward) if reward else 0.0
         except Exception as e:

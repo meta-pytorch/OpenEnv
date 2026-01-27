@@ -408,6 +408,53 @@ Each observation includes:
 - **task_info**: Information about current task (if using tasks)
 - **last_action_error**: Error message if last action failed
 
+### Screenshots
+
+The environment captures screenshots after each action, returned as base64-encoded PNG strings in the observation.
+
+**Testing Screenshots**
+
+Use the `--test-screenshots` flag to verify screenshots are working and save them to disk:
+
+```bash
+# Local mode
+export OPENAPPS_URL=http://localhost:5001
+export PYTHONNOUSERSITE=1
+python examples/openapp_example.py --mode local --test-screenshots
+
+# Docker mode
+export PYTHONNOUSERSITE=1
+python examples/openapp_example.py --mode docker --test-screenshots
+```
+
+Screenshots are saved to `examples/screenshot_output/` with names like:
+- `local_reset.png` / `docker_reset.png` - Screenshot after reset
+- `local_step_1_goto.png` / `docker_step_1_goto.png` - Screenshot after each action
+
+**Using Screenshots in Code**
+
+```python
+import base64
+from openapp_env import OpenAppAction, OpenAppEnv
+
+env = OpenAppEnv.from_docker_image("openapp-env:latest")
+result = env.reset()
+
+# Access screenshot (base64-encoded PNG)
+if result.observation.screenshot:
+    # Decode and save to file
+    with open("screenshot.png", "wb") as f:
+        f.write(base64.b64decode(result.observation.screenshot))
+
+    # Or use with PIL
+    from PIL import Image
+    import io
+    img = Image.open(io.BytesIO(base64.b64decode(result.observation.screenshot)))
+    img.show()
+
+env.close()
+```
+
 ## Configuration
 
 ### Environment Parameters
@@ -498,6 +545,24 @@ This environment integrates:
 
 ### Docker Build Issues
 
+**Error: `cannot import name 'beartype_this_package'` or similar version conflicts**
+
+This is caused by packages in your user site-packages (`~/.local/lib/pythonX.Y/site-packages`) taking precedence over your conda/virtual environment.
+
+**Quick fix** - disable user site-packages for your session:
+```bash
+export PYTHONNOUSERSITE=1
+python examples/openapp_example.py --mode docker
+```
+
+**Permanent fix** - add to your `~/.bashrc` or `~/.zshrc`:
+```bash
+# Disable user site-packages when conda env is active
+if [ -n "$CONDA_PREFIX" ]; then
+    export PYTHONNOUSERSITE=1
+fi
+```
+
 **Error: `Container did not become ready`**
 
 If you're behind a corporate proxy (Meta/Facebook networks), set `NO_PROXY`:
@@ -522,6 +587,24 @@ Common causes:
 - Missing dependencies (rebuild with `--no-cache`)
 
 ### Local Mode Issues
+
+**Error: `cannot import name 'beartype_this_package'` or similar version conflicts**
+
+This is caused by packages in your user site-packages (`~/.local/lib/pythonX.Y/site-packages`) taking precedence over your conda/virtual environment.
+
+**Quick fix** - disable user site-packages for your session:
+```bash
+export PYTHONNOUSERSITE=1
+python examples/openapp_example.py --mode local
+```
+
+**Permanent fix** - add to your `~/.bashrc` or `~/.zshrc`:
+```bash
+# Disable user site-packages when conda env is active
+if [ -n "$CONDA_PREFIX" ]; then
+    export PYTHONNOUSERSITE=1
+fi
+```
 
 **Error: `OPENAPPS_URL not set`**
 
