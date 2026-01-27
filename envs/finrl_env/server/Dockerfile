@@ -29,7 +29,7 @@ RUN pip install --no-cache-dir \
     stockstats==0.6.2
 
 # Copy core framework (base image set WORKDIR=/app)
-COPY src/core/ /app/src/core/
+COPY src/openenv/core/ /app/src/core/
 
 # Copy FinRL environment
 COPY envs/finrl_env/ /app/envs/finrl_env/

@@ -17,7 +17,7 @@ COPY envs/atari_env/server/requirements.txt /tmp/requirements.txt
 RUN pip install --no-cache-dir -r /tmp/requirements.txt && rm /tmp/requirements.txt
 
 # Copy OpenEnv core (base image already set WORKDIR=/app)
-COPY src/core/ /app/src/core/
+COPY src/openenv/core/ /app/src/core/
 
 # Copy Atari environment code
 COPY envs/atari_env/ /app/envs/atari_env/

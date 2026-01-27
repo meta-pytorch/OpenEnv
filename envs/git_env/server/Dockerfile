@@ -17,7 +17,7 @@ RUN apt-get update && apt-get install -y \
 RUN mkdir -p /workspace && chmod 777 /workspace
 
 # Copy core and environment code
-COPY src/core/ /app/src/core/
+COPY src/openenv/core/ /app/src/core/
 COPY envs/git_env/ /app/envs/git_env/
 
 # Environment variables for Gitea connection

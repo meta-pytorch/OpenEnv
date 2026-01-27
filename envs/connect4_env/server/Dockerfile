@@ -7,7 +7,7 @@ RUN pip install --no-cache-dir \
     ale-py>=0.8.0 \
     numpy>=1.24.0
 # Copy environment code
-COPY src/core/ /app/src/core/
+COPY src/openenv/core/ /app/src/core/
 COPY envs/connect4_env/ /app/envs/connect4_env/
 
 # Health check
