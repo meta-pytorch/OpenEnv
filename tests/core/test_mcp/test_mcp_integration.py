@@ -11,6 +11,7 @@ These tests verify:
 1. EchoEnvironment MCP features (list and call tools via step())
 2. MCPEnvironment base class with FastMCP servers
 3. WebSocket MCP tools/list and tools/call endpoints
+4. HTTP POST /mcp endpoint for direct MCP access (RFC 003)
 """
 
 import asyncio
@@ -436,3 +437,297 @@ class TestWebSocketMCP:
             assert "error" in response["data"]
             assert response["data"]["error"]["code"] == -32600
             assert "name" in response["data"]["error"]["message"].lower()
+
+
+# =============================================================================
+# HTTP MCP Endpoint Tests (RFC 003)
+# =============================================================================
+
+
+class TestHTTPMCPEndpoint:
+    """Tests for HTTP POST /mcp endpoint (RFC 003).
+
+    This endpoint allows direct MCP access for production/inference use cases,
+    bypassing the step() API.
+    """
+
+    @pytest.fixture
+    def app(self):
+        """Create a FastAPI app with EchoEnvironment for HTTP testing."""
+        from echo_env.server.echo_environment import EchoEnvironment
+        from openenv.core.env_server.mcp_types import (
+            CallToolAction,
+            CallToolObservation,
+        )
+        from openenv.core.env_server.http_server import create_fastapi_app
+
+        return create_fastapi_app(
+            env=EchoEnvironment,
+            action_cls=CallToolAction,
+            observation_cls=CallToolObservation,
+        )
+
+    @pytest.fixture
+    def client(self, app):
+        """Create a test client."""
+        from starlette.testclient import TestClient
+
+        return TestClient(app)
+
+    def test_http_mcp_tools_list(self, client):
+        """Test HTTP POST /mcp with tools/list method."""
+        request = {
+            "jsonrpc": "2.0",
+            "method": "tools/list",
+            "id": 1,
+        }
+
+        response = client.post("/mcp", json=request)
+
+        assert response.status_code == 200
+        data = response.json()
+
+        # Verify JSON-RPC response structure
+        assert data["jsonrpc"] == "2.0"
+        assert data["id"] == 1
+        assert "result" in data
+        assert data.get("error") is None
+
+        # Verify tools are returned
+        tools = data["result"]["tools"]
+        tool_names = [t["name"] for t in tools]
+        assert "echo_message" in tool_names
+        assert "echo_with_length" in tool_names
+
+    def test_http_mcp_tools_call_echo_message(self, client):
+        """Test HTTP POST /mcp with tools/call for echo_message."""
+        request = {
+            "jsonrpc": "2.0",
+            "method": "tools/call",
+            "params": {
+                "name": "echo_message",
+                "arguments": {"message": "Hello via HTTP MCP!"},
+            },
+            "id": 2,
+        }
+
+        response = client.post("/mcp", json=request)
+
+        assert response.status_code == 200
+        data = response.json()
+
+        # Verify JSON-RPC response structure
+        assert data["jsonrpc"] == "2.0"
+        assert data["id"] == 2
+        assert "result" in data
+        assert data.get("error") is None
+
+        # Verify result contains the echoed message
+        assert "Hello via HTTP MCP!" in str(data["result"])
+
+    def test_http_mcp_tools_call_echo_with_length(self, client):
+        """Test HTTP POST /mcp with tools/call for echo_with_length."""
+        request = {
+            "jsonrpc": "2.0",
+            "method": "tools/call",
+            "params": {
+                "name": "echo_with_length",
+                "arguments": {"message": "test"},
+            },
+            "id": 3,
+        }
+
+        response = client.post("/mcp", json=request)
+
+        assert response.status_code == 200
+        data = response.json()
+
+        # Verify JSON-RPC response structure
+        assert data["jsonrpc"] == "2.0"
+        assert data["id"] == 3
+        assert "result" in data
+        assert data.get("error") is None
+
+    def test_http_mcp_method_not_found(self, client):
+        """Test HTTP POST /mcp returns error for unknown method."""
+        request = {
+            "jsonrpc": "2.0",
+            "method": "unknown/method",
+            "id": 4,
+        }
+
+        response = client.post("/mcp", json=request)
+
+        assert response.status_code == 200  # JSON-RPC errors still return 200
+        data = response.json()
+
+        # Verify error response
+        assert data["jsonrpc"] == "2.0"
+        assert data["id"] == 4
+        assert "error" in data
+        assert data["error"]["code"] == -32601
+        assert "not found" in data["error"]["message"].lower()
+
+    def test_http_mcp_tools_call_missing_name(self, client):
+        """Test HTTP POST /mcp tools/call returns error when name is missing."""
+        request = {
+            "jsonrpc": "2.0",
+            "method": "tools/call",
+            "params": {
+                "arguments": {"message": "test"},
+            },
+            "id": 5,
+        }
+
+        response = client.post("/mcp", json=request)
+
+        assert response.status_code == 200
+        data = response.json()
+
+        # Verify error response
+        assert data["jsonrpc"] == "2.0"
+        assert data["id"] == 5
+        assert "error" in data
+        assert data["error"]["code"] == -32600
+        assert "name" in data["error"]["message"].lower()
+
+    def test_http_mcp_tools_call_nonexistent_tool(self, client):
+        """Test HTTP POST /mcp tools/call returns error for nonexistent tool."""
+        request = {
+            "jsonrpc": "2.0",
+            "method": "tools/call",
+            "params": {
+                "name": "nonexistent_tool",
+                "arguments": {},
+            },
+            "id": 6,
+        }
+
+        response = client.post("/mcp", json=request)
+
+        assert response.status_code == 200
+        data = response.json()
+
+        # Should return an error (tool not found)
+        assert data["jsonrpc"] == "2.0"
+        assert data["id"] == 6
+        assert "error" in data
+
+    def test_http_mcp_no_id(self, client):
+        """Test HTTP POST /mcp works without request ID (notification style)."""
+        request = {
+            "jsonrpc": "2.0",
+            "method": "tools/list",
+            # No id field
+        }
+
+        response = client.post("/mcp", json=request)
+
+        assert response.status_code == 200
+        data = response.json()
+
+        # Response should still be valid with id=None
+        assert data["jsonrpc"] == "2.0"
+        assert data.get("id") is None
+        assert "result" in data
+
+    def test_http_mcp_tools_call_empty_arguments(self, client):
+        """Test HTTP POST /mcp tools/call with empty arguments."""
+        # Note: echo_message requires a message argument, so this should fail
+        request = {
+            "jsonrpc": "2.0",
+            "method": "tools/call",
+            "params": {
+                "name": "echo_message",
+                "arguments": {},  # Missing required 'message' argument
+            },
+            "id": 7,
+        }
+
+        response = client.post("/mcp", json=request)
+
+        assert response.status_code == 200
+        data = response.json()
+
+        # Should return an error (missing required argument)
+        assert data["jsonrpc"] == "2.0"
+        assert data["id"] == 7
+        assert "error" in data
+
+
+class TestHTTPMCPWithNonMCPEnvironment:
+    """Tests for HTTP MCP endpoint with environments that don't support MCP."""
+
+    @pytest.fixture
+    def non_mcp_app(self):
+        """Create a FastAPI app with a non-MCP environment."""
+        from openenv.core.env_server.interfaces import Environment
+        from openenv.core.env_server.types import Action, Observation, State
+        from openenv.core.env_server.http_server import create_fastapi_app
+
+        class SimpleEnvironment(Environment):
+            """A simple non-MCP environment for testing."""
+
+            def reset(self, seed=None, episode_id=None):
+                return Observation(done=False, reward=0.0)
+
+            def step(self, action):
+                return Observation(done=False, reward=0.0)
+
+            @property
+            def state(self):
+                return State(episode_id="test", step_count=0)
+
+        return create_fastapi_app(
+            env=SimpleEnvironment,
+            action_cls=Action,
+            observation_cls=Observation,
+        )
+
+    def test_http_mcp_non_mcp_environment_tools_list(self, non_mcp_app):
+        """Test HTTP POST /mcp returns error for non-MCP environment."""
+        from starlette.testclient import TestClient
+
+        client = TestClient(non_mcp_app)
+
+        request = {
+            "jsonrpc": "2.0",
+            "method": "tools/list",
+            "id": 1,
+        }
+
+        response = client.post("/mcp", json=request)
+
+        assert response.status_code == 200
+        data = response.json()
+
+        # Should return an error (environment doesn't support MCP)
+        assert "error" in data
+        assert data["error"]["code"] == -32603
+        assert "does not support MCP" in data["error"]["message"]
+
+    def test_http_mcp_non_mcp_environment_tools_call(self, non_mcp_app):
+        """Test HTTP POST /mcp tools/call returns error for non-MCP environment."""
+        from starlette.testclient import TestClient
+
+        client = TestClient(non_mcp_app)
+
+        request = {
+            "jsonrpc": "2.0",
+            "method": "tools/call",
+            "params": {
+                "name": "some_tool",
+                "arguments": {},
+            },
+            "id": 2,
+        }
+
+        response = client.post("/mcp", json=request)
+
+        assert response.status_code == 200
+        data = response.json()
+
+        # Should return an error (environment doesn't support MCP)
+        assert "error" in data
+        assert data["error"]["code"] == -32603
+        assert "does not support MCP" in data["error"]["message"]

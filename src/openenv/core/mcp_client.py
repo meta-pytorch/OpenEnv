@@ -10,11 +10,12 @@ MCP Client classes for tool-calling environments.
 This module provides client classes for interacting with MCP-enabled environments:
 - MCPClientBase: Base class with shared tool discovery
 - MCPToolClient: Client for tool-calling style (one tool per step)
+- MCPHttpClient: Lightweight client for direct HTTP MCP access (RFC 003)
 
 These clients abstract away the MCP protocol details, providing a clean interface
 for listing and calling tools on remote environments.
 
-Example:
+Example using MCPToolClient (WebSocket-based, maintains session):
     >>> from openenv.core.mcp_client import MCPToolClient
     >>>
     >>> with MCPToolClient(base_url="http://localhost:8000") as env:
@@ -25,8 +26,16 @@ Example:
     ...     # Call a tool
     ...     result = env.call_tool("echo_message", message="Hello!")
     ...     print(result)
+
+Example using MCPHttpClient (direct HTTP, stateless):
+    >>> from openenv.core.mcp_client import MCPHttpClient
+    >>>
+    >>> client = MCPHttpClient(base_url="http://localhost:8000")
+    >>> tools = client.list_tools()
+    >>> result = client.call_tool("echo_message", message="Hello!")
 """
 
+import httpx
 from typing import Any, Dict, List, Optional
 
 from .client_types import StepResult, StateT
@@ -36,6 +45,8 @@ from .env_server.mcp_types import (
     CallToolObservation,
     ListToolsAction,
     ListToolsObservation,
+    MCPRequest,
+    MCPResponse,
     Tool,
     ToolError,
 )
@@ -272,6 +283,212 @@ class MCPToolClient(MCPClientBase):
             >>> if tool:
             ...     print(tool.description)
             ...     print(tool.input_schema)
+        """
+        tools = self.list_tools()
+        for tool in tools:
+            if tool.name == name:
+                return tool
+        return None
+
+    def has_tool(self, name: str) -> bool:
+        """
+        Check if a tool exists.
+
+        Args:
+            name: Name of the tool to check.
+
+        Returns:
+            True if the tool exists, False otherwise.
+        """
+        return self.get_tool(name) is not None
+
+
+class MCPHttpClient:
+    """
+    Lightweight HTTP client for direct MCP access (RFC 003).
+
+    This client uses the POST /mcp endpoint for stateless tool discovery and
+    invocation. Unlike MCPToolClient, it doesn't maintain a WebSocket session,
+    making it ideal for:
+    - Production/inference scenarios
+    - Simple tool calls without episode state
+    - Integration with existing HTTP-based infrastructure
+
+    Note: This client doesn't support reset/step/state operations. Use
+    MCPToolClient for full environment interaction with session state.
+
+    Example:
+        >>> client = MCPHttpClient(base_url="http://localhost:8000")
+        >>>
+        >>> # List available tools
+        >>> tools = client.list_tools()
+        >>> for tool in tools:
+        ...     print(f"{tool.name}: {tool.description}")
+        >>>
+        >>> # Call a tool
+        >>> result = client.call_tool("echo_message", message="Hello!")
+        >>> print(result)
+    """
+
+    def __init__(
+        self,
+        base_url: str,
+        timeout_s: float = 30.0,
+    ):
+        """
+        Initialize MCP HTTP client.
+
+        Args:
+            base_url: Base URL of the environment server (http:// only).
+            timeout_s: Timeout for HTTP requests in seconds.
+        """
+        # Normalize base_url
+        self.base_url = base_url.rstrip("/")
+        if self.base_url.startswith("ws://"):
+            self.base_url = self.base_url.replace("ws://", "http://", 1)
+        elif self.base_url.startswith("wss://"):
+            self.base_url = self.base_url.replace("wss://", "https://", 1)
+
+        self.timeout_s = timeout_s
+        self._tools_cache: Optional[List[Tool]] = None
+        self._client = httpx.Client(timeout=timeout_s)
+
+    def __enter__(self):
+        """Context manager entry."""
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        """Context manager exit - close the HTTP client."""
+        self.close()
+
+    def close(self):
+        """Close the HTTP client."""
+        self._client.close()
+
+    def _mcp_request(
+        self, method: str, params: Optional[Dict[str, Any]] = None
+    ) -> Dict[str, Any]:
+        """
+        Send an MCP JSON-RPC request to the /mcp endpoint.
+
+        Args:
+            method: MCP method name (e.g., "tools/list", "tools/call")
+            params: Optional method parameters
+
+        Returns:
+            The 'result' field from the JSON-RPC response
+
+        Raises:
+            RuntimeError: If the server returns an error response
+        """
+        request_data = {
+            "jsonrpc": "2.0",
+            "method": method,
+            "id": 1,
+        }
+        if params:
+            request_data["params"] = params
+
+        response = self._client.post(
+            f"{self.base_url}/mcp",
+            json=request_data,
+        )
+        response.raise_for_status()
+
+        data = response.json()
+
+        if "error" in data and data["error"]:
+            error = data["error"]
+            raise RuntimeError(
+                f"MCP error {error.get('code', 'unknown')}: {error.get('message', 'Unknown error')}"
+            )
+
+        return data.get("result")
+
+    def list_tools(self, use_cache: bool = True) -> List[Tool]:
+        """
+        Discover available tools from the environment.
+
+        Args:
+            use_cache: If True, return cached tools if available.
+                      Set to False to force a fresh request.
+
+        Returns:
+            List of Tool objects with name, description, and input_schema.
+
+        Example:
+            >>> tools = client.list_tools()
+            >>> for tool in tools:
+            ...     print(f"{tool.name}: {tool.description}")
+        """
+        if use_cache and self._tools_cache is not None:
+            return self._tools_cache
+
+        result = self._mcp_request("tools/list")
+        tools_data = result.get("tools", [])
+
+        self._tools_cache = [
+            Tool(
+                name=t.get("name", ""),
+                description=t.get("description", ""),
+                input_schema=t.get("inputSchema", t.get("input_schema", {})),
+            )
+            for t in tools_data
+        ]
+
+        return self._tools_cache
+
+    def call_tool(self, name: str, **kwargs: Any) -> Any:
+        """
+        Call a tool by name.
+
+        Args:
+            name: Name of the tool to invoke.
+            **kwargs: Arguments to pass to the tool.
+
+        Returns:
+            The tool's result. The type depends on the tool being called.
+
+        Raises:
+            RuntimeError: If the server returns an error response.
+
+        Example:
+            >>> result = client.call_tool("add", a=5, b=3)
+            >>> print(result)  # 8
+            >>>
+            >>> result = client.call_tool("greet", name="Claude")
+            >>> print(result)  # "Hello, Claude!"
+        """
+        result = self._mcp_request(
+            "tools/call",
+            params={"name": name, "arguments": kwargs},
+        )
+
+        # Handle FastMCP CallToolResult objects
+        if isinstance(result, dict):
+            # Check for nested data structure
+            if "data" in result:
+                return result["data"]
+            # Check for content array (MCP standard format)
+            if "content" in result and isinstance(result["content"], list):
+                contents = result["content"]
+                if len(contents) == 1:
+                    content = contents[0]
+                    if isinstance(content, dict) and "text" in content:
+                        return content["text"]
+                return contents
+
+        return result
+
+    def get_tool(self, name: str) -> Optional[Tool]:
+        """
+        Get a specific tool by name.
+
+        Args:
+            name: Name of the tool to find.
+
+        Returns:
+            The Tool object if found, None otherwise.
         """
         tools = self.list_tools()
         for tool in tools:

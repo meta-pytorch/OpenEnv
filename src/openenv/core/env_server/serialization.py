@@ -12,9 +12,45 @@ and Pydantic models (Action/Observation) to eliminate code duplication across
 HTTP server and web interface implementations.
 """
 
-from typing import Any, Dict, Type
+from typing import Any, Dict, Type, get_origin, get_args, Union
+
+from pydantic import TypeAdapter
 
 from .types import Action, Observation
+
+
+# Cache for TypeAdapters to avoid recreation
+_type_adapter_cache: Dict[Type, TypeAdapter] = {}
+
+
+def _is_mcp_action_type(action_cls: Type[Action]) -> bool:
+    """Check if action class is an MCP action type that needs special handling."""
+    # Import here to avoid circular imports
+    from .mcp_types import ListToolsAction, CallToolAction
+
+    # Check if it's one of the MCP action types or a Union containing them
+    if action_cls in (ListToolsAction, CallToolAction):
+        return True
+
+    # Check for Union types (including Annotated unions)
+    origin = get_origin(action_cls)
+    if origin is Union:
+        args = get_args(action_cls)
+        return any(
+            arg in (ListToolsAction, CallToolAction)
+            or getattr(arg, "__origin__", None) is type
+            and issubclass(arg, (ListToolsAction, CallToolAction))
+            for arg in args
+        )
+
+    return False
+
+
+def _get_type_adapter(action_cls: Type[Action]) -> TypeAdapter:
+    """Get or create a TypeAdapter for the action class."""
+    if action_cls not in _type_adapter_cache:
+        _type_adapter_cache[action_cls] = TypeAdapter(action_cls)
+    return _type_adapter_cache[action_cls]
 
 
 def deserialize_action(action_data: Dict[str, Any], action_cls: Type[Action]) -> Action:
@@ -25,9 +61,12 @@ def deserialize_action(action_data: Dict[str, Any], action_cls: Type[Action]) ->
     For special cases (e.g., tensor fields, custom type conversions),
     use deserialize_action_with_preprocessing().
 
+    For MCP actions (MCPAction union type), this uses a TypeAdapter to
+    handle discriminated union deserialization based on the 'type' field.
+
     Args:
         action_data: Dictionary containing action data
-        action_cls: The Action subclass to instantiate
+        action_cls: The Action subclass to instantiate (can be a Union type)
 
     Returns:
         Action instance
@@ -37,7 +76,29 @@ def deserialize_action(action_data: Dict[str, Any], action_cls: Type[Action]) ->
 
     Note:
         This uses Pydantic's model_validate() for automatic validation.
+        For Union types (like MCPAction), it uses TypeAdapter.validate_python().
     """
+    # Import MCP types to check for MCPAction
+    from .mcp_types import MCPAction, ListToolsAction, CallToolAction
+
+    # Check if we need to use MCPAction for polymorphic deserialization
+    # This handles both when action_cls is MCPAction itself or CallToolAction
+    # (since CallToolAction is often used as the "default" MCP action type)
+    if action_cls is CallToolAction:
+        # Check if the action data has a different type field
+        action_type = action_data.get("type", "call_tool")
+        if action_type == "list_tools":
+            # Use MCPAction union for proper deserialization
+            adapter = _get_type_adapter(MCPAction)
+            return adapter.validate_python(action_data)
+
+    # Check if this is already a Union type (like MCPAction)
+    origin = get_origin(action_cls)
+    if origin is Union or hasattr(action_cls, "__origin__"):
+        adapter = _get_type_adapter(action_cls)
+        return adapter.validate_python(action_data)
+
+    # Standard model_validate for simple action types
     return action_cls.model_validate(action_data)
 
 
