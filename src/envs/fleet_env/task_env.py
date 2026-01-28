@@ -83,6 +83,7 @@ class FleetTaskEnv:
             env_key=env_spec,
             data_key=self._get_data_key(),
             data_version=self._get_data_version(),
+            env_variables=self._get_env_variables(),
             ttl_seconds=self.ttl_seconds,
             request_timeout_s=self.request_timeout_s,
         )
@@ -126,6 +127,14 @@ class FleetTaskEnv:
     def _get_data_version(self) -> Optional[str]:
         """Get data_version from task config."""
         return self.task.get("data_version")
+
+    def _get_env_variables(self) -> Optional[Dict[str, Any]]:
+        """Get env_variables from task config.
+
+        These variables parameterize the environment with task-specific values
+        like names, dates, scenario configurations, etc.
+        """
+        return self.task.get("env_variables")
 
     def reset(self, seed: Optional[int] = None) -> Dict[str, Any]:
         """Reset the environment and return initial observation (sync wrapper).
