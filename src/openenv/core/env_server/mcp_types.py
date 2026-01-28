@@ -14,13 +14,13 @@ to Gym-style action types.
 Key design decisions:
 - Tool discovery (list_tools) does NOT require reset() first
 - Reserved tool names (reset, step, state, close) are prohibited
-- Both step() and WebSocket /mcp paths are supported
+- Both step(), WebSocket /mcp, and HTTP POST /mcp paths are supported
 """
 
 from enum import Enum
-from typing import Any, Dict, List, Literal, Optional
+from typing import Annotated, Any, Dict, List, Literal, Optional, Union
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Discriminator, Field, Tag
 
 from .types import Action, Observation, BaseMessage
 
@@ -103,6 +103,36 @@ class CallToolAction(Action):
     )
 
 
+def _get_action_type(v: Any) -> str:
+    """Get the action type discriminator for MCP actions."""
+    if isinstance(v, dict):
+        return v.get("type", "call_tool")
+    return getattr(v, "type", "call_tool")
+
+
+# Union type for polymorphic MCP action deserialization
+MCPAction = Annotated[
+    Union[
+        Annotated[ListToolsAction, Tag("list_tools")],
+        Annotated[CallToolAction, Tag("call_tool")],
+    ],
+    Discriminator(_get_action_type),
+]
+"""
+Union type for MCP actions with automatic type discrimination.
+
+This allows both ListToolsAction and CallToolAction to be deserialized
+from the same endpoint based on the 'type' field:
+- {"type": "list_tools"} -> ListToolsAction
+- {"type": "call_tool", "tool_name": "...", "arguments": {...}} -> CallToolAction
+
+Usage:
+    from pydantic import TypeAdapter
+    adapter = TypeAdapter(MCPAction)
+    action = adapter.validate_python({"type": "list_tools"})
+"""
+
+
 # --- MCP Observations ---
 
 
@@ -160,6 +190,68 @@ class WSMCPResponse(BaseModel):
 
     type: str = Field(default="mcp", description="Response type")
     data: Dict[str, Any] = Field(description="JSON-RPC response payload")
+
+
+# --- HTTP MCP Types (RFC 003) ---
+
+
+class MCPRequest(BaseModel):
+    """
+    HTTP request for MCP JSON-RPC.
+
+    Supports the MCP protocol via HTTP POST /mcp endpoint for production/inference
+    use cases, bypassing the step() API.
+
+    See RFC 003: MCP Support for details.
+
+    Example requests:
+        # List tools
+        {"jsonrpc": "2.0", "method": "tools/list", "id": 1}
+
+        # Call a tool
+        {"jsonrpc": "2.0", "method": "tools/call", "params": {"name": "search", "arguments": {"query": "test"}}, "id": 2}
+    """
+
+    model_config = ConfigDict(extra="allow")
+
+    jsonrpc: Literal["2.0"] = Field(
+        default="2.0", description="JSON-RPC version (must be 2.0)"
+    )
+    method: str = Field(description="MCP method to call (tools/list, tools/call)")
+    params: Optional[Dict[str, Any]] = Field(
+        default=None, description="Method parameters (required for tools/call)"
+    )
+    id: Optional[Any] = Field(
+        default=None, description="Request ID for matching responses"
+    )
+
+
+class MCPResponse(BaseModel):
+    """
+    HTTP response for MCP JSON-RPC.
+
+    Contains the JSON-RPC response from the MCP server.
+
+    See RFC 003: MCP Support for details.
+
+    Example responses:
+        # Success
+        {"jsonrpc": "2.0", "result": {"tools": [...]}, "id": 1}
+
+        # Error
+        {"jsonrpc": "2.0", "error": {"code": -32601, "message": "Method not found"}, "id": 1}
+    """
+
+    model_config = ConfigDict(extra="allow")
+
+    jsonrpc: Literal["2.0"] = Field(
+        default="2.0", description="JSON-RPC version (always 2.0)"
+    )
+    result: Optional[Any] = Field(default=None, description="Method result on success")
+    error: Optional[Dict[str, Any]] = Field(
+        default=None, description="Error object on failure"
+    )
+    id: Optional[Any] = Field(default=None, description="Request ID (matches request)")
 
 
 # Reserved tool names that cannot be used (protects dual API boundary)

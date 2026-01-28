@@ -19,6 +19,8 @@ from openenv.core.env_server.mcp_types import (
     CallToolObservation,
     WSMCPMessage,
     WSMCPResponse,
+    MCPRequest,
+    MCPResponse,
     RESERVED_TOOL_NAMES,
 )
 
@@ -187,3 +189,87 @@ class TestReservedToolNames:
     def test_reserved_names_is_frozenset(self):
         """Test that reserved names cannot be modified."""
         assert isinstance(RESERVED_TOOL_NAMES, frozenset)
+
+
+class TestMCPRequest:
+    """Tests for HTTP MCP request type (RFC 003)."""
+
+    def test_mcp_request_tools_list(self):
+        """Test creating an MCP request for tools/list."""
+        request = MCPRequest(method="tools/list", id=1)
+        assert request.jsonrpc == "2.0"
+        assert request.method == "tools/list"
+        assert request.id == 1
+        assert request.params is None
+
+    def test_mcp_request_tools_call(self):
+        """Test creating an MCP request for tools/call."""
+        request = MCPRequest(
+            method="tools/call",
+            params={"name": "echo", "arguments": {"message": "hello"}},
+            id=2,
+        )
+        assert request.jsonrpc == "2.0"
+        assert request.method == "tools/call"
+        assert request.params["name"] == "echo"
+        assert request.params["arguments"]["message"] == "hello"
+        assert request.id == 2
+
+    def test_mcp_request_without_id(self):
+        """Test creating an MCP request without id (notification style)."""
+        request = MCPRequest(method="tools/list")
+        assert request.jsonrpc == "2.0"
+        assert request.method == "tools/list"
+        assert request.id is None
+
+    def test_mcp_request_requires_method(self):
+        """Test that MCPRequest requires method field."""
+        with pytest.raises(ValidationError):
+            MCPRequest()  # Missing method
+
+    def test_mcp_request_serialization(self):
+        """Test MCPRequest serialization to dict."""
+        request = MCPRequest(method="tools/list", id=1)
+        data = request.model_dump()
+        assert data["jsonrpc"] == "2.0"
+        assert data["method"] == "tools/list"
+        assert data["id"] == 1
+
+
+class TestMCPResponse:
+    """Tests for HTTP MCP response type (RFC 003)."""
+
+    def test_mcp_response_success(self):
+        """Test creating a successful MCP response."""
+        response = MCPResponse(result={"tools": []}, id=1)
+        assert response.jsonrpc == "2.0"
+        assert response.result == {"tools": []}
+        assert response.error is None
+        assert response.id == 1
+
+    def test_mcp_response_error(self):
+        """Test creating an error MCP response."""
+        response = MCPResponse(
+            error={"code": -32601, "message": "Method not found"},
+            id=1,
+        )
+        assert response.jsonrpc == "2.0"
+        assert response.result is None
+        assert response.error["code"] == -32601
+        assert "Method not found" in response.error["message"]
+        assert response.id == 1
+
+    def test_mcp_response_without_id(self):
+        """Test creating an MCP response without id."""
+        response = MCPResponse(result="Hello, World!")
+        assert response.jsonrpc == "2.0"
+        assert response.result == "Hello, World!"
+        assert response.id is None
+
+    def test_mcp_response_serialization(self):
+        """Test MCPResponse serialization to dict."""
+        response = MCPResponse(result={"tools": [{"name": "echo"}]}, id=1)
+        data = response.model_dump()
+        assert data["jsonrpc"] == "2.0"
+        assert data["result"]["tools"][0]["name"] == "echo"
+        assert data["id"] == 1

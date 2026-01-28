@@ -56,6 +56,8 @@ from .types import (
 from .mcp_types import (
     WSMCPMessage,
     WSMCPResponse,
+    MCPRequest,
+    MCPResponse,
 )
 
 
@@ -650,6 +652,191 @@ all schema information needed to interact with the environment.
                 observation=self.observation_cls.model_json_schema(),
                 state=State.model_json_schema(),
             )
+
+        # Register MCP HTTP endpoint (RFC 003)
+        @app.post(
+            "/mcp",
+            response_model=MCPResponse,
+            tags=["MCP"],
+            summary="Direct MCP access for production/inference",
+            description="""
+Direct MCP (Model Context Protocol) access via HTTP for production/inference use cases.
+
+This endpoint allows MCP clients to interact with the environment's tools directly,
+bypassing the step() API. It follows the MCP JSON-RPC specification.
+
+## Supported Methods
+
+- **tools/list**: List all available tools with their schemas
+- **tools/call**: Call a specific tool with arguments
+
+## Example Requests
+
+**List tools:**
+```json
+{"jsonrpc": "2.0", "method": "tools/list", "id": 1}
+```
+
+**Call a tool:**
+```json
+{
+  "jsonrpc": "2.0",
+  "method": "tools/call",
+  "params": {"name": "search_web", "arguments": {"query": "python"}},
+  "id": 2
+}
+```
+
+See RFC 003 for more details on MCP integration.
+            """,
+            responses={
+                200: {
+                    "description": "MCP request processed successfully",
+                    "content": {
+                        "application/json": {
+                            "examples": {
+                                "tools_list": {
+                                    "summary": "List tools response",
+                                    "value": {
+                                        "jsonrpc": "2.0",
+                                        "result": {
+                                            "tools": [
+                                                {
+                                                    "name": "echo",
+                                                    "description": "Echo a message",
+                                                    "inputSchema": {
+                                                        "type": "object",
+                                                        "properties": {
+                                                            "message": {
+                                                                "type": "string"
+                                                            }
+                                                        },
+                                                    },
+                                                }
+                                            ]
+                                        },
+                                        "id": 1,
+                                    },
+                                },
+                                "tools_call": {
+                                    "summary": "Call tool response",
+                                    "value": {
+                                        "jsonrpc": "2.0",
+                                        "result": "Hello, World!",
+                                        "id": 2,
+                                    },
+                                },
+                                "error": {
+                                    "summary": "Error response",
+                                    "value": {
+                                        "jsonrpc": "2.0",
+                                        "error": {
+                                            "code": -32601,
+                                            "message": "Method not found",
+                                        },
+                                        "id": 1,
+                                    },
+                                },
+                            }
+                        }
+                    },
+                },
+            },
+        )
+        async def mcp_handler(request: MCPRequest) -> MCPResponse:
+            """
+            Handle MCP JSON-RPC requests over HTTP.
+
+            This enables direct MCP access for production/inference use cases,
+            allowing MCP clients to interact with tools without using step().
+            """
+            method = request.method
+            request_id = request.id
+
+            # Create a temporary environment for this request
+            _env = self._env_factory()
+
+            try:
+                if method == "tools/list":
+                    # Check if environment is MCP-enabled
+                    if not hasattr(_env, "mcp_client"):
+                        return MCPResponse(
+                            error={
+                                "code": -32603,
+                                "message": "Environment does not support MCP",
+                            },
+                            id=request_id,
+                        )
+
+                    # Use async context manager for MCP client
+                    async with _env.mcp_client:
+                        tools = await _env.mcp_client.list_tools()
+
+                    return MCPResponse(
+                        result={
+                            "tools": [
+                                t.model_dump() if hasattr(t, "model_dump") else dict(t)
+                                for t in tools
+                            ]
+                        },
+                        id=request_id,
+                    )
+
+                elif method == "tools/call":
+                    params = request.params or {}
+                    tool_name = params.get("name")
+                    arguments = params.get("arguments", {})
+
+                    if not hasattr(_env, "mcp_client"):
+                        return MCPResponse(
+                            error={
+                                "code": -32603,
+                                "message": "Environment does not support MCP",
+                            },
+                            id=request_id,
+                        )
+
+                    if not tool_name:
+                        return MCPResponse(
+                            error={
+                                "code": -32600,
+                                "message": "Missing 'name' in params",
+                            },
+                            id=request_id,
+                        )
+
+                    # Use async context manager for MCP client
+                    async with _env.mcp_client:
+                        result = await _env.mcp_client.call_tool(
+                            name=tool_name, arguments=arguments
+                        )
+
+                    # Ensure result is JSON serializable
+                    serializable_result = _make_json_serializable(result)
+                    return MCPResponse(
+                        result=serializable_result,
+                        id=request_id,
+                    )
+
+                else:
+                    return MCPResponse(
+                        error={
+                            "code": -32601,
+                            "message": f"Method not found: {method}",
+                        },
+                        id=request_id,
+                    )
+
+            except Exception as e:
+                return MCPResponse(
+                    error={
+                        "code": -32603,
+                        "message": str(e),
+                    },
+                    id=request_id,
+                )
+            finally:
+                _env.close()
 
         # Register WebSocket endpoint for persistent sessions
         @app.websocket("/ws")
