@@ -102,7 +102,10 @@ class FleetMCPTools:
         logger.error(f"list_tools failed after {self.max_retries} attempts: {last_error}")
         return ListToolsAction(tools=[])
 
-    async def call_tool(self, tool_name: str, arguments: Dict[str, Any]) -> Any:
+    async def _call_tool_single_attempt(
+        self, tool_name: str, arguments: Dict[str, Any]
+    ) -> Any:
+        """Single attempt to call a tool."""
         owner_cache = self._get_owner_cache()
         clients = self._get_clients()
 
@@ -116,16 +119,44 @@ class FleetMCPTools:
                 tools = await client.list_tools()
                 if client.has_tool(tool_name, tools):
                     owner_cache[tool_name] = client
-                    # If execution fails here, we let it propagate because we found the owner.
                     return await client.call_tool(tool_name, arguments)
             except BaseException as e:
-                # Log discovery/connection errors instead of silently swallowing.
                 errors.append(f"{client.url}: {e}")
                 continue
 
         if errors:
-            logger.warning(f"Some MCP clients failed during tool discovery: {errors}")
+            raise RuntimeError(f"Tool call failed: {errors}")
 
         raise ValueError(f"Tool '{tool_name}' not found on any active MCP endpoint.")
+
+    async def call_tool(self, tool_name: str, arguments: Dict[str, Any]) -> Any:
+        """Call a tool with retry logic for connection failures.
+
+        Retries with exponential backoff on connection errors.
+        """
+        last_error = None
+
+        for attempt in range(self.max_retries):
+            try:
+                return await self._call_tool_single_attempt(tool_name, arguments)
+            except ValueError:
+                # Tool not found - don't retry
+                raise
+            except Exception as e:
+                last_error = e
+                if attempt < self.max_retries - 1:
+                    delay = self.retry_base_delay * (2**attempt)
+                    logger.warning(
+                        f"call_tool({tool_name}) attempt {attempt + 1}/{self.max_retries} failed: {e}. "
+                        f"Retrying in {delay:.1f}s..."
+                    )
+                    await asyncio.sleep(delay)
+
+        logger.error(
+            f"call_tool({tool_name}) failed after {self.max_retries} attempts: {last_error}"
+        )
+        raise RuntimeError(
+            f"call_tool({tool_name}) failed after {self.max_retries} attempts"
+        ) from last_error
 
 
