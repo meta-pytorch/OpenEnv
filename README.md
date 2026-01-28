@@ -30,19 +30,25 @@ pip install git+https://huggingface.co/spaces/openenv/echo_env
 Then use the environment:
 
 ```python
-from echo_env import EchoAction, EchoEnv
+from echo_env import EchoEnv
 
 # Connect to a running Space
 client = EchoEnv(base_url="https://openenv-echo-env.hf.space")
 
 # Reset the environment
-result = client.reset()
-print(result.observation.echoed_message)  # "Echo environment ready!"
+client.reset()
 
-# Send messages
-result = client.step(EchoAction(message="Hello, World!"))
-print(result.observation.echoed_message)  # "Hello, World!"
-print(result.reward)  # 1.3 (based on message length)
+# List available tools
+tools = client.list_tools()
+print([t.name for t in tools])  # ['echo_message', 'echo_with_length']
+
+# Call tools to send messages
+result = client.call_tool("echo_message", message="Hello, World!")
+print(result)  # "Hello, World!"
+
+# Call tool with length calculation
+result = client.call_tool("echo_with_length", message="Hello, World!")
+print(result)  # {"message": "Hello, World!", "length": 13}
 
 # Cleanup
 client.close()
@@ -221,10 +227,12 @@ See [`envs/README.md`](envs/README.md) for a complete guide on building environm
 
 To use an environment:
 1. Install the client: `pip install git+https://huggingface.co/spaces/openenv/echo-env`
-2. Import: `from echo_env import EchoAction, EchoEnv`
+2. Import: `from echo_env import EchoEnv`
 3. Create client: `client = EchoEnv(base_url="https://openenv-echo-env.hf.space")`
-4. Interact: `client.reset()`, `client.step(action)`, `client.state()`
+4. Interact: `client.reset()`, `client.list_tools()`, `client.call_tool(name, **kwargs)`, `client.state()`
 5. Cleanup: `client.close()`
+
+Note: Some environments use MCP tools (like echo-env), while others use action-based APIs. See the [quickstart guide](docs/quickstart.md) for examples of both patterns.
 
 See example scripts in `examples/` directory.
 

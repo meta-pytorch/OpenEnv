@@ -454,8 +454,8 @@ def build(
     )
 
     if not success:
-        print("✗ Docker build failed", file=sys.stderr)
+        print("Γ£ù Docker build failed", file=sys.stderr)
         raise typer.Exit(1)
 
-    console.print("[bold green]✓ Docker build successful[/bold green]")
+    console.print("[bold green]Γ£ô Docker build successful[/bold green]")
     console.print("\n[bold green]Done![/bold green]")

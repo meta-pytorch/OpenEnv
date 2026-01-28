@@ -33,14 +33,14 @@ def _validate_openenv_directory(directory: Path) -> tuple[str, dict]:
     try:
         warnings = validate_env_structure(directory)
         for warning in warnings:
-            console.print(f"[bold yellow]⚠[/bold yellow] {warning}")
+            console.print(f"[bold yellow]ΓÜá[/bold yellow] {warning}")
     except FileNotFoundError as e:
         raise typer.BadParameter(f"Invalid OpenEnv environment structure: {e}") from e
 
     # Load and validate manifest
     manifest_path = directory / "openenv.yaml"
     try:
-        with open(manifest_path, "r") as f:
+        with open(manifest_path, "r", encoding="utf-8") as f:
             manifest = yaml.safe_load(f)
     except Exception as e:
         raise typer.BadParameter(f"Failed to parse openenv.yaml: {e}") from e
@@ -83,7 +83,7 @@ def _ensure_hf_authenticated() -> str:
         if not username:
             raise ValueError("Could not extract username from whoami response")
 
-        console.print(f"[bold green]✓[/bold green] Authenticated as: {username}")
+        console.print(f"[bold green]Γ£ô[/bold green] Authenticated as: {username}")
         return username
     except Exception:
         # Not authenticated, prompt for login
@@ -92,7 +92,14 @@ def _ensure_hf_authenticated() -> str:
         )
 
         try:
-            login()
+            # Check for token in environment variable
+            import os
+
+            token = os.getenv("HF_TOKEN")
+            if token:
+                login(token=token)
+            else:
+                login()
             # Verify login worked
             user_info = whoami()
             # Handle both dict and object return types
@@ -112,7 +119,7 @@ def _ensure_hf_authenticated() -> str:
             if not username:
                 raise ValueError("Could not extract username from whoami response")
 
-            console.print(f"[bold green]✓[/bold green] Authenticated as: {username}")
+            console.print(f"[bold green]Γ£ô[/bold green] Authenticated as: {username}")
             return username
         except Exception as e:
             raise typer.BadParameter(
@@ -168,7 +175,7 @@ def _prepare_staging_directory(
 
     # Modify Dockerfile to optionally enable web interface and update base image
     if dockerfile_path and dockerfile_path.exists():
-        dockerfile_content = dockerfile_path.read_text()
+        dockerfile_content = dockerfile_path.read_text(encoding="utf-8")
         lines = dockerfile_content.split("\n")
         new_lines = []
         cmd_found = False
@@ -211,7 +218,7 @@ def _prepare_staging_directory(
         if base_image and not base_image_updated:
             new_lines.insert(0, f"FROM {base_image}")
 
-        dockerfile_path.write_text("\n".join(new_lines))
+        dockerfile_path.write_text("\n".join(new_lines), encoding="utf-8")
 
         changes = []
         if base_image and base_image_updated:
@@ -220,18 +227,18 @@ def _prepare_staging_directory(
             changes.append("enabled web interface")
         if changes:
             console.print(
-                f"[bold green]✓[/bold green] Updated Dockerfile: {', '.join(changes)}"
+                f"[bold green]Γ£ô[/bold green] Updated Dockerfile: {', '.join(changes)}"
             )
     else:
         console.print(
-            "[bold yellow]⚠[/bold yellow] No Dockerfile found at server/Dockerfile"
+            "[bold yellow]ΓÜá[/bold yellow] No Dockerfile found at server/Dockerfile"
         )
 
     # Ensure README has proper HF frontmatter (only if interface enabled)
     if enable_interface:
         readme_path = staging_dir / "README.md"
         if readme_path.exists():
-            readme_content = readme_path.read_text()
+            readme_content = readme_path.read_text(encoding="utf-8")
             if "base_path: /web" not in readme_content:
                 # Check if frontmatter exists
                 if readme_content.startswith("---"):
@@ -246,12 +253,12 @@ def _prepare_staging_directory(
                             if "base_path:" not in "\n".join(new_lines):
                                 new_lines.insert(-1, "base_path: /web")
                             _in_frontmatter = False
-                    readme_path.write_text("\n".join(new_lines))
+                    readme_path.write_text("\n".join(new_lines), encoding="utf-8")
                 else:
                     # No frontmatter, add it
                     frontmatter = f"""---
 title: {env_name.replace("_", " ").title()} Environment Server
-emoji: 🔊
+emoji: ≡ƒöè
 colorFrom: '#00C9FF'
 colorTo: '#1B2845'
 sdk: docker
@@ -263,12 +270,14 @@ tags:
 ---
 
 """
-                    readme_path.write_text(frontmatter + readme_content)
+                    readme_path.write_text(
+                        frontmatter + readme_content, encoding="utf-8"
+                    )
                 console.print(
-                    "[bold green]✓[/bold green] Updated README with HF Space frontmatter"
+                    "[bold green]Γ£ô[/bold green] Updated README with HF Space frontmatter"
                 )
         else:
-            console.print("[bold yellow]⚠[/bold yellow] No README.md found")
+            console.print("[bold yellow]ΓÜá[/bold yellow] No README.md found")
 
 
 def _create_hf_space(
@@ -287,11 +296,11 @@ def _create_hf_space(
             private=private,
             exist_ok=True,
         )
-        console.print(f"[bold green]✓[/bold green] Space {repo_id} is ready")
+        console.print(f"[bold green]Γ£ô[/bold green] Space {repo_id} is ready")
     except Exception as e:
         # Space might already exist, which is okay with exist_ok=True
         # But if there's another error, log it
-        console.print(f"[bold yellow]⚠[/bold yellow] Space creation: {e}")
+        console.print(f"[bold yellow]ΓÜá[/bold yellow] Space creation: {e}")
 
 
 def _upload_to_hf_space(
@@ -310,12 +319,12 @@ def _upload_to_hf_space(
             repo_type="space",
             ignore_patterns=[".git", "__pycache__", "*.pyc"],
         )
-        console.print("[bold green]✓[/bold green] Upload completed successfully")
+        console.print("[bold green]Γ£ô[/bold green] Upload completed successfully")
         console.print(
             f"[bold]Space URL:[/bold] https://huggingface.co/spaces/{repo_id}"
         )
     except Exception as e:
-        console.print(f"[bold red]✗[/bold red] Upload failed: {e}")
+        console.print(f"[bold red]Γ£ù[/bold red] Upload failed: {e}")
         raise typer.Exit(1) from e
 
 
@@ -451,7 +460,7 @@ def push(
         f"[bold cyan]Validating OpenEnv environment in {env_dir}...[/bold cyan]"
     )
     env_name, manifest = _validate_openenv_directory(env_dir)
-    console.print(f"[bold green]✓[/bold green] Found OpenEnv environment: {env_name}")
+    console.print(f"[bold green]Γ£ô[/bold green] Found OpenEnv environment: {env_name}")
 
     # Handle custom registry push
     if registry:
@@ -478,10 +487,10 @@ def push(
         )
 
         if not success:
-            console.print("[bold red]✗ Docker build failed[/bold red]")
+            console.print("[bold red]Γ£ù Docker build failed[/bold red]")
             raise typer.Exit(1)
 
-        console.print("[bold green]✓ Docker build successful[/bold green]")
+        console.print("[bold green]Γ£ô Docker build successful[/bold green]")
 
         # Push to registry
         console.print(f"[bold cyan]Pushing to registry: {registry}[/bold cyan]")
@@ -491,10 +500,10 @@ def push(
         )  # Tag already includes registry
 
         if not success:
-            console.print("[bold red]✗ Docker push failed[/bold red]")
+            console.print("[bold red]Γ£ù Docker push failed[/bold red]")
             raise typer.Exit(1)
 
-        console.print("\n[bold green]✓ Deployment complete![/bold green]")
+        console.print("\n[bold green]Γ£ô Deployment complete![/bold green]")
         console.print(f"[bold]Image:[/bold] {tag}")
         return
 
@@ -537,5 +546,5 @@ def push(
         # Upload files
         _upload_to_hf_space(repo_id, staging_dir, api, private=private)
 
-        console.print("\n[bold green]✓ Deployment complete![/bold green]")
+        console.print("\n[bold green]Γ£ô Deployment complete![/bold green]")
         console.print(f"Visit your space at: https://huggingface.co/spaces/{repo_id}")

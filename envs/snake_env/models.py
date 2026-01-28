@@ -44,7 +44,7 @@ class SnakeAction(Action):
 
     action: int
 
-    def __post_init__(self):
+    def model_post_init(self, __context: Any) -> None:
         """Ensure action is converted to int (handles string inputs from web interface)."""
         self.action = int(self.action)
 

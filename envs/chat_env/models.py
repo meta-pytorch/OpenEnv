@@ -11,6 +11,8 @@ The Chat environment provides a chat-based interface for LLMs with support
 for tokenization and message history management.
 """
 
+from typing import Any
+
 from pydantic import Field
 
 import torch
@@ -28,7 +30,7 @@ class ChatAction(Action):
 
     tokens: torch.Tensor = Field(default_factory=lambda: torch.tensor([]))
 
-    def __post_init__(self):
+    def model_post_init(self, __context: Any) -> None:
         """Validate required Fields after initialization."""
         if self.tokens.numel() == 0:
             raise ValueError("tokens is required and cannot be empty")

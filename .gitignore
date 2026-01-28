@@ -108,6 +108,9 @@ Desktop.ini
 # - .claude/hooks/ (automation scripts)
 # - .claude/agents/ (subagent definitions)
 
+# Local test scripts
+test_wildfire_docker.sh
+
 # OpenEnv-specific
 # Environment outputs (logs, evaluations, etc.)
 **/outputs/

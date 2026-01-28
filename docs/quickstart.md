@@ -21,22 +21,28 @@ Install the echo environment client package:
 pip install git+https://huggingface.co/spaces/openenv/echo-env 
 ```
 
-Then you can use the environment via its HTTP interface.
+Then you can use the environment via its WebSocket interface with MCP tools.
 
 ```python
-from echo_env import EchoAction, EchoEnv
+from echo_env import EchoEnv
 
 # Automatically start container and connect
 client = EchoEnv(base_url="https://openenv-echo-env.hf.space")
 
 # Reset the environment
-result = client.reset()
-print(result.observation.echoed_message)  # "Echo environment ready!"
+client.reset()
 
-# Send messages
-result = client.step(EchoAction(message="Hello, World!"))
-print(result.observation.echoed_message)  # "Hello, World!"
-print(result.reward)  # 1.3 (based on message length)
+# List available tools
+tools = client.list_tools()
+print([t.name for t in tools])  # ['echo_message', 'echo_with_length']
+
+# Call tools to send messages
+result = client.call_tool("echo_message", message="Hello, World!")
+print(result)  # "Hello, World!"
+
+# Call tool with length calculation
+result = client.call_tool("echo_with_length", message="Hello, World!")
+print(result)  # {"message": "Hello, World!", "length": 13}
 
 # Cleanup
 client.close()  # Stops and removes container
@@ -96,16 +102,28 @@ The `AutoEnv` and `AutoAction` classes provide a HuggingFace-style auto-discover
 from openenv import AutoEnv, AutoAction
 
 # Load environment from installed package
-env = AutoEnv.from_env("echo-env")
+env = AutoEnv.from_env("coding-env")
 
 # Get the action class
-EchoAction = AutoAction.from_env("echo-env")
+CodeAction = AutoAction.from_env("coding-env")
 
 # Use them together
 result = env.reset()
-result = env.step(EchoAction(message="Hello!"))
-print(result.observation.echoed_message)  # "Hello!"
+result = env.step(CodeAction(code="print('Hello, World!')"))
+print(result.observation.stdout)  # "Hello, World!"
 
+env.close()
+```
+
+Note: Some environments like `echo-env` use MCP tools instead of actions. For those, use the tool-calling API:
+
+```python
+from echo_env import EchoEnv
+
+env = EchoEnv.from_hub("openenv/echo-env")
+env.reset()
+result = env.call_tool("echo_message", message="Hello!")
+print(result)  # "Hello!"
 env.close()
 ```
 

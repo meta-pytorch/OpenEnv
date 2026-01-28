@@ -12,6 +12,17 @@ following the Hugging Face CLI pattern.
 """
 
 import sys
+import os
+
+# Fix Windows console encoding to support Unicode characters
+if sys.platform == "win32":
+    # Set console to UTF-8 encoding for proper Unicode support
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(encoding="utf-8")
+    if hasattr(sys.stderr, "reconfigure"):
+        sys.stderr.reconfigure(encoding="utf-8")
+    # Also set environment variable for subprocesses
+    os.environ["PYTHONIOENCODING"] = "utf-8"
 
 import typer
 

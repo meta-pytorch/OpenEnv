@@ -180,11 +180,11 @@ fi
 CURRENT_STAGING_DIR="${STAGING_DIR}/${HF_NAMESPACE}/${ENV_NAME}"
 # Ensure clean staging directory
 rm -rf "$CURRENT_STAGING_DIR"
-mkdir -p "$CURRENT_STAGING_DIR/src/core"
+mkdir -p "$CURRENT_STAGING_DIR/src/openenv/core"
 mkdir -p "$CURRENT_STAGING_DIR/envs/$ENV_NAME"
 
 # Copy core files
-cp -R src/core/* "$CURRENT_STAGING_DIR/src/core/"
+cp -R src/openenv/core/* "$CURRENT_STAGING_DIR/src/openenv/core/"
 
 # Copy environment files
 cp -R envs/$ENV_NAME/* "$CURRENT_STAGING_DIR/envs/$ENV_NAME/"
@@ -255,6 +255,12 @@ RUN pip install --no-cache-dir \
     nltk==3.9.2
 DOCKERFILE_EOF
             ;;
+        "wildfire_env")
+            cat >> "$CURRENT_STAGING_DIR/Dockerfile" << 'DOCKERFILE_EOF'
+# Install fastmcp (required by openenv.core.env_server.mcp_environment)
+RUN pip install --no-cache-dir fastmcp>=2.0.0
+DOCKERFILE_EOF
+            ;;
         "openspiel_env")
             # OpenSpiel requires special C++ build process - replace entire Dockerfile
             cat > "$CURRENT_STAGING_DIR/Dockerfile" << DOCKERFILE_EOF
@@ -264,7 +270,7 @@ FROM \${OPENSPIEL_BASE_IMAGE}
 
 # Copy OpenEnv core (base image already set WORKDIR=/app)
 WORKDIR /app
-COPY src/core/ /app/src/core/
+COPY src/openenv/core/ /app/src/openenv/core/
 
 # Copy OpenSpiel environment
 COPY envs/openspiel_env/ /app/envs/openspiel_env/
@@ -285,7 +291,8 @@ HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
 # Note: EXPOSE 8000 already set by openenv-base
 
 # Run the FastAPI server (uvicorn installed by openenv-base)
-CMD ["uvicorn", "envs.openspiel_env.server.app:app", "--host", "0.0.0.0", "--port", "8000"]
+# Use python -m uvicorn to ensure it's found in PATH
+CMD ["python", "-m", "uvicorn", "envs.openspiel_env.server.app:app", "--host", "0.0.0.0", "--port", "8000"]
 DOCKERFILE_EOF
             echo "Created special OpenSpiel Dockerfile with C++ build process"
             echo "OpenSpiel builds can take 10-15 minutes due to C++ compilation"
@@ -297,7 +304,7 @@ DOCKERFILE_EOF
     cat >> "$CURRENT_STAGING_DIR/Dockerfile" << 'DOCKERFILE_EOF'
 
 # Copy only what's needed for this environment
-COPY src/core/ /app/src/core/
+COPY src/openenv/core/ /app/src/openenv/core/
 COPY envs/ENV_NAME_PLACEHOLDER/ /app/envs/ENV_NAME_PLACEHOLDER/
 
 # Health check
@@ -305,7 +312,8 @@ HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
     CMD curl -f http://localhost:8000/health || exit 1
 
 # Run the FastAPI server
-CMD ["uvicorn", "envs.ENV_NAME_PLACEHOLDER.server.app:app", "--host", "0.0.0.0", "--port", "8000"]
+# Use python -m uvicorn to ensure it's found in PATH
+CMD ["python", "-m", "uvicorn", "envs.ENV_NAME_PLACEHOLDER.server.app:app", "--host", "0.0.0.0", "--port", "8000"]
 DOCKERFILE_EOF
 
     # Replace placeholder with actual environment name
