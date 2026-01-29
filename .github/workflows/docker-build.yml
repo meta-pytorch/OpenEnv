@@ -81,6 +81,8 @@ jobs:
             dockerfile: envs/git_env/server/Dockerfile
           - name: connect4_env
             dockerfile: envs/connect4_env/server/Dockerfile
+          - name: chess-env
+            dockerfile: envs/chess_env/server/Dockerfile
           - name: tbench2-env
             dockerfile: envs/tbench2_env/server/Dockerfile
           - name: textarena-env
