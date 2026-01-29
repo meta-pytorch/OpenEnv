@@ -78,6 +78,13 @@ class FleetEnvClient(HTTPEnvClient[Action, Observation]):
             else:
                 data_key_spec = data_key
 
+        import time
+        import logging
+        _logger = logging.getLogger(__name__)
+
+        _logger.info(f"Creating Fleet instance: env_key={env_key}, ttl={ttl_seconds}s")
+        start = time.time()
+
         env = fleet.make(
             env_key=env_key,
             region=region,
@@ -86,6 +93,8 @@ class FleetEnvClient(HTTPEnvClient[Action, Observation]):
             image_type=image_type,
             data_key=data_key_spec,
         )
+
+        _logger.info(f"Fleet instance ready in {time.time() - start:.1f}s: {env.instance_id}")
 
         root = env.urls.root
         # Fleet currently exposes multiple MCP endpoints. Prefer /api/v1/mcp first.
