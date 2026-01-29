@@ -111,6 +111,7 @@ class FleetMCPTools:
 
         if tool_name in owner_cache:
             client = owner_cache[tool_name]
+            logger.debug(f"call_tool({tool_name}) using cached client: {client.url}")
             return await client.call_tool(tool_name, arguments)
 
         errors: list[str] = []
@@ -138,7 +139,10 @@ class FleetMCPTools:
 
         for attempt in range(self.max_retries):
             try:
-                return await self._call_tool_single_attempt(tool_name, arguments)
+                result = await self._call_tool_single_attempt(tool_name, arguments)
+                if attempt > 0:
+                    logger.info(f"call_tool({tool_name}) succeeded on attempt {attempt + 1}")
+                return result
             except ValueError:
                 # Tool not found - don't retry
                 raise
