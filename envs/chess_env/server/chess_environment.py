@@ -39,6 +39,7 @@ class ChessEnvironment(Environment):
         opponent_depth: int = 2,
         max_moves: int = 500,
         agent_color: str | None = None,
+        gamma: float = 0.99,
     ):
         """
         Initialize the chess environment.
@@ -48,15 +49,18 @@ class ChessEnvironment(Environment):
             opponent_depth: Search depth when using moonfish as opponent
             max_moves: Maximum half-moves before draw
             agent_color: Which color the agent plays - "white", "black", or None (alternate each episode)
+            gamma: Discount factor for temporal credit assignment (0-1)
         """
         super().__init__()
         self._opponent = opponent
         self._opponent_depth = opponent_depth
         self._max_moves = max_moves
         self._agent_color_setting = agent_color
+        self._gamma = gamma
         self._board = None
         self._state = None
         self._agent_color = chess.WHITE
+        self._agent_move_count = 0  # Track agent moves for discounting
         self.reset()
 
     def reset(self, fen: str = None):
@@ -97,6 +101,7 @@ class ChessEnvironment(Environment):
             fen=self._board.fen(),
             move_history=[],
         )
+        self._agent_move_count = 0
 
         # If agent plays Black and opponent is configured, opponent moves first
         if self._opponent is not None and self._agent_color == chess.BLACK:
@@ -132,6 +137,7 @@ class ChessEnvironment(Environment):
         # Execute the move
         self._board.push(move)
         self._state.step_count += 1
+        self._agent_move_count += 1
         self._state.move_history.append(action.move)
         self._state.current_player = "white" if self._board.turn else "black"
         self._state.fen = self._board.fen()
@@ -159,6 +165,12 @@ class ChessEnvironment(Environment):
             "fullmove_number": self._board.fullmove_number,
             "halfmove_clock": self._board.halfmove_clock,
         }
+
+        # Compute discounted rewards for all agent moves when episode ends
+        if done and self._agent_move_count > 0:
+            discounted_rewards = self._compute_discounted_rewards(reward)
+            metadata["discounted_rewards"] = discounted_rewards
+            metadata["gamma"] = self._gamma
 
         return ChessObservation(
             fen=self._board.fen(),
@@ -201,6 +213,31 @@ class ChessEnvironment(Environment):
         if self._board.is_checkmate():
             return "1-0" if not self._board.turn else "0-1"
         return "1/2-1/2"
+
+    def _compute_discounted_rewards(self, terminal_reward: float) -> list[float]:
+        """
+        Compute temporally discounted rewards for all agent moves.
+
+        Uses exponential discounting: r_t = γ^(T-1-t) * R_final
+        where T is total agent moves, t is move index, R_final is terminal reward.
+
+        Earlier moves get less credit, later moves get more credit.
+        This helps with credit assignment in long games.
+
+        Args:
+            terminal_reward: The final reward (+1 win, -1 loss, 0 draw)
+
+        Returns:
+            List of discounted rewards, one per agent move
+        """
+        T = self._agent_move_count
+        discounted_rewards = []
+        for t in range(T):
+            # γ^(T-1-t) means last move (t=T-1) gets γ^0 = 1.0
+            # First move (t=0) gets γ^(T-1)
+            discount = self._gamma ** (T - 1 - t)
+            discounted_rewards.append(discount * terminal_reward)
+        return discounted_rewards
 
     def _make_opponent_move(self):
         """Make a move for the opponent using configured strategy."""

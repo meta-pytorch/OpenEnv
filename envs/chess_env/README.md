@@ -82,6 +82,29 @@ The environment supports these configuration options:
 | `opponent_depth` | 2 | Search depth for moonfish opponent |
 | `max_moves` | 500 | Maximum half-moves before draw |
 | `agent_color` | None | Agent color: "white", "black", or None (alternate each episode) |
+| `gamma` | 0.99 | Discount factor for temporal credit assignment |
+
+## Temporal Discounting
+
+For RL training, the environment computes temporally discounted rewards at episode end. This helps with credit assignment in long games where only the final outcome is known.
+
+When an episode ends, the terminal observation's `metadata` includes:
+- `discounted_rewards`: List of discounted rewards for each agent move
+- `gamma`: The discount factor used
+
+The formula is `r_t = γ^(T-1-t) × R_final` where:
+- `T` = total agent moves
+- `t` = move index (0-indexed)
+- `R_final` = terminal reward (+1, -1, or 0)
+
+Example for a 5-move win with γ=0.99:
+```
+Move 0: 0.99^4 × 1.0 = 0.961
+Move 1: 0.99^3 × 1.0 = 0.970
+Move 2: 0.99^2 × 1.0 = 0.980
+Move 3: 0.99^1 × 1.0 = 0.990
+Move 4: 0.99^0 × 1.0 = 1.000
+```
 
 ## Links
 

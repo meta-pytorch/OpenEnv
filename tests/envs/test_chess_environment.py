@@ -164,3 +164,91 @@ class TestChessEnvironmentWithOpponent:
         assert obs.done is True
         assert obs.reward == -1.0
         assert obs.result == "0-1"
+
+
+class TestTemporalDiscounting:
+    """Test temporal discounting for credit assignment."""
+
+    def test_discounted_rewards_in_terminal_observation(self):
+        """Test that terminal observation includes discounted rewards."""
+        env = ChessEnvironment(opponent=None, agent_color="white", gamma=0.99)
+        # Back-rank mate: black king trapped by own pawns, white rook delivers mate
+        fen = "6k1/5ppp/8/8/8/8/8/4R2K w - - 0 1"
+        env.reset(fen=fen)
+
+        obs = env.step(ChessAction(move="e1e8"))
+
+        assert obs.done is True
+        assert obs.reward == 1.0
+        assert "discounted_rewards" in obs.metadata
+        assert "gamma" in obs.metadata
+        assert obs.metadata["gamma"] == 0.99
+
+    def test_discounted_rewards_length_matches_agent_moves(self):
+        """Test discounted rewards list length equals number of agent moves."""
+        env = ChessEnvironment(opponent=None, agent_color="white", gamma=0.99)
+        # Back-rank mate position
+        fen = "6k1/5ppp/8/8/8/8/8/4R2K w - - 0 1"
+        env.reset(fen=fen)
+
+        # One move to checkmate
+        obs = env.step(ChessAction(move="e1e8"))
+
+        assert obs.done is True
+        assert len(obs.metadata["discounted_rewards"]) == 1
+
+    def test_discounting_formula(self):
+        """Test the discounting formula: r_t = γ^(T-1-t) × R_final."""
+        gamma = 0.5  # Use 0.5 for easy mental math
+        env = ChessEnvironment(opponent=None, agent_color="white", gamma=gamma)
+
+        # Back-rank mate position
+        fen = "6k1/5ppp/8/8/8/8/8/4R2K w - - 0 1"
+        env.reset(fen=fen)
+
+        # One agent move to checkmate
+        obs = env.step(ChessAction(move="e1e8"))
+
+        assert obs.done is True
+        rewards = obs.metadata["discounted_rewards"]
+        # T=1, t=0: γ^(1-1-0) = γ^0 = 1.0
+        assert len(rewards) == 1
+        assert rewards[0] == 1.0  # Last move gets full reward
+
+    def test_earlier_moves_get_less_credit(self):
+        """Test that earlier moves get less credit than later moves."""
+        gamma = 0.9
+        env = ChessEnvironment(opponent=None, agent_color="white", gamma=gamma)
+        env.reset()
+
+        # Play fool's mate - white loses
+        env.step(ChessAction(move="f2f3"))  # Move 0 (white)
+        env.step(ChessAction(move="e7e5"))  # Move 1 (black)
+        env.step(ChessAction(move="g2g4"))  # Move 2 (white)
+        obs = env.step(ChessAction(move="d8h4"))  # Move 3 (black) - Qh4# checkmate
+
+        assert obs.done is True
+        assert obs.result == "0-1"  # Black wins
+        rewards = obs.metadata["discounted_rewards"]
+
+        # Agent is white, black won, so agent lost -> reward = -1.0
+        assert obs.reward == -1.0
+
+        # Check discounting: each earlier move gets γ less credit
+        # Move 3 (last): γ^0 × (-1) = -1.0
+        # Move 2: γ^1 × (-1) = -0.9
+        # Move 1: γ^2 × (-1) = -0.81
+        # Move 0: γ^3 × (-1) = -0.729
+        assert len(rewards) == 4
+        assert abs(rewards[3] - (-1.0)) < 0.001
+        assert abs(rewards[2] - (-0.9)) < 0.001
+        assert abs(rewards[1] - (-0.81)) < 0.001
+        assert abs(rewards[0] - (-0.729)) < 0.001
+
+    def test_gamma_parameter_configurable(self):
+        """Test that gamma can be configured."""
+        env1 = ChessEnvironment(opponent=None, gamma=0.99)
+        env2 = ChessEnvironment(opponent=None, gamma=0.5)
+
+        assert env1._gamma == 0.99
+        assert env2._gamma == 0.5
