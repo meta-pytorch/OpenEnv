@@ -216,7 +216,7 @@ class TestTemporalDiscounting:
         assert rewards[0] == 1.0  # Last move gets full reward
 
     def test_earlier_moves_get_less_credit(self):
-        """Test that earlier moves get less credit than later moves."""
+        """Test that earlier moves get less credit than later moves (self-play mode)."""
         gamma = 0.9
         env = ChessEnvironment(opponent=None, agent_color="white", gamma=gamma)
         env.reset()
