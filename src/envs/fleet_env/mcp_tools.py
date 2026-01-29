@@ -19,6 +19,18 @@ from .models import ListToolsAction, convert_tool_format
 logger = logging.getLogger(__name__)
 
 
+def _unwrap_exception(e: Exception) -> str:
+    """Extract meaningful error message from ExceptionGroup or nested exceptions."""
+    # Handle ExceptionGroup (from asyncio.TaskGroup)
+    if hasattr(e, 'exceptions'):
+        msgs = [_unwrap_exception(sub) for sub in e.exceptions]
+        return "; ".join(msgs)
+    # Handle chained exceptions
+    if e.__cause__:
+        return f"{type(e).__name__}: {e} <- {_unwrap_exception(e.__cause__)}"
+    return f"{type(e).__name__}: {e}"
+
+
 @dataclass
 class FleetMCPTools:
     """Agent-facing tools client (MCP only)."""
@@ -91,15 +103,16 @@ class FleetMCPTools:
                 raise RuntimeError("No tools found from any MCP endpoint")
             except Exception as e:
                 last_error = e
+                error_msg = _unwrap_exception(e)
                 if attempt < self.max_retries - 1:
                     delay = self.retry_base_delay * (2 ** attempt)
                     logger.warning(
-                        f"list_tools attempt {attempt + 1}/{self.max_retries} failed: {e}. "
+                        f"list_tools attempt {attempt + 1}/{self.max_retries} failed: {error_msg}. "
                         f"Retrying in {delay:.1f}s..."
                     )
                     await asyncio.sleep(delay)
 
-        logger.error(f"list_tools failed after {self.max_retries} attempts: {last_error}")
+        logger.error(f"list_tools failed after {self.max_retries} attempts: {_unwrap_exception(last_error)}")
         return ListToolsAction(tools=[])
 
     async def _call_tool_single_attempt(
@@ -148,16 +161,17 @@ class FleetMCPTools:
                 raise
             except Exception as e:
                 last_error = e
+                error_msg = _unwrap_exception(e)
                 if attempt < self.max_retries - 1:
                     delay = self.retry_base_delay * (2**attempt)
                     logger.warning(
-                        f"call_tool({tool_name}) attempt {attempt + 1}/{self.max_retries} failed: {e}. "
+                        f"call_tool({tool_name}) attempt {attempt + 1}/{self.max_retries} failed: {error_msg}. "
                         f"Retrying in {delay:.1f}s..."
                     )
                     await asyncio.sleep(delay)
 
         logger.error(
-            f"call_tool({tool_name}) failed after {self.max_retries} attempts: {last_error}"
+            f"call_tool({tool_name}) failed after {self.max_retries} attempts: {_unwrap_exception(last_error)}"
         )
         raise RuntimeError(
             f"call_tool({tool_name}) failed after {self.max_retries} attempts"
