@@ -318,6 +318,25 @@ The OpenEnv community has built a catalog of ready-to-run environments that cove
     </div>
   </div>
 
+  <div class="environment-card">
+    <div class="environment-card__body">
+      <span class="environment-card__tag">kernrl</span>
+      <p class="environment-card__description">
+        GPU kernel optimization environment for training LLMs to write fast CUDA/Triton kernels with real hardware feedback.
+      </p>
+    </div>
+    <div class="environment-card__links">
+      <a class="environment-card__icon" href="/OpenEnv/environments/kernrl/" aria-label="kernrl docs">
+        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+          <path d="M6 3c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V9l-6-6H6zm8 1.5L18.5 9H14V4.5z" fill="currentColor"/>
+        </svg>
+      </a>
+      <a class="environment-card__icon environment-card__icon--hf" href="https://huggingface.co/spaces/Infatoshi/kernrl" target="_blank" rel="noreferrer noopener" aria-label="kernrl on Hugging Face">
+        <img src="https://huggingface.co/front/assets/huggingface_logo-noborder.svg" alt="" aria-hidden="true" />
+      </a>
+    </div>
+  </div>
+
 </div>
 
 <div class="environment-grid">
