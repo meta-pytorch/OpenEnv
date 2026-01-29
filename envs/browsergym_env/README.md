@@ -278,7 +278,7 @@ env.close()
 
 ```bash
 # From the OpenEnv repository root
-docker build -t openenv-base:latest -f src/core/containers/images/Dockerfile .
+docker build -t openenv-base:latest -f src/openenv/core/containers/images/Dockerfile .
 ```
 
 ### Build the BrowserGym Environment
