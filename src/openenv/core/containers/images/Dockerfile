@@ -21,7 +21,7 @@ FROM ghcr.io/astral-sh/uv:0.5.27-python3.11-bookworm-slim AS builder
 WORKDIR /app
 
 # Copy core pyproject.toml and lockfile for dependency installation
-COPY src/core/pyproject.toml src/core/uv.lock* ./
+COPY pyproject.toml uv.lock* ./
 
 # Install core dependencies using uv with cache mount
 RUN --mount=type=cache,target=/root/.cache/uv \
