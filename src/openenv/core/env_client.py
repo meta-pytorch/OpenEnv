@@ -28,6 +28,7 @@ Example (sync wrapper):
 
 from __future__ import annotations
 
+import asyncio
 import json
 import os
 from abc import ABC, abstractmethod
@@ -183,7 +184,7 @@ class EnvClient(ABC, Generic[ActT, ObsT, StateT]):
     async def _receive(self) -> Dict[str, Any]:
         """Receive and parse a message from the WebSocket."""
         assert self._ws is not None
-        raw = await self._ws.recv()
+        raw = await asyncio.wait_for(self._ws.recv(), timeout=self._message_timeout)
         return json.loads(raw)
 
     async def _send_and_receive(self, message: Dict[str, Any]) -> Dict[str, Any]:
