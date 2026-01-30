@@ -32,7 +32,8 @@ def main():
     """Run a simple Atari episode."""
     # Connect to the Atari environment server
     print("Connecting to Atari environment...")
-    env = AtariEnv.from_docker_image("ghcr.io/meta-pytorch/openenv-atari-env:latest")
+    # env = AtariEnv.from_docker_image("ghcr.io/meta-pytorch/openenv-atari-env:latest")
+    env = AtariEnv(base_url="http://127.0.0.1:8011")
     
    
     try:
@@ -58,6 +59,7 @@ def main():
             
             # Take action
             result = env.step(AtariAction(action_id=action_id))
+            import time; time.sleep(0.1)
 
             episode_reward += result.reward or 0
             steps += 1

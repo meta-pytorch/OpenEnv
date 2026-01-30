@@ -1249,9 +1249,19 @@ def get_web_interface_html(
                     // Update traditional observation display
                     const observationDiv = document.getElementById('current-observation');
                     if (episodeState.current_observation) {{
-                        observationDiv.textContent = JSON.stringify(
-                            episodeState.current_observation, null, 2
-                        );
+                        // Check for screen image
+                        if (episodeState.current_observation.screen_image) {{
+                            observationDiv.innerHTML = `
+                                <img src="${{episodeState.current_observation.screen_image}}" 
+                                     style="max-width: 100%; border: 1px solid #ddd; display: block; margin-bottom: 10px;" 
+                                     alt="Game Screen" />
+                                <div class="json-display" style="max-height: 100px;">${{JSON.stringify(episodeState.current_observation, null, 2)}}</div>
+                            `;
+                        }} else {{
+                            observationDiv.textContent = JSON.stringify(
+                                episodeState.current_observation, null, 2
+                            );
+                        }}
                     }} else {{
                         observationDiv.textContent = 'No observation yet';
                     }}
@@ -1266,7 +1276,11 @@ def get_web_interface_html(
                         <div class="log-entry">
                             <div class="log-timestamp">${{log.timestamp}} (Step ${{log.step_count}})</div>
                             <div class="log-action">Action: ${{JSON.stringify(log.action, null, 2)}}</div>
-                            <div class="log-observation">Observation: ${{JSON.stringify(log.observation, null, 2)}}</div>
+                            <div class="log-observation">
+                                ${{log.observation.screen_image ? 
+                                    `<img src="${{log.observation.screen_image}}" style="max-width: 200px; display: block; margin-bottom: 5px;" />` : ''}}
+                                Observation: ${{JSON.stringify(log.observation, null, 2)}}
+                            </div>
                             <div>
                                 <span class="log-reward">Reward: ${{log.reward !== null ? log.reward : 'None'}}</span>
                                 ${{log.done ? '<span class="log-done">DONE</span>' : ''}}
