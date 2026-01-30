@@ -30,6 +30,8 @@ Example:
 
 from __future__ import annotations
 
+import asyncio
+import concurrent.futures
 import importlib
 import logging
 import os
@@ -40,6 +42,36 @@ import requests
 from typing import Any, Optional, TYPE_CHECKING, Dict
 
 from ._discovery import get_discovery, _is_hub_url
+
+
+def _run_async_safely(coro):
+    """
+    Run an async coroutine safely from any context.
+
+    This handles the case where we may already be inside an async event loop.
+    In that case, asyncio.run() would fail, so we use a ThreadPoolExecutor
+    to run in a separate thread.
+
+    Args:
+        coro: The coroutine to run
+
+    Returns:
+        The result of the coroutine
+    """
+    try:
+        loop = asyncio.get_running_loop()
+    except RuntimeError:
+        loop = None
+
+    if loop is not None:
+        # Already in async context - run in a thread pool
+        with concurrent.futures.ThreadPoolExecutor() as pool:
+            future = pool.submit(asyncio.run, coro)
+            return future.result()
+    else:
+        # No async context - use asyncio.run() directly
+        return asyncio.run(coro)
+
 
 if TYPE_CHECKING:
     from openenv.core.containers.runtime import ContainerProvider
@@ -590,12 +622,14 @@ class AutoEnv:
                         f"Space not running at {space_url}, "
                         f"using GenericEnvClient with HF Docker registry"
                     )
-                    return GenericEnvClient.from_env(
-                        name,
-                        use_docker=True,
-                        provider=container_provider,
-                        env_vars=env_vars or {},
-                        **kwargs,
+                    return _run_async_safely(
+                        GenericEnvClient.from_env(
+                            name,
+                            use_docker=True,
+                            provider=container_provider,
+                            env_vars=env_vars or {},
+                            **kwargs,
+                        )
                     )
 
             # For local environments with skip_install, we need docker_image
@@ -604,12 +638,14 @@ class AutoEnv:
                     f"Using GenericEnvClient with Docker image {docker_image} "
                     f"(skip_install=True)"
                 )
-                return GenericEnvClient.from_docker_image(
-                    image=docker_image,
-                    provider=container_provider,
-                    wait_timeout=wait_timeout,
-                    env_vars=env_vars or {},
-                    **kwargs,
+                return _run_async_safely(
+                    GenericEnvClient.from_docker_image(
+                        image=docker_image,
+                        provider=container_provider,
+                        wait_timeout=wait_timeout,
+                        env_vars=env_vars or {},
+                        **kwargs,
+                    )
                 )
             else:
                 raise ValueError(
@@ -715,12 +751,14 @@ class AutoEnv:
                     # Local server not running, auto-start Docker container
                     logger.info(f"❌ Server not available at {base_url}")
                     logger.info(f"🐳 Auto-starting Docker container: {docker_image}")
-                    return client_class.from_docker_image(
-                        image=docker_image,
-                        provider=container_provider,
-                        wait_timeout=wait_timeout,
-                        env_vars=env_vars or {},
-                        **kwargs,
+                    return _run_async_safely(
+                        client_class.from_docker_image(
+                            image=docker_image,
+                            provider=container_provider,
+                            wait_timeout=wait_timeout,
+                            env_vars=env_vars or {},
+                            **kwargs,
+                        )
                     )
                 else:
                     # Remote server not available, cannot auto-start
@@ -730,12 +768,14 @@ class AutoEnv:
                     )
             else:
                 # No base_url provided, start new Docker container
-                return client_class.from_docker_image(
-                    image=docker_image,
-                    provider=container_provider,
-                    wait_timeout=wait_timeout,
-                    env_vars=env_vars or {},
-                    **kwargs,
+                return _run_async_safely(
+                    client_class.from_docker_image(
+                        image=docker_image,
+                        provider=container_provider,
+                        wait_timeout=wait_timeout,
+                        env_vars=env_vars or {},
+                        **kwargs,
+                    )
                 )
         except Exception as e:
             raise ValueError(

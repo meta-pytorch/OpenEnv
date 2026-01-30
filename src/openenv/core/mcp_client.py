@@ -7,24 +7,30 @@
 """
 MCP Client classes for tool-calling environments.
 
-This module provides client classes for interacting with MCP-enabled environments:
+This module provides async client classes for interacting with MCP-enabled environments:
 - MCPClientBase: Base class with shared tool discovery
 - MCPToolClient: Client for tool-calling style (one tool per step)
 
 These clients abstract away the MCP protocol details, providing a clean interface
-for listing and calling tools on remote environments.
+for listing and calling tools on remote environments. All clients are async by default.
 
-Example:
+Example (async):
     >>> from openenv.core.mcp_client import MCPToolClient
     >>>
-    >>> with MCPToolClient(base_url="http://localhost:8000") as env:
+    >>> async with MCPToolClient(base_url="http://localhost:8000") as env:
     ...     # Discover available tools
-    ...     tools = env.list_tools()
+    ...     tools = await env.list_tools()
     ...     print([t.name for t in tools])
     ...
     ...     # Call a tool
-    ...     result = env.call_tool("echo_message", message="Hello!")
+    ...     result = await env.call_tool("echo_message", message="Hello!")
     ...     print(result)
+
+Example (sync wrapper):
+    >>> env = MCPToolClient(base_url="http://localhost:8000").sync()
+    >>> with env:
+    ...     tools = env.list_tools()
+    ...     result = env.call_tool("echo_message", message="Hello!")
 """
 
 from typing import Any, Dict, List, Optional
@@ -78,7 +84,7 @@ class MCPClientBase(EnvClient[Any, Observation, State]):
         )
         self._tools_cache: Optional[List[Tool]] = None
 
-    def list_tools(self, use_cache: bool = True) -> List[Tool]:
+    async def list_tools(self, use_cache: bool = True) -> List[Tool]:
         """
         Discover available tools from the environment.
 
@@ -90,14 +96,14 @@ class MCPClientBase(EnvClient[Any, Observation, State]):
             List of Tool objects with name, description, and input_schema.
 
         Example:
-            >>> tools = env.list_tools()
+            >>> tools = await env.list_tools()
             >>> for tool in tools:
             ...     print(f"{tool.name}: {tool.description}")
         """
         if use_cache and self._tools_cache is not None:
             return self._tools_cache
 
-        result = self.step(ListToolsAction())
+        result = await self.step(ListToolsAction())
         self._tools_cache = result.observation.tools
         return self._tools_cache
 
@@ -175,7 +181,7 @@ class MCPClientBase(EnvClient[Any, Observation, State]):
 
 class MCPToolClient(MCPClientBase):
     """
-    Client for tool-calling style MCP interactions.
+    Async client for tool-calling style MCP interactions.
 
     Each step invokes a single tool. Use this for traditional function-calling
     agent patterns where the agent decides which tool to call next.
@@ -184,29 +190,35 @@ class MCPToolClient(MCPClientBase):
     - `list_tools()`: Get all available tools with their schemas
     - `call_tool(name, **kwargs)`: Invoke a tool by name with arguments
 
-    Example:
-        >>> with MCPToolClient(base_url="http://localhost:8000") as env:
+    Example (async):
+        >>> async with MCPToolClient(base_url="http://localhost:8000") as env:
         ...     # Reset the environment
-        ...     env.reset()
+        ...     await env.reset()
         ...
         ...     # Discover available tools
-        ...     tools = env.list_tools()
+        ...     tools = await env.list_tools()
         ...     print([t.name for t in tools])  # ['echo_message', 'echo_with_length']
         ...
         ...     # Call a tool directly
-        ...     result = env.call_tool("echo_message", message="Hello!")
+        ...     result = await env.call_tool("echo_message", message="Hello!")
         ...     print(result)  # "Hello!"
         ...
         ...     # Or use the full action interface
         ...     from openenv.core.env_server.mcp_types import CallToolAction
-        ...     step_result = env.step(CallToolAction(
+        ...     step_result = await env.step(CallToolAction(
         ...         tool_name="echo_with_length",
         ...         arguments={"message": "Test"}
         ...     ))
         ...     print(step_result.observation.result)
+
+    Example (sync wrapper):
+        >>> env = MCPToolClient(base_url="http://localhost:8000").sync()
+        >>> with env:
+        ...     tools = env.list_tools()
+        ...     result = env.call_tool("echo_message", message="Hello!")
     """
 
-    def call_tool(self, name: str, **kwargs: Any) -> Any:
+    async def call_tool(self, name: str, **kwargs: Any) -> Any:
         """
         Call a tool by name.
 
@@ -225,14 +237,14 @@ class MCPToolClient(MCPClientBase):
             RuntimeError: If the server returns an error response.
 
         Example:
-            >>> result = env.call_tool("add", a=5, b=3)
+            >>> result = await env.call_tool("add", a=5, b=3)
             >>> print(result)  # 8
             >>>
-            >>> result = env.call_tool("greet", name="Claude")
+            >>> result = await env.call_tool("greet", name="Claude")
             >>> print(result)  # "Hello, Claude!"
         """
         action = CallToolAction(tool_name=name, arguments=kwargs)
-        result = self.step(action)
+        result = await self.step(action)
         obs = result.observation
 
         # Check for transport/framework errors
@@ -257,7 +269,7 @@ class MCPToolClient(MCPClientBase):
         # Fallback for unexpected observation types
         return obs
 
-    def get_tool(self, name: str) -> Optional[Tool]:
+    async def get_tool(self, name: str) -> Optional[Tool]:
         """
         Get a specific tool by name.
 
@@ -268,18 +280,18 @@ class MCPToolClient(MCPClientBase):
             The Tool object if found, None otherwise.
 
         Example:
-            >>> tool = env.get_tool("echo_message")
+            >>> tool = await env.get_tool("echo_message")
             >>> if tool:
             ...     print(tool.description)
             ...     print(tool.input_schema)
         """
-        tools = self.list_tools()
+        tools = await self.list_tools()
         for tool in tools:
             if tool.name == name:
                 return tool
         return None
 
-    def has_tool(self, name: str) -> bool:
+    async def has_tool(self, name: str) -> bool:
         """
         Check if a tool exists.
 
@@ -289,4 +301,4 @@ class MCPToolClient(MCPClientBase):
         Returns:
             True if the tool exists, False otherwise.
         """
-        return self.get_tool(name) is not None
+        return await self.get_tool(name) is not None
