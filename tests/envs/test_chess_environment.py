@@ -8,6 +8,10 @@
 
 import pytest
 
+# Skip entire module if chess dependencies are not installed
+pytest.importorskip("chess", reason="python-chess is not installed")
+pytest.importorskip("moonfish", reason="moonfish is not installed")
+
 from envs.chess_env import ChessAction, ChessObservation, ChessState
 from envs.chess_env.server.chess_environment import ChessEnvironment
 
