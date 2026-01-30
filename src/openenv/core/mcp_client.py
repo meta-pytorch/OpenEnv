@@ -35,7 +35,7 @@ Example (sync wrapper):
 
 from typing import Any, Dict, List, Optional
 
-from .client_types import StepResult, StateT
+from .client_types import StepResult
 from .env_client import EnvClient
 from .env_server.mcp_types import (
     CallToolAction,
@@ -66,6 +66,7 @@ class MCPClientBase(EnvClient[Any, Observation, State]):
         connect_timeout_s: float = 10.0,
         message_timeout_s: float = 60.0,
         provider: Optional[Any] = None,
+        mode: Optional[str] = None,
     ):
         """
         Initialize MCP client.
@@ -75,12 +76,26 @@ class MCPClientBase(EnvClient[Any, Observation, State]):
             connect_timeout_s: Timeout for establishing WebSocket connection.
             message_timeout_s: Timeout for receiving responses to messages.
             provider: Optional container/runtime provider for lifecycle management.
+            mode: Communication mode. Must be 'production' for MCP clients. Defaults to 'production'.
         """
+        # MCPClientBase defaults to production mode, but allow override for validation
+        if mode is None:
+            mode = "production"
+
+        # Validate that mode is production
+        mode_lower = mode.lower()
+        if mode_lower != "production":
+            raise ValueError(
+                f"MCPToolClient only supports 'production' mode, got '{mode}'. "
+                f"Use GenericEnvClient for simulation mode."
+            )
+
         super().__init__(
             base_url=base_url,
             connect_timeout_s=connect_timeout_s,
             message_timeout_s=message_timeout_s,
             provider=provider,
+            mode=mode,
         )
         self._tools_cache: Optional[List[Tool]] = None
 

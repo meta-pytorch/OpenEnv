@@ -393,13 +393,25 @@ class HTTPEnvServer:
         """Return the concurrency configuration."""
         return self._concurrency_config
 
-    def register_routes(self, app: FastAPI) -> None:
+    def register_routes(self, app: FastAPI, mode: str = "simulation") -> None:
         """
         Register HTTP routes on a FastAPI application.
 
         Args:
             app: FastAPI application instance
+            mode: Server mode - either "simulation" or "production".
+                  In production mode, simulation control endpoints (/reset, /step, /state)
+                  are NOT registered. Only safe endpoints (/health, /schema, /metadata, /ws)
+                  are available. Defaults to "simulation" for backwards compatibility.
+
+        Raises:
+            ValueError: If mode is not "production" or "simulation"
         """
+        # Validate mode parameter
+        if mode not in ("production", "simulation"):
+            raise ValueError(
+                f"Invalid mode: '{mode}'. Must be either 'production' or 'simulation'."
+            )
 
         # Helper function to handle reset endpoint
         async def reset_handler(
@@ -467,43 +479,266 @@ class HTTPEnvServer:
             finally:
                 _env.close()
 
-        # Register routes using the helpers
-        @app.post(
-            "/reset",
-            response_model=ResetResponse,
-            tags=["Environment Control"],
-            summary="Reset the environment",
-            description="""
+        # Helper function to handle MCP endpoint
+        async def mcp_handler(
+            request: Dict[str, Any], session_env: Optional[Environment] = None
+        ) -> Dict[str, Any]:
+            """
+            Handle MCP JSON-RPC requests.
+
+            Supports tools/list and tools/call methods in JSON-RPC 2.0 format.
+            """
+            # Validate JSON-RPC 2.0 format
+            jsonrpc_version = request.get("jsonrpc")
+            if jsonrpc_version != "2.0":
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    detail="Invalid or missing 'jsonrpc' field. Must be '2.0'.",
+                )
+
+            method = request.get("method", "")
+            request_id = request.get("id")
+
+            # Use provided session environment or create temporary one
+            if session_env is not None:
+                _env = session_env
+                should_close = False
+            else:
+                _env = self._env_factory()
+                should_close = True
+            try:
+                if method == "tools/list":
+                    # Check if environment is MCP-enabled
+                    if not hasattr(_env, "mcp_client"):
+                        return {
+                            "jsonrpc": "2.0",
+                            "error": {
+                                "code": -32603,
+                                "message": "Environment does not support MCP",
+                            },
+                            "id": request_id,
+                        }
+
+                    # Use async context manager for MCP client
+                    async with _env.mcp_client:
+                        tools = await _env.mcp_client.list_tools()
+
+                    return {
+                        "jsonrpc": "2.0",
+                        "result": {
+                            "tools": [
+                                t.model_dump() if hasattr(t, "model_dump") else dict(t)
+                                for t in tools
+                            ]
+                        },
+                        "id": request_id,
+                    }
+
+                elif method == "tools/call":
+                    params = request.get("params", {})
+                    tool_name = params.get("name")
+                    arguments = params.get("arguments", {})
+
+                    if not hasattr(_env, "mcp_client"):
+                        return {
+                            "jsonrpc": "2.0",
+                            "error": {
+                                "code": -32603,
+                                "message": "Environment does not support MCP",
+                            },
+                            "id": request_id,
+                        }
+
+                    if not tool_name:
+                        return {
+                            "jsonrpc": "2.0",
+                            "error": {
+                                "code": -32600,
+                                "message": "Missing 'name' in params",
+                            },
+                            "id": request_id,
+                        }
+
+                    # Use async context manager for MCP client
+                    async with _env.mcp_client:
+                        result = await _env.mcp_client.call_tool(
+                            name=tool_name, arguments=arguments
+                        )
+
+                    # Ensure result is JSON serializable
+                    serializable_result = _make_json_serializable(result)
+
+                    return {
+                        "jsonrpc": "2.0",
+                        "result": serializable_result,
+                        "id": request_id,
+                    }
+
+                else:
+                    return {
+                        "jsonrpc": "2.0",
+                        "error": {
+                            "code": -32601,
+                            "message": f"Method not found: {method}",
+                        },
+                        "id": request_id,
+                    }
+
+            except Exception as e:
+                return {
+                    "jsonrpc": "2.0",
+                    "error": {
+                        "code": -32603,
+                        "message": str(e),
+                    },
+                    "id": request_id,
+                }
+            finally:
+                if should_close:
+                    _env.close()
+
+        # Register MCP WebSocket endpoint (available in both production and simulation modes)
+        @app.websocket("/mcp")
+        async def mcp_websocket_endpoint(websocket: WebSocket):
+            """
+            WebSocket endpoint for MCP JSON-RPC requests.
+
+            Each WebSocket connection gets its own environment instance for MCP operations.
+
+            Message Protocol:
+            - Client sends: JSON-RPC 2.0 request (tools/list, tools/call)
+            - Server responds: JSON-RPC 2.0 response (result or error)
+            """
+            await websocket.accept()
+
+            session_id = None
+            session_env = None
+
+            try:
+                # Create session with dedicated environment
+                session_id, session_env = await self._create_session()
+
+                while True:
+                    # Receive message from client
+                    raw_message = await websocket.receive_text()
+
+                    try:
+                        jsonrpc_request = json.loads(raw_message)
+                    except json.JSONDecodeError as e:
+                        error_resp = {
+                            "jsonrpc": "2.0",
+                            "error": {
+                                "code": -32700,
+                                "message": f"Parse error: {e}",
+                            },
+                            "id": None,
+                        }
+                        await websocket.send_text(json.dumps(error_resp))
+                        continue
+
+                    try:
+                        # Call mcp_handler with session environment
+                        response = await mcp_handler(
+                            jsonrpc_request, session_env=session_env
+                        )
+                        await websocket.send_text(json.dumps(response))
+                    except Exception as e:
+                        error_resp = {
+                            "jsonrpc": "2.0",
+                            "error": {
+                                "code": -32603,
+                                "message": str(e),
+                            },
+                            "id": jsonrpc_request.get("id"),
+                        }
+                        await websocket.send_text(json.dumps(error_resp))
+
+            except WebSocketDisconnect:
+                pass
+            except SessionCapacityError as e:
+                error_resp = {
+                    "jsonrpc": "2.0",
+                    "error": {
+                        "code": -32000,
+                        "message": str(e),
+                        "data": {
+                            "active_sessions": e.active_sessions,
+                            "max_sessions": e.max_sessions,
+                        },
+                    },
+                    "id": None,
+                }
+                await websocket.send_text(json.dumps(error_resp))
+            except EnvironmentFactoryError as e:
+                error_resp = {
+                    "jsonrpc": "2.0",
+                    "error": {
+                        "code": -32000,
+                        "message": str(e),
+                        "data": {
+                            "factory_name": e.factory_name,
+                        },
+                    },
+                    "id": None,
+                }
+                await websocket.send_text(json.dumps(error_resp))
+            except Exception as e:
+                error_resp = {
+                    "jsonrpc": "2.0",
+                    "error": {
+                        "code": -32000,
+                        "message": str(e),
+                    },
+                    "id": None,
+                }
+                await websocket.send_text(json.dumps(error_resp))
+            finally:
+                if session_id:
+                    await self._destroy_session(session_id)
+                try:
+                    await websocket.close()
+                except RuntimeError:
+                    pass
+
+        # Register simulation control routes only in simulation mode
+        if mode == "simulation":
+
+            @app.post(
+                "/reset",
+                response_model=ResetResponse,
+                tags=["Environment Control"],
+                summary="Reset the environment",
+                description="""
 Reset the environment to its initial state and return the first observation.
 
 You can optionally provide a seed for reproducibility and an episode_id for tracking.
-            """,
-            responses={
-                200: {
-                    "description": "Environment reset successfully",
-                    "content": {
-                        "application/json": {
-                            "example": {
-                                "observation": {"status": "ready", "data": {}},
-                                "reward": None,
-                                "done": False,
+                """,
+                responses={
+                    200: {
+                        "description": "Environment reset successfully",
+                        "content": {
+                            "application/json": {
+                                "example": {
+                                    "observation": {"status": "ready", "data": {}},
+                                    "reward": None,
+                                    "done": False,
+                                }
                             }
-                        }
-                    },
-                }
-            },
-        )
-        async def reset(
-            request: ResetRequest = Body(default_factory=ResetRequest),
-        ) -> ResetResponse:
-            return await reset_handler(request)
+                        },
+                    }
+                },
+            )
+            async def reset(
+                request: ResetRequest = Body(default_factory=ResetRequest),
+            ) -> ResetResponse:
+                return await reset_handler(request)
 
-        @app.post(
-            "/step",
-            response_model=StepResponse,
-            tags=["Environment Control"],
-            summary="Execute an action in the environment",
-            description="""
+            @app.post(
+                "/step",
+                response_model=StepResponse,
+                tags=["Environment Control"],
+                summary="Execute an action in the environment",
+                description="""
 Execute an action in the environment and receive the resulting observation.
 
 The action must conform to the environment's action schema, which can be
@@ -514,42 +749,44 @@ The response includes:
 - **observation**: The environment's response to the action
 - **reward**: Optional reward signal (float or None)
 - **done**: Boolean indicating if the episode has terminated
-            """,
-            responses={
-                200: {
-                    "description": "Action executed successfully",
-                    "content": {
-                        "application/json": {
-                            "example": {
-                                "observation": {"status": "success", "data": {}},
-                                "reward": 1.0,
-                                "done": False,
+                """,
+                responses={
+                    200: {
+                        "description": "Action executed successfully",
+                        "content": {
+                            "application/json": {
+                                "example": {
+                                    "observation": {"status": "success", "data": {}},
+                                    "reward": 1.0,
+                                    "done": False,
+                                }
                             }
-                        }
+                        },
+                    },
+                    422: {
+                        "description": "Validation error - invalid action format or values",
+                        "content": {
+                            "application/json": {
+                                "example": {
+                                    "detail": [
+                                        {
+                                            "type": "string_too_short",
+                                            "loc": ["body", "action", "message"],
+                                            "msg": "String should have at least 1 character",
+                                            "input": "",
+                                        }
+                                    ]
+                                }
+                            }
+                        },
+                    },
+                    500: {
+                        "description": "Internal server error during action execution"
                     },
                 },
-                422: {
-                    "description": "Validation error - invalid action format or values",
-                    "content": {
-                        "application/json": {
-                            "example": {
-                                "detail": [
-                                    {
-                                        "type": "string_too_short",
-                                        "loc": ["body", "action", "message"],
-                                        "msg": "String should have at least 1 character",
-                                        "input": "",
-                                    }
-                                ]
-                            }
-                        }
-                    },
-                },
-                500: {"description": "Internal server error during action execution"},
-            },
-        )
-        async def step(request: StepRequest) -> StepResponse:
-            return await step_handler(request)
+            )
+            async def step(request: StepRequest) -> StepResponse:
+                return await step_handler(request)
 
         def get_state_handler() -> State:
             _env = self._env_factory()
@@ -565,19 +802,8 @@ The response includes:
             finally:
                 _env.close()
 
+        # Build list of GET endpoints based on mode
         get_endpoints = [
-            GetEndpointConfig(
-                path="/state",
-                handler=get_state_handler,
-                response_model=State,
-                tag="State Management",
-                summary="Get current environment state",
-                description="""
-Retrieve the current internal state of the environment.
-
-The structure of the state object is defined by the environment's State model.
-                """,
-            ),
             GetEndpointConfig(
                 path="/metadata",
                 handler=get_metadata_handler,
@@ -600,6 +826,25 @@ version, author, and documentation links.
                 description="Check if the environment server is running and healthy.",
             ),
         ]
+
+        # Only register /state endpoint in simulation mode
+        if mode == "simulation":
+            get_endpoints.insert(
+                0,
+                GetEndpointConfig(
+                    path="/state",
+                    handler=get_state_handler,
+                    response_model=State,
+                    tag="State Management",
+                    summary="Get current environment state",
+                    description="""
+Retrieve the current internal state of the environment.
+
+The structure of the state object is defined by the environment's State model.
+                    """,
+                ),
+            )
+
         register_get_endpoints(app, get_endpoints)
 
         # Register combined schema endpoint
