@@ -145,9 +145,14 @@ class TestEdgeCases:
         assert compute_reward("0", r"\boxed{0}") == 1.0
         assert compute_reward("0.0", r"\boxed{0}") == 1.0
 
-    def test_percentage_vs_decimal(self):
-        """6.28% (0.0628) should not match 6.28 (decimal)."""
-        assert compute_reward("6.28%", r"\boxed{6.28}") == 0.0
+    def test_percentage_points_notation(self):
+        """Test percentage points fallback: "4.5%" should match "4.500" (both mean 4.5 percentage points)."""
+        # Walmart tax rate differential: "4.5%" vs "\boxed{4.500}" - should match
+        assert compute_reward("4.5%", r"\boxed{4.500}") == 1.0
+        # GM tax rate difference: "6.0%" vs "\boxed{6.000}" - should match
+        assert compute_reward("6.0%", r"\boxed{6.000}") == 1.0
+        # General case
+        assert compute_reward("6.28%", r"\boxed{6.28}") == 1.0
 
     def test_fractions(self):
         """Test fraction matching."""
@@ -359,6 +364,33 @@ class TestPrecisionEdgeCases:
         assert compute_reward("100%", r"\boxed{100\%}") == 1.0
         assert compute_reward("99.9%", r"\boxed{100\%}") == 1.0
         assert compute_reward("100.1%", r"\boxed{100\%}") == 1.0
+
+
+class TestPercentagePointsNotation:
+    """Test percentage points notation fallback (Bug fix #2)."""
+
+    def test_percentage_points_basic(self):
+        """Test that '4.5%' matches '4.500' (both mean 4.5 percentage points)."""
+        # Walmart tax rate differential example
+        assert compute_reward("4.5%", r"\boxed{4.500}") == 1.0
+        # GM tax rate difference example
+        assert compute_reward("6.0%", r"\boxed{6.000}") == 1.0
+
+    def test_percentage_points_general(self):
+        """Test general percentage points matching."""
+        assert compute_reward("6.28%", r"\boxed{6.28}") == 1.0
+        assert compute_reward("10.5%", r"\boxed{10.5}") == 1.0
+
+    def test_percentage_points_negative(self):
+        """Test negative percentage points."""
+        assert compute_reward("-2.5%", r"\boxed{-2.5}") == 1.0
+
+    def test_multi_value_in_single_boxed(self):
+        """Test comma-separated values inside single \\boxed{} with tolerance."""
+        assert compute_reward(
+            "0.933, 0.931, 0.930",
+            r"\boxed{2022:\ 0.933,\; 2023:\ 0.930,\; 2024:\ 0.931}"
+        ) == 1.0
 
 
 if __name__ == "__main__":

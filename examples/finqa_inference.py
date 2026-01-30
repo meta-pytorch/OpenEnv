@@ -44,6 +44,7 @@ from openai import OpenAI
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
 from envs.finqa_env import FinQAAction, FinQAEnv
+from envs.finqa_env.models import get_tool_schemas
 
 # ---------------------------------------------------------------------------
 # Configuration
@@ -61,21 +62,13 @@ SYSTEM_PROMPT = """You are a financial analyst assistant answering questions abo
 
 Think and reason step by step. Iteratively gather data using the available tools until you have enough information to answer the question.
 
-When submitting your final answer, provide ONLY the numerical value (e.g., '6.118', '92.61%', '-77'). Do not include explanations or units in the answer.
+When submitting your final answer, provide ONLY the numerical value (e.g., '6.118', '25.14', '-77'). Do not include explanations, units, or LaTeX formatting like \\text{} in the answer. For percentage point values, use the raw number (e.g., '4.5' not '4.5%').
 """
 
 
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
-
-def fetch_tools_from_server(base_url: str) -> List[dict]:
-    """Fetch tool schemas from the FinQA server."""
-    import requests
-    response = requests.get(f"{base_url}/tools")
-    response.raise_for_status()
-    return response.json()
-
 
 def make_initial_messages(company: str, question: str) -> List[Dict[str, Any]]:
     """Create initial chat messages for a FinQA episode."""
@@ -147,7 +140,8 @@ def play_finqa_episode(
                 "type": "function",
                 "function": {
                     "name": tool_name,
-                    "arguments": tool_call_obj.function.arguments
+                    "arguments": json.dumps(tool_args) if tool_call_id == "none" else tool_call_obj.function.arguments  
+
                 }
             }]
         })
@@ -222,7 +216,7 @@ def main() -> None:
     client = OpenAI(base_url=API_BASE_URL, api_key=API_KEY)
 
     env = FinQAEnv.from_docker_image("finqa-env:latest")
-    tools = fetch_tools_from_server(env._base)
+    tools = get_tool_schemas()
 
     if VERBOSE:
         tool_names = [t["function"]["name"] for t in tools]

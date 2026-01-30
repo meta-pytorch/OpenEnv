@@ -21,7 +21,6 @@ def extract_boxed_answer(text: str) -> Optional[str]:
     Returns:
         The extracted answer or None if not found
     """
-    # Match \boxed{...} pattern
     match = re.search(r"\\boxed\{([^}]+)\}", text)
     if match:
         return match.group(1).strip()
@@ -42,7 +41,7 @@ def extract_all_boxed_answers(text: str) -> list:
     return [m.strip() for m in matches]
 
 
-def parse_number(text: str) -> Optional[float]:
+def parse_number(text: str, convert_percent: bool = True) -> Optional[float]:
     """
     Parse a string into a float, handling various formats.
 
@@ -55,6 +54,7 @@ def parse_number(text: str) -> Optional[float]:
 
     Args:
         text: String to parse
+        convert_percent: If True, divide percentages by 100. If False, just strip the % sign.
 
     Returns:
         Float value or None if parsing fails
@@ -77,7 +77,10 @@ def parse_number(text: str) -> Optional[float]:
         # Handle percentage (including LaTeX escaped \%)
         if "%" in text or "\\%" in text:
             text = text.replace("\\%", "").replace("%", "").strip()
-            return float(text.replace(",", "")) / 100
+            if convert_percent:
+                return float(text.replace(",", "")) / 100
+            else:
+                return float(text.replace(",", ""))
 
         # Handle parentheses for negative numbers
         if text.startswith("(") and text.endswith(")"):
@@ -105,12 +108,13 @@ def parse_number(text: str) -> Optional[float]:
         return None
 
 
-def normalize_answer(answer: str) -> Tuple[Optional[float], str]:
+def normalize_answer(answer: str, convert_percent: bool = True) -> Tuple[Optional[float], str]:
     """
     Normalize an answer string to a comparable format.
 
     Args:
         answer: Raw answer string
+        convert_percent: If True, divide percentages by 100. If False, just strip the % sign.
 
     Returns:
         Tuple of (parsed_number, cleaned_string)
@@ -127,9 +131,29 @@ def normalize_answer(answer: str) -> Tuple[Optional[float], str]:
     answer = answer.strip()
 
     # Try to parse as number
-    num = parse_number(answer)
+    num = parse_number(answer, convert_percent)
 
     return num, answer.lower()
+
+
+def extract_numbers_from_multi_value(text: str) -> list:
+    """
+    Extract all numbers from a comma/semicolon separated string.
+    Handles formats like "2022: 0.933, 2023: 0.930" or "0.933, 0.931, 0.930".
+    """
+    # Split by comma or semicolon (with optional LaTeX spacing like \; or \ )
+    parts = re.split(r'[,;]\s*|\\[;,]\s*', text)
+    numbers = []
+    for part in parts:
+        part = part.strip()
+        if not part:
+            continue
+        # Remove label prefix like "2022:" or "2022:\"
+        part = re.sub(r'^[^:]*:\s*\\?\s*', '', part)
+        num = parse_number(part)
+        if num is not None:
+            numbers.append(num)
+    return numbers
 
 
 def compare_single_values(pred_num: Optional[float], truth_num: Optional[float],
@@ -191,7 +215,10 @@ def compute_reward(predicted: str, ground_truth: str, tolerance: float = 0.01, m
             truth_num, truth_str = normalize_answer(truth_val)
 
             if not compare_single_values(pred_num, truth_num, pred_str, truth_str, tolerance, max_absolute_diff):
-                return 0.0
+                # Fallback: try without % conversion (for percentage points like "4.5%" vs "4.5")
+                pred_num_no_pct, _ = normalize_answer(pred_val, convert_percent=False)
+                if not compare_single_values(pred_num_no_pct, truth_num, pred_str, truth_str, tolerance, max_absolute_diff):
+                    return 0.0
 
         return 1.0  # All values matched
 
@@ -199,4 +226,23 @@ def compute_reward(predicted: str, ground_truth: str, tolerance: float = 0.01, m
     pred_num, pred_str = normalize_answer(predicted)
     truth_num, truth_str = normalize_answer(ground_truth)
 
-    return 1.0 if compare_single_values(pred_num, truth_num, pred_str, truth_str, tolerance, max_absolute_diff) else 0.0
+    if compare_single_values(pred_num, truth_num, pred_str, truth_str, tolerance, max_absolute_diff):
+        return 1.0
+
+    pred_num_no_pct, _ = normalize_answer(predicted, convert_percent=False)
+    if compare_single_values(pred_num_no_pct, truth_num, pred_str, truth_str, tolerance, max_absolute_diff):
+        return 1.0
+
+    # Fallback: multi-value inside single \boxed{} (only if truth didn't parse as single number)
+    if len(truth_boxed) == 1 and truth_num is None:
+        truth_numbers = extract_numbers_from_multi_value(truth_boxed[0])
+        pred_numbers = extract_numbers_from_multi_value(predicted)
+        if len(truth_numbers) > 1 and len(pred_numbers) == len(truth_numbers):
+            for p, t in zip(pred_numbers, truth_numbers):
+                abs_diff = abs(p - t)
+                rel_err = abs_diff / abs(t) if t != 0 else (0 if p == 0 else float('inf'))
+                if not (rel_err <= tolerance and abs_diff <= max_absolute_diff):
+                    return 0.0
+            return 1.0
+
+    return 0.0
