@@ -13,6 +13,7 @@ handles child registration and hooks.
 See RFC 004 for full design: rfcs/004-rubrics.md
 """
 
+import inspect
 from abc import ABC, abstractmethod
 from typing import Any, Dict, Iterator, List, Optional, Tuple, Callable
 
@@ -53,7 +54,7 @@ class Rubric(ABC):
             self._rubric_children[name] = value
         object.__setattr__(self, name, value)
 
-    def __call__(self, action: Any, observation: Any) -> float:
+    def __call__(self, action: Any, observation: Any):
         """Evaluate the rubric with hooks.
 
         Args:
@@ -63,17 +64,47 @@ class Rubric(ABC):
         Returns:
             Reward value (typically 0.0 to 1.0).
         """
-        # Pre-forward hooks
-        for hook in self._forward_pre_hooks:
-            hook(self, action, observation)
+        # Check if forward method is async BEFORE calling it
+        if inspect.iscoroutinefunction(self.forward):
+            # Async path - pre-hooks will be called in _call_async
+            result = self.forward(action, observation)
+            return self._call_async(action, observation, result)
+        else:
+            # Sync path - call pre-hooks BEFORE forward()
+            for hook in self._forward_pre_hooks:
+                hook(self, action, observation)
+            result = self.forward(action, observation)
+            return self._call_sync(action, observation, result)
 
-        # Compute reward
-        result = self.forward(action, observation)
+    def _call_sync(self, action: Any, observation: Any, result: float) -> float:
+        """Synchronous call path."""
         self.last_score = result
 
         # Post-forward hooks
         for hook in self._forward_hooks:
             hook(self, action, observation, result)
+
+        return result
+
+    async def _call_async(self, action: Any, observation: Any, result_coro) -> float:
+        """Asynchronous call path."""
+        # Pre-forward hooks
+        for hook in self._forward_pre_hooks:
+            if inspect.iscoroutinefunction(hook):
+                await hook(self, action, observation)
+            else:
+                hook(self, action, observation)
+
+        # Await the forward result
+        result = await result_coro
+        self.last_score = result
+
+        # Post-forward hooks
+        for hook in self._forward_hooks:
+            if inspect.iscoroutinefunction(hook):
+                await hook(self, action, observation, result)
+            else:
+                hook(self, action, observation, result)
 
         return result
 

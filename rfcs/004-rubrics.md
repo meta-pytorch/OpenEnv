@@ -234,26 +234,30 @@ All environments must define `self.rubric` in their constructor. The framework v
 
 | Method | Description |
 |--------|-------------|
-| `forward(action, observation) -> float` | Implement this. Compute reward. |
-| `__call__(action, observation) -> float` | Sync evaluation with hooks. |
-| `evaluate(action, observation) -> float` | Async evaluation via thread pool. |
-| `register_forward_hook(fn)` | Called after `forward()`. Signature: `(rubric, action, obs, result)` |
-| `register_forward_pre_hook(fn)` | Called before `forward()`. Signature: `(rubric, action, obs)` |
+| `forward(action, observation) -> float` | Implement this. Can be sync or async. Compute reward. |
+| `__call__(action, observation)` | Evaluation with hooks. Auto-detects async `forward()` and awaits. |
+| `register_forward_hook(fn)` | Called after `forward()`. Can be sync or async. |
+| `register_forward_pre_hook(fn)` | Called before `forward()`. Can be sync or async. |
 | `children()` / `named_children()` | Iterate immediate child rubrics. |
 | `rubrics()` / `named_rubrics()` | Iterate all descendant rubrics. |
 | `get_rubric(path: str)` | Access nested rubric by dot-separated path (e.g., `"code.syntax"`). |
+| `reset()` | Reset any internal state (sync). Override in subclasses. |
 | `state_dict()` / `load_state_dict(d)` | Serialize/deserialize configuration. |
+
+**Note on async support**: Rubrics support both sync and async `forward()` implementations. The base class auto-detects which variant is used and handles both. Sync rubrics remain fully backward compatible. Async rubrics can make LLM calls, use MCP tools, or perform I/O without blocking.
 
 ### Container Rubrics
 
 | Container | Behavior |
 |-----------|----------|
-| `Sequential(*rubrics)` | Run in order; stop and return 0 if any returns 0 |
-| `Gate(rubric, threshold=1.0)` | Return 0 if score < threshold |
-| `WeightedSum(rubrics, weights)` | Weighted combination |
+| `Sequential(*rubrics)` | Run in order; stop and return 0 if any returns 0 (sequential await for async) |
+| `Gate(rubric, threshold=1.0)` | Return 0 if score < threshold (awaits async child) |
+| `WeightedSum(rubrics, weights)` | Weighted combination (parallel await via `asyncio.gather()` for async) |
 | `RubricList(rubrics)` | Container for dynamic lists (no aggregation) |
 | `RubricDict(rubrics: Dict[str, Rubric])` | Container for named rubrics with keyed access |
 | `LLMJudge(prompt_template, endpoint)` | Call LLM via MCP for evaluation |
+
+**Note on async containers**: All containers auto-detect async children and handle them appropriately. `Sequential` and `Gate` await children sequentially (preserving fail-fast semantics). `WeightedSum` executes all children in parallel using `asyncio.gather()` for maximum throughput.
 
 ---
 
@@ -267,9 +271,15 @@ We considered having `Criterion` for leaf evaluators and `Rubric` for composites
 
 A declarative format would enable non-programmers to define rubrics and allow static validation. However, interesting rubrics involve LLM calls, sandboxed execution, database queries, and complex branching logic. These don't fit declarative formats well. Python code is more expressive and debuggable. The ecosystem (TRL, OpenRLHF, veRL) has converged on code-based rewards.
 
-**Async forward() everywhere**
+**Sync forward() with async wrapper (original approach)**
 
-We considered making `forward()` async by default, which would enable natural parallelism within a single rubric. However, this forces all rubric authors to understand async/await, even for trivial synchronous checks like `ast.parse()`. Our approach—sync `forward()` with async `evaluate()` wrapper—keeps rubric authoring simple while enabling batch-level parallelism in training loops.
+We initially considered keeping `forward()` sync with an async `evaluate()` wrapper. However, with the async-first client API (PR #343), we chose to make rubrics async-compatible by default:
+
+- `forward()` can be either sync or async—the base class detects which and handles both
+- Sync rubrics still work unchanged (backward compatible)
+- Async rubrics (e.g., LLM judges, MCP tool calls) are now natural
+- Container rubrics like `WeightedSum` automatically parallelize async children using `asyncio.gather()`
+- The sync `evaluate()` wrapper is no longer needed since the async path is built into `__call__()`
 
 **Magic proxy types for automatic parallelism**
 
@@ -287,9 +297,9 @@ LLM judges and other rubrics need to call external services. For now, rubrics ca
 
 Currently, exceptions in `forward()` propagate to the caller. Rubric authors should handle expected errors (network timeouts, invalid inputs) internally. We may add optional error handling in the base class (e.g., return 0.0 on exception with logging) based on user feedback.
 
-**Thread pool sizing**
+**Concurrency limits**
 
-The `evaluate_batch()` helper accepts an optional `max_workers` parameter to configure thread pool size. The default is 32 workers.
+For rubrics that make external API calls (LLM judges, database queries), consider implementing rate limiting or connection pooling inside the rubric. The framework does not impose concurrency limits—async rubrics can execute as many concurrent calls as the event loop allows.
 
 ---
 

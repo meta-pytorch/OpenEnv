@@ -4,6 +4,7 @@
 # This source code is licensed under the BSD-style license found in the
 # LICENSE file in the root directory of this source tree.
 
+import inspect
 from abc import ABC, abstractmethod
 from typing import Any, Generic, Optional, Protocol, TypedDict, TypeVar, TYPE_CHECKING
 
@@ -227,6 +228,30 @@ class Environment(ABC, Generic[ActT, ObsT, StateT]):
             return self.rubric(action, observation)
         return 0.0
 
+    async def _apply_rubric_async(self, action: ActT, observation: ObsT) -> float:
+        """Apply rubric asynchronously if one is provided.
+
+        Args:
+            action: The action taken by the agent.
+            observation: The resulting observation.
+
+        Returns:
+            Reward value from the rubric, or 0.0 if no rubric is set.
+
+        Usage in step_async():
+            async def step_async(self, action: MyAction, ...) -> MyObservation:
+                # ... execute action and create observation ...
+                observation.reward = await self._apply_rubric_async(action, observation)
+                return observation
+        """
+        if self.rubric is not None:
+            result = self.rubric(action, observation)
+            # If rubric returns a coroutine, await it
+            if inspect.iscoroutine(result):
+                return await result
+            return result
+        return 0.0
+
     def _reset_rubric(self) -> None:
         """Reset the rubric state if one is provided.
 
@@ -240,6 +265,26 @@ class Environment(ABC, Generic[ActT, ObsT, StateT]):
         """
         if self.rubric is not None:
             self.rubric.reset()
+
+    async def _reset_rubric_async(self) -> None:
+        """Reset the rubric state asynchronously if one is provided.
+
+        Call this in reset_async() to clear any trajectory state in the rubric.
+
+        Usage in reset_async():
+            async def reset_async(self, ...) -> MyObservation:
+                await self._reset_rubric_async()
+                # ... create initial observation ...
+                return observation
+        """
+        if self.rubric is not None:
+            # Check if rubric has async reset method
+            if hasattr(self.rubric, "reset_async"):
+                result = self.rubric.reset_async()
+                if inspect.iscoroutine(result):
+                    await result
+            else:
+                self.rubric.reset()
 
     def close(self) -> None:
         """Clean up resources used by the environment.
