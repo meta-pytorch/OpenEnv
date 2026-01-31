@@ -1,5 +1,6 @@
 #!/bin/bash
 # Check for CRLF line endings in text files
+# Uses portable constructs that work in sandboxed environments
 
 set -e
 
@@ -12,6 +13,12 @@ CRLF_FILES=()
 # Check if we're in a git repository
 if git -C "$CHECK_DIR" rev-parse --git-dir > /dev/null 2>&1; then
     # In a git repo - check only tracked files
+    # Use a temp file for portability (avoids process substitution issues in sandboxes)
+    TEMP_FILE=$(mktemp)
+    trap "rm -f '$TEMP_FILE'" EXIT
+
+    (cd "$CHECK_DIR" && git ls-files) > "$TEMP_FILE"
+
     while IFS= read -r file; do
         # Skip if file doesn't exist
         if [[ ! -f "$file" ]]; then
@@ -27,17 +34,23 @@ if git -C "$CHECK_DIR" rev-parse --git-dir > /dev/null 2>&1; then
         if grep -qU $'\r' "$file" 2>/dev/null; then
             CRLF_FILES+=("$file")
         fi
-    done < <(cd "$CHECK_DIR" && git ls-files)
+    done < "$TEMP_FILE"
 else
     # Not a git repo - check all text files
-    while IFS= read -r -d '' file; do
+    # Use a temp file for portability
+    TEMP_FILE=$(mktemp)
+    trap "rm -f '$TEMP_FILE'" EXIT
+
+    find "$CHECK_DIR" -type f -print > "$TEMP_FILE" 2>/dev/null || true
+
+    while IFS= read -r file; do
         # Skip if file doesn't exist or is a directory
         if [[ ! -f "$file" ]]; then
             continue
         fi
 
-        # Simple binary file check - look for null bytes
-        if grep -qI '\x00' "$file" 2>/dev/null; then
+        # Simple binary file check - skip files with null bytes
+        if grep -qP '\x00' "$file" 2>/dev/null; then
             continue
         fi
 
@@ -45,7 +58,7 @@ else
         if grep -qU $'\r' "$file" 2>/dev/null; then
             CRLF_FILES+=("$file")
         fi
-    done < <(find "$CHECK_DIR" -type f -print0 2>/dev/null)
+    done < "$TEMP_FILE"
 fi
 
 # Report results
