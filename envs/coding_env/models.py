@@ -7,6 +7,8 @@ Action/Observation types for the Coding environment.
 from __future__ import annotations
 
 from openenv.core.env_server.interfaces import Action, Observation, State
+
+
 class CodeAction(Action):
     """
     Represents a single code execution request.
@@ -24,6 +26,7 @@ class CodeObservation(Observation):
     stdout: str = ""
     stderr: str = ""
     exit_code: int = 0
+
 
 class CodeState(State):
     """State for CodeAct environment with persistent execution context."""

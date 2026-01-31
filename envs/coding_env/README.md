@@ -102,6 +102,22 @@ Note: When connecting to an existing server, `coding_env.close()` will NOT stop 
 
 ## Development & Testing
 
+### Running Tests
+
+Install the coding_env package with dev dependencies and run the tests from the repo root:
+
+```bash
+# Install coding_env with dev dependencies (includes smolagents and pytest)
+uv pip install -e "envs/coding_env[dev]"
+
+# Run unit tests (no Docker required)
+uv run pytest tests/envs/test_python_codeact_reset.py tests/envs/test_python_codeact_rewards.py -v
+
+# Run integration tests (requires Docker image to be built)
+docker build -t coding-env:latest -f envs/coding_env/server/Dockerfile .
+SKIP_DOCKER_TESTS=0 uv run pytest tests/envs/test_coding_env_integration.py -v
+```
+
 ### Running the Full Example
 
 Run the complete example that demonstrates the full workflow:

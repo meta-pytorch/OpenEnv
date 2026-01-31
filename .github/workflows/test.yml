@@ -33,7 +33,7 @@ jobs:
       - name: Install dependencies
         run: |
           uv sync --all-extras
-          uv pip install pytest numpy nltk smolagents
+          uv pip install pytest numpy nltk smolagents python-chess moonfish
 
       - name: Run tests
         run: |

@@ -49,7 +49,7 @@ You can also use environments from Hugging Face. To do this, you can use the `fr
 ```python
 from echo_env import EchoEnv
 
-client = EchoEnv.from_hub("meta-pytorch/echo_env")
+client = EchoEnv.from_hub("openenv/echo_env")
 ```
 
 In the background, the environment will be pulled from Hugging Face and a container will be started on your local machine.

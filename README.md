@@ -255,14 +255,56 @@ For detailed options: `openenv init --help` and `openenv push --help`.
 3. **Container Isolation**: Each environment runs in its own container
 4. **Simple APIs**: Minimal, intuitive interfaces
 
+## Development
+
+### Installation
+
+```bash
+# Clone the repository
+git clone https://github.com/meta-pytorch/OpenEnv.git
+cd OpenEnv
+
+# Install core package in editable mode
+pip install -e .
+# Or using uv (faster)
+uv pip install -e .
+```
+
+### Running Tests
+
+OpenEnv uses a modular dependency structure: the core package is minimal, and each environment has its own dependencies. This means some tests require environment-specific packages.
+
+```bash
+# Install pytest (required for running tests)
+uv pip install pytest
+
+# Run all tests (skips tests requiring uninstalled dependencies)
+PYTHONPATH=src:envs uv run pytest tests/ -v --tb=short
+
+# Run a specific test file
+PYTHONPATH=src:envs uv run pytest tests/envs/test_echo_environment.py -v
+```
+
+**To run environment-specific tests**, install that environment's dependencies:
+
+```bash
+# Example: Install coding_env with dev dependencies (includes smolagents + pytest)
+uv pip install -e "envs/coding_env[dev]"
+
+# Then run coding_env tests
+PYTHONPATH=src:envs uv run pytest tests/envs/test_python_codeact_rewards.py -v
+```
+
+Tests will be automatically skipped if their required dependencies aren't installed.
+
 ## Requirements
 
-- Python 3.11+
+- Python 3.10+
 - Docker Desktop or Docker Engine
 - FastAPI >= 0.104.0
 - Uvicorn >= 0.24.0
 - Requests >= 2.25.0
-- smolagents (for coding environment)
+- Environment-specific dependencies (e.g., smolagents for coding_env)
 
 ## Supported RL Tools
 The goal of this project is to support a broad set of open and closed tools to help standardize the agentic RL community. If you have a project that supports OpenEnv environments, please put up a PR to add your tool name along with a link to your documentation.
@@ -307,7 +349,7 @@ See: [`envs/coding_env/README.md`](envs/coding_env/README.md)
 ## Community Support & Acknowledgments
 This is an open and community-centric project. If you would like to add your name here, please put up a pull request and tag @jspisak for review. Ty!!
 
-Supporters include: Meta-PyTorch, Hugging Face, [Patronus AI](https://patronus.ai), [Surge AI](https://surgehq.ai), [LastMile AI](https://www.lastmileai.dev), Unsloth AI, Reflection AI, vLLM, SkyRL (UC-Berkeley), LightningAI, Axolotl AI, Stanford Scaling Intelligence Lab, Mithril, [OpenMined](https://openmined.org/), [Fleet AI](https://fleetai.com), [Halluminate](https://halluminate.ai/), [Turing](https://www.turing.com/), [Scale AI](https://scale.com/) ..
+Supporters include: Meta-PyTorch, Hugging Face, [Scaler AI Labs](https://scalerailabs.com), [Patronus AI](https://patronus.ai), [Surge AI](https://surgehq.ai), [LastMile AI](https://www.lastmileai.dev), Unsloth AI, Reflection AI, vLLM, SkyRL (UC-Berkeley), LightningAI, Axolotl AI, Stanford Scaling Intelligence Lab, Mithril, [OpenMined](https://openmined.org/), [Fleet AI](https://fleetai.com), [Halluminate](https://halluminate.ai/), [Turing](https://www.turing.com/), [Scale AI](https://scale.com/) ..
 
 And we'd also like to acknowledge the team at Farama Foundation as the OpenEnv API was heavily inspired by the work you all have done on Gymnasium. Cheers!
 

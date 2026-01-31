@@ -92,10 +92,8 @@ def validate_multi_mode_deployment(env_path: Path) -> tuple[bool, list[str]]:
     has_legacy_core = any(dep.startswith("openenv-core") for dep in deps)
 
     if not (has_openenv or has_legacy_core):
-        issues.append("Missing required dependency: openenv>=0.2.0")
-    elif has_legacy_core and not has_openenv:
         issues.append(
-            "Dependency on openenv-core is deprecated; use openenv>=0.2.0 instead"
+            "Missing required dependency: openenv-core>=0.2.0 (or openenv>=0.2.0)"
         )
 
     # Check server/app.py exists

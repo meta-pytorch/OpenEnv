@@ -7,105 +7,75 @@
 """
 Echo Environment Client.
 
-This module provides the client for connecting to an Echo Environment server
-via WebSocket for persistent sessions.
+This module provides the client for connecting to an Echo Environment server.
+EchoEnv extends MCPToolClient to provide tool-calling style interactions.
+
+Example:
+    >>> with EchoEnv(base_url="http://localhost:8000") as env:
+    ...     env.reset()
+    ...
+    ...     # Discover tools
+    ...     tools = env.list_tools()
+    ...     print([t.name for t in tools])  # ['echo_message', 'echo_with_length']
+    ...
+    ...     # Call tools
+    ...     result = env.call_tool("echo_message", message="Hello!")
+    ...     print(result)  # "Hello!"
+    ...
+    ...     result = env.call_tool("echo_with_length", message="Test")
+    ...     print(result)  # {"message": "Test", "length": 4}
 """
 
-from typing import Any, Dict
-
-# Support both in-repo and standalone imports
-try:
-    # In-repo imports (when running from OpenEnv repository)
-    from openenv.core.client_types import StepResult
-    from openenv.core.env_server.types import State
-    from openenv.core.env_client import EnvClient
-    from .models import EchoAction, EchoObservation
-except ImportError:
-    # Standalone imports (when environment is standalone with openenv from pip)
-    from openenv.core.client_types import StepResult
-    from openenv.core.env_server.types import State
-    from openenv.core.env_client import EnvClient
-    from models import EchoAction, EchoObservation
+from openenv.core.mcp_client import MCPToolClient
 
 
-class EchoEnv(EnvClient[EchoAction, EchoObservation, State]):
+class EchoEnv(MCPToolClient):
     """
     Client for the Echo Environment.
 
-    This client maintains a persistent WebSocket connection to the environment
-    server, enabling efficient multi-step interactions with lower latency.
-    Each client instance has its own dedicated environment session on the server.
+    This client provides a simple interface for interacting with the Echo
+    Environment via MCP tools. It inherits all functionality from MCPToolClient:
+    - `list_tools()`: Discover available tools
+    - `call_tool(name, **kwargs)`: Call a tool by name
+    - `reset(**kwargs)`: Reset the environment
+    - `step(action)`: Execute an action (for advanced use)
 
     Example:
         >>> # Connect to a running server
-        >>> with EchoEnv(base_url="http://localhost:8000") as client:
-        ...     result = client.reset()
-        ...     print(result.observation.echoed_message)
+        >>> with EchoEnv(base_url="http://localhost:8000") as env:
+        ...     env.reset()
         ...
-        ...     result = client.step(EchoAction(message="Hello!"))
-        ...     print(result.observation.echoed_message)
-        ...     print(result.reward)
+        ...     # List available tools
+        ...     tools = env.list_tools()
+        ...     for tool in tools:
+        ...         print(f"{tool.name}: {tool.description}")
+        ...
+        ...     # Echo a message
+        ...     result = env.call_tool("echo_message", message="Hello!")
+        ...     print(result)  # "Hello!"
+        ...
+        ...     # Echo with length
+        ...     result = env.call_tool("echo_with_length", message="Test")
+        ...     print(result)  # {"message": "Test", "length": 4}
 
     Example with Docker:
         >>> # Automatically start container and connect
-        >>> client = EchoEnv.from_docker_image("echo-env:latest")
+        >>> env = EchoEnv.from_docker_image("echo-env:latest")
         >>> try:
-        ...     result = client.reset()
-        ...     result = client.step(EchoAction(message="Test"))
+        ...     env.reset()
+        ...     tools = env.list_tools()
+        ...     result = env.call_tool("echo_message", message="Hello!")
         ... finally:
-        ...     client.close()
+        ...     env.close()
+
+    Example with HuggingFace Space:
+        >>> # Run from HuggingFace Space
+        >>> env = EchoEnv.from_env("openenv/echo-env")
+        >>> try:
+        ...     env.reset()
+        ...     result = env.call_tool("echo_message", message="Hello!")
+        ... finally:
+        ...     env.close()
     """
 
-    def _step_payload(self, action: EchoAction) -> Dict:
-        """
-        Convert EchoAction to JSON payload for step request.
-
-        Args:
-            action: EchoAction instance
-
-        Returns:
-            Dictionary representation suitable for JSON encoding
-        """
-        return {
-            "message": action.message,
-        }
-
-    def _parse_result(self, payload: Dict) -> StepResult[EchoObservation]:
-        """
-        Parse server response into StepResult[EchoObservation].
-
-        Args:
-            payload: JSON response from server
-
-        Returns:
-            StepResult with EchoObservation
-        """
-        obs_data = payload.get("observation", {})
-        observation = EchoObservation(
-            echoed_message=obs_data.get("echoed_message", ""),
-            message_length=obs_data.get("message_length", 0),
-            done=payload.get("done", False),
-            reward=payload.get("reward"),
-            metadata=obs_data.get("metadata", {}),
-        )
-
-        return StepResult(
-            observation=observation,
-            reward=payload.get("reward"),
-            done=payload.get("done", False),
-        )
-
-    def _parse_state(self, payload: Dict) -> State:
-        """
-        Parse server response into State object.
-
-        Args:
-            payload: JSON response from /state endpoint
-
-        Returns:
-            State object with episode_id and step_count
-        """
-        return State(
-            episode_id=payload.get("episode_id"),
-            step_count=payload.get("step_count", 0),
-        )
+    pass  # MCPToolClient provides all needed functionality

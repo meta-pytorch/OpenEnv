@@ -4,8 +4,8 @@
 # This source code is licensed under the BSD-style license found in the
 # LICENSE file in the root directory of this source tree.
 
-"""Echo environment server components."""
+"""Chess Environment server module."""
 
-from .echo_environment import EchoEnvironment
+from .chess_environment import ChessEnvironment
 
-__all__ = ["EchoEnvironment"]
+__all__ = ["ChessEnvironment"]

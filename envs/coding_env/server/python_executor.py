@@ -46,7 +46,9 @@ class PyExecutor:
         if additional_imports is None:
             additional_imports = []
 
-        self._executor = LocalPythonExecutor(additional_authorized_imports=additional_imports)
+        self._executor = LocalPythonExecutor(
+            additional_authorized_imports=additional_imports
+        )
 
         # Register helpful utilities exposed to the execution environment.
         # These are intentionally small, read-only helpers.
@@ -66,7 +68,10 @@ class PyExecutor:
         except Exception:
             # If the LocalPythonExecutor implementation doesn't support
             # send_tools or fails, log and continue — the executor is still usable.
-            logger.debug("LocalPythonExecutor.send_tools failed; continuing without extra tools", exc_info=True)
+            logger.debug(
+                "LocalPythonExecutor.send_tools failed; continuing without extra tools",
+                exc_info=True,
+            )
 
     def run(self, code: str) -> CodeExecResult:
         """Execute Python code and return a CodeExecResult.
@@ -124,7 +129,11 @@ class PyExecutor:
             # Determine exit code if provided
             try:
                 if hasattr(exec_result, "exit_code"):
-                    exit_code = int(exec_result.exit_code) if exec_result.exit_code is not None else 0
+                    exit_code = (
+                        int(exec_result.exit_code)
+                        if exec_result.exit_code is not None
+                        else 0
+                    )
                 elif hasattr(exec_result, "success"):
                     # Some versions use `success` boolean
                     exit_code = 0 if exec_result.success else 1

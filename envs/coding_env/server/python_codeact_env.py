@@ -101,10 +101,12 @@ class PythonCodeActEnv(Environment):
         self._state.last_exit_code = result.exit_code
 
         # Create observation from execution result
+        # Include code in metadata for transform reward calculation
         observation = CodeObservation(
             stdout=result.stdout,
             stderr=result.stderr,
             exit_code=result.exit_code,
+            metadata={"last_code": action.code},
         )
 
         return self._apply_transform(observation)

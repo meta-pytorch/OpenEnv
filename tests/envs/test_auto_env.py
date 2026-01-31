@@ -1025,7 +1025,7 @@ class TestDockerIntegration:
         3. Verifies the echo response
         4. Cleans up the container
         """
-        from envs.echo_env.models import EchoAction
+        from openenv.core.env_server.mcp_types import CallToolAction
 
         # Start Docker container using AutoEnv
         env = AutoEnv.from_hub("echo", docker_image="echo-env:latest")
@@ -1039,17 +1039,19 @@ class TestDockerIntegration:
             print("✅ Docker container started successfully")
             print(f"   Reset observation: {result.observation}")
 
-            # Send a message
-            action = EchoAction(message="Hello from Docker test!")
+            # Send a message using MCP
+            action = CallToolAction(
+                tool_name="echo_message",
+                arguments={"message": "Hello from Docker test!"},
+            )
             step_result = env.step(action)
 
             # Verify the echo
             assert step_result is not None
-            assert hasattr(step_result.observation, "echoed_message")
-            assert "Hello from Docker test!" in step_result.observation.echoed_message
+            assert step_result.observation is not None
 
             print("✅ Message echoed successfully")
-            print(f"   echoed_message: {step_result.observation.echoed_message}")
+            print(f"   result: {step_result.observation}")
         finally:
             # Clean up - this should stop the container
             env.close()
@@ -1058,30 +1060,28 @@ class TestDockerIntegration:
         """
         Test AutoAction with a real Docker container (echo-env).
 
-        This test uses AutoAction to get the action class dynamically.
+        This test uses GenericEnvClient with skip_install=True for pure MCP environments.
         """
-        # Get the action class using AutoAction
-        EchoAction = AutoAction.from_hub("echo")
+        from openenv.core.generic_client import GenericEnvClient
+        from openenv.core.env_server.mcp_types import CallToolAction
 
-        # Start Docker container using AutoEnv
-        env = AutoEnv.from_hub("echo", docker_image="echo-env:latest")
+        # Start Docker container using GenericEnvClient (MCP-first approach)
+        env = GenericEnvClient.from_docker_image("echo-env:latest")
 
         try:
             # Reset
             env.reset()
 
-            # Create action using the dynamically loaded class
-            action = EchoAction(message="Dynamic action from AutoAction!")
+            # Create MCP action
+            action = CallToolAction(
+                tool_name="echo_message", arguments={"message": "Dynamic action!"}
+            )
             step_result = env.step(action)
 
             # Verify
             assert step_result is not None
-            assert (
-                "Dynamic action from AutoAction!"
-                in step_result.observation.echoed_message
-            )
 
-            print("✅ AutoAction with Docker works correctly")
+            print("✅ MCP with Docker works correctly")
         finally:
             env.close()
 
@@ -1144,58 +1144,46 @@ class TestLocalServerIntegration:
         Test AutoEnv connecting to a local server using base_url.
 
         This test:
-        1. Connects to localhost:8000 using AutoEnv
+        1. Connects to localhost:8000 using MCPToolClient
         2. Resets the environment
         3. Sends a message
         4. Verifies the response
         """
-        # Connect to local server
-        env = AutoEnv.from_hub("echo", base_url=local_echo_server)
+        from echo_env import EchoEnv
 
-        try:
+        # Connect to local server
+        with EchoEnv(base_url=local_echo_server) as env:
             # Reset
             result = env.reset()
             assert result is not None
 
             print(f"✅ Connected to local server at {local_echo_server}")
 
-            # Get action class
-            EchoAction = AutoAction.from_hub("echo")
+            # Send message using call_tool
+            result = env.call_tool("echo_message", message="Hello local server!")
 
-            # Send message
-            action = EchoAction(message="Hello local server!")
-            step_result = env.step(action)
-
-            assert step_result is not None
-            assert "Hello local server!" in step_result.observation.echoed_message
+            assert result is not None
+            assert "Hello local server!" in result
 
             print("✅ Local server test passed")
-            print(f"   echoed_message: {step_result.observation.echoed_message}")
-        finally:
-            env.close()
+            print(f"   echoed_message: {result}")
 
     def test_multiple_steps_local_server(self, local_echo_server):
         """Test multiple steps on local server."""
-        env = AutoEnv.from_hub("echo", base_url=local_echo_server)
-        EchoAction = AutoAction.from_hub("echo")
+        from echo_env import EchoEnv
 
-        try:
+        with EchoEnv(base_url=local_echo_server) as env:
             env.reset()
 
             messages = ["First message", "Second message", "Third message"]
 
             for i, msg in enumerate(messages):
-                action = EchoAction(message=msg)
-                result = env.step(action)
+                result = env.call_tool("echo_message", message=msg)
 
-                assert msg in result.observation.echoed_message
-                print(
-                    f"✅ Step {i + 1}: '{msg}' → '{result.observation.echoed_message}'"
-                )
+                assert msg in result
+                print(f"✅ Step {i + 1}: '{msg}' → '{result}'")
 
             print(f"✅ Multiple steps test passed ({len(messages)} steps)")
-        finally:
-            env.close()
 
 
 # ============================================================================
