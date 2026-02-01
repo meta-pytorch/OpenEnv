@@ -40,6 +40,8 @@ import requests
 from typing import Any, Optional, TYPE_CHECKING, Dict
 
 from ._discovery import get_discovery, _is_hub_url
+from openenv.core.utils import run_async_safely
+
 
 if TYPE_CHECKING:
     from openenv.core.containers.runtime import ContainerProvider
@@ -590,12 +592,14 @@ class AutoEnv:
                         f"Space not running at {space_url}, "
                         f"using GenericEnvClient with HF Docker registry"
                     )
-                    return GenericEnvClient.from_env(
-                        name,
-                        use_docker=True,
-                        provider=container_provider,
-                        env_vars=env_vars or {},
-                        **kwargs,
+                    return run_async_safely(
+                        GenericEnvClient.from_env(
+                            name,
+                            use_docker=True,
+                            provider=container_provider,
+                            env_vars=env_vars or {},
+                            **kwargs,
+                        )
                     )
 
             # For local environments with skip_install, we need docker_image
@@ -604,12 +608,14 @@ class AutoEnv:
                     f"Using GenericEnvClient with Docker image {docker_image} "
                     f"(skip_install=True)"
                 )
-                return GenericEnvClient.from_docker_image(
-                    image=docker_image,
-                    provider=container_provider,
-                    wait_timeout=wait_timeout,
-                    env_vars=env_vars or {},
-                    **kwargs,
+                return run_async_safely(
+                    GenericEnvClient.from_docker_image(
+                        image=docker_image,
+                        provider=container_provider,
+                        wait_timeout=wait_timeout,
+                        env_vars=env_vars or {},
+                        **kwargs,
+                    )
                 )
             else:
                 raise ValueError(
@@ -715,12 +721,14 @@ class AutoEnv:
                     # Local server not running, auto-start Docker container
                     logger.info(f"❌ Server not available at {base_url}")
                     logger.info(f"🐳 Auto-starting Docker container: {docker_image}")
-                    return client_class.from_docker_image(
-                        image=docker_image,
-                        provider=container_provider,
-                        wait_timeout=wait_timeout,
-                        env_vars=env_vars or {},
-                        **kwargs,
+                    return run_async_safely(
+                        client_class.from_docker_image(
+                            image=docker_image,
+                            provider=container_provider,
+                            wait_timeout=wait_timeout,
+                            env_vars=env_vars or {},
+                            **kwargs,
+                        )
                     )
                 else:
                     # Remote server not available, cannot auto-start
@@ -730,12 +738,14 @@ class AutoEnv:
                     )
             else:
                 # No base_url provided, start new Docker container
-                return client_class.from_docker_image(
-                    image=docker_image,
-                    provider=container_provider,
-                    wait_timeout=wait_timeout,
-                    env_vars=env_vars or {},
-                    **kwargs,
+                return run_async_safely(
+                    client_class.from_docker_image(
+                        image=docker_image,
+                        provider=container_provider,
+                        wait_timeout=wait_timeout,
+                        env_vars=env_vars or {},
+                        **kwargs,
+                    )
                 )
         except Exception as e:
             raise ValueError(

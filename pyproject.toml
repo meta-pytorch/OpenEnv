@@ -82,6 +82,8 @@ exclude_lines = [
 ]
 
 [tool.pytest.ini_options]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
 markers = [
     "docker: Tests that require Docker to be running",
     "network: Tests that require network access (HuggingFace, etc.)",
