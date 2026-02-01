@@ -46,12 +46,12 @@ Usage:
 """
 
 import asyncio
-import concurrent.futures
 from abc import abstractmethod
 from typing import Any, Optional
 
 from fastmcp import Client
 
+from ..utils import run_async_safely
 from .interfaces import Environment
 from .mcp_types import (
     CallToolAction,
@@ -68,35 +68,6 @@ from .types import Action, Observation
 
 # Default timeout for MCP tool calls in seconds
 MCP_TOOL_CALL_TIMEOUT = 30.0
-
-
-def _run_async_safely(coro):
-    """
-    Run an async coroutine safely from any context.
-
-    This handles the case where we may already be inside an async event loop
-    (e.g., when called from HTTPEnvServer). In that case, asyncio.run() would
-    fail, so we use a ThreadPoolExecutor to run in a separate thread.
-
-    Args:
-        coro: The coroutine to run
-
-    Returns:
-        The result of the coroutine
-    """
-    try:
-        loop = asyncio.get_running_loop()
-    except RuntimeError:
-        loop = None
-
-    if loop is not None:
-        # Already in async context - run in a thread pool
-        with concurrent.futures.ThreadPoolExecutor() as pool:
-            future = pool.submit(asyncio.run, coro)
-            return future.result()
-    else:
-        # No async context - use asyncio.run() directly
-        return asyncio.run(coro)
 
 
 class MCPEnvironment(Environment):
@@ -230,8 +201,8 @@ class MCPEnvironment(Environment):
         """
         try:
             # Run the async list_tools call synchronously
-            # Use _run_async_safely to handle both sync and async contexts
-            tools_result = _run_async_safely(self._async_list_tools())
+            # Use run_async_safely to handle both sync and async contexts
+            tools_result = run_async_safely(self._async_list_tools())
 
             # Convert MCP tool objects to our Tool model
             tools = [
@@ -286,8 +257,8 @@ class MCPEnvironment(Environment):
 
         try:
             # Run the async call_tool with timeout
-            # Use _run_async_safely to handle both sync and async contexts
-            result = _run_async_safely(
+            # Use run_async_safely to handle both sync and async contexts
+            result = run_async_safely(
                 asyncio.wait_for(
                     self._async_call_tool(action.tool_name, action.arguments),
                     timeout=timeout,

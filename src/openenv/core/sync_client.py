@@ -25,46 +25,16 @@ Example:
 
 from __future__ import annotations
 
-import asyncio
-import concurrent.futures
 from typing import Any, Dict, Generic, TYPE_CHECKING, TypeVar
 
 from .client_types import StepResult, StateT
+from .utils import run_async_safely
 
 if TYPE_CHECKING:
     from .env_client import EnvClient
 
 ActT = TypeVar("ActT")
 ObsT = TypeVar("ObsT")
-
-
-def _run_async_safely(coro):
-    """
-    Run an async coroutine safely from any context.
-
-    This handles the case where we may already be inside an async event loop
-    (e.g., when called from an async framework). In that case, asyncio.run()
-    would fail, so we use a ThreadPoolExecutor to run in a separate thread.
-
-    Args:
-        coro: The coroutine to run
-
-    Returns:
-        The result of the coroutine
-    """
-    try:
-        loop = asyncio.get_running_loop()
-    except RuntimeError:
-        loop = None
-
-    if loop is not None:
-        # Already in async context - run in a thread pool
-        with concurrent.futures.ThreadPoolExecutor() as pool:
-            future = pool.submit(asyncio.run, coro)
-            return future.result()
-    else:
-        # No async context - use asyncio.run() directly
-        return asyncio.run(coro)
 
 
 class SyncEnvClient(Generic[ActT, ObsT, StateT]):
@@ -75,7 +45,7 @@ class SyncEnvClient(Generic[ActT, ObsT, StateT]):
     making it easier to use in synchronous code or to stop async from
     "infecting" the entire call stack.
 
-    The wrapper uses `_run_async_safely()` to execute async operations,
+    The wrapper uses `run_async_safely()` to execute async operations,
     which handles both sync and async calling contexts correctly.
 
     Example:
@@ -113,12 +83,12 @@ class SyncEnvClient(Generic[ActT, ObsT, StateT]):
         Returns:
             self for method chaining
         """
-        _run_async_safely(self._async.connect())
+        run_async_safely(self._async.connect())
         return self
 
     def disconnect(self) -> None:
         """Close the connection."""
-        _run_async_safely(self._async.disconnect())
+        run_async_safely(self._async.disconnect())
 
     def reset(self, **kwargs: Any) -> StepResult[ObsT]:
         """
@@ -130,7 +100,7 @@ class SyncEnvClient(Generic[ActT, ObsT, StateT]):
         Returns:
             StepResult containing initial observation
         """
-        return _run_async_safely(self._async.reset(**kwargs))
+        return run_async_safely(self._async.reset(**kwargs))
 
     def step(self, action: ActT, **kwargs: Any) -> StepResult[ObsT]:
         """
@@ -143,7 +113,7 @@ class SyncEnvClient(Generic[ActT, ObsT, StateT]):
         Returns:
             StepResult containing observation, reward, and done status
         """
-        return _run_async_safely(self._async.step(action, **kwargs))
+        return run_async_safely(self._async.step(action, **kwargs))
 
     def state(self) -> StateT:
         """
@@ -152,11 +122,11 @@ class SyncEnvClient(Generic[ActT, ObsT, StateT]):
         Returns:
             State object with environment state information
         """
-        return _run_async_safely(self._async.state())
+        return run_async_safely(self._async.state())
 
     def close(self) -> None:
         """Close the connection and clean up resources."""
-        _run_async_safely(self._async.close())
+        run_async_safely(self._async.close())
 
     def __enter__(self) -> "SyncEnvClient[ActT, ObsT, StateT]":
         """Enter context manager, establishing connection."""
