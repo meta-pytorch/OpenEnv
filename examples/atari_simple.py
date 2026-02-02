@@ -23,35 +23,10 @@ import numpy as np
 
 # Add src to path
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
+# Add repo root to path for 'envs' import
+sys.path.insert(0, str(Path(__file__).parent.parent))
 
-try:
-    from openenv.core.env_client import EnvClient
-    from envs.atari_env.models import AtariAction, AtariObservation, AtariState
-except ImportError:
-    # Try importing with envs prefix just in case
-    try:
-        from envs.atari_env import AtariEnv, AtariAction, AtariObservation, AtariState
-        # Mapping for compatibility if imported directly
-    except ImportError:
-        print("Please set PYTHONPATH to include 'src' and 'envs'")
-        sys.exit(1)
-
-class AtariClient(EnvClient[AtariAction, AtariObservation, AtariState]):
-    def _step_payload(self, action: AtariAction) -> dict:
-        return {"action_id": action.action_id}
-
-    def _parse_result(self, payload: dict):
-        from openenv.core.client_types import StepResult
-        obs_data = payload.get("observation", {})
-        obs = AtariObservation(**obs_data)
-        return StepResult(
-            observation=obs,
-            reward=payload.get("reward"),
-            done=bool(payload.get("done", False))
-        )
-
-    def _parse_state(self, payload: dict) -> AtariState:
-        return AtariState(**payload)
+from envs.atari_env import AtariEnv, AtariAction
 # import envs
 # print(envs.__path__)
 
@@ -63,13 +38,12 @@ def main():
     # Simple check for debug flag
     if "--debug" in sys.argv:
         print("Running in DEBUG mode (connecting to http://127.0.0.1:8011)")
-        env = AtariClient(base_url="http://127.0.0.1:8011").sync()
+        env = AtariEnv(base_url="http://127.0.0.1:8011").sync()
     else:
         print("Running in STANDARD mode (using Docker image)")
         # Note: from_docker_image is async, so we need to handle it differently
-        # For now, we'll use the debug mode as the primary path
         import asyncio
-        async_env = asyncio.run(AtariClient.from_docker_image("ghcr.io/meta-pytorch/openenv-atari-env:latest"))
+        async_env = asyncio.run(AtariEnv.from_docker_image("ghcr.io/meta-pytorch/openenv-atari-env:latest"))
         env = async_env.sync()
     
    
