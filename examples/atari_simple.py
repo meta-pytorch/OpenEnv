@@ -28,7 +28,7 @@ from atari_env import AtariEnv, AtariAction
 # import envs
 # print(envs.__path__)
 
-def main():
+async def main():
     """Run a simple Atari episode."""
     import argparse
     
@@ -42,20 +42,20 @@ def main():
     
     # Simple check for debug flag
     if args.debug:
-        print("Running in DEBUG mode (connecting to http://127.0.0.1:8011)")
-        env = AtariEnv(base_url="http://127.0.0.1:8011").sync()
+        print("Running in DEBUG mode (connecting to http://127.0.0.1:8001)")
+        env = AtariEnv(base_url="http://127.0.0.1:8001")
     else:
         print("Running in STANDARD mode (using Docker image)")
-        # Note: from_docker_image is async, so we need to use asyncio
-        import asyncio
-        async_env = asyncio.run(AtariEnv.from_docker_image("ghcr.io/meta-pytorch/openenv-atari-env:latest"))
-        env = async_env.sync()
+        env = await AtariEnv.from_docker_image("ghcr.io/meta-pytorch/openenv-atari-env:latest")
     
    
     try:
+        # Connect to the environment
+        await env.connect()
+        
         # Reset the environment
         print("\nResetting environment...")
-        result = env.reset()
+        result = await env.reset()
         print(f"Screen shape: {result.observation.screen_shape}")
 
     
@@ -74,8 +74,9 @@ def main():
             action_id = int(action_id)
             
             # Take action
-            result = env.step(AtariAction(action_id=action_id))
-            import time; time.sleep(args.sleep)
+            result = await env.step(AtariAction(action_id=action_id))
+            import asyncio
+            await asyncio.sleep(args.sleep)
 
             episode_reward += result.reward or 0
             steps += 1
@@ -94,7 +95,7 @@ def main():
         print(f"\nTotal episode reward: {episode_reward:.2f}")
 
         # Get environment state
-        state = env.state()
+        state = await env.state()
         print(f"\nEnvironment state:")
         print(f"  Game: {state.game_name}")
         print(f"  Episode: {state.episode_id}")
@@ -104,9 +105,10 @@ def main():
     finally:
         # Cleanup
         print("\nClosing environment...")
-        env.close()
+        await env.close()
         print("Done!")
 
 
 if __name__ == "__main__":
-    main()
+    import asyncio
+    asyncio.run(main())

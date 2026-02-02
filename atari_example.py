@@ -25,12 +25,12 @@ except ImportError:
 def main():
     # 1. Connect to the environment
     # Ensure the server is running: 
-    # uvicorn envs.atari_env.server.app:app --host 0.0.0.0 --port 8011
-    print("Connecting to Atari Environment at http://localhost:8011...")
-    print("💡 View the game visually at: http://localhost:8011/web")
+    # uvicorn envs.atari_env.server.app:app --host 0.0.0.0 --port 8001
+    print("Connecting to Atari Environment at http://localhost:8001...")
+    print("💡 View the game visually at: http://localhost:8001/web")
     
     try:
-        env = AtariEnv(base_url="http://localhost:8011").sync()
+        env = AtariEnv(base_url="http://localhost:8001").sync()
         
         # 2. Reset the environment to start a new episode
         print("Resetting environment...")
@@ -63,7 +63,7 @@ def main():
         
     except Exception as e:
         print(f"\nError: {e}")
-        print("Make sure the Atari server is running on port 8011.")
+        print("Make sure the Atari server is running on port 8001.")
     finally:
         if 'env' in locals():
             env.close()
