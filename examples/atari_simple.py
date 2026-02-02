@@ -23,25 +23,30 @@ import numpy as np
 
 # Add src to path
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
-# Add repo root to path for 'envs' import
-sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from envs.atari_env import AtariEnv, AtariAction
+from atari_env import AtariEnv, AtariAction
 # import envs
 # print(envs.__path__)
 
 def main():
     """Run a simple Atari episode."""
+    import argparse
+    
+    parser = argparse.ArgumentParser(description="Run Atari Example")
+    parser.add_argument("--debug", action="store_true", help="Run in debug mode (local server)")
+    parser.add_argument("--sleep", type=float, default=0.1, help="Sleep time between steps in seconds (default: 0.1)")
+    args = parser.parse_args()
+    
     # Connect to the Atari environment server
-    print("Connecting to Atari environment...")
+    print(f"Connecting to Atari environment...")
     
     # Simple check for debug flag
-    if "--debug" in sys.argv:
+    if args.debug:
         print("Running in DEBUG mode (connecting to http://127.0.0.1:8011)")
         env = AtariEnv(base_url="http://127.0.0.1:8011").sync()
     else:
         print("Running in STANDARD mode (using Docker image)")
-        # Note: from_docker_image is async, so we need to handle it differently
+        # Note: from_docker_image is async, so we need to use asyncio
         import asyncio
         async_env = asyncio.run(AtariEnv.from_docker_image("ghcr.io/meta-pytorch/openenv-atari-env:latest"))
         env = async_env.sync()
@@ -70,7 +75,7 @@ def main():
             
             # Take action
             result = env.step(AtariAction(action_id=action_id))
-            import time; time.sleep(0.1)
+            import time; time.sleep(args.sleep)
 
             episode_reward += result.reward or 0
             steps += 1

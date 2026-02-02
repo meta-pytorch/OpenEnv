@@ -1285,7 +1285,6 @@ def get_web_interface_html(
                 }}
 
                 // Update action logs
-                // Update action logs
                 const logsDiv = document.getElementById('action-logs');
                 if (episodeState.action_logs.length === 0) {{
                     logsDiv.innerHTML = 'No actions taken yet';
