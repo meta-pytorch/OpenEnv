@@ -6,21 +6,30 @@ Run this script to see a continuous stream of gameplay in the web interface.
 
 import time
 import random
+import asyncio
+import sys
+from pathlib import Path
 
-from openenv.core.env_client import EnvClient
-from envs.atari_env.models import AtariAction, AtariObservation, AtariState
+# Add src to path
+sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
+# Add repo root to path for 'envs' import
+sys.path.insert(0, str(Path(__file__).parent.parent))
 
-# Use the same client class mechanism, but we can define a simple one here
-# or import if available. For simplicity we use generic EnvClient.
+try:
+    from openenv.core.env_client import EnvClient
+    from envs.atari_env.models import AtariAction, AtariObservation, AtariState
+except ImportError:
+    from envs.atari_env import AtariEnv, AtariAction
 
+# Custom client not strictly needed if we just use Generic one, but good for explicit typing
 class AtariClient(EnvClient[AtariAction, AtariObservation, AtariState]):
     def _step_payload(self, action: AtariAction) -> dict:
-        return {"action": action.action_id}
+        return {"action_id": action.action_id}
 
     def _parse_result(self, payload: dict):
-        # Simplified parsing for the demo
         from openenv.core.client_types import StepResult
-        obs = AtariObservation(**payload["observation"])
+        obs_data = payload.get("observation", {})
+        obs = AtariObservation(**obs_data)
         return StepResult(
             observation=obs,
             reward=payload.get("reward"),
@@ -31,15 +40,16 @@ class AtariClient(EnvClient[AtariAction, AtariObservation, AtariState]):
         return AtariState(**payload)
 
 
-def main():
+async def main():
     print("Connecting to Atari environment...")
     # Port 8011 is where we will run the server
     env = AtariClient(base_url="http://127.0.0.1:8011")
 
     try:
+        await env.connect()
         while True:
             print("Starting new episode...")
-            env.reset()
+            await env.reset()
             
             done = False
             step_count = 0
@@ -49,12 +59,12 @@ def main():
                 # We'll use random actions to keep it moving
                 action_id = random.randint(0, 3) 
                 
-                env.step(AtariAction(action_id=action_id))
+                await env.step(AtariAction(action_id=action_id))
                 
                 step_count += 1
                 
                 # Sleep slightly to make it watchable (20fps approx)
-                time.sleep(0.05)
+                await asyncio.sleep(0.05)
                 
                 # Check for reset condition (game over) via side channel or just 
                 # run for fixed steps if 'done' isn't reliable in random play
@@ -66,7 +76,10 @@ def main():
     except Exception as e:
         print(f"Error: {e}")
     finally:
-        env.close()
+        await env.close()
 
 if __name__ == "__main__":
-    main()
+    try:
+        asyncio.run(main())
+    except KeyboardInterrupt:
+        pass

@@ -983,7 +983,12 @@ def get_web_interface_html(
             <div class="pane-content">
                 <!-- Current Observation -->
                 <div class="state-display">
-                    <h3>Current Observation</h3>
+                    <h3>
+                        Current Observation
+                        <span style="font-size: 14px; font-weight: normal; float: right;">
+                            <label><input type="checkbox" id="obs-render-toggle" checked> Render Visual</label>
+                        </span>
+                    </h3>
                     <div id="current-observation" class="json-display">
                         No observation yet
                     </div>
@@ -1005,6 +1010,7 @@ def get_web_interface_html(
             constructor() {{
                 this.ws = null;
                 this.isConnected = false;
+                this.lastEpisodeState = null;
                 this.init();
             }}
 
@@ -1028,6 +1034,7 @@ def get_web_interface_html(
                 this.ws.onmessage = (event) => {{
                     const data = JSON.parse(event.data);
                     if (data.type === 'state_update') {{
+                        this.lastEpisodeState = data.episode_state;
                         this.updateUI(data.episode_state);
                     }}
                 }};
@@ -1093,6 +1100,16 @@ def get_web_interface_html(
                 document.getElementById('state-btn').addEventListener('click', () => {{
                     this.getState();
                 }});
+
+                // Observation render toggle
+                const obsToggle = document.getElementById('obs-render-toggle');
+                if (obsToggle) {{
+                    obsToggle.addEventListener('change', () => {{
+                        if (this.lastEpisodeState) {{
+                            this.updateUI(this.lastEpisodeState);
+                        }}
+                    }});
+                }}
             }}
 
             async sendMessage() {{
@@ -1248,14 +1265,16 @@ def get_web_interface_html(
                 }} else {{
                     // Update traditional observation display
                     const observationDiv = document.getElementById('current-observation');
+                    const renderToggle = document.getElementById('obs-render-toggle');
+                    const shouldRender = renderToggle ? renderToggle.checked : true;
+
                     if (episodeState.current_observation) {{
-                        // Check for screen image
-                        if (episodeState.current_observation.screen_image) {{
+                        // Check for screen image and toggle state
+                        if (shouldRender && episodeState.current_observation.screen_image) {{
                             observationDiv.innerHTML = `
                                 <img src="${{episodeState.current_observation.screen_image}}" 
                                      style="max-width: 100%; border: 1px solid #ddd; display: block; margin-bottom: 10px;" 
                                      alt="Game Screen" />
-                                <div class="json-display" style="max-height: 100px;">${{JSON.stringify(episodeState.current_observation, null, 2)}}</div>
                             `;
                         }} else {{
                             observationDiv.textContent = JSON.stringify(
@@ -1268,6 +1287,7 @@ def get_web_interface_html(
                 }}
 
                 // Update action logs
+                // Update action logs
                 const logsDiv = document.getElementById('action-logs');
                 if (episodeState.action_logs.length === 0) {{
                     logsDiv.innerHTML = 'No actions taken yet';
@@ -1277,8 +1297,6 @@ def get_web_interface_html(
                             <div class="log-timestamp">${{log.timestamp}} (Step ${{log.step_count}})</div>
                             <div class="log-action">Action: ${{JSON.stringify(log.action, null, 2)}}</div>
                             <div class="log-observation">
-                                ${{log.observation.screen_image ? 
-                                    `<img src="${{log.observation.screen_image}}" style="max-width: 200px; display: block; margin-bottom: 5px;" />` : ''}}
                                 Observation: ${{JSON.stringify(log.observation, null, 2)}}
                             </div>
                             <div>
