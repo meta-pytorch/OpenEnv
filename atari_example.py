@@ -22,7 +22,7 @@ try:
 except ImportError:
     from envs.atari_env import AtariEnv, AtariAction
 
-def main():
+async def main():
     # 1. Connect to the environment
     # Ensure the server is running: 
     # uvicorn envs.atari_env.server.app:app --host 0.0.0.0 --port 8001
@@ -30,11 +30,14 @@ def main():
     print("💡 View the game visually at: http://localhost:8001/web")
     
     try:
-        env = AtariEnv(base_url="http://localhost:8001").sync()
+        env = AtariEnv(base_url="http://localhost:8001")
+        
+        # Connect to the environment
+        await env.connect()
         
         # 2. Reset the environment to start a new episode
         print("Resetting environment...")
-        result = env.reset()
+        result = await env.reset()
         
         print(f"Game: Pong")
         print(f"Observation Shape: {result.observation.screen_shape}")
@@ -51,13 +54,13 @@ def main():
             action = AtariAction(action_id=int(action_id))
             
             # Step the environment
-            result = env.step(action)
+            result = await env.step(action)
             
             print(f"Step {step+1}: Action={action_id}, Reward={result.reward}, Done={result.done}")
             
             if result.done:
                 print("Episode finished!")
-                env.reset()
+                await env.reset()
                 
         print("\nExample complete!")
         
@@ -66,7 +69,8 @@ def main():
         print("Make sure the Atari server is running on port 8001.")
     finally:
         if 'env' in locals():
-            env.close()
+            await env.close()
 
 if __name__ == "__main__":
-    main()
+    import asyncio
+    asyncio.run(main())
