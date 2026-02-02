@@ -74,8 +74,6 @@ async def main():
             
             # Take action
             result = await env.step(AtariAction(action_id=action_id))
-            import asyncio
-            await asyncio.sleep(0.1)
 
             episode_reward += result.reward or 0
             steps += 1
