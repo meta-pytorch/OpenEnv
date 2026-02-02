@@ -34,7 +34,6 @@ async def main():
     
     parser = argparse.ArgumentParser(description="Run Atari Example")
     parser.add_argument("--debug", action="store_true", help="Run in debug mode (local server)")
-    parser.add_argument("--sleep", type=float, default=0.1, help="Sleep time between steps in seconds (default: 0.1)")
     args = parser.parse_args()
     
     # Connect to the Atari environment server
@@ -76,7 +75,7 @@ async def main():
             # Take action
             result = await env.step(AtariAction(action_id=action_id))
             import asyncio
-            await asyncio.sleep(args.sleep)
+            await asyncio.sleep(0.1)
 
             episode_reward += result.reward or 0
             steps += 1
