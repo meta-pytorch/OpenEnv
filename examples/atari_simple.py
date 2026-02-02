@@ -55,9 +55,7 @@ class AtariClient(EnvClient[AtariAction, AtariObservation, AtariState]):
 # import envs
 # print(envs.__path__)
 
-import asyncio
-
-async def main():
+def main():
     """Run a simple Atari episode."""
     # Connect to the Atari environment server
     print("Connecting to Atari environment...")
@@ -65,23 +63,20 @@ async def main():
     # Simple check for debug flag
     if "--debug" in sys.argv:
         print("Running in DEBUG mode (connecting to http://127.0.0.1:8011)")
-        env = AtariClient(base_url="http://127.0.0.1:8011")
+        env = AtariClient(base_url="http://127.0.0.1:8011").sync()
     else:
         print("Running in STANDARD mode (using Docker image)")
-        # For simple example, we assume from_docker_image returns a client instance.
-        # If from_docker_image starts the container and returns client, we need to check if it's awaitable.
-        # Usually it is not async itself, but the client it returns has async methods.
-        env = AtariClient.from_docker_image("ghcr.io/meta-pytorch/openenv-atari-env:latest")
+        # Note: from_docker_image is async, so we need to handle it differently
+        # For now, we'll use the debug mode as the primary path
+        import asyncio
+        async_env = asyncio.run(AtariClient.from_docker_image("ghcr.io/meta-pytorch/openenv-atari-env:latest"))
+        env = async_env.sync()
     
    
     try:
-        # Connect first (good practice for async clients)
-        if hasattr(env, 'connect'):
-            await env.connect()
-
         # Reset the environment
         print("\nResetting environment...")
-        result = await env.reset()
+        result = env.reset()
         print(f"Screen shape: {result.observation.screen_shape}")
 
     
@@ -100,9 +95,8 @@ async def main():
             action_id = int(action_id)
             
             # Take action
-            result = await env.step(AtariAction(action_id=action_id))
-            # import time; time.sleep(0.1) # Use asyncio.sleep for async
-            await asyncio.sleep(0.1)
+            result = env.step(AtariAction(action_id=action_id))
+            import time; time.sleep(0.1)
 
             episode_reward += result.reward or 0
             steps += 1
@@ -121,7 +115,7 @@ async def main():
         print(f"\nTotal episode reward: {episode_reward:.2f}")
 
         # Get environment state
-        state = await env.state()
+        state = env.state()
         print(f"\nEnvironment state:")
         print(f"  Game: {state.game_name}")
         print(f"  Episode: {state.episode_id}")
@@ -131,9 +125,9 @@ async def main():
     finally:
         # Cleanup
         print("\nClosing environment...")
-        await env.close()
+        env.close()
         print("Done!")
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    main()
