@@ -32,8 +32,14 @@ def main():
     """Run a simple Atari episode."""
     # Connect to the Atari environment server
     print("Connecting to Atari environment...")
-    # env = AtariEnv.from_docker_image("ghcr.io/meta-pytorch/openenv-atari-env:latest")
-    env = AtariEnv(base_url="http://127.0.0.1:8011")
+    
+    # Simple check for debug flag
+    if "--debug" in sys.argv:
+        print("Running in DEBUG mode (connecting to http://127.0.0.1:8011)")
+        env = AtariEnv(base_url="http://127.0.0.1:8011")
+    else:
+        print("Running in STANDARD mode (using Docker image)")
+        env = AtariEnv.from_docker_image("ghcr.io/meta-pytorch/openenv-atari-env:latest")
     
    
     try:
