@@ -985,9 +985,7 @@ def get_web_interface_html(
                 <div class="state-display">
                     <h3>
                         Current Observation
-                        <span style="font-size: 14px; font-weight: normal; float: right;">
-                            <label><input type="checkbox" id="obs-render-toggle" checked> Render Visual</label>
-                        </span>
+                        {f'<span style="font-size: 14px; font-weight: normal; float: right;"><label><input type="checkbox" id="obs-render-toggle" checked> Render Visual</label></span>' if 'atari' in metadata.name.lower() else ''}
                     </h3>
                     <div id="current-observation" class="json-display">
                         No observation yet
@@ -1266,7 +1264,7 @@ def get_web_interface_html(
                     // Update traditional observation display
                     const observationDiv = document.getElementById('current-observation');
                     const renderToggle = document.getElementById('obs-render-toggle');
-                    const shouldRender = renderToggle ? renderToggle.checked : true;
+                    const shouldRender = renderToggle ? renderToggle.checked : false;
 
                     if (episodeState.current_observation) {{
                         // Check for screen image and toggle state
