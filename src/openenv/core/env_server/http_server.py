@@ -858,7 +858,7 @@ Get JSON schemas for actions, observations, and state in a single response.
 
 Returns a combined schema object containing:
 - **action**: JSON schema for actions accepted by this environment
-- **observation**: JSON schema for observations returned by this environment  
+- **observation**: JSON schema for observations returned by this environment
 - **state**: JSON schema for environment state objects
 
 This is more efficient than calling individual schema endpoints and provides

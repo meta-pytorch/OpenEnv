@@ -89,3 +89,20 @@ markers = [
     "network: Tests that require network access (HuggingFace, etc.)",
     "integration: Integration tests with external resources",
 ]
+
+[tool.ruff]
+line-length = 88
+
+[tool.ruff.lint]
+select = ["E", "F", "W"]
+ignore = [
+    "E402",  # Module level import not at top of file (needed for pytest.importorskip patterns)
+    "E501",  # Line too long (not enforced previously, would require large refactor)
+]
+
+[tool.ruff.lint.per-file-ignores]
+# Context manager variables that are intentionally unused
+"tests/envs/test_websockets.py" = ["F841"]
+"tests/test_cli/test_push.py" = ["F841"]
+# Compatibility shim module
+"src/openenv_core/__init__.py" = ["F401"]

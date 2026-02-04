@@ -14,9 +14,8 @@ These tests verify the MCPToolClient class functionality including:
 4. Error handling for tool failures
 """
 
-import json
 import pytest
-from unittest.mock import MagicMock, patch, AsyncMock
+from unittest.mock import AsyncMock
 
 from openenv.core.mcp_client import MCPClientBase, MCPToolClient
 from openenv.core.env_server.mcp_types import (

@@ -161,8 +161,9 @@ PYTHONPATH=src:envs uv run pytest tests/ -v --tb=short
 # Run a single test file
 PYTHONPATH=src:envs uv run pytest tests/envs/test_echo_environment.py -v
 
-# Lint check (format validation)
+# Lint check (format + rules)
 uv run ruff format src/ tests/ --check
+uv run ruff check src/ tests/
 
 # Auto-format code
 uv run ruff format src/ tests/

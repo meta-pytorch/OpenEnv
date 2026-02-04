@@ -153,9 +153,9 @@ class AutoAction:
 
             if not available_envs:
                 raise ValueError(
-                    f"No OpenEnv environments found.\n"
-                    f"Install an environment with: pip install openenv-<env-name>\n"
-                    f"Or specify a HuggingFace Hub repository: AutoAction.from_env('openenv/echo_env')"
+                    "No OpenEnv environments found.\n"
+                    "Install an environment with: pip install openenv-<env-name>\n"
+                    "Or specify a HuggingFace Hub repository: AutoAction.from_env('openenv/echo_env')"
                 )
 
             # Try to suggest similar environment names

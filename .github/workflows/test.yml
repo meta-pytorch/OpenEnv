@@ -68,3 +68,6 @@ jobs:
 
       - name: Run ruff format check
         run: uv run ruff format src/ tests/ --check
+
+      - name: Run ruff lint check
+        run: uv run ruff check src/ tests/

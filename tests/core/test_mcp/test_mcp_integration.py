@@ -13,7 +13,6 @@ These tests verify:
 3. WebSocket MCP tools/list and tools/call endpoints
 """
 
-import asyncio
 import json
 from typing import Any, Optional
 
@@ -26,7 +25,6 @@ from openenv.core.env_server.mcp_types import (
     CallToolObservation,
     ListToolsAction,
     ListToolsObservation,
-    Tool,
 )
 from openenv.core.env_server.types import Action, Observation, State
 

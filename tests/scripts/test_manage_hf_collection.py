@@ -7,7 +7,7 @@ These tests mock all external API calls to test the logic without making real AP
 import pytest
 import sys
 import os
-from unittest.mock import Mock, patch, MagicMock
+from unittest.mock import Mock, patch
 from huggingface_hub.utils import HfHubHTTPError
 
 
