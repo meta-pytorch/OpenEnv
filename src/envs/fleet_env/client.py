@@ -85,14 +85,41 @@ class FleetEnvClient(HTTPEnvClient[Action, Observation]):
         _logger.info(f"Creating Fleet instance: env_key={env_key}, ttl={ttl_seconds}s")
         start = time.time()
 
-        env = fleet.make(
-            env_key=env_key,
-            region=region,
-            ttl_seconds=ttl_seconds,
-            env_variables=env_variables,
-            image_type=image_type,
-            data_key=data_key_spec,
-        )
+        # Retry logic for transient Fleet API failures (e.g., health check failures)
+        max_retries = 3
+        retry_base_delay = 2.0  # seconds
+        env = None
+
+        for attempt in range(max_retries):
+            try:
+                env = fleet.make(
+                    env_key=env_key,
+                    region=region,
+                    ttl_seconds=ttl_seconds,
+                    env_variables=env_variables,
+                    image_type=image_type,
+                    data_key=data_key_spec,
+                )
+                break  # Success
+            except Exception as e:
+                error_msg = str(e)
+                # Retry on transient errors (health check failures, timeouts, etc.)
+                is_transient = any(
+                    x in error_msg.lower()
+                    for x in ["health check", "timeout", "connection", "temporarily"]
+                )
+                if attempt < max_retries - 1 and is_transient:
+                    delay = retry_base_delay * (2**attempt)
+                    _logger.warning(
+                        f"Fleet.make() failed (attempt {attempt + 1}/{max_retries}): {e}. "
+                        f"Retrying in {delay:.1f}s..."
+                    )
+                    time.sleep(delay)
+                else:
+                    _logger.error(
+                        f"Fleet.make() failed after {attempt + 1} attempt(s): {e}"
+                    )
+                    raise
 
         _logger.info(f"Fleet instance ready in {time.time() - start:.1f}s: {env.instance_id}")
 
