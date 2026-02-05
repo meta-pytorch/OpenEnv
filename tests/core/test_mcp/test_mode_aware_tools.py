@@ -712,7 +712,9 @@ class TestErrorHandling:
         assert not asyncio.iscoroutine(result_prod), (
             "Result should be awaited, not a coroutine"
         )
-        assert result_prod == "ASYNC_PROD_99", f"Expected ASYNC_PROD_99, got {result_prod}"
+        assert result_prod == "ASYNC_PROD_99", (
+            f"Expected ASYNC_PROD_99, got {result_prod}"
+        )
 
         # Test simulation mode
         env.set_mode("simulation")

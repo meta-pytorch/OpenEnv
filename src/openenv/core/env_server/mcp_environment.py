@@ -204,7 +204,6 @@ class MCPEnvironment(Environment):
                     f"Reserved names are: {sorted(RESERVED_TOOL_NAMES)}"
                 )
 
-
             # If mode is None, register with FastMCP as usual
             if mode is None:
                 decorated_func = self.mcp_server.tool()(func)
