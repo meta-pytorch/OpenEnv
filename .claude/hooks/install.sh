@@ -120,6 +120,32 @@ echo "Running pre-push checks..."
 REPO_ROOT="$(git rev-parse --show-toplevel)"
 FAILED=0
 
+# 0. BLOCK PUSHES TO MAIN/MASTER (most critical check)
+echo ""
+echo "=== Protected Branch Check ==="
+# Read the remote and refs being pushed from stdin
+while read local_ref local_sha remote_ref remote_sha; do
+    # Extract branch name from remote ref (refs/heads/main -> main)
+    remote_branch="${remote_ref#refs/heads/}"
+
+    if [ "$remote_branch" = "main" ] || [ "$remote_branch" = "master" ]; then
+        echo "ERROR: Direct push to '$remote_branch' is blocked!"
+        echo ""
+        echo "  You are trying to push to a protected branch."
+        echo "  Create a PR instead:"
+        echo ""
+        echo "    # Push to a feature branch"
+        echo "    git push -u origin HEAD:feature/your-branch-name"
+        echo ""
+        echo "    # Then create a PR"
+        echo "    gh pr create"
+        echo ""
+        echo "  To bypass (not recommended): git push --no-verify"
+        exit 1
+    fi
+done
+echo "Not pushing to protected branch - OK"
+
 # 1. Format check
 echo ""
 echo "=== Format Check ==="

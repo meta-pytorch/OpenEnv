@@ -11,7 +11,7 @@
 # It includes the minimal dependencies needed to run HTTP environment servers
 # and uv for fast dependency management.
 #
-# Build from repo root: docker build -t openenv-base:latest -f src/core/containers/images/Dockerfile .
+# Build from repo root: docker build -t openenv-base:latest -f src/openenv/core/containers/images/Dockerfile .
 # Tag:   docker tag openenv-base:latest openenv-base:0.2.0
 #
 
@@ -21,7 +21,7 @@ FROM ghcr.io/astral-sh/uv:0.5.27-python3.11-bookworm-slim AS builder
 WORKDIR /app
 
 # Copy core pyproject.toml and lockfile for dependency installation
-COPY src/core/pyproject.toml src/core/uv.lock* ./
+COPY pyproject.toml uv.lock* ./
 
 # Install core dependencies using uv with cache mount
 RUN --mount=type=cache,target=/root/.cache/uv \

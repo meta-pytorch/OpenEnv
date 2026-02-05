@@ -338,6 +338,25 @@ The OpenEnv community has built a catalog of ready-to-run environments that cove
   </div>
 
 </div>
+<div class="environment-card">
+  <div class="environment-card__body">
+    <span class="environment-card__tag">Grid World</span>
+    <p class="environment-card__description">
+      A simple 5x5 grid world environment for testing and learning the OpenEnv framework.
+    </p>
+  </div>
+  <div class="environment-card__links">
+    <a class="environment-card__icon" href="https://github.com/yuvrajpant56/OpenEnv/blob/feat/fresh-grid-world/envs/grid_world_env/README.md" target="_blank" rel="noreferrer noopener" aria-label="Grid World docs">
+      <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+        <path d="M6 3c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V9l-6-6H6zm8 1.5L18.5 9H14V4.5z" fill="currentColor"/>
+      </svg>
+    </a>
+    <a class="environment-card__icon environment-card__icon--hf" href="https://huggingface.co/spaces/yuvrajpant56/grid_world_env" target="_blank" rel="noreferrer noopener" aria-label="Grid World on Hugging Face">
+      <img src="https://huggingface.co/front/assets/huggingface_logo_noborder.svg" alt="" aria-hidden="true" />
+    </a>
+  </div>
+</div>
+
 
 <div class="environment-grid">
   <div class="environment-card">
@@ -359,5 +378,7 @@ The OpenEnv community has built a catalog of ready-to-run environments that cove
     </div>
   </div>
 </div>
+
+
 
 > Want to publish your own environment? Head over to the [Build Your Own Environment](environment-builder.md) guide for a step-by-step walkthrough.
