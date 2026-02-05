@@ -27,6 +27,8 @@ dependencies = [
     "websockets>=15.0.1",
     # MCP support
     "fastmcp>=2.0.0",
+    # Pin beartype for py-key-value-aio compatibility (beartype_this_package was renamed in 0.18)
+    "beartype>=0.15,<0.18",
 ]
 
 [project.optional-dependencies]

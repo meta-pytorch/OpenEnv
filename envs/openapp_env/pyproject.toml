@@ -34,6 +34,8 @@ dependencies = [
     # BrowserGym dependencies
     "browsergym>=0.13.3",
     "playwright>=1.40.0",
+    # Image processing for screenshots
+    "Pillow>=10.0.0",
     # Additional dependencies for web app interaction
     "python-multipart>=0.0.20",
 ]

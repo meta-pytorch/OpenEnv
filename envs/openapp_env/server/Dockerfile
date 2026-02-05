@@ -83,12 +83,18 @@ RUN python -c "import open_apps; print('✓ OpenApps installed')"
 
 # Install openenv-core from GitHub with --no-deps to avoid openai>=2.7.2 conflict
 # Then install only the server dependencies (no openai needed for server)
+# Note: fastmcp is required by openenv-core for MCP support
 RUN pip install --no-cache-dir --no-deps "openenv-core @ git+https://github.com/meta-pytorch/OpenEnv.git" && \
-    pip install --no-cache-dir fastapi pydantic uvicorn requests websockets
+    pip install --no-cache-dir fastmcp fastapi pydantic uvicorn requests websockets
 
 # Install openapp_env and remaining dependencies
 WORKDIR /app/env
 RUN pip install --no-cache-dir -e .
+
+# IMPORTANT: Force-reinstall beartype AFTER all other pip installs
+# py-key-value-aio uses beartype_this_package which was renamed to beartype_package in 0.18
+# browsergym or other deps may install incompatible beartype versions
+RUN pip install --no-cache-dir --force-reinstall "beartype>=0.15,<0.18"
 
 # Verify installation
 RUN python -c "import openapp_env; print('✓ openapp_env installed')" && \
