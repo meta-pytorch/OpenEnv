@@ -197,6 +197,13 @@ class MCPEnvironment(Environment):
 
         def decorator(func: Callable) -> Callable:
             tool_name = func.__name__
+            # Validate tool name is not reserved
+            if tool_name in RESERVED_TOOL_NAMES:
+                raise ValueError(
+                    f"Tool name '{tool_name}' is reserved and cannot be used. "
+                    f"Reserved names are: {sorted(RESERVED_TOOL_NAMES)}"
+                )
+
 
             # If mode is None, register with FastMCP as usual
             if mode is None:
@@ -402,7 +409,11 @@ class MCPEnvironment(Environment):
 
             # Call the mode-specific function directly
             try:
-                result = func(**action.arguments)
+                # Check if function is async and await if necessary
+                if inspect.iscoroutinefunction(func):
+                    result = run_async_safely(func(**action.arguments))
+                else:
+                    result = func(**action.arguments)
 
                 # Wrap result in CallToolResult format to match FastMCP behavior
                 return CallToolObservation(

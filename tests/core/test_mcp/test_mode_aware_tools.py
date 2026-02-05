@@ -27,6 +27,7 @@ References:
 - PR #348: Production mode implementation
 """
 
+import asyncio
 import pytest
 from fastmcp import FastMCP
 
@@ -36,6 +37,7 @@ from openenv.core.env_server.mcp_types import (
     CallToolAction,
     ListToolsObservation,
     CallToolObservation,
+    RESERVED_TOOL_NAMES,
 )
 from openenv.core.env_server.types import Observation
 
@@ -626,3 +628,110 @@ class TestErrorHandling:
             @env.tool(mode="invalid_mode")
             def bad_tool(x: int) -> int:
                 return x
+
+    def test_reserved_name_raises_error(self):
+        """Test that registering a tool with a reserved name raises ValueError.
+
+        The @self.tool() decorator should validate against RESERVED_TOOL_NAMES
+        to prevent conflicts with MCPEnvironment's core methods (reset, step, state, close).
+        """
+        mcp = FastMCP("test-server")
+        env = MinimalMCPEnv(mcp)
+
+        if not hasattr(env, "tool"):
+            pytest.skip("Mode-aware tool decorator not yet implemented")
+
+        # FAILING TEST: Reserved name "reset" should raise ValueError
+        with pytest.raises(ValueError, match="reserved"):
+
+            @env.tool()
+            def reset(x: int) -> int:
+                return x
+
+        # FAILING TEST: Reserved name "step" should raise ValueError
+        with pytest.raises(ValueError, match="reserved"):
+
+            @env.tool()
+            def step(x: int) -> int:
+                return x
+
+        # FAILING TEST: Reserved name "state" should raise ValueError
+        with pytest.raises(ValueError, match="reserved"):
+
+            @env.tool()
+            def state(x: int) -> int:
+                return x
+
+        # FAILING TEST: Reserved name "close" should raise ValueError
+        with pytest.raises(ValueError, match="reserved"):
+
+            @env.tool()
+            def close(x: int) -> int:
+                return x
+
+    def test_async_mode_specific_tool_is_awaited(self):
+        """Test that async mode-specific tools are properly awaited.
+
+        Mode-specific tool execution must handle async functions correctly,
+        awaiting coroutines instead of returning them raw.
+        """
+        mcp = FastMCP("test-server")
+        env = MinimalMCPEnv(mcp)
+
+        if not hasattr(env, "tool"):
+            pytest.skip("Mode-aware tool decorator not yet implemented")
+
+        # FAILING TEST: Register async tools for different modes
+        @env.tool(mode="production")
+        async def async_compute(x: int) -> str:
+            # Simulate async work
+            await asyncio.sleep(0.001)
+            return f"ASYNC_PROD_{x}"
+
+        @env.tool(mode="simulation")
+        async def async_compute(x: int) -> str:  # noqa: F811
+            # Simulate async work
+            await asyncio.sleep(0.001)
+            return f"ASYNC_SIM_{x}"
+
+        # Test production mode
+        env.set_mode("production")
+        obs_prod = env.step(
+            CallToolAction(tool_name="async_compute", arguments={"x": 99})
+        )
+
+        assert isinstance(obs_prod, CallToolObservation)
+        assert obs_prod.error is None, f"Should not error: {obs_prod.error}"
+
+        result_prod = obs_prod.result
+        if hasattr(result_prod, "data"):
+            result_prod = result_prod.data
+        elif isinstance(result_prod, dict) and "data" in result_prod:
+            result_prod = result_prod["data"]
+
+        # This should NOT be a coroutine object
+        assert not asyncio.iscoroutine(result_prod), (
+            "Result should be awaited, not a coroutine"
+        )
+        assert result_prod == "ASYNC_PROD_99", f"Expected ASYNC_PROD_99, got {result_prod}"
+
+        # Test simulation mode
+        env.set_mode("simulation")
+        obs_sim = env.step(
+            CallToolAction(tool_name="async_compute", arguments={"x": 99})
+        )
+
+        assert isinstance(obs_sim, CallToolObservation)
+        assert obs_sim.error is None, f"Should not error: {obs_sim.error}"
+
+        result_sim = obs_sim.result
+        if hasattr(result_sim, "data"):
+            result_sim = result_sim.data
+        elif isinstance(result_sim, dict) and "data" in result_sim:
+            result_sim = result_sim["data"]
+
+        # This should NOT be a coroutine object
+        assert not asyncio.iscoroutine(result_sim), (
+            "Result should be awaited, not a coroutine"
+        )
+        assert result_sim == "ASYNC_SIM_99", f"Expected ASYNC_SIM_99, got {result_sim}"
