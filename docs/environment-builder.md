@@ -374,6 +374,50 @@ finally:
     client.close()
 ```
 
+## Troubleshooting
+
+### WebSocket Connection Closed During RL Training
+
+**Symptom:** When training with high token generation or long-running operations, you may see:
+
+```
+websockets.exceptions.ConnectionClosedError: keepalive ping timeout
+```
+
+**Cause:** Uvicorn's default WebSocket ping timeout is 20 seconds. During heavy workloads (e.g., LLM token generation), the client may not respond to pings in time, causing the server to close the connection.
+
+**Solution:** Increase the WebSocket ping interval and timeout in your Dockerfile:
+
+```dockerfile
+# Before (default - 20 second timeout)
+CMD ["sh", "-c", "cd /app/env && uvicorn server.app:app --host 0.0.0.0 --port 8000"]
+
+# After (5 minute timeout)
+CMD ["sh", "-c", "cd /app/env && uvicorn server.app:app --host 0.0.0.0 --port 8000 --ws-ping-interval 300 --ws-ping-timeout 300"]
+```
+
+After modifying the Dockerfile, rebuild and redeploy:
+
+```bash
+openenv build
+openenv push
+```
+
+**Available options:**
+
+| Parameter | Description | Default | Recommended for RL |
+|-----------|-------------|---------|-------------------|
+| `--ws-ping-interval` | Seconds between server pings | 20 | 300 (5 min) |
+| `--ws-ping-timeout` | Seconds to wait for pong response | 20 | 300 (5 min) |
+
+!!! tip
+    For local development without Docker, pass the same flags directly to uvicorn:
+    ```bash
+    uvicorn server.app:app --host 0.0.0.0 --port 8000 --ws-ping-interval 300 --ws-ping-timeout 300
+    ```
+
+---
+
 ## Nice work! You've now built and used your own OpenEnv environment.
 
 Your next steps are to:
