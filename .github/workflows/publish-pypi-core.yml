@@ -1,4 +1,4 @@
-name: Publish OpenEnv Core to PyPI
+name: Publish OpenEnv to PyPI
 
 on:
   release:
@@ -34,34 +34,24 @@ jobs:
         pip install build twine
 
     - name: Build package
-      run: |
-        cd src
-        python -m build
+      run: python -m build
 
     - name: Check package
-      run: |
-        cd src
-        twine check dist/*
+      run: twine check dist/*
 
     - name: List package contents
-      run: |
-        cd src
-        tar -tzf dist/*.tar.gz | head -20
+      run: tar -tzf dist/*.tar.gz | head -20
 
     - name: Publish to Test PyPI
       if: github.event_name == 'workflow_dispatch' && github.event.inputs.use_test_pypi == 'true'
       env:
         TWINE_USERNAME: __token__
         TWINE_PASSWORD: ${{ secrets.TEST_PYPI_API_TOKEN }}
-      run: |
-        cd src
-        twine upload --repository testpypi dist/*
+      run: twine upload --repository testpypi dist/*
 
     - name: Publish to PyPI
       if: github.event_name == 'release' || (github.event_name == 'workflow_dispatch' && github.event.inputs.use_test_pypi == 'false')
       env:
         TWINE_USERNAME: __token__
         TWINE_PASSWORD: ${{ secrets.PYPI_API_TOKEN }}
-      run: |
-        cd src
-        twine upload dist/*
+      run: twine upload dist/*

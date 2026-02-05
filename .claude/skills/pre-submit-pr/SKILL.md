@@ -1,0 +1,90 @@
+---
+name: pre-submit-pr
+description: Validate changes before submitting a pull request. Run comprehensive checks including lint, tests, alignment review, and RFC analysis. Use before creating a PR, when asked if code is ready for review, or before pushing for PR.
+allowed-tools: Read, Grep, Glob, Bash
+---
+
+# Pre-Submit PR Check
+
+Comprehensive validation before submitting a pull request. Run this before creating or updating a PR.
+
+## Instructions
+
+1. **Run all automated hooks**:
+   - `bash .claude/hooks/lint.sh` - format check
+   - `bash .claude/hooks/test.sh` - run tests
+   - `bash .claude/hooks/check-debug.sh` - find debug code
+
+2. **Run alignment review**:
+   - Read `.claude/docs/PRINCIPLES.md` and `.claude/docs/INVARIANTS.md`
+   - Compare changes against principles and invariants
+   - Identify Tier 1 (mechanical) and Tier 2 (alignment) issues
+
+3. **RFC check**:
+   - If changes touch `src/openenv/core/`, flag for RFC consideration
+   - If any public API signatures change, RFC required
+   - Check against existing RFCs in `rfcs/` for conflicts
+
+4. **Documentation freshness check**:
+   - Review `.claude/docs/REPO_WALKTHROUGH.md` against the current repo structure
+   - If the PR adds new directories, moves files, or changes structure significantly:
+     - Update REPO_WALKTHROUGH.md to reflect the changes
+     - Include these updates in the PR
+   - Check triggers: new directories in `src/`, `envs/`, `.claude/`, or `rfcs/`
+
+5. **Summarize PR readiness**:
+   - List all blocking issues
+   - List all discussion points for reviewers
+   - Provide overall verdict
+
+## Output Format
+
+```
+## Pre-Submit PR Report
+
+### Automated Checks
+| Check | Status | Details |
+|-------|--------|---------|
+| Lint | PASS/FAIL | [summary] |
+| Tests | PASS/FAIL | [X passed, Y failed] |
+| Debug code | CLEAN/FOUND | [details] |
+
+### Alignment Review
+
+#### Tier 1: Fixes Required (blocking)
+- [ ] path/file.py:123 - [issue description]
+
+#### Tier 2: Discussion Points (flag for reviewers)
+[ALIGNMENT FLAGS or "None identified"]
+
+### Invariant Check
+[List any invariants at risk, or "All invariants maintained"]
+
+### RFC Status
+[NOT REQUIRED / RECOMMENDED / REQUIRED: reason]
+
+### Documentation Freshness
+[UP TO DATE / UPDATED: list of changes made to REPO_WALKTHROUGH.md]
+
+### Verdict: READY FOR PR / ISSUES TO ADDRESS
+
+### Summary for PR Description
+[2-3 sentences summarizing changes for the PR description]
+```
+
+## Blocking Issues
+
+The following issues block PR submission:
+- Lint failures
+- Test failures
+- Debugger statements (breakpoint, pdb)
+- Invariant violations
+- RFC required but not written
+
+## Non-Blocking (Flag for Reviewers)
+
+These should be noted in PR but don't block:
+- Alignment discussion points (Tier 2)
+- RFC recommended (optional)
+- TODOs in code
+- Print statements (unless in core code)

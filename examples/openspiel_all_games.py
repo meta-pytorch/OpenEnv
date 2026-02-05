@@ -29,13 +29,8 @@ Usage:
 
 import argparse
 import random
-import sys
-from pathlib import Path
 
-# Add src to path
-sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
-
-from envs.openspiel_env import OpenSpielEnv, OpenSpielAction
+from openspiel_env import OpenSpielEnv, OpenSpielAction
 
 
 def run_catch_game(env: OpenSpielEnv, num_episodes: int = 3):

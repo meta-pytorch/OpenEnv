@@ -27,7 +27,7 @@ RFCs go through several stages:
 
 You should write an RFC for:
 
-- **New core APIs** (e.g., new methods on `Environment` or `HTTPEnvClient`)
+- **New core APIs** (e.g., new methods on `Environment` or `EnvClient`)
 - **Breaking changes** to existing interfaces
 - **Major architectural decisions** (e.g., communication protocol changes)
 - **New abstractions** or design patterns
@@ -86,13 +86,6 @@ Each RFC should include the following sections:
 
 ### MCP Integration
 - [003-mcp-support.md](./003-mcp-support.md) - MCP Support: Traditional Tool Calling
-- [004-codeact-with-mcp.md](./004-codeact-with-mcp.md) - CodeAct Support with MCP
-- [005-mcp-universal-interface.md](./005-mcp-universal-interface.md) - MCP as THE Universal Interface (Policy)
-
-### Tool Ecosystem & Performance
-- [005-tool-registry.md](./005-tool-registry.md) - Tool Registry & Distribution via Hugging Face Hub (Note: Will be renumbered)
-- [006-performance-simulation.md](./006-performance-simulation.md) - Production Performance Simulation
-- [007-mcp-interception.md](./007-mcp-interception.md) - MCP Protocol Interception (Draft - Future Work)
 
 ## Questions?
 

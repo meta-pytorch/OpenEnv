@@ -1,0 +1,44 @@
+# Copyright (c) Meta Platforms, Inc. and affiliates.
+# All rights reserved.
+#
+# This source code is licensed under the BSD-style license found in the
+# LICENSE file in the root directory of this source tree.
+
+[build-system]
+requires = ["setuptools>=45", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "openenv-tbench2_env"
+version = "0.1.0"
+description = "Tbench2 Env environment for OpenEnv"
+requires-python = ">=3.10"
+dependencies = [
+    # Core OpenEnv runtime (provides FastAPI server + HTTP client types)
+    # install from github
+    "openenv-core @ git+https://github.com/meta-pytorch/OpenEnv.git",
+    "pytest>=8.4.0",
+    # Environment-specific dependencies
+    # Add all dependencies needed for your environment here
+    "camel-ai",
+    # Docker-backed mode (optional, for full TB2.0 compatibility)
+    "docker>=7.0.0",
+     # TOML parsing (tomllib for Python 3.11+, tomli for older versions)
+    "tomli>=2.0.0; python_version < '3.11'",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0.0",
+    "pytest-cov>=4.0.0",
+]
+
+[project.scripts]
+# Server entry point - enables running via: uv run --project . server
+# or: python -m tbench2_env.server.app
+server = "tbench2_env.server.app:main"
+
+[tool.setuptools]
+include-package-data = true
+packages = ["tbench2_env", "tbench2_env.server"]
+package-dir = { "tbench2_env" = ".", "tbench2_env.server" = "server" }

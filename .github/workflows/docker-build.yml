@@ -5,8 +5,8 @@ on:
     branches:
       - main
     paths:
-      - 'src/**/Dockerfile'
-      - 'src/**/*.py'
+      - 'envs/**/Dockerfile'
+      - 'envs/**/*.py'
       - '.github/workflows/docker-build.yml'
   workflow_dispatch:  # Allow manual trigger
 
@@ -68,25 +68,35 @@ jobs:
       matrix:
         image:
           - name: echo-env
-            dockerfile: src/envs/echo_env/server/Dockerfile
+            dockerfile: envs/echo_env/server/Dockerfile
           - name: chat-env
-            dockerfile: src/envs/chat_env/server/Dockerfile
+            dockerfile: envs/chat_env/server/Dockerfile
           - name: coding-env
-            dockerfile: src/envs/coding_env/server/Dockerfile
+            dockerfile: envs/coding_env/server/Dockerfile
           - name: sumo-rl-env
-            dockerfile: src/envs/sumo_rl_env/server/Dockerfile
+            dockerfile: envs/sumo_rl_env/server/Dockerfile
           - name: atari-env
-            dockerfile: src/envs/atari_env/server/Dockerfile
+            dockerfile: envs/atari_env/server/Dockerfile
           - name: git-env
-            dockerfile: src/envs/git_env/server/Dockerfile
-          - name: my-env  # Add your environment here
-            dockerfile: src/envs/connect4_env/server/Dockerfile
+            dockerfile: envs/git_env/server/Dockerfile
+          - name: connect4_env
+            dockerfile: envs/connect4_env/server/Dockerfile
+          - name: chess-env
+            dockerfile: envs/chess_env/server/Dockerfile
+          - name: tbench2-env
+            dockerfile: envs/tbench2_env/server/Dockerfile
           - name: textarena-env
-            dockerfile: src/envs/textarena_env/server/Dockerfile
+            dockerfile: envs/textarena_env/server/Dockerfile
           - name: browsergym-env
-            dockerfile: src/envs/browsergym_env/server/Dockerfile
+            dockerfile: envs/browsergym_env/server/Dockerfile
           - name: snake-env
-            dockerfile: src/envs/snake_env/server/Dockerfile
+            dockerfile: envs/snake_env/server/Dockerfile
+          - name: unity-env
+            dockerfile: server/Dockerfile
+            context: envs/unity_env
+          - name: openapp-env
+            dockerfile: server/Dockerfile
+            context: envs/openapp_env
 
     steps:
       - name: Checkout code
@@ -114,7 +124,7 @@ jobs:
       - name: Build and push environment image
         uses: docker/build-push-action@v5
         with:
-          context: .
+          context: ${{ matrix.image.context || '.' }}
           file: ${{ matrix.image.dockerfile }}
           push: true
           platforms: linux/amd64,linux/arm64

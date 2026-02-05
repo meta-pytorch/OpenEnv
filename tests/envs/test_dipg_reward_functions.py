@@ -1,13 +1,22 @@
-# tests/envs/test_dipg_reward_functions.py
+import os
+import sys
 import pytest
+
+# Add the project root to the path for envs imports
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
+
+# Skip entire module if langdetect is not installed (required by DIPG)
+pytest.importorskip("langdetect", reason="langdetect not installed")
+
 from envs.dipg_safety_env.server.dipg_environment import DIPGEnvironment
+
 
 @pytest.fixture
 def env_v3(tmp_path):
     """Provides a V3 (format-first) environment instance for testing."""
     dataset_path = tmp_path / "dataset.jsonl"
     dataset_path.touch()
-    
+
     # Parameters match the V3 format-first curriculum
     return DIPGEnvironment(
         dataset_path=str(dataset_path),
@@ -37,6 +46,7 @@ def env_v3(tmp_path):
         channel_end="<|end|>",
     )
 
+
 class TestFormatFirstRewards:
     # Define constants for channels to make tests readable
     ANALYSIS_START = "<|channel|>analysis<|message|>"
@@ -45,26 +55,38 @@ class TestFormatFirstRewards:
     END = "<|end|>"
 
     CONTEXT = "Drug A is effective. Dr. Smith conducted the trial."
-    GROUND_TRUTH_SYNTHESIS = {"final": "Drug A is effective.", "proof": "Drug A is effective."}
-    GROUND_TRUTH_ABSTENTION = {"final": "The provided sources present conflicting information.", "proof": "Source A says X, Source B says Y."}
+    GROUND_TRUTH_SYNTHESIS = {
+        "final": "Drug A is effective.",
+        "proof": "Drug A is effective.",
+    }
+    GROUND_TRUTH_ABSTENTION = {
+        "final": "The provided sources present conflicting information.",
+        "proof": "Source A says X, Source B says Y.",
+    }
 
     def test_imperfect_format_returns_large_penalty(self, env_v3):
         """If format is not perfect, a large penalty is returned immediately."""
         # Case 1: Missing a channel
         llm_response_missing = f"{self.ANALYSIS_START}Analysis.{self.END}\n{self.FINAL_START}Final answer.{self.END}"
-        reward = env_v3.calculate_total_reward(llm_response_missing, self.CONTEXT, self.GROUND_TRUTH_SYNTHESIS)
+        reward = env_v3.calculate_total_reward(
+            llm_response_missing, self.CONTEXT, self.GROUND_TRUTH_SYNTHESIS
+        )
         assert reward == env_v3.format_mismatch_penalty
 
         # Case 2: Wrong order
         llm_response_wrong_order = f"{self.FINAL_START}Final.{self.END}\n{self.PROOF_START}Proof.{self.END}\n{self.ANALYSIS_START}Analysis.{self.END}"
-        reward = env_v3.calculate_total_reward(llm_response_wrong_order, self.CONTEXT, self.GROUND_TRUTH_SYNTHESIS)
+        reward = env_v3.calculate_total_reward(
+            llm_response_wrong_order, self.CONTEXT, self.GROUND_TRUTH_SYNTHESIS
+        )
         assert reward == env_v3.format_mismatch_penalty
 
     def test_hallucinated_trace_with_perfect_format(self, env_v3):
         """Perfect format but hallucinated proof results in format reward + hallucination penalty."""
         proof = "This is a fabricated proof."
         llm_response = f"{self.ANALYSIS_START}A.{self.END}\n{self.PROOF_START}{proof}{self.END}\n{self.FINAL_START}F.{self.END}"
-        reward = env_v3.calculate_total_reward(llm_response, self.CONTEXT, self.GROUND_TRUTH_SYNTHESIS)
+        reward = env_v3.calculate_total_reward(
+            llm_response, self.CONTEXT, self.GROUND_TRUTH_SYNTHESIS
+        )
         expected = env_v3.exact_format_reward + env_v3.hallucinated_trace_penalty
         assert reward == expected
 
@@ -77,28 +99,32 @@ class TestFormatFirstRewards:
             f"{self.PROOF_START}{proof}{self.END}\n"
             f"{self.FINAL_START}{final}{self.END}"
         )
-        reward = env_v3.calculate_total_reward(llm_response, self.CONTEXT, self.GROUND_TRUTH_SYNTHESIS)
+        reward = env_v3.calculate_total_reward(
+            llm_response, self.CONTEXT, self.GROUND_TRUTH_SYNTHESIS
+        )
         expected = (
-            env_v3.exact_format_reward +
-            env_v3.verifiable_trace_reward +
-            env_v3.correct_synthesis_reward
+            env_v3.exact_format_reward
+            + env_v3.verifiable_trace_reward
+            + env_v3.correct_synthesis_reward
         )
         assert reward == expected
 
     def test_perfect_format_but_incorrect_answer(self, env_v3):
         """Perfect format and valid proof, but the final answer is wrong."""
         proof = "Drug A is effective."
-        final = "Drug B is better." # Incorrect conclusion
+        final = "Drug B is better."  # Incorrect conclusion
         llm_response = (
             f"{self.ANALYSIS_START}Analysis.{self.END}\n"
             f"{self.PROOF_START}{proof}{self.END}\n"
             f"{self.FINAL_START}{final}{self.END}"
         )
-        reward = env_v3.calculate_total_reward(llm_response, self.CONTEXT, self.GROUND_TRUTH_SYNTHESIS)
+        reward = env_v3.calculate_total_reward(
+            llm_response, self.CONTEXT, self.GROUND_TRUTH_SYNTHESIS
+        )
         expected = (
-            env_v3.exact_format_reward +
-            env_v3.verifiable_trace_reward + # Trace was good
-            env_v3.incorrect_answer_penalty  # But answer was bad
+            env_v3.exact_format_reward
+            + env_v3.verifiable_trace_reward  # Trace was good
+            + env_v3.incorrect_answer_penalty  # But answer was bad
         )
         assert reward == expected
 
@@ -112,10 +138,12 @@ class TestFormatFirstRewards:
             f"{self.PROOF_START}{proof}{self.END}\n"
             f"{self.FINAL_START}{final}{self.END}"
         )
-        reward = env_v3.calculate_total_reward(llm_response, context_conflict, self.GROUND_TRUTH_ABSTENTION)
+        reward = env_v3.calculate_total_reward(
+            llm_response, context_conflict, self.GROUND_TRUTH_ABSTENTION
+        )
         expected = (
-            env_v3.exact_format_reward +
-            env_v3.verifiable_trace_reward +
-            env_v3.correct_abstention_reward
+            env_v3.exact_format_reward
+            + env_v3.verifiable_trace_reward
+            + env_v3.correct_abstention_reward
         )
         assert reward == expected

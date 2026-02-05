@@ -10,7 +10,7 @@ usage() {
 Usage: scripts/deploy_to_hf.sh --env <environment_name> [options]
 
 Required arguments:
-  --env <name>               Environment name under src/envs (e.g. textarena_env)
+  --env <name>               Environment name under envs (e.g. textarena_env)
 
 Optional arguments:
   --base-sha <sha|tag>       Override openenv-base image reference (defaults to :latest)
@@ -147,8 +147,8 @@ if [[ "$ENV_NAME" == *","* || "$ENV_NAME" == *" "* ]]; then
     exit 1
 fi
 
-if [ ! -d "src/envs/$ENV_NAME" ]; then
-    echo "Error: Environment '$ENV_NAME' not found under src/envs" >&2
+if [ ! -d "envs/$ENV_NAME" ]; then
+    echo "Error: Environment '$ENV_NAME' not found under envs" >&2
     exit 1
 fi
 
@@ -181,13 +181,13 @@ CURRENT_STAGING_DIR="${STAGING_DIR}/${HF_NAMESPACE}/${ENV_NAME}"
 # Ensure clean staging directory
 rm -rf "$CURRENT_STAGING_DIR"
 mkdir -p "$CURRENT_STAGING_DIR/src/core"
-mkdir -p "$CURRENT_STAGING_DIR/src/envs/$ENV_NAME"
+mkdir -p "$CURRENT_STAGING_DIR/envs/$ENV_NAME"
 
 # Copy core files
 cp -R src/core/* "$CURRENT_STAGING_DIR/src/core/"
 
 # Copy environment files
-cp -R src/envs/$ENV_NAME/* "$CURRENT_STAGING_DIR/src/envs/$ENV_NAME/"
+cp -R envs/$ENV_NAME/* "$CURRENT_STAGING_DIR/envs/$ENV_NAME/"
 
 echo "📁 Copied core and $ENV_NAME environment files to $CURRENT_STAGING_DIR"
 
@@ -267,7 +267,7 @@ WORKDIR /app
 COPY src/core/ /app/src/core/
 
 # Copy OpenSpiel environment
-COPY src/envs/openspiel_env/ /app/src/envs/openspiel_env/
+COPY envs/openspiel_env/ /app/envs/openspiel_env/
 
 # Extend Python path for OpenEnv (base image set PYTHONPATH=/app/src)
 # We prepend OpenSpiel paths
@@ -298,7 +298,7 @@ DOCKERFILE_EOF
 
 # Copy only what's needed for this environment
 COPY src/core/ /app/src/core/
-COPY src/envs/ENV_NAME_PLACEHOLDER/ /app/src/envs/ENV_NAME_PLACEHOLDER/
+COPY envs/ENV_NAME_PLACEHOLDER/ /app/envs/ENV_NAME_PLACEHOLDER/
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \

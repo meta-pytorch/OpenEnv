@@ -1,0 +1,624 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OpenApp + OpenEnv Demo Showcase</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary-color: #6366f1;
+            --primary-dark: #4f46e5;
+            --secondary-color: #10b981;
+            --accent-color: #f59e0b;
+            --bg-dark: #0f172a;
+            --bg-card: #1e293b;
+            --bg-card-hover: #334155;
+            --text-primary: #f8fafc;
+            --text-secondary: #94a3b8;
+            --gradient-1: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+            --gradient-2: linear-gradient(135deg, #10b981 0%, #14b8a6 100%);
+            --gradient-3: linear-gradient(135deg, #f59e0b 0%, #f97316 100%);
+            --gradient-4: linear-gradient(135deg, #ec4899 0%, #f43f5e 100%);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: var(--bg-dark);
+            color: var(--text-primary);
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+        /* Animated background */
+        .bg-animation {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: -1;
+            overflow: hidden;
+        }
+
+        .bg-animation::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            left: -50%;
+            width: 200%;
+            height: 200%;
+            background: radial-gradient(circle at 20% 80%, rgba(99, 102, 241, 0.1) 0%, transparent 50%),
+                        radial-gradient(circle at 80% 20%, rgba(16, 185, 129, 0.1) 0%, transparent 50%),
+                        radial-gradient(circle at 40% 40%, rgba(245, 158, 11, 0.05) 0%, transparent 40%);
+            animation: bgRotate 30s linear infinite;
+        }
+
+        @keyframes bgRotate {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        /* Header */
+        header {
+            text-align: center;
+            padding: 4rem 2rem 3rem;
+            position: relative;
+        }
+
+        .logo-container {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .logo-img {
+            width: 80px;
+            height: 80px;
+            border-radius: 16px;
+            box-shadow: 0 10px 40px rgba(99, 102, 241, 0.3);
+        }
+
+        h1 {
+            font-size: 3.5rem;
+            font-weight: 800;
+            background: linear-gradient(135deg, #fff 0%, #a5b4fc 50%, #6366f1 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin-bottom: 1rem;
+            letter-spacing: -0.02em;
+        }
+
+        .subtitle {
+            font-size: 1.25rem;
+            color: var(--text-secondary);
+            max-width: 700px;
+            margin: 0 auto 2rem;
+            line-height: 1.6;
+        }
+
+        .badge-container {
+            display: flex;
+            justify-content: center;
+            gap: 1rem;
+            flex-wrap: wrap;
+        }
+
+        .badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.5rem 1rem;
+            background: var(--bg-card);
+            border-radius: 9999px;
+            font-size: 0.875rem;
+            font-weight: 500;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .badge-icon {
+            width: 18px;
+            height: 18px;
+        }
+
+        /* Main content */
+        main {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+
+        /* Section title */
+        .section-title {
+            text-align: center;
+            margin-bottom: 3rem;
+        }
+
+        .section-title h2 {
+            font-size: 2rem;
+            font-weight: 700;
+            margin-bottom: 0.5rem;
+        }
+
+        .section-title p {
+            color: var(--text-secondary);
+        }
+
+        /* Demo grid */
+        .demo-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 2rem;
+            margin-bottom: 4rem;
+        }
+
+        @media (max-width: 1024px) {
+            .demo-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        /* Demo card */
+        .demo-card {
+            background: var(--bg-card);
+            border-radius: 20px;
+            overflow: hidden;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            transition: all 0.3s ease;
+            position: relative;
+        }
+
+        .demo-card:hover {
+            transform: translateY(-5px);
+            border-color: rgba(99, 102, 241, 0.5);
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.4),
+                        0 0 40px rgba(99, 102, 241, 0.1);
+        }
+
+        .demo-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 4px;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+
+        .demo-card:nth-child(1)::before { background: var(--gradient-1); }
+        .demo-card:nth-child(2)::before { background: var(--gradient-2); }
+        .demo-card:nth-child(3)::before { background: var(--gradient-3); }
+        .demo-card:nth-child(4)::before { background: var(--gradient-4); }
+
+        .demo-card:hover::before {
+            opacity: 1;
+        }
+
+        .video-container {
+            position: relative;
+            width: 100%;
+            background: #000;
+            aspect-ratio: 16 / 10;
+        }
+
+        .video-container video {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+        }
+
+        .play-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: rgba(0, 0, 0, 0.4);
+            opacity: 0;
+            transition: opacity 0.3s ease;
+            cursor: pointer;
+        }
+
+        .video-container:hover .play-overlay {
+            opacity: 1;
+        }
+
+        .play-overlay.hidden {
+            display: none;
+        }
+
+        .play-button {
+            width: 80px;
+            height: 80px;
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+            transition: transform 0.3s ease;
+        }
+
+        .play-button:hover {
+            transform: scale(1.1);
+        }
+
+        .play-button svg {
+            width: 32px;
+            height: 32px;
+            fill: var(--bg-dark);
+            margin-left: 4px;
+        }
+
+        .demo-info {
+            padding: 1.5rem;
+        }
+
+        .demo-header {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            margin-bottom: 0.75rem;
+        }
+
+        .demo-icon {
+            width: 40px;
+            height: 40px;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.25rem;
+        }
+
+        .demo-card:nth-child(1) .demo-icon { background: var(--gradient-1); }
+        .demo-card:nth-child(2) .demo-icon { background: var(--gradient-2); }
+        .demo-card:nth-child(3) .demo-icon { background: var(--gradient-3); }
+        .demo-card:nth-child(4) .demo-icon { background: var(--gradient-4); }
+
+        .demo-title {
+            font-size: 1.25rem;
+            font-weight: 600;
+        }
+
+        .demo-description {
+            color: var(--text-secondary);
+            font-size: 0.95rem;
+            line-height: 1.6;
+        }
+
+        /* Features section */
+        .features-section {
+            margin-top: 4rem;
+            padding: 3rem;
+            background: var(--bg-card);
+            border-radius: 24px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .features-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 2rem;
+            margin-top: 2rem;
+        }
+
+        @media (max-width: 768px) {
+            .features-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .feature-card {
+            text-align: center;
+            padding: 1.5rem;
+        }
+
+        .feature-icon {
+            width: 60px;
+            height: 60px;
+            background: var(--gradient-1);
+            border-radius: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 1rem;
+            font-size: 1.5rem;
+        }
+
+        .feature-card:nth-child(2) .feature-icon { background: var(--gradient-2); }
+        .feature-card:nth-child(3) .feature-icon { background: var(--gradient-3); }
+
+        .feature-title {
+            font-size: 1.125rem;
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+        }
+
+        .feature-desc {
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+            line-height: 1.5;
+        }
+
+        /* Footer */
+        footer {
+            text-align: center;
+            padding: 3rem 2rem;
+            color: var(--text-secondary);
+            font-size: 0.875rem;
+        }
+
+        footer a {
+            color: var(--primary-color);
+            text-decoration: none;
+        }
+
+        footer a:hover {
+            text-decoration: underline;
+        }
+
+        /* Video controls styling */
+        video::-webkit-media-controls-panel {
+            background: linear-gradient(transparent, rgba(0, 0, 0, 0.7));
+        }
+
+        /* Responsive adjustments */
+        @media (max-width: 640px) {
+            h1 {
+                font-size: 2.5rem;
+            }
+
+            .subtitle {
+                font-size: 1rem;
+            }
+
+            .demo-grid {
+                gap: 1.5rem;
+            }
+
+            main {
+                padding: 1rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="bg-animation"></div>
+
+    <header>
+        <div class="logo-container">
+            <img src="OpenApps_OpenEnv_RL.png" alt="OpenApp Logo" class="logo-img">
+        </div>
+        <h1>OpenApp + OpenEnv</h1>
+        <p class="subtitle">
+            A powerful integration bringing realistic web application environments to reinforcement learning agents.
+            Watch AI agents interact with calendar, messaging, code editor, and task management apps.
+        </p>
+        <div class="badge-container">
+            <span class="badge">
+                <svg class="badge-icon" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
+                </svg>
+                BrowserGym Compatible
+            </span>
+            <span class="badge">
+                <svg class="badge-icon" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M9.4 16.6L4.8 12l4.6-4.6L8 6l-6 6 6 6 1.4-1.4zm5.2 0l4.6-4.6-4.6-4.6L16 6l6 6-6 6-1.4-1.4z"/>
+                </svg>
+                5+ Web Apps
+            </span>
+            <span class="badge">
+                <svg class="badge-icon" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-5 14H7v-2h7v2zm3-4H7v-2h10v2zm0-4H7V7h10v2z"/>
+                </svg>
+                RL Ready
+            </span>
+        </div>
+    </header>
+
+    <main>
+        <div class="section-title">
+            <h2>🎬 Demo Showcase</h2>
+            <p>Watch our AI agents perform real tasks in realistic web environments</p>
+        </div>
+
+        <div class="demo-grid">
+            <!-- Messenger Demo -->
+            <div class="demo-card">
+                <div class="video-container">
+                    <video id="video1" controls preload="metadata" poster="">
+                        <source src="01-messages.mov" type="video/quicktime">
+                        <source src="01-messages.mov" type="video/mp4">
+                        Your browser does not support the video tag.
+                    </video>
+                    <div class="play-overlay" onclick="playVideo('video1', this)">
+                        <div class="play-button">
+                            <svg viewBox="0 0 24 24">
+                                <path d="M8 5v14l11-7z"/>
+                            </svg>
+                        </div>
+                    </div>
+                </div>
+                <div class="demo-info">
+                    <div class="demo-header">
+                        <div class="demo-icon">💬</div>
+                        <h3 class="demo-title">Messenger App</h3>
+                    </div>
+                    <p class="demo-description">
+                        AI agent navigates conversations, types messages interactively, and sends them to contacts.
+                        Demonstrates natural language input and real-time chat interactions.
+                    </p>
+                </div>
+            </div>
+
+            <!-- Code Editor Demo -->
+            <div class="demo-card">
+                <div class="video-container">
+                    <video id="video2" controls preload="metadata">
+                        <source src="02-editor.mov" type="video/quicktime">
+                        <source src="02-editor.mov" type="video/mp4">
+                        Your browser does not support the video tag.
+                    </video>
+                    <div class="play-overlay" onclick="playVideo('video2', this)">
+                        <div class="play-button">
+                            <svg viewBox="0 0 24 24">
+                                <path d="M8 5v14l11-7z"/>
+                            </svg>
+                        </div>
+                    </div>
+                </div>
+                <div class="demo-info">
+                    <div class="demo-header">
+                        <div class="demo-icon">💻</div>
+                        <h3 class="demo-title">Code Editor</h3>
+                    </div>
+                    <p class="demo-description">
+                        Agent creates files and writes a complete PyTorch training loop with syntax highlighting.
+                        Shows code generation, file management, and save operations.
+                    </p>
+                </div>
+            </div>
+
+            <!-- Calendar Demo -->
+            <div class="demo-card">
+                <div class="video-container">
+                    <video id="video3" controls preload="metadata">
+                        <source src="03-calendar.mov" type="video/quicktime">
+                        <source src="03-calendar.mov" type="video/mp4">
+                        Your browser does not support the video tag.
+                    </video>
+                    <div class="play-overlay" onclick="playVideo('video3', this)">
+                        <div class="play-button">
+                            <svg viewBox="0 0 24 24">
+                                <path d="M8 5v14l11-7z"/>
+                            </svg>
+                        </div>
+                    </div>
+                </div>
+                <div class="demo-info">
+                    <div class="demo-header">
+                        <div class="demo-icon">📅</div>
+                        <h3 class="demo-title">Calendar App</h3>
+                    </div>
+                    <p class="demo-description">
+                        Navigate between calendar and agenda views, browse events across months,
+                        and view detailed event information. Perfect for scheduling tasks.
+                    </p>
+                </div>
+            </div>
+
+            <!-- Todo Demo -->
+            <div class="demo-card">
+                <div class="video-container">
+                    <video id="video4" controls preload="metadata">
+                        <source src="04-todo.mov" type="video/quicktime">
+                        <source src="04-todo.mov" type="video/mp4">
+                        Your browser does not support the video tag.
+                    </video>
+                    <div class="play-overlay" onclick="playVideo('video4', this)">
+                        <div class="play-button">
+                            <svg viewBox="0 0 24 24">
+                                <path d="M8 5v14l11-7z"/>
+                            </svg>
+                        </div>
+                    </div>
+                </div>
+                <div class="demo-info">
+                    <div class="demo-header">
+                        <div class="demo-icon">✅</div>
+                        <h3 class="demo-title">Todo Manager</h3>
+                    </div>
+                    <p class="demo-description">
+                        Browse and manage task lists, edit task details, mark items complete,
+                        and organize priorities. Demonstrates CRUD operations on structured data.
+                    </p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Features Section -->
+        <div class="features-section">
+            <div class="section-title">
+                <h2>✨ Key Features</h2>
+                <p>Why OpenApp + OpenEnv is perfect for AI agent research</p>
+            </div>
+            <div class="features-grid">
+                <div class="feature-card">
+                    <div class="feature-icon">🎮</div>
+                    <h4 class="feature-title">Gymnasium Compatible</h4>
+                    <p class="feature-desc">
+                        Standard RL interface with observations, actions, and rewards.
+                        Drop-in replacement for existing training pipelines.
+                    </p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">🌐</div>
+                    <h4 class="feature-title">Real Web Apps</h4>
+                    <p class="feature-desc">
+                        Authentic web applications with HTML, CSS, and JavaScript.
+                        No simplified simulations – real browser interactions.
+                    </p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">🔄</div>
+                    <h4 class="feature-title">Configurable Tasks</h4>
+                    <p class="feature-desc">
+                        YAML-based configuration for custom scenarios, data, and rewards.
+                        Easily create new training environments.
+                    </p>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <footer>
+        <p>
+            Built for the <strong>OpenEnv Hackathon</strong> 🏆<br>
+            <a href="https://github.com/anthropics/anthropic-cookbook/tree/main/misc/openenv" target="_blank">OpenEnv Framework</a> •
+            <a href="https://github.com/ServiceNow/BrowserGym" target="_blank">BrowserGym</a>
+        </p>
+    </footer>
+
+    <script>
+        function playVideo(videoId, overlay) {
+            const video = document.getElementById(videoId);
+            video.play();
+            overlay.classList.add('hidden');
+        }
+
+        // Show overlay again when video ends or is paused
+        document.querySelectorAll('video').forEach(video => {
+            video.addEventListener('ended', function() {
+                const overlay = this.parentElement.querySelector('.play-overlay');
+                overlay.classList.remove('hidden');
+            });
+        });
+
+        // Add intersection observer for lazy loading
+        const videos = document.querySelectorAll('video');
+        const observer = new IntersectionObserver((entries) => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting) {
+                    entry.target.load();
+                }
+            });
+        }, { threshold: 0.25 });
+
+        videos.forEach(video => observer.observe(video));
+    </script>
+</body>
+</html>

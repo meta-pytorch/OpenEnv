@@ -1,2 +1,2 @@
---8<-- "../../src/envs/echo_env/README.md"
+--8<-- "../../envs/echo_env/README.md"
 

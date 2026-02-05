@@ -1,15 +1,32 @@
 import os
-from envs.websearch_env.server import WebSearchEnvironment
-from envs.websearch_env.models import WebSearchAction, WebSearchObservation
+import sys
+import pytest
 
+# Add the project root to the path for envs imports
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
+
+# Skip entire module if websearch dependencies are not available
+try:
+    from envs.websearch_env.server import WebSearchEnvironment
+    from envs.websearch_env.models import WebSearchAction, WebSearchObservation
+
+    WEBSEARCH_AVAILABLE = True
+except ImportError:
+    WEBSEARCH_AVAILABLE = False
+    WebSearchEnvironment = None
+    WebSearchAction = None
+    WebSearchObservation = None
+
+pytestmark = pytest.mark.skipif(
+    not WEBSEARCH_AVAILABLE,
+    reason="websearch_env dependencies not installed (chardet, etc.)",
+)
+
+
+@pytest.mark.skipif(
+    not os.environ.get("SERPER_API_KEY"), reason="SERPER_API_KEY not set"
+)
 def test_websearch_environment():
-
-    # Check if the SERPER_API_KEY is set
-    api_key = os.environ.get("SERPER_API_KEY")
-    if not api_key:
-        import pytest
-        pytest.skip("Skipping websearch environment test because SERPER_API_KEY is not set.")
-
     # Create the environment
     env = WebSearchEnvironment()
 
@@ -19,7 +36,9 @@ def test_websearch_environment():
     assert obs.content == ""
 
     # Step the environment
-    obs: WebSearchObservation = env.step(WebSearchAction(query="What is the capital of France?"))
+    obs: WebSearchObservation = env.step(
+        WebSearchAction(query="What is the capital of France?")
+    )
     if not obs.metadata.get("error"):
         assert obs.web_contents != []
         assert len(obs.web_contents) == 5
