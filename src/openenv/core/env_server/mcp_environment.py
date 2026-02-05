@@ -16,6 +16,7 @@ Key features:
 - Reserved tool name validation (reset, step, state, close are protected)
 - Timeout handling for tool calls
 - Proper error categorization (tool not found, execution errors, timeouts)
+- Mode-aware tool registration (production vs simulation)
 
 Usage:
     from fastmcp import FastMCP
@@ -25,9 +26,14 @@ Usage:
         def __init__(self):
             mcp = FastMCP("my-server")
 
-            @mcp.tool()
+            # Register mode-specific tools
+            @self.tool(mode="production")
             def my_tool(arg: str) -> str:
-                return f"Result: {arg}"
+                return f"Production: {arg}"
+
+            @self.tool(mode="simulation")
+            def my_tool(arg: str) -> str:
+                return f"Simulation: {arg}"
 
             super().__init__(mcp)
 
@@ -46,10 +52,14 @@ Usage:
 """
 
 import asyncio
+import inspect
 from abc import abstractmethod
-from typing import Any, Optional
+from collections import defaultdict
+from typing import Any, Callable, Optional
 
 from fastmcp import Client
+from fastmcp.client.client import CallToolResult
+from mcp.types import TextContent
 
 from ..utils import run_async_safely
 from .interfaces import Environment
@@ -68,6 +78,9 @@ from .types import Action, Observation
 
 # Default timeout for MCP tool calls in seconds
 MCP_TOOL_CALL_TIMEOUT = 30.0
+
+# Valid modes for tool registration
+VALID_MODES = {"production", "simulation"}
 
 
 class MCPEnvironment(Environment):
@@ -124,6 +137,13 @@ class MCPEnvironment(Environment):
         self.mcp_server = mcp_server
         self.mcp_client = Client(mcp_server)
 
+        # Track mode-specific tools: {tool_name: {mode: func}}
+        # mode can be "production", "simulation", or None (available in all modes)
+        self._mode_tools = defaultdict(dict)
+
+        # Track tool schemas for list_tools: {tool_name: {mode: schema}}
+        self._mode_tool_schemas = defaultdict(dict)
+
     def _validate_tool_names(self, mcp_server: Any) -> None:
         """
         Validate that no tools use reserved names.
@@ -155,6 +175,80 @@ class MCPEnvironment(Environment):
                         f"MCP tools cannot use reserved names: {sorted(conflicts)}. "
                         f"Reserved names are: {sorted(RESERVED_TOOL_NAMES)}"
                     )
+
+    def tool(self, mode: Optional[str] = None) -> Callable:
+        """
+        Decorator for registering mode-aware tools.
+
+        Args:
+            mode: Optional mode for the tool ("production" or "simulation").
+                If None, tool is available in all modes.
+
+        Returns:
+            A decorator function for registering tools.
+
+        Raises:
+            ValueError: If mode is not None, "production", or "simulation".
+        """
+        if mode is not None and mode not in VALID_MODES:
+            raise ValueError(
+                f"Invalid mode '{mode}'. Mode must be 'production', 'simulation', or None."
+            )
+
+        def decorator(func: Callable) -> Callable:
+            tool_name = func.__name__
+            # Validate tool name is not reserved
+            if tool_name in RESERVED_TOOL_NAMES:
+                raise ValueError(
+                    f"Tool name '{tool_name}' is reserved and cannot be used. "
+                    f"Reserved names are: {sorted(RESERVED_TOOL_NAMES)}"
+                )
+
+            # If mode is None, register with FastMCP as usual
+            if mode is None:
+                decorated_func = self.mcp_server.tool()(func)
+                self._mode_tools[tool_name][None] = func
+                return decorated_func
+
+            # For mode-specific tools, don't register with FastMCP
+            # Instead, track them ourselves
+            self._mode_tools[tool_name][mode] = func
+
+            # Extract schema information from function signature
+            sig = inspect.signature(func)
+            schema = {
+                "type": "object",
+                "properties": {},
+                "required": [],
+            }
+
+            for param_name, param in sig.parameters.items():
+                # Get type annotation
+                param_type = param.annotation
+                json_type = "string"  # default
+                if param_type in (int, "int"):
+                    json_type = "integer"
+                elif param_type in (float, "float"):
+                    json_type = "number"
+                elif param_type in (bool, "bool"):
+                    json_type = "boolean"
+
+                schema["properties"][param_name] = {"type": json_type}
+
+                # If no default value, it's required
+                if param.default == inspect.Parameter.empty:
+                    schema["required"].append(param_name)
+
+            # Store the schema for this mode-specific tool
+            self._mode_tool_schemas[tool_name][mode] = {
+                "name": tool_name,
+                "description": func.__doc__ or "",
+                "input_schema": schema,
+            }
+
+            return func
+
+        return decorator
 
     def step(
         self,
@@ -197,24 +291,53 @@ class MCPEnvironment(Environment):
 
         Returns:
             ListToolsObservation containing all available tools with their
-            names, descriptions, and input schemas.
+            names, descriptions, and input schemas, filtered by current mode.
         """
         try:
-            # Run the async list_tools call synchronously
-            # Use run_async_safely to handle both sync and async contexts
+            # Get current mode
+            current_mode = getattr(self, "_mode", None)
+
+            # Start with tools from FastMCP server (mode=None tools)
             tools_result = run_async_safely(self._async_list_tools())
 
-            # Convert MCP tool objects to our Tool model
-            tools = [
-                Tool(
-                    name=tool.name,
-                    description=tool.description or "",
-                    input_schema=tool.inputSchema
-                    if hasattr(tool, "inputSchema")
-                    else {},
-                )
-                for tool in tools_result
-            ]
+            # Build list of Tool objects
+            tools = []
+
+            # Add FastMCP tools that are not mode-specific
+            for tool in tools_result:
+                if tool.name not in self._mode_tool_schemas:
+                    tools.append(
+                        Tool(
+                            name=tool.name,
+                            description=tool.description or "",
+                            input_schema=tool.inputSchema
+                            if hasattr(tool, "inputSchema")
+                            else {},
+                        )
+                    )
+
+            # Add mode-specific tools available in current mode
+            for tool_name, mode_schemas in self._mode_tool_schemas.items():
+                if None in mode_schemas:
+                    # Tool available in all modes
+                    schema = mode_schemas[None]
+                    tools.append(
+                        Tool(
+                            name=schema["name"],
+                            description=schema["description"],
+                            input_schema=schema["input_schema"],
+                        )
+                    )
+                elif current_mode in mode_schemas:
+                    # Tool available in current mode
+                    schema = mode_schemas[current_mode]
+                    tools.append(
+                        Tool(
+                            name=schema["name"],
+                            description=schema["description"],
+                            input_schema=schema["input_schema"],
+                        )
+                    )
 
             return ListToolsObservation(tools=tools)
 
@@ -255,6 +378,64 @@ class MCPEnvironment(Environment):
         """
         timeout = timeout_s if timeout_s is not None else MCP_TOOL_CALL_TIMEOUT
 
+        # Check if this is a mode-specific tool
+        tool_name = action.tool_name
+        current_mode = getattr(self, "_mode", None)
+
+        if tool_name in self._mode_tools:
+            mode_info = self._mode_tools[tool_name]
+
+            # Check if tool is available in current mode
+            # Tool is available if:
+            # 1. It has a None mode (available in all modes), OR
+            # 2. It has an implementation for the current mode
+            if None in mode_info:
+                # Use the mode-agnostic version
+                func = mode_info[None]
+            elif current_mode in mode_info:
+                # Use the mode-specific version
+                func = mode_info[current_mode]
+            else:
+                # Tool not available in current mode
+                return CallToolObservation(
+                    tool_name=tool_name,
+                    result=None,
+                    error=ToolError(
+                        error_type=ToolErrorType.TOOL_NOT_FOUND,
+                        message=f"Tool '{tool_name}' not available in {current_mode} mode",
+                    ),
+                )
+
+            # Call the mode-specific function directly
+            try:
+                # Check if function is async and await if necessary
+                if inspect.iscoroutinefunction(func):
+                    result = run_async_safely(func(**action.arguments))
+                else:
+                    result = func(**action.arguments)
+
+                # Wrap result in CallToolResult format to match FastMCP behavior
+                return CallToolObservation(
+                    tool_name=tool_name,
+                    result=CallToolResult(
+                        content=[TextContent(type="text", text=str(result))],
+                        structured_content={"result": result},
+                        meta=None,
+                        data=result,
+                        is_error=False,
+                    ),
+                )
+            except Exception as e:
+                return CallToolObservation(
+                    tool_name=tool_name,
+                    result=None,
+                    error=ToolError(
+                        error_type=ToolErrorType.EXECUTION_ERROR,
+                        message=str(e),
+                    ),
+                )
+
+        # Not a mode-specific tool, use FastMCP
         try:
             # Run the async call_tool with timeout
             # Use run_async_safely to handle both sync and async contexts

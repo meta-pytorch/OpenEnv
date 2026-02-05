@@ -195,12 +195,32 @@ else
     echo "Client-server separation maintained"
 fi
 
-# 6. Check for conflicts with main (warning only, non-blocking)
+# 6. Check branch freshness with main (warning only, non-blocking)
 echo ""
-echo "=== Conflict Check with main ==="
+echo "=== Branch Freshness Check ==="
 # Fetch latest main silently
 git fetch origin main --quiet 2>/dev/null || true
 
+# Check how many commits behind main we are
+BEHIND_COUNT=$(git rev-list --count HEAD..origin/main 2>/dev/null || echo "0")
+if [ "$BEHIND_COUNT" -gt 0 ]; then
+    echo "WARNING: Your branch is $BEHIND_COUNT commit(s) behind main!"
+    echo ""
+    echo "  GitHub will show 'This branch is out-of-date with the base branch'"
+    echo ""
+    echo "  To update before pushing:"
+    echo "    git fetch origin main"
+    echo "    git merge origin/main"
+    echo "    git push"
+    echo ""
+    echo "  Pushing anyway (update before merging PR)"
+else
+    echo "Branch is up to date with main"
+fi
+
+# 7. Check for conflicts with main (warning only, non-blocking)
+echo ""
+echo "=== Conflict Check with main ==="
 # Try a test merge to detect conflicts (then abort)
 MERGE_OUTPUT=$(git merge --no-commit --no-ff origin/main 2>&1) || true
 MERGE_EXIT=$?
