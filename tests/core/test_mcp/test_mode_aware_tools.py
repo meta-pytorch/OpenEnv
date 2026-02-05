@@ -37,7 +37,6 @@ from openenv.core.env_server.mcp_types import (
     CallToolAction,
     ListToolsObservation,
     CallToolObservation,
-    RESERVED_TOOL_NAMES,
 )
 from openenv.core.env_server.types import Observation
 
