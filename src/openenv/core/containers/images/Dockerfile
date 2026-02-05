@@ -47,6 +47,9 @@ COPY --from=builder /usr/local/bin/uv /usr/local/bin/uvx /usr/local/bin/
 # Copy installed Python packages from builder
 COPY --from=builder /usr/local/lib/python3.11/site-packages /usr/local/lib/python3.11/site-packages
 
+# Copy console scripts installed by pip (uvicorn, fastapi, etc.)
+COPY --from=builder /usr/local/bin/uvicorn /usr/local/bin/fastapi /usr/local/bin/
+
 # Set working directory
 WORKDIR /app
 

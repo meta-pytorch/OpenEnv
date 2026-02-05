@@ -23,27 +23,42 @@ docker run -p 8000:8000 chess-env:latest
 
 ### Using the Client
 
+The client is **async by default**:
+
 ```python
-from envs.chess_env import ChessEnv, ChessAction
+import asyncio
+from chess_env import ChessEnv, ChessAction
 
-# Connect to server
-with ChessEnv(base_url="http://localhost:8000") as env:
-    # Reset for a new game
+async def main():
+    async with ChessEnv(base_url="http://localhost:8000") as env:
+        # Reset for a new game
+        result = await env.reset()
+        print(f"Starting position: {result.observation.fen}")
+        print(f"Legal moves: {result.observation.legal_moves}")
+
+        # Make a move
+        result = await env.step(ChessAction(move="e2e4"))
+        print(f"Reward: {result.reward}, Done: {result.done}")
+
+        # Play until game ends
+        while not result.done:
+            move = result.observation.legal_moves[0]
+            result = await env.step(ChessAction(move=move))
+
+        print(f"Game result: {result.observation.result}")
+
+asyncio.run(main())
+```
+
+For **synchronous usage**, use the `.sync()` wrapper:
+
+```python
+from chess_env import ChessEnv, ChessAction
+
+with ChessEnv(base_url="http://localhost:8000").sync() as env:
     result = env.reset()
-    print(f"Starting position: {result.observation.fen}")
-    print(f"Legal moves: {result.observation.legal_moves}")
-
-    # Make a move
     result = env.step(ChessAction(move="e2e4"))
-    print(f"Reward: {result.reward}, Done: {result.done}")
-
-    # Play until game ends
-    while not result.done:
-        # Your policy here
-        move = result.observation.legal_moves[0]
-        result = env.step(ChessAction(move=move))
-
-    print(f"Game result: {result.observation.result}")
+    print(f"Reward: {result.reward}")
 ```
 
 ## Observation Space

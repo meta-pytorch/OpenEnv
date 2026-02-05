@@ -7,12 +7,9 @@
 """Tests for the openenv push command."""
 
 import os
-import tempfile
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-import pytest
-import typer
 from typer.testing import CliRunner
 
 from openenv.cli.__main__ import app

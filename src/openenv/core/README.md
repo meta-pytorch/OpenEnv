@@ -22,7 +22,8 @@ Core components for OpenEnv - a framework for building HTTP-based agentic enviro
 
 ## Features
 
-- **EnvClient**: Generic client for interacting with remote environments
+- **EnvClient**: Async-first client for interacting with remote environments
+- **SyncEnvClient**: Synchronous wrapper via `.sync()` for sync codebases
 - **HTTPEnvServer**: FastAPI-based server wrapper for exposing environments over HTTP/WebSocket
 - **Container Providers**: Pluggable architecture for running containers (Docker, Kubernetes, etc.)
 - **Type System**: Strongly-typed Action/Observation/State interfaces
@@ -43,9 +44,13 @@ pip install "openenv[core]"
 
 ### Creating an Environment Client
 
+EnvClient is **async by default**. Use `async with` and `await` for all operations:
+
 ```python
+import asyncio
 from openenv.core import EnvClient, StepResult
 from dataclasses import dataclass
+from typing import Any
 
 @dataclass
 class MyAction:
@@ -55,7 +60,7 @@ class MyAction:
 class MyObservation:
     response: str
 
-class MyEnvClient(EnvClient[MyAction, MyObservation]):
+class MyEnvClient(EnvClient[MyAction, MyObservation, Any]):
     def _step_payload(self, action: MyAction) -> dict:
         return {"text": action.text}
 
@@ -70,11 +75,19 @@ class MyEnvClient(EnvClient[MyAction, MyObservation]):
     def _parse_state(self, payload: dict) -> Any:
         return payload
 
-# Use with Docker
-env = MyEnvClient.from_docker_image("my-env:latest")
-result = env.reset()
-step_result = env.step(MyAction(text="hello"))
-env.close()
+# Async usage (recommended)
+async def main():
+    client = await MyEnvClient.from_docker_image("my-env:latest")
+    async with client:
+        result = await client.reset()
+        step_result = await client.step(MyAction(text="hello"))
+
+asyncio.run(main())
+
+# Sync usage (via .sync() wrapper)
+with MyEnvClient(base_url="http://localhost:8000").sync() as client:
+    result = client.reset()
+    step_result = client.step(MyAction(text="hello"))
 ```
 
 ### Creating an Environment Server
@@ -143,11 +156,30 @@ provider.stop_container()
 
 ### EnvClient
 
-Base class for environment clients with these abstract methods:
+Async base class for environment clients. Key methods:
 
+- `async connect()`: Establish WebSocket connection
+- `async reset(**kwargs)`: Reset environment
+- `async step(action)`: Execute action
+- `async state()`: Get current state
+- `async close()`: Close connection and cleanup
+- `sync()`: Return a SyncEnvClient wrapper for synchronous usage
+
+Abstract methods to implement:
 - `_step_payload(action)`: Convert action to JSON
 - `_parse_result(payload)`: Parse response to StepResult
 - `_parse_state(payload)`: Parse state response
+
+### SyncEnvClient
+
+Synchronous wrapper around EnvClient. Use `client.sync()` to get one:
+
+```python
+sync_client = async_client.sync()
+with sync_client:
+    result = sync_client.reset()
+    result = sync_client.step(action)
+```
 
 ### HTTPEnvServer
 
