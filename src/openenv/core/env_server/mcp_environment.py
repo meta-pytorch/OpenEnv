@@ -17,6 +17,7 @@ Key features:
 - Timeout handling for tool calls
 - Proper error categorization (tool not found, execution errors, timeouts)
 - Mode-aware tool registration (production vs simulation)
+- Code mode support via get_callables() and execute_code()
 
 Usage:
     from fastmcp import FastMCP
@@ -55,7 +56,7 @@ import asyncio
 import inspect
 from abc import abstractmethod
 from collections import defaultdict
-from typing import Any, Callable, Optional
+from typing import Any, Callable, Dict, Optional
 
 from fastmcp import Client
 from fastmcp.client.client import CallToolResult
@@ -143,6 +144,77 @@ class MCPEnvironment(Environment):
 
         # Track tool schemas for list_tools: {tool_name: {mode: schema}}
         self._mode_tool_schemas = defaultdict(dict)
+
+    @property
+    def supports_code_mode(self) -> bool:
+        """Check if this environment supports code mode (execute_code)."""
+        return True
+
+    def get_callables(self) -> Dict[str, Callable]:
+        """
+        Get callable functions for code mode.
+
+        Returns tool functions as direct Python callables, enabling code mode
+        where agents write Python code that calls tools directly (no JSON-RPC
+        overhead). Mode-specific tools are filtered by the current mode.
+
+        Returns:
+            Dictionary mapping tool names to callables.
+        """
+        callables: Dict[str, Callable] = {}
+        current_mode = getattr(self, "_mode", None)
+
+        # Extract callables from FastMCP server's tool manager
+        if (
+            hasattr(self.mcp_server, "_tool_manager")
+            and hasattr(self.mcp_server._tool_manager, "_tools")
+            and isinstance(getattr(self.mcp_server._tool_manager, "_tools", None), dict)
+        ):
+            for tool_name, tool in self.mcp_server._tool_manager._tools.items():
+                if hasattr(tool, "fn") and callable(tool.fn):
+                    callables[tool_name] = tool.fn
+
+        # Add mode-specific tools available in current mode
+        for tool_name, mode_funcs in self._mode_tools.items():
+            if None in mode_funcs:
+                # Tool available in all modes (already in FastMCP if registered there)
+                if tool_name not in callables:
+                    callables[tool_name] = mode_funcs[None]
+            elif current_mode in mode_funcs:
+                # Tool available in current mode only
+                callables[tool_name] = mode_funcs[current_mode]
+
+        return callables
+
+    def execute_code(self, code: str) -> Observation:
+        """
+        Execute Python code with tools available as callables.
+
+        This enables the CodeAct pattern where agents write Python code
+        that calls tools directly as functions, avoiding JSON-RPC overhead.
+
+        Args:
+            code: Python code to execute. Tools are available as functions
+                in the execution namespace. Set a variable named 'result'
+                to capture the return value.
+
+        Returns:
+            Observation with result in metadata["result"] or error in
+            metadata["error"].
+        """
+        namespace = self.get_callables()
+
+        result_dict: Dict[str, Any] = {}
+        try:
+            exec(code, namespace, result_dict)
+            result = result_dict.get("result")
+            return Observation(done=False, reward=0.0, metadata={"result": result})
+        except SyntaxError as e:
+            return Observation(
+                done=False, reward=0.0, metadata={"error": f"Syntax error: {str(e)}"}
+            )
+        except Exception as e:
+            return Observation(done=False, reward=0.0, metadata={"error": str(e)})
 
     def _validate_tool_names(self, mcp_server: Any) -> None:
         """

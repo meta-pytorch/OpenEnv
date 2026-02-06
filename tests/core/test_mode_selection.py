@@ -5,33 +5,49 @@
 # LICENSE file in the root directory of this source tree.
 
 """
-Tests for client mode selection mechanism.
+Tests for mode selection in OpenEnv clients and environments.
 
-These tests verify that clients can select between WebSocket (Gym-style) and MCP modes
-through constructor parameters and environment variables. The mode selection determines
-which protocol the client uses to communicate with the server:
+This file combines two aspects of mode selection:
 
-1. Simulation mode: Uses WSResetMessage, WSStepMessage (standard Gym API)
-2. Production mode: Uses WSMCPMessage with JSON-RPC (MCP protocol for tool calling)
+1. Client mode selection (from main): Tests for selecting between WebSocket (Gym-style)
+   and MCP modes through constructor parameters and environment variables. The mode
+   selection determines which protocol the client uses to communicate with the server.
+
+2. Environment code mode (from issue #347): Tests for mode selection between tool-calling
+   and code mode. Per RFC 003, MCP environments should support two modes:
+   - Tool-calling mode: one tool call per step (traditional MCP)
+   - Code mode: code blocks with direct Python function calls (CodeAct pattern)
 
 Test coverage:
-- Mode selection via constructor parameter
-- Mode selection via environment variable
-- Environment variable precedence over constructor default
-- Invalid mode values raise appropriate errors
-- Mode switching not allowed after connection
+- Client: Mode selection via constructor parameter and environment variable
+- Client: GenericEnvClient and MCPToolClient mode behavior
+- Environment: Code mode with get_callables() and execute_code()
+- Environment: Code mode with mode-aware tool registration
 """
 
 import os
 import pytest
 from unittest.mock import patch, MagicMock
 
+from fastmcp import FastMCP
+
 from openenv.core.generic_client import GenericEnvClient
 from openenv.core.mcp_client import MCPToolClient
+from openenv.core.env_server.mcp_environment import MCPEnvironment
+from openenv.core.env_server.mcp_types import (
+    ListToolsAction,
+    ListToolsObservation,
+)
+from openenv.core.env_server.types import Observation, State
 
 
 # ============================================================================
-# Test Fixtures
+# Client Mode Selection Tests (from main)
+# ============================================================================
+
+
+# ============================================================================
+# Test Fixtures - Client Mode Tests
 # ============================================================================
 
 
@@ -309,3 +325,343 @@ class TestModeDocumentation:
         # Should document both simulation and production modes
         assert "simulation" in docstring.lower()
         assert "production" in docstring.lower()
+
+
+# ============================================================================
+# Environment Code Mode Tests (from issue #347)
+# ============================================================================
+
+
+class TestMCPEnv(MCPEnvironment):
+    """Concrete MCPEnvironment for testing with real FastMCP server."""
+
+    def __init__(self, mcp_server):
+        super().__init__(mcp_server)
+        self._state = State(episode_id="test", step_count=0)
+
+    def reset(self, **kwargs):
+        self._state = State(episode_id=kwargs.get("episode_id", "test"), step_count=0)
+        return Observation(done=False, reward=0.0)
+
+    def _step_impl(self, action, **kwargs):
+        self._state.step_count += 1
+        return Observation(done=False, reward=0.0)
+
+    @property
+    def state(self):
+        return self._state
+
+
+# =============================================================================
+# Test Fixtures - Environment Code Mode
+# =============================================================================
+
+
+@pytest.fixture
+def mcp_server_with_tools():
+    """Create a real FastMCP server with tools for testing."""
+    mcp = FastMCP("test-code-mode")
+
+    @mcp.tool()
+    def add(a: int, b: int) -> int:
+        """Add two numbers."""
+        return a + b
+
+    @mcp.tool()
+    def multiply(x: int, y: int) -> int:
+        """Multiply two numbers."""
+        return x * y
+
+    return mcp
+
+
+# =============================================================================
+# Code Mode Capability Tests
+# =============================================================================
+
+
+class TestCodeModeCapability:
+    """Tests for code mode capability detection."""
+
+    def test_environment_has_code_mode_capability(self, mcp_server_with_tools):
+        """Test environment can report code mode support."""
+        env = TestMCPEnv(mcp_server_with_tools)
+
+        assert hasattr(env, "supports_code_mode")
+        assert env.supports_code_mode is True
+
+
+# =============================================================================
+# Code Mode Tests (with FastMCP Server)
+# =============================================================================
+
+
+class TestCodeModeWithFastMCP:
+    """Tests for code mode with real FastMCP servers."""
+
+    def test_get_callables_returns_tool_functions(self, mcp_server_with_tools):
+        """Test get_callables() extracts functions from FastMCP server."""
+        env = TestMCPEnv(mcp_server_with_tools)
+
+        callables = env.get_callables()
+
+        assert "add" in callables
+        assert callable(callables["add"])
+        assert "multiply" in callables
+        assert callable(callables["multiply"])
+
+    def test_callables_work_directly(self, mcp_server_with_tools):
+        """Test callables from get_callables() can be called directly."""
+        env = TestMCPEnv(mcp_server_with_tools)
+
+        callables = env.get_callables()
+        result = callables["add"](a=5, b=3)
+
+        assert result == 8
+
+    def test_code_mode_executes_python_directly(self, mcp_server_with_tools):
+        """Test code mode executes Python code with tools as direct callables."""
+        env = TestMCPEnv(mcp_server_with_tools)
+        env.reset()
+
+        code = """
+result = add(a=5, b=3)
+"""
+
+        obs = env.execute_code(code)
+
+        assert isinstance(obs, Observation)
+        assert obs.metadata.get("result") == 8
+
+    def test_code_mode_multiple_tool_calls_in_one_step(self, mcp_server_with_tools):
+        """Test code mode allows multiple tool calls in a single step."""
+        env = TestMCPEnv(mcp_server_with_tools)
+        env.reset()
+
+        code = """
+x = add(a=2, b=3)
+y = multiply(x=x, y=4)
+result = y
+"""
+
+        obs = env.execute_code(code)
+
+        # (2 + 3) * 4 = 20
+        assert obs.metadata.get("result") == 20
+
+    def test_code_mode_with_complex_python_logic(self, mcp_server_with_tools):
+        """Test code mode supports arbitrary Python logic around tool calls."""
+        env = TestMCPEnv(mcp_server_with_tools)
+        env.reset()
+
+        code = """
+numbers = [1, 2, 3, 4, 5]
+total = 0
+for n in numbers:
+    total = add(a=total, b=n)
+result = total
+"""
+
+        obs = env.execute_code(code)
+
+        assert obs.metadata.get("result") == 15  # Sum of 1+2+3+4+5
+
+
+# =============================================================================
+# Code Mode with Mode-Aware Tools
+# =============================================================================
+
+
+class TestCodeModeWithModeAwareTools:
+    """Tests for code mode integration with mode-aware tool registration."""
+
+    def test_get_callables_includes_mode_specific_tools(self):
+        """Test get_callables() returns mode-specific tools for current mode."""
+        mcp = FastMCP("mode-test")
+
+        class ModeEnv(TestMCPEnv):
+            def __init__(self):
+                super().__init__(mcp)
+                self._mode = "simulation"
+
+                @self.tool(mode="simulation")
+                def sim_tool(x: int) -> int:
+                    return x * 10
+
+                @self.tool(mode="production")
+                def prod_tool(x: int) -> int:
+                    return x * 100
+
+        env = ModeEnv()
+        callables = env.get_callables()
+
+        # In simulation mode, should have sim_tool but not prod_tool
+        assert "sim_tool" in callables
+        assert "prod_tool" not in callables
+        assert callables["sim_tool"](x=5) == 50
+
+    def test_get_callables_switches_with_mode(self):
+        """Test get_callables() returns different tools when mode changes."""
+        mcp = FastMCP("mode-switch-test")
+
+        class ModeEnv(TestMCPEnv):
+            def __init__(self):
+                super().__init__(mcp)
+                self._mode = "simulation"
+
+                @self.tool(mode="simulation")
+                def lookup(query: str) -> str:
+                    return f"sim:{query}"
+
+                @self.tool(mode="production")
+                def lookup(query: str) -> str:  # noqa: F811
+                    return f"prod:{query}"
+
+        env = ModeEnv()
+
+        # In simulation mode
+        callables_sim = env.get_callables()
+        assert callables_sim["lookup"](query="test") == "sim:test"
+
+        # Switch to production mode
+        env._mode = "production"
+        callables_prod = env.get_callables()
+        assert callables_prod["lookup"](query="test") == "prod:test"
+
+    def test_execute_code_uses_mode_specific_tools(self):
+        """Test execute_code() uses the correct mode-specific tools."""
+        mcp = FastMCP("code-mode-test")
+
+        class ModeEnv(TestMCPEnv):
+            def __init__(self):
+                super().__init__(mcp)
+                self._mode = "simulation"
+
+                @self.tool(mode="simulation")
+                def compute(x: int) -> int:
+                    return x + 1
+
+                @self.tool(mode="production")
+                def compute(x: int) -> int:  # noqa: F811
+                    return x + 1000
+
+        env = ModeEnv()
+
+        # In simulation mode
+        obs = env.execute_code("result = compute(x=5)")
+        assert obs.metadata.get("result") == 6
+
+        # Switch to production mode
+        env._mode = "production"
+        obs = env.execute_code("result = compute(x=5)")
+        assert obs.metadata.get("result") == 1005
+
+
+# =============================================================================
+# Tool-Calling Mode Tests (Backwards Compatibility)
+# =============================================================================
+
+
+class TestToolCallingMode:
+    """Tests that tool-calling mode still works (backwards compatibility)."""
+
+    def test_list_tools_still_works(self, mcp_server_with_tools):
+        """Test ListToolsAction still works in tool-calling mode."""
+        env = TestMCPEnv(mcp_server_with_tools)
+
+        action = ListToolsAction()
+        obs = env.step(action)
+
+        assert isinstance(obs, ListToolsObservation)
+        assert len(obs.tools) > 0
+
+    def test_code_mode_preserves_tool_schemas_for_discovery(
+        self, mcp_server_with_tools
+    ):
+        """Test code mode doesn't break tool discovery (list_tools still works)."""
+        env = TestMCPEnv(mcp_server_with_tools)
+
+        # Tool discovery should still work via step()
+        obs = env.step(ListToolsAction())
+
+        assert isinstance(obs, ListToolsObservation)
+        assert len(obs.tools) > 0
+
+        # And also via get_callables() for code mode
+        callables = env.get_callables()
+        assert len(callables) == len(obs.tools)
+
+
+# =============================================================================
+# Error Handling Tests
+# =============================================================================
+
+
+class TestCodeModeErrorHandling:
+    """Tests for error handling in code mode."""
+
+    def test_code_mode_handles_syntax_errors(self, mcp_server_with_tools):
+        """Test code mode returns proper error for Python syntax errors."""
+        env = TestMCPEnv(mcp_server_with_tools)
+        env.reset()
+
+        code = """
+result = add(a=5, b=  # Syntax error
+"""
+
+        obs = env.execute_code(code)
+
+        assert obs.metadata.get("error") is not None
+        assert "syntax" in obs.metadata["error"].lower()
+
+    def test_code_mode_handles_runtime_errors(self, mcp_server_with_tools):
+        """Test code mode returns proper error for runtime errors."""
+        env = TestMCPEnv(mcp_server_with_tools)
+        env.reset()
+
+        code = """
+result = add(a=5, b="not a number")  # Type error
+"""
+
+        obs = env.execute_code(code)
+
+        assert obs.metadata.get("error") is not None
+
+    def test_code_mode_handles_missing_tool(self, mcp_server_with_tools):
+        """Test code mode returns proper error when calling non-existent tool."""
+        env = TestMCPEnv(mcp_server_with_tools)
+        env.reset()
+
+        code = """
+result = nonexistent_tool(x=1)
+"""
+
+        obs = env.execute_code(code)
+
+        assert obs.metadata.get("error") is not None
+        assert "nonexistent_tool" in obs.metadata["error"]
+
+
+# =============================================================================
+# Integration Tests
+# =============================================================================
+
+
+class TestCodeModeIntegration:
+    """Integration tests for code mode with real MCP servers."""
+
+    def test_echo_env_in_code_mode(self):
+        """Test EchoEnvironment supports code mode."""
+        from echo_env.server.echo_environment import EchoEnvironment
+
+        env = EchoEnvironment()
+        env.reset()
+
+        code = """
+msg = echo_message(message="Hello from code mode!")
+result = msg
+"""
+
+        obs = env.execute_code(code)
+
+        assert "Hello from code mode!" in str(obs.metadata.get("result"))

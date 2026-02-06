@@ -22,7 +22,15 @@ import uuid
 from concurrent.futures import ThreadPoolExecutor
 from typing import Any, Callable, Dict, Optional, Type
 
-from fastapi import Body, FastAPI, HTTPException, WebSocket, WebSocketDisconnect, status
+from fastapi import (
+    Body,
+    FastAPI,
+    HTTPException,
+    Request,
+    WebSocket,
+    WebSocketDisconnect,
+    status,
+)
 from pydantic import ValidationError
 
 from .interfaces import Environment
@@ -896,6 +904,183 @@ all schema information needed to interact with the environment.
                 state=State.model_json_schema(),
             )
 
+        # Register MCP endpoint for production mode (direct MCP access)
+        @app.post("/mcp")
+        async def mcp_endpoint(request_raw: Request):
+            """
+            MCP JSON-RPC endpoint for production mode.
+
+            Bypasses step() overhead and provides direct access to MCP tools.
+            Supports tools/list and tools/call methods.
+            """
+            # Parse JSON manually to handle parse errors
+            try:
+                body = await request_raw.body()
+                request = json.loads(body)
+            except json.JSONDecodeError:
+                return {
+                    "jsonrpc": "2.0",
+                    "error": {"code": -32700, "message": "Parse error"},
+                    "id": None,
+                }
+            except Exception:
+                return {
+                    "jsonrpc": "2.0",
+                    "error": {"code": -32700, "message": "Parse error"},
+                    "id": None,
+                }
+
+            jsonrpc = request.get("jsonrpc")
+            method = request.get("method")
+            params = request.get("params", {})
+            request_id = request.get("id")
+
+            # Validate JSON-RPC version
+            if jsonrpc != "2.0":
+                return {
+                    "jsonrpc": "2.0",
+                    "error": {
+                        "code": -32600,
+                        "message": "Invalid Request - jsonrpc version must be '2.0'",
+                    },
+                    "id": request_id,
+                }
+
+            # Create a temporary environment for MCP access
+            _env = self._env_factory()
+
+            try:
+                # Check if environment supports MCP
+                if not hasattr(_env, "mcp_client") and not hasattr(_env, "mcp_server"):
+                    return {
+                        "jsonrpc": "2.0",
+                        "error": {
+                            "code": -32603,
+                            "message": "Environment does not support MCP",
+                        },
+                        "id": request_id,
+                    }
+
+                if method == "tools/list":
+                    # List tools from MCP server
+                    if hasattr(_env, "mcp_client") and _env.mcp_client:
+                        async with _env.mcp_client:
+                            tools = await _env.mcp_client.list_tools()
+                        return {
+                            "jsonrpc": "2.0",
+                            "result": {
+                                "tools": [
+                                    t.model_dump()
+                                    if hasattr(t, "model_dump")
+                                    else dict(t)
+                                    for t in tools
+                                ]
+                            },
+                            "id": request_id,
+                        }
+                    elif hasattr(_env, "mcp_server") and _env.mcp_server:
+                        # Use server directly
+                        tools = []
+                        if hasattr(_env.mcp_server, "_tool_manager"):
+                            tool_manager = _env.mcp_server._tool_manager
+                            if hasattr(tool_manager, "_tools"):
+                                for tool_name, tool in tool_manager._tools.items():
+                                    tool_dict = {
+                                        "name": tool.name,
+                                        "description": tool.description or "",
+                                        "inputSchema": tool.parameters or {},
+                                    }
+                                    tools.append(tool_dict)
+                        return {
+                            "jsonrpc": "2.0",
+                            "result": {"tools": tools},
+                            "id": request_id,
+                        }
+                    else:
+                        return {
+                            "jsonrpc": "2.0",
+                            "error": {
+                                "code": -32603,
+                                "message": "MCP server not available",
+                            },
+                            "id": request_id,
+                        }
+
+                elif method == "tools/call":
+                    tool_name = params.get("name")
+                    arguments = params.get("arguments", {})
+
+                    if not tool_name:
+                        return {
+                            "jsonrpc": "2.0",
+                            "error": {
+                                "code": -32602,
+                                "message": "Invalid params - 'name' is required",
+                            },
+                            "id": request_id,
+                        }
+
+                    # Call tool via MCP
+                    if hasattr(_env, "mcp_client") and _env.mcp_client:
+                        async with _env.mcp_client:
+                            result = await _env.mcp_client.call_tool(
+                                name=tool_name, arguments=arguments
+                            )
+                    elif hasattr(_env, "mcp_server") and hasattr(
+                        _env.mcp_server, "_tool_manager"
+                    ):
+                        # Call tool directly on FastMCP server
+                        tool_manager = _env.mcp_server._tool_manager
+                        if tool_name in tool_manager._tools:
+                            tool = tool_manager._tools[tool_name]
+                            result = tool.fn(**arguments)
+                        else:
+                            return {
+                                "jsonrpc": "2.0",
+                                "error": {
+                                    "code": -32602,
+                                    "message": f"Tool not found: {tool_name}",
+                                },
+                                "id": request_id,
+                            }
+                    else:
+                        return {
+                            "jsonrpc": "2.0",
+                            "error": {
+                                "code": -32603,
+                                "message": "MCP server not available",
+                            },
+                            "id": request_id,
+                        }
+
+                    # Make result JSON serializable
+                    serializable_result = _make_json_serializable(result)
+
+                    return {
+                        "jsonrpc": "2.0",
+                        "result": serializable_result,
+                        "id": request_id,
+                    }
+
+                else:
+                    return {
+                        "jsonrpc": "2.0",
+                        "error": {
+                            "code": -32601,
+                            "message": f"Method not found: {method}",
+                        },
+                        "id": request_id,
+                    }
+
+            except Exception as e:
+                return {
+                    "jsonrpc": "2.0",
+                    "error": {"code": -32603, "message": str(e)},
+                    "id": request_id,
+                }
+            finally:
+                _env.close()
+
         # Register WebSocket endpoint for persistent sessions
         @app.websocket("/ws")
         async def websocket_endpoint(websocket: WebSocket):
@@ -961,7 +1146,7 @@ all schema information needed to interact with the environment.
                                 self._update_session_activity(session_id)
 
                                 response = WSObservationResponse(
-                                    data=serialize_observation(observation)
+                                    data=serialize_observation(observation),
                                 )
 
                             case "step":
