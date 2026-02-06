@@ -8,3 +8,4 @@ myst-parser #==0.18.1  # if want to contribute in markdown
 sphinxext-opengraph
 sphinx-sitemap==2.7.1
 sphinx-gallery>=0.14.0
+matplotlib
