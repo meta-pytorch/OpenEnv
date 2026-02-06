@@ -20,7 +20,7 @@ import os
 import time
 import uuid
 from concurrent.futures import ThreadPoolExecutor
-from typing import Any, Callable, Dict, Optional, Type, Union
+from typing import Any, Callable, Dict, Optional, Type
 
 from fastapi import Body, FastAPI, HTTPException, status, WebSocket, WebSocketDisconnect
 from pydantic import ValidationError
@@ -575,7 +575,7 @@ Get JSON schemas for actions, observations, and state in a single response.
 
 Returns a combined schema object containing:
 - **action**: JSON schema for actions accepted by this environment
-- **observation**: JSON schema for observations returned by this environment  
+- **observation**: JSON schema for observations returned by this environment
 - **state**: JSON schema for environment state objects
 
 This is more efficient than calling individual schema endpoints and provides
