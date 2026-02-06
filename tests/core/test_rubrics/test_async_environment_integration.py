@@ -14,7 +14,7 @@ This test file verifies that rubrics work with async environments:
 """
 
 import pytest
-from typing import Any, Optional, List, Tuple
+from typing import Any, Optional
 
 from openenv.core.env_server.interfaces import Environment
 from openenv.core.env_server.types import Action, Observation, State

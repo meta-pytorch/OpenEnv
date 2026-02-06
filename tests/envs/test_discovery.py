@@ -16,9 +16,7 @@ Tests cover:
 5. Helper functions (_normalize_env_name, _is_hub_url, etc.)
 """
 
-import pytest
-from unittest.mock import Mock, patch, MagicMock
-from pathlib import Path
+from unittest.mock import Mock, patch
 
 from openenv.auto._discovery import (
     EnvironmentDiscovery,

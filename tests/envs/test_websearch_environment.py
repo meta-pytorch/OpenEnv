@@ -11,7 +11,7 @@ try:
     from envs.websearch_env.models import WebSearchAction, WebSearchObservation
 
     WEBSEARCH_AVAILABLE = True
-except ImportError as e:
+except ImportError:
     WEBSEARCH_AVAILABLE = False
     WebSearchEnvironment = None
     WebSearchAction = None

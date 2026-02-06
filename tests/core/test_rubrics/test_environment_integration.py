@@ -6,7 +6,6 @@
 
 """Tests for rubric integration with Environment base class."""
 
-import pytest
 from typing import Any, Optional, List, Tuple
 
 from openenv.core.env_server.interfaces import Environment
