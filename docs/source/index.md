@@ -2,11 +2,11 @@
 
 <div class="hero">
   <p class="hero__subtitle">
-    An e2e framework for creating, deploying and using isolated execution environments for agentic RL training, built using Gymnasium style simple APIs.
+    A unified framework for building, deploying, and interacting with isolated execution environments for agentic reinforcement learning—powered by simple, Gymnasium-style APIs.
   </p>
   <div class="hero__actions">
-    <a class="hero__button hero__button--primary" href="quickstart.html">
-      Quick Start
+    <a class="hero__button hero__button--primary" href="auto_getting_started/index.html">
+      Getting Started Tutorials
     </a>
     <a class="hero__button" href="environment-builder.html">
       Build Your Own Environment
@@ -24,29 +24,85 @@
 
 ## What is OpenEnv?
 
-OpenEnv provides a standard for interacting with agentic execution environments via simple Gymnasium style APIs - `step()`, `reset()`, `state()`. Users of agentic execution environments can interact with the environment during RL training loops using these simple APIs.
+**OpenEnv** is an end-to-end framework designed to standardize how agents interact with execution environments during reinforcement learning (RL) training. At its core, OpenEnv provides a consistent, Gymnasium-compatible interface through three simple APIs: `step()`, `reset()`, and `state()`.
 
-In addition to making it easier for researchers and RL framework writers, we also provide tools for environment creators making it easier for them to create richer environments and make them available over familiar protocols like HTTP and packaged using canonical technologies like docker. Environment creators can use the OpenEnv framework to create environments that are isolated, secure, and easy to deploy and use.
+### Why OpenEnv?
 
-## How can I contribute?
+Training RL agents—especially in agentic settings like code generation, web browsing, or game playing—requires environments that are:
+
+- **Isolated**: Each agent instance runs in its own sandboxed environment, preventing interference and ensuring reproducibility.
+- **Scalable**: Environments can be deployed as HTTP services or containerized with Docker, enabling distributed training across clusters.
+- **Standardized**: A unified API means researchers and practitioners can switch between environments without rewriting integration code.
+
+OpenEnv bridges the gap between environment creators and RL practitioners:
+
+- **For Researchers & Framework Authors**: Interact with any OpenEnv-compatible environment using familiar Gymnasium-style APIs—no need to learn environment-specific protocols.
+- **For Environment Creators**: Build rich, production-ready environments with built-in support for HTTP deployment, Docker packaging, and security isolation.
+
+### Key Features
+
+::::{grid} 1 2 2 3
+:gutter: 3
+
+:::{grid-item-card} 🎮 Gymnasium-Style APIs
+Familiar `step()`, `reset()`, and `state()` interface for seamless integration with existing RL frameworks.
+:::
+
+:::{grid-item-card} 🐳 Docker-First Design
+Package environments as containers for consistent, reproducible deployments across any infrastructure.
+:::
+
+:::{grid-item-card} 🌐 HTTP-Native
+Deploy environments as HTTP services for distributed training and remote execution.
+:::
+
+:::{grid-item-card} 🔒 Secure Isolation
+Run untrusted agent code safely with sandboxed execution environments.
+:::
+
+:::{grid-item-card} 📦 Rich Environment Library
+Pre-built environments for games, coding, web browsing, and more.
+:::
+
+:::{grid-item-card} 🛠️ CLI Tools
+Powerful command-line interface for environment management and deployment.
+:::
+::::
+
+## Getting Started
+
+New to OpenEnv? Follow our recommended learning path:
+
+1. **[Getting Started Tutorials](auto_getting_started/index)** — A hands-on, 3-part series covering what OpenEnv is, how to use existing environments, and how to build your own.
+
+2. **[Build Your Own Environment](environment-builder)** — The complete reference guide for creating, packaging, and deploying custom environments with Docker and Hugging Face Hub.
+
+3. **[Explore Environments](environments)** — Browse pre-built environments for games, coding, web browsing, and more.
+
+## How Can I Contribute?
 
 We welcome contributions from the community! If you find a bug, have a feature request, or want to contribute a new environment, please open an issue or submit a pull request. The repository is hosted on GitHub at [meta-pytorch/OpenEnv](https://github.com/meta-pytorch/OpenEnv).
 
 ```{warning}
-OpenEnv is currently in an experimental stage. You should expect bugs, incomplete features, and APIs that may change in future versions. The project welcomes bug fixes, but to make sure things are well coordinated you should discuss any significant change before starting the work. It's recommended that you signal your intention to contribute in the issue tracker, either by filing a new issue or by claiming an existing one.
+OpenEnv is currently in an experimental stage. You should expect bugs, incomplete features, and APIs that may change in future versions. The project welcomes bug fixes, but to ensure coordination, please discuss significant changes before starting work. Signal your intention to contribute in the issue tracker by filing a new issue or claiming an existing one.
 ```
-
-
-
 
 ```{toctree}
 :maxdepth: 2
-:caption: Contents
+:caption: Learn
 :hidden:
-quickstart
+
+auto_getting_started/index
+tutorials/index
+environment-builder
+```
+
+```{toctree}
+:maxdepth: 2
+:caption: Reference
+:hidden:
+
 cli
 core
 environments
-environment-builder
-tutorials/index
 ```

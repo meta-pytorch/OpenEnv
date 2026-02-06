@@ -4,6 +4,44 @@ This guide walks you through creating a custom environment using the `OpenEnv` f
 
 The CLI handles scaffolding, builds, validation, and deployment so you can stay focused on environment logic.
 
+```{note}
+**New to OpenEnv?** If you're just getting started, we recommend completing the [Getting Started tutorials](auto_getting_started/index) first. They provide a conceptual introduction to OpenEnv and reinforcement learning fundamentals. This guide is for developers ready to build production-quality environments.
+```
+
+## Quick Reference Card
+
+Already familiar with OpenEnv? Here's the 8-step process at a glance:
+
+| Step | Command / Action | Description |
+|------|------------------|-------------|
+| 1 | `openenv init my_env` | Scaffold new environment |
+| 2 | Edit `models.py` | Define Action & Observation dataclasses |
+| 3 | Edit `server/my_environment.py` | Implement `reset()` and `step()` methods |
+| 4 | Edit `client.py` | Implement `_step_payload()`, `_parse_result()`, `_parse_state()` |
+| 5 | `openenv serve` | Start local dev server for testing |
+| 6 | `openenv validate` | Validate environment structure |
+| 7 | `openenv push` | Deploy to Hugging Face Hub |
+| 8 | Share the URL! | Others use via `MyEnv.from_hub("you/my-env")` |
+
+### CLI Quick Reference
+
+| Command | Description |
+|---------|-------------|
+| `openenv init NAME` | Scaffold new environment |
+| `openenv serve` | Start local dev server |
+| `openenv build` | Build Docker image |
+| `openenv validate --verbose` | Validate environment structure |
+| `openenv push` | Deploy to Hugging Face Hub |
+| `openenv push --repo-id NAME` | Deploy to specific repo |
+| `openenv push --private` | Deploy as private environment |
+| `openenv push --registry ghcr.io/ORG` | Push to GitHub Container Registry |
+
+```{tip}
+For a hands-on tutorial that builds a complete environment step-by-step, see [Building & Sharing Environments](auto_getting_started/plot_03_building_environments) in the Getting Started series.
+```
+
+---
+
 ## Overview
 
 A typical workflow looks like:
@@ -338,7 +376,7 @@ strategy:
 
 ### Use Your Environment
 
-For an end-to-end example of using your environment, see the [Quick Start](quickstart.md) guide. Here is a simple example of using your environment:
+Here is a simple example of using your environment:
 
 ```python
 from envs.my_env import MyAction, MyEnv

@@ -11,7 +11,7 @@ The OpenEnv community has built a catalog of ready-to-run environments that cove
 Minimal observation/action loop for verifying client integrations, CI pipelines, and onboarding flows in seconds.
 
 +++
-```{button-link} /OpenEnv/environments/echo/
+```{button-link} environments/echo.html
 :color: primary
 :outline:
 
@@ -31,7 +31,7 @@ Minimal observation/action loop for verifying client integrations, CI pipelines,
 Secure sandbox with filesystem access and evaluation hooks for executing generated code and building autonomous dev workflows.
 
 +++
-```{button-link} /OpenEnv/environments/coding/
+```{button-link} environments/coding.html
 :color: primary
 :outline:
 
@@ -51,7 +51,7 @@ Secure sandbox with filesystem access and evaluation hooks for executing generat
 Message-driven loop tailored for conversational agents that need structured turns, safety rails, and message attribution.
 
 +++
-```{button-link} /OpenEnv/environments/chat/
+```{button-link} environments/chat.html
 :color: primary
 :outline:
 
@@ -71,7 +71,7 @@ Message-driven loop tailored for conversational agents that need structured turn
 Classic Arcade Learning Environment tasks packaged for fast benchmarking of reinforcement-learning style agents.
 
 +++
-```{button-link} /OpenEnv/environments/atari/
+```{button-link} environments/atari.html
 :color: primary
 :outline:
 
@@ -91,7 +91,7 @@ Classic Arcade Learning Environment tasks packaged for fast benchmarking of rein
 Multi-agent, game-theory workloads powered by DeepMind's OpenSpiel suite, ideal for search and self-play experiments.
 
 +++
-```{button-link} /OpenEnv/environments/openspiel/
+```{button-link} environments/openspiel.html
 :color: primary
 :outline:
 
@@ -111,7 +111,7 @@ Multi-agent, game-theory workloads powered by DeepMind's OpenSpiel suite, ideal 
 Traffic control scenarios with SUMO simulators for agents that reason about continuous control and scheduling.
 
 +++
-```{button-link} /OpenEnv/environments/sumo/
+```{button-link} environments/sumo.html
 :color: primary
 :outline:
 
@@ -125,7 +125,7 @@ Traffic control scenarios with SUMO simulators for agents that reason about cont
 Financial market simulations with portfolio APIs, perfect for RLHF strategies and algorithmic trading experiments.
 
 +++
-```{button-link} /OpenEnv/environments/finrl/
+```{button-link} environments/finrl.html
 :color: primary
 :outline:
 
@@ -139,7 +139,7 @@ Financial market simulations with portfolio APIs, perfect for RLHF strategies an
 Multi-task text arena for language-game competitions such as Wordle, reasoning puzzles, and program synthesis.
 
 +++
-```{button-link} /OpenEnv/environments/textarena/
+```{button-link} environments/textarena.html
 :color: primary
 :outline:
 
@@ -159,7 +159,7 @@ Multi-task text arena for language-game competitions such as Wordle, reasoning p
 Teaches agents to navigate repositories, inspect diffs, and land changes via Git-native operations.
 
 +++
-```{button-link} /OpenEnv/environments/git/
+```{button-link} environments/git.html
 :color: primary
 :outline:
 
@@ -173,7 +173,7 @@ Teaches agents to navigate repositories, inspect diffs, and land changes via Git
 Safety-critical diagnostics from the DIPG benchmark, highlighting guardrails, adversarial prompts, and risk scoring.
 
 +++
-```{button-link} /OpenEnv/environments/dipg/
+```{button-link} environments/dipg.html
 :color: primary
 :outline:
 
@@ -193,7 +193,7 @@ Safety-critical diagnostics from the DIPG benchmark, highlighting guardrails, ad
 Classic snake game environment for RL research with configurable grids, partial observability, and customizable rewards.
 
 +++
-```{button-link} /OpenEnv/environments/snake/
+```{button-link} environments/snake.html
 :color: primary
 :outline:
 
@@ -213,7 +213,7 @@ Classic snake game environment for RL research with configurable grids, partial 
 Web search environment for RL research with configurable grids, partial observability, and customizable rewards.
 
 +++
-```{button-link} /OpenEnv/environments/websearch/
+```{button-link} environments/websearch.html
 :color: primary
 :outline:
 
@@ -233,7 +233,7 @@ Web search environment for RL research with configurable grids, partial observab
 Browser automation environment for web agents with DOM interaction, navigation, and multi-step task completion.
 
 +++
-```{button-link} /OpenEnv/environments/browsergym/
+```{button-link} environments/browsergym.html
 :color: primary
 :outline:
 
@@ -279,3 +279,23 @@ A suite of 400 environments that procedurally generate reasoning problems for LM
 ````
 
 `````
+
+```{toctree}
+:hidden:
+:maxdepth: 1
+
+environments/echo
+environments/coding
+environments/chat
+environments/atari
+environments/openspiel
+environments/sumo
+environments/finrl
+environments/textarena
+environments/git
+environments/dipg
+environments/snake
+environments/websearch
+environments/browsergym
+environments/repl
+```

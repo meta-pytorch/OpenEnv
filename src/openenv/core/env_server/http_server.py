@@ -849,8 +849,8 @@ def create_fastapi_app(
         observation_cls: The Observation subclass this environment returns
         max_concurrent_envs: Maximum concurrent WebSocket sessions.
             Mutually exclusive with concurrency_config.
-        concurrency_config: Optional ConcurrencyConfig for advanced concurrency settings.
-            Mutually exclusive with max_concurrent_envs.
+        concurrency_config: Optional ConcurrencyConfig for advanced
+            concurrency settings. Mutually exclusive with max_concurrent_envs.
 
     Returns:
         FastAPI application instance

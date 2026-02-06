@@ -1,2 +1,2 @@
---8<-- "../../envs/openspiel_env/README.md"
-
+```{include} ../../../envs/openspiel_env/README.md
+```

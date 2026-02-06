@@ -36,10 +36,13 @@ def load_environment_metadata(
 
     Args:
         env: The environment instance, class, or factory function.
-             - If a class: used as a factory, won't call instance methods
-             - If a function: used as a factory, won't call instance methods
-             - If an instance: may call get_metadata() if available
         env_name: Optional environment name for README file lookup
+
+    The env parameter can be:
+
+    - If a class: used as a factory, won't call instance methods
+    - If a function: used as a factory, won't call instance methods
+    - If an instance: may call get_metadata() if available
 
     Returns:
         EnvironmentMetadata with loaded information
