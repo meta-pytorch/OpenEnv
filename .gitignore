@@ -127,3 +127,4 @@ log_outputs/*
 
 # .sesskey
 *.sesskey
+site/

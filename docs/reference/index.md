@@ -5,8 +5,6 @@ Complete reference documentation for OpenEnv APIs, CLI, and configuration.
 ## Python API
 
 - [**Core API**](core.md) - Core client and environment classes
-- [**Client Types**](client-types.md) - `EnvClient`, `StepResult`, and related types
-- [**Server Types**](server-types.md) - `Environment`, `Action`, `Observation` and server-side types
 
 ## Command Line Interface
 
@@ -14,5 +12,5 @@ Complete reference documentation for OpenEnv APIs, CLI, and configuration.
 
 ## Configuration
 
-- [**openenv.yaml**](openenv-yaml.md) - Environment manifest file format
-- [**Environment Variables**](env-vars.md) - Configuration via environment variables
+!!! note "Coming Soon"
+    Additional reference documentation for `openenv.yaml` manifest format and environment variables is in development.

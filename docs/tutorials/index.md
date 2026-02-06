@@ -38,7 +38,7 @@ Build on the basics with more complex examples.
 
     Train a Blackjack agent using GRPO. A complete example of reward design and training loops.
 
-    [:octicons-arrow-right-24: Start tutorial](blackjack.md)
+    *Coming soon*
 
 </div>
 
@@ -54,7 +54,7 @@ Deep dives for experienced users.
 
     Build and train a chess-playing agent with curriculum learning.
 
-    [:octicons-arrow-right-24: Coming soon](chess-training.md)
+    *Coming soon*
 
 -   :material-web:{ .lg .middle } **Web Agents with BrowserGym**
 
@@ -62,7 +62,7 @@ Deep dives for experienced users.
 
     Create agents that navigate and interact with websites.
 
-    [:octicons-arrow-right-24: Coming soon](web-agents.md)
+    *Coming soon*
 
 </div>
 
