@@ -1,0 +1,1 @@
+{include} ../auto-discovery.md
