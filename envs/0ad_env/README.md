@@ -21,7 +21,7 @@ Note: This repository contains the integration layer and documentation. A local 
 
 ## Demo video
 
-Video demo of agent thinking: [https://www.youtube.com/watch?v=qCLUHdn229w&feature=youtu.be](https://www.youtube.com/watch?v=qCLUHdn229w&feature=youtu.be)
+[Video demo of agent thinking](https://www.youtube.com/watch?v=qCLUHdn229w&feature=youtu.be)
 
 ## Getting Started: Gemini agent test
 
