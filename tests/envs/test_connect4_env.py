@@ -12,7 +12,6 @@ For comprehensive Connect4 tests, see test_websockets.py::TestConnect4Environmen
 
 import os
 import sys
-from pathlib import Path
 
 import pytest
 
@@ -22,7 +21,6 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../.
 from envs.connect4_env import (
     Connect4Action,
     Connect4Observation,
-    Connect4State,
     Connect4Env,
 )
 import subprocess
@@ -94,7 +92,7 @@ class TestConnect4(unittest.TestCase):
         assert (
             len(observation.legal_actions) == 7
         )  # All columns should be legal at start
-        assert observation.done == False
+        assert not observation.done
         assert observation.reward == 0.0
 
         if isinstance(observation.legal_actions, float):

@@ -90,6 +90,7 @@ class EnvClient(ABC, Generic[ActT, ObsT, StateT]):
         connect_timeout_s: float = 10.0,
         message_timeout_s: float = 60.0,
         provider: Optional["ContainerProvider | RuntimeProvider"] = None,
+        mode: Optional[str] = None,
     ):
         """
         Initialize environment client.
@@ -101,7 +102,26 @@ class EnvClient(ABC, Generic[ActT, ObsT, StateT]):
             message_timeout_s: Timeout for receiving responses to messages
             provider: Optional container/runtime provider for lifecycle management.
                      Can be a ContainerProvider (Docker) or RuntimeProvider (UV).
+            mode: Communication mode: 'simulation' for Gym-style API (default) or
+                 'production' for MCP JSON-RPC protocol. Can also be set via the
+                 OPENENV_CLIENT_MODE environment variable. Constructor parameter
+                 takes precedence over environment variable. Case-insensitive.
         """
+        # Determine mode (constructor > env var > default)
+        if mode is None:
+            mode = os.environ.get("OPENENV_CLIENT_MODE", "simulation")
+
+        # Normalize and validate mode
+        mode = mode.lower()
+        if mode not in ("simulation", "production"):
+            raise ValueError(
+                f"Invalid mode: '{mode}'. Must be 'simulation' or 'production'. "
+                f"Set via constructor parameter or OPENENV_CLIENT_MODE environment variable."
+            )
+
+        # Store mode (use object.__setattr__ to bypass immutability)
+        object.__setattr__(self, "_mode", mode)
+
         # Convert HTTP URL to WebSocket URL
         ws_url = convert_to_ws_url(base_url)
 
@@ -110,6 +130,12 @@ class EnvClient(ABC, Generic[ActT, ObsT, StateT]):
         self._message_timeout = message_timeout_s
         self._provider = provider
         self._ws: Optional[ClientConnection] = None
+
+    def __setattr__(self, name: str, value: Any) -> None:
+        """Prevent modification of _mode after initialization."""
+        if name == "_mode" and hasattr(self, "_mode"):
+            raise AttributeError("Cannot modify mode after initialization")
+        super().__setattr__(name, value)
 
     async def connect(self) -> "EnvClient":
         """

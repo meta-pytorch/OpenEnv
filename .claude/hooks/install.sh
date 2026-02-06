@@ -120,6 +120,32 @@ echo "Running pre-push checks..."
 REPO_ROOT="$(git rev-parse --show-toplevel)"
 FAILED=0
 
+# 0. BLOCK PUSHES TO MAIN/MASTER (most critical check)
+echo ""
+echo "=== Protected Branch Check ==="
+# Read the remote and refs being pushed from stdin
+while read local_ref local_sha remote_ref remote_sha; do
+    # Extract branch name from remote ref (refs/heads/main -> main)
+    remote_branch="${remote_ref#refs/heads/}"
+
+    if [ "$remote_branch" = "main" ] || [ "$remote_branch" = "master" ]; then
+        echo "ERROR: Direct push to '$remote_branch' is blocked!"
+        echo ""
+        echo "  You are trying to push to a protected branch."
+        echo "  Create a PR instead:"
+        echo ""
+        echo "    # Push to a feature branch"
+        echo "    git push -u origin HEAD:feature/your-branch-name"
+        echo ""
+        echo "    # Then create a PR"
+        echo "    gh pr create"
+        echo ""
+        echo "  To bypass (not recommended): git push --no-verify"
+        exit 1
+    fi
+done
+echo "Not pushing to protected branch - OK"
+
 # 1. Format check
 echo ""
 echo "=== Format Check ==="
@@ -169,12 +195,32 @@ else
     echo "Client-server separation maintained"
 fi
 
-# 6. Check for conflicts with main (warning only, non-blocking)
+# 6. Check branch freshness with main (warning only, non-blocking)
 echo ""
-echo "=== Conflict Check with main ==="
+echo "=== Branch Freshness Check ==="
 # Fetch latest main silently
 git fetch origin main --quiet 2>/dev/null || true
 
+# Check how many commits behind main we are
+BEHIND_COUNT=$(git rev-list --count HEAD..origin/main 2>/dev/null || echo "0")
+if [ "$BEHIND_COUNT" -gt 0 ]; then
+    echo "WARNING: Your branch is $BEHIND_COUNT commit(s) behind main!"
+    echo ""
+    echo "  GitHub will show 'This branch is out-of-date with the base branch'"
+    echo ""
+    echo "  To update before pushing:"
+    echo "    git fetch origin main"
+    echo "    git merge origin/main"
+    echo "    git push"
+    echo ""
+    echo "  Pushing anyway (update before merging PR)"
+else
+    echo "Branch is up to date with main"
+fi
+
+# 7. Check for conflicts with main (warning only, non-blocking)
+echo ""
+echo "=== Conflict Check with main ==="
 # Try a test merge to detect conflicts (then abort)
 MERGE_OUTPUT=$(git merge --no-commit --no-ff origin/main 2>&1) || true
 MERGE_EXIT=$?

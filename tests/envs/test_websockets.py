@@ -19,16 +19,12 @@ Run with: pytest tests/envs/test_websockets.py -v
 Run specific category: pytest tests/envs/test_websockets.py -v -k "smoke"
 """
 
-import asyncio
-import json
 import os
-import signal
 import subprocess
 import sys
 import time
 from contextlib import contextmanager
-from typing import Generator, Tuple, Type, Callable
-from unittest.mock import patch
+from typing import Generator
 
 import pytest
 import requests

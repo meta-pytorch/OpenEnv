@@ -19,7 +19,6 @@ Tests cover:
 8. AutoAction with skip_install parameter
 """
 
-import asyncio
 from unittest.mock import Mock, patch, MagicMock, AsyncMock
 
 import pytest
@@ -320,7 +319,7 @@ class TestAutoEnvSkipInstall:
                 side_effect=mock_from_env_async,
             ) as mock_from_env,
         ):
-            client = AutoEnv.from_env(
+            AutoEnv.from_env(
                 "user/my-env",
                 skip_install=True,
             )

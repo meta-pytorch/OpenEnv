@@ -21,6 +21,9 @@ from .types import (
     State,
     SchemaResponse,
     HealthResponse,
+    HealthStatus,
+    ServerMode,
+    WSErrorCode,
     BaseMessage,
     WSIncomingMessage,
     WSResetMessage,
@@ -54,6 +57,12 @@ from .mcp_types import (
     WSMCPMessage,
     WSMCPResponse,
     RESERVED_TOOL_NAMES,
+    # JSON-RPC types
+    JsonRpcErrorCode,
+    JsonRpcError,
+    JsonRpcRequest,
+    JsonRpcResponse,
+    McpMethod,
 )
 from .mcp_environment import MCPEnvironment
 
@@ -69,6 +78,10 @@ __all__ = [
     "State",
     "SchemaResponse",
     "HealthResponse",
+    # Enums
+    "HealthStatus",
+    "ServerMode",
+    "WSErrorCode",
     # WebSocket message types
     "BaseMessage",
     "WSIncomingMessage",
@@ -118,4 +131,10 @@ __all__ = [
     "WSMCPResponse",
     "RESERVED_TOOL_NAMES",
     "MCPEnvironment",
+    # JSON-RPC types
+    "JsonRpcErrorCode",
+    "JsonRpcError",
+    "JsonRpcRequest",
+    "JsonRpcResponse",
+    "McpMethod",
 ]
