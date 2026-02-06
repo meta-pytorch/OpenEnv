@@ -48,15 +48,6 @@ sphinx_gallery_conf = {
     "within_subsection_order": FileNameSortKey,
     "default_thumb_file": None,
     "nested_sections": False,
-    # Add Colab link configuration
-    "binder": {
-        "org": "meta-pytorch",
-        "repo": "OpenEnv",
-        "branch": "main",
-        "binderhub_url": "https://colab.research.google.com",
-        "dependencies": "./binder/requirements.txt",
-        "notebooks_dir": "docs/source",
-    },
 }
 
 exclude_patterns = []

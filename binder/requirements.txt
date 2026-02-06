@@ -1,6 +1,0 @@
-# Requirements for running OpenEnv notebooks in Google Colab
-openenv-core
-fastapi
-uvicorn
-requests
-pydantic
