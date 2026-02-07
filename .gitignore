@@ -27,6 +27,7 @@ share/python-wheels/
 *.egg
 MANIFEST
 .worktrees/
+.tdd-session.json
 
 # PyInstaller
 *.manifest
