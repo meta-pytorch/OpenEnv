@@ -46,6 +46,11 @@ Comprehensive validation before submitting a pull request. Run this before creat
    - List all discussion points for reviewers
    - Provide overall verdict
 
+7. **After push/PR creation**, run the post-push check:
+   - `bash .claude/hooks/post-push-pr.sh`
+   - Verifies: PR is open, no merge conflicts, branch freshness,
+     PR description quality, CI check status
+
 ## Output Format
 
 ```

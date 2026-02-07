@@ -178,6 +178,7 @@ rfcs/
     ├── lint.sh                   # Run ruff format check
     ├── test.sh                   # Run pytest
     ├── check-debug.sh            # Find debug code
+    ├── post-push-pr.sh           # Validate PR after push (freshness, CI, conflicts)
     ├── tdd-state.sh              # Shared TDD state helpers (is_tdd_active, activate, deactivate)
     ├── tdd-deactivate.sh         # Standalone TDD deactivation script
     ├── install.sh                # Install git hooks (pre-commit, pre-push, etc.)
