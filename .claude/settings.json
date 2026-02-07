@@ -22,6 +22,10 @@
           {
             "type": "command",
             "command": ".claude/hooks/pre-commit-check.sh"
+          },
+          {
+            "type": "command",
+            "command": ".claude/hooks/pre-pr-check.sh"
           }
         ]
       },

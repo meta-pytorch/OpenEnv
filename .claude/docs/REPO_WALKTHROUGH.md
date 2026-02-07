@@ -185,6 +185,7 @@ rfcs/
     ├── session-start.sh          # SessionStart banner (3-state: TDD/worktree/explore)
     ├── no-direct-code.sh         # PreToolUse: block direct edits when TDD active
     ├── pre-commit-check.sh       # PreToolUse: warn on git commit in TDD mode
+    ├── pre-pr-check.sh           # PreToolUse: block gh pr create if branch stale
     ├── delegate-todos.sh         # PostToolUse: TDD workflow reminder on TodoWrite
     ├── after-tester.sh           # SubagentStop: next steps after tester
     ├── after-implementer.sh      # SubagentStop: next steps after implementer
