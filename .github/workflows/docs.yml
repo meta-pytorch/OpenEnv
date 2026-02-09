@@ -34,6 +34,7 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -e .
+          pip install -e ./envs/openspiel_env
           pip install -r docs/requirements.txt
 
       - name: Setup Pages

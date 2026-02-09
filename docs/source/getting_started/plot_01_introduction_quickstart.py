@@ -356,7 +356,7 @@ try:
     print("✓ OpenEnv imports successful!")
     print(f"  - OpenSpielEnv: {OpenSpielEnv}")
     print(f"  - OpenSpielAction: {OpenSpielAction}")
-except ImportError as e:
+except (ImportError, ValueError) as e:
     OPENENV_AVAILABLE = False
     print(f"✗ OpenEnv not fully installed: {e}")
     print("  Run: pip install openenv-core openenv-openspiel-env")
