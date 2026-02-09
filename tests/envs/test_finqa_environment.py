@@ -1,25 +1,70 @@
 r"""
-Test cases for FinQA reward matching with various formats and tolerances.
+Tests for the FinQA environment.
 
-Tests cover:
+Reward matching tests (no data required) cover:
 1. LaTeX escaped percentages (\%)
 2. Decimal precision matching within tolerance
 3. Ratios and small numbers
 4. Regular numbers and edge cases
+
+Integration tests (require data) cover:
+- Tool implementations (get_descriptions, get_table_info, sql_query)
+- Environment logic (reset, step, state)
+
+Run from OpenEnv repo root:
+    python -m pytest tests/envs/test_finqa_environment.py -v
 """
 
-import pytest
+import os
 import sys
 from pathlib import Path
 
-# Add src to path
-sys.path.insert(0, str(Path(__file__).parent.parent.parent / "src"))
+import pytest
+
+# Add repo root to path so envs/ is importable
+sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from envs.finqa_env.server.rewards import compute_reward, parse_number, extract_boxed_answer
 
-# finqa labels exist in "\boxed{...}" format, e.g. "\boxed{6.280\%}", are tests are centered around this format as the labels
+
+# ---------------------------------------------------------------------------
+# Reward matching tests (no data dependency)
+# ---------------------------------------------------------------------------
+
 # Reward matching uses AND logic: both relative tolerance (1%) AND absolute difference (1.0) must pass
 
+
+class TestRewards:
+    """Test reward computation logic."""
+
+    def test_exact_match(self):
+        assert compute_reward("6.118", "6.118") == 1.0
+
+    def test_boxed_format(self):
+        assert compute_reward("6.118", r"\boxed{6.118}") == 1.0
+        assert compute_reward(r"\boxed{6.118}", "6.118") == 1.0
+
+    def test_tolerance(self):
+        # Within 1% tolerance
+        assert compute_reward("6.12", "6.118") == 1.0
+        assert compute_reward("6.1", "6.118") == 1.0
+
+    def test_incorrect(self):
+        assert compute_reward("5.0", "6.118") == 0.0
+        assert compute_reward("100", "6.118") == 0.0
+
+    def test_parse_number(self):
+        assert parse_number("6.118") == 6.118
+        assert parse_number("1,234.56") == 1234.56
+        assert parse_number("20%") == 0.2
+        assert parse_number("1/2") == 0.5
+
+    def test_extract_boxed(self):
+        assert extract_boxed_answer(r"\boxed{6.118}") == "6.118"
+        assert extract_boxed_answer("no boxed here") is None
+
+
+# finqa labels exist in "\boxed{...}" format, e.g. "\boxed{6.280\%}", so tests below are centered around this format
 class TestLatexPercentages:
     """Test LaTeX escaped percentage signs in ground truth."""
 
@@ -393,5 +438,120 @@ class TestPercentagePointsNotation:
         ) == 1.0
 
 
+# ---------------------------------------------------------------------------
+# Integration tests (require downloaded data)
+# ---------------------------------------------------------------------------
+
+# Data path relative to repo root
+DATA_PATH = str(Path(__file__).parent.parent.parent / "envs" / "finqa_env" / "data")
+
+_data_available = os.path.isfile(os.path.join(DATA_PATH, "benchmark_questions", "finqa.csv"))
+
+
+@pytest.mark.skipif(not _data_available, reason="FinQA data not downloaded. Run: cd envs/finqa_env && ./download_data.sh")
+class TestTools:
+    """Test tool implementations."""
+
+    @pytest.fixture
+    def tools(self):
+        from envs.finqa_env.server.tools import FinQATools
+        return FinQATools(DATA_PATH)
+
+    def test_get_available_companies(self, tools):
+        companies = tools.get_available_companies()
+        assert len(companies) > 0
+        assert "alphabet" in companies
+
+    def test_get_descriptions(self, tools):
+        result = tools.get_descriptions("alphabet")
+        assert "Error" not in result
+        assert "us_gaap_" in result  # Should contain GAAP table names
+
+    def test_get_descriptions_invalid_company(self, tools):
+        result = tools.get_descriptions("nonexistent_company")
+        assert "Error" in result
+
+    def test_get_table_info(self, tools):
+        result = tools.get_table_info(
+            "alphabet",
+            "us_gaap_ScheduleOfIncomeBeforeIncomeTaxDomesticAndForeignTableTextBlock"
+        )
+        assert "Error" not in result
+        assert "column_dtypes" in result
+
+    def test_sql_query_no_filter(self, tools):
+        result = tools.sql_query("alphabet", "some_table", "SELECT * FROM some_table")
+        assert "Error" in result
+
+
+@pytest.mark.skipif(not _data_available, reason="FinQA data not downloaded. Run: cd envs/finqa_env && ./download_data.sh")
+class TestEnvironment:
+    """Test environment logic."""
+
+    @pytest.fixture
+    def env(self):
+        from envs.finqa_env.models import FinQAAction, FinQAObservation, FinQAState, AVAILABLE_TOOLS
+        from envs.finqa_env.server.finqa_environment import FinQAEnvironment
+        return FinQAEnvironment(data_path=DATA_PATH, max_steps=10)
+
+    def test_reset(self, env):
+        from envs.finqa_env.models import FinQAObservation
+        obs = env.reset()
+        assert isinstance(obs, FinQAObservation)
+        assert obs.question != ""
+        assert obs.company != ""
+        assert obs.step_count == 0
+        assert obs.done is False
+        assert obs.reward is None
+
+    def test_step_get_descriptions(self, env):
+        from envs.finqa_env.models import FinQAAction
+        obs = env.reset()
+        action = FinQAAction(
+            tool_name="get_descriptions",
+            tool_args={"company_name": obs.company}
+        )
+        obs = env.step(action)
+        assert obs.step_count == 1
+        assert obs.tool_result != ""
+        assert "Error" not in obs.tool_result or "not found" in obs.tool_result.lower()
+
+    def test_step_submit_answer(self, env):
+        from envs.finqa_env.models import FinQAAction
+        env.reset()
+        action = FinQAAction(
+            tool_name="submit_answer",
+            tool_args={"answer": "6.118"}
+        )
+        obs = env.step(action)
+        assert obs.done is True
+        assert obs.reward is not None
+        assert obs.reward in [0.0, 1.0]
+
+    def test_max_steps_termination(self, env):
+        from envs.finqa_env.models import FinQAAction
+        env.reset()
+        for _ in range(10):
+            action = FinQAAction(
+                tool_name="get_descriptions",
+                tool_args={"company_name": "test"}
+            )
+            obs = env.step(action)
+            if obs.done:
+                break
+
+        assert obs.done is True
+        assert obs.reward == 0.0  # No answer submitted
+
+    def test_state_property(self, env):
+        from envs.finqa_env.models import FinQAState
+        env.reset()
+        state = env.state
+        assert isinstance(state, FinQAState)
+        assert state.episode_id is not None
+        assert state.current_question is not None
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
+
