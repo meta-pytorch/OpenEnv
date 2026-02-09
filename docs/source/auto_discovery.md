@@ -1,1 +1,2 @@
-{include} ../auto-discovery.md
+```{include} ../auto-discovery.md
+```

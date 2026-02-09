@@ -153,7 +153,11 @@ What You'll Learn
 #
 # .. code-block:: python
 #
-#     from envs.openspiel_env import OpenSpielEnv, OpenSpielAction
+#     from openenv import AutoEnv, AutoAction
+#
+#     # Load environment and action classes via auto-discovery
+#     OpenSpielEnv = AutoEnv.get_env_class("openspiel")
+#     OpenSpielAction = AutoAction.from_env("openspiel")
 #
 #     # Connect to containerized environment
 #     with OpenSpielEnv(base_url="http://localhost:8000") as env:
@@ -333,10 +337,20 @@ print("Ready to explore OpenEnv!")
 #
 # First, let's import the OpenSpiel environment client and models:
 
-# Real imports from OpenEnv
+# Real imports from OpenEnv using the AutoEnv API
 try:
-    from envs.openspiel_env import OpenSpielEnv, OpenSpielAction
-    from envs.openspiel_env.models import OpenSpielObservation, OpenSpielState
+    from openenv import AutoEnv, AutoAction
+
+    # Get environment and action classes via auto-discovery
+    OpenSpielEnv = AutoEnv.get_env_class("openspiel")
+    OpenSpielAction = AutoAction.from_env("openspiel")
+
+    # Get observation/state models from the environment's module
+    env_info = AutoEnv.get_env_info("openspiel")
+    import importlib
+    models_module = importlib.import_module(env_info["module"].rsplit(".", 1)[0] + ".models")
+    OpenSpielObservation = getattr(models_module, "OpenSpielObservation")
+    OpenSpielState = getattr(models_module, "OpenSpielState")
 
     OPENENV_AVAILABLE = True
     print("✓ OpenEnv imports successful!")
@@ -345,7 +359,7 @@ try:
 except ImportError as e:
     OPENENV_AVAILABLE = False
     print(f"✗ OpenEnv not fully installed: {e}")
-    print("  Run: pip install openenv-core")
+    print("  Run: pip install openenv-core openenv-openspiel-env")
 
 # %%
 # Connecting to an Environment
@@ -561,8 +575,7 @@ print("\n📦 OpenSpielObservation (returned in StepResult)")
 print("-" * 50)
 
 if OPENENV_AVAILABLE:
-    from envs.openspiel_env.models import OpenSpielObservation
-
+    # OpenSpielObservation was already imported above via auto-discovery
     # Create a sample observation like what Catch game returns
     sample_observation = OpenSpielObservation(
         info_state=[0.0, 0.0, 1.0, 0.0, 0.0] + [0.0] * 45,  # Ball at col 2, row 0
@@ -609,8 +622,7 @@ print("\n📊 OpenSpielState (returned by state())")
 print("-" * 50)
 
 if OPENENV_AVAILABLE:
-    from envs.openspiel_env.models import OpenSpielState
-
+    # OpenSpielState was already imported above via auto-discovery
     sample_state = OpenSpielState(
         game_name="catch",
         agent_player=0,
@@ -652,8 +664,7 @@ print("\n🎮 OpenSpielAction (what you send to step())")
 print("-" * 50)
 
 if OPENENV_AVAILABLE:
-    from envs.openspiel_env.models import OpenSpielAction
-
+    # OpenSpielAction was already imported above via auto-discovery
     sample_action = OpenSpielAction(
         action_id=1,  # STAY
         game_name="catch",
@@ -696,7 +707,8 @@ print("=" * 70)
 #     ┌─────────────────────────────────────────────────────────────┐
 #     │  YOUR CODE                                                  │
 #     │                                                             │
-#     │  from envs.openspiel_env import OpenSpielEnv                │
+#     │  from openenv import AutoEnv                                │
+#     │  OpenSpielEnv = AutoEnv.get_env_class("openspiel")          │
 #     │  env = OpenSpielEnv(base_url="http://localhost:8000")       │
 #     │  result = env.reset()      # Sends WebSocket message        │
 #     │  result = env.step(action) # Sends WebSocket message        │
