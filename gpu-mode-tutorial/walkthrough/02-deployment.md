@@ -28,7 +28,13 @@ When you deploy to HF Spaces, your environment runs as a server. The client conn
 from echo_env import EchoEnv, EchoAction
 
 # Connect directly to the running Space (WebSocket under the hood)
-with EchoEnv(base_url="https://openenv-echo-env.hf.space") as client:
+# Async (recommended):
+async with EchoEnv(base_url="https://openenv-echo-env.hf.space") as client:
+    result = await client.reset()
+    result = await client.step(EchoAction(message="Hello"))
+
+# Sync (using .sync() wrapper):
+with EchoEnv(base_url="https://openenv-echo-env.hf.space").sync() as client:
     result = client.reset()
     result = client.step(EchoAction(message="Hello"))
 ```
@@ -106,23 +112,28 @@ docker run -d -p 8001:8000 registry.hf.space/openenv-echo-env:latest
 **Typical workflow:**
 
 ```python
+import asyncio
 from echo_env import EchoEnv, EchoAction
 
-# Development: connect to remote Space
-with EchoEnv(base_url="https://openenv-echo-env.hf.space") as client:
-    result = client.reset()
+async def main():
+    # Development: connect to remote Space
+    async with EchoEnv(base_url="https://openenv-echo-env.hf.space") as client:
+        result = await client.reset()
 
-# Production: run locally for speed
-# docker run -d -p 8001:8000 registry.hf.space/openenv-echo-env:latest
-with EchoEnv(base_url="http://localhost:8001") as client:
-    result = client.reset()
+    # Production: run locally for speed
+    # docker run -d -p 8001:8000 registry.hf.space/openenv-echo-env:latest
+    async with EchoEnv(base_url="http://localhost:8001") as client:
+        result = await client.reset()
 
-# Or let the client manage Docker for you
-with EchoEnv.from_hub("openenv/echo-env") as client:  # Auto-pulls and runs
-    result = client.reset()
+    # Or let the client manage Docker for you
+    client = await EchoEnv.from_env("openenv/echo-env")  # Auto-pulls and runs
+    async with client:
+        result = await client.reset()
 
-# No Docker? Run locally with UV
-with EchoEnv.from_hub("openenv/echo-env", use_docker=False) as client:
+asyncio.run(main())
+
+# For sync usage, use the .sync() wrapper:
+with EchoEnv(base_url="http://localhost:8001").sync() as client:
     result = client.reset()
 ```
 
@@ -213,19 +224,26 @@ docker run -d --name my-env -p 8000:8000 my-env:latest
 ### Connect from Python
 
 ```python
+import asyncio
 from echo_env import EchoEnv, EchoAction
 
-with EchoEnv(base_url="http://localhost:8000") as client:
-    result = client.reset()
-    result = client.step(EchoAction(message="Hello"))
-    print(result.observation)
+async def main():
+    # Async usage (recommended)
+    async with EchoEnv(base_url="http://localhost:8000") as client:
+        result = await client.reset()
+        result = await client.step(EchoAction(message="Hello"))
+        print(result.observation)
 
-with MyEnv.from_hub("openenv/echo-env") as client:
-    result = client.reset()
-    result = client.step(EchoAction(message="Hello"))
-    print(result.observation)
+    # From Docker image
+    client = await EchoEnv.from_docker_image("<local_docker_image>")
+    async with client:
+        result = await client.reset()
+        print(result.observation)
 
-with EchoEnv.from_docker_image("<local_docker_image>") as client:
+asyncio.run(main())
+
+# Sync usage (using .sync() wrapper)
+with EchoEnv(base_url="http://localhost:8000").sync() as client:
     result = client.reset()
     result = client.step(EchoAction(message="Hello"))
     print(result.observation)
@@ -387,9 +405,21 @@ docker run -it -p 7860:7860 --platform=linux/amd64 \
 Now connect to your local instance:
 
 ```python
+import asyncio
 from echo_env import EchoEnv, EchoAction
 
-with EchoEnv(base_url="http://localhost:8000") as env:
+# Async (recommended)
+async def main():
+    async with EchoEnv(base_url="http://localhost:8000") as env:
+        result = await env.reset()
+        print(result.observation)
+        result = await env.step(EchoAction(message="Hello"))
+        print(result.observation)
+
+asyncio.run(main())
+
+# Sync (using .sync() wrapper)
+with EchoEnv(base_url="http://localhost:8000").sync() as env:
     result = env.reset()
     print(result.observation)
     result = env.step(EchoAction(message="Hello"))

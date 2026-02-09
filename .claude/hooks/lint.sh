@@ -1,6 +1,6 @@
 #!/bin/bash
 # Lint check for OpenEnv
-# Runs ruff format check on src/ and tests/
+# Runs ruff format check and ruff check (linting rules) on src/ and tests/
 
 set -e
 
@@ -11,7 +11,10 @@ if ! command -v uv &> /dev/null; then
     exit 1
 fi
 
-echo "=== Running lint check ==="
+echo "=== Running format check ==="
 uv run ruff format src/ tests/ --check
+
+echo "=== Running lint rules check ==="
+uv run ruff check src/ tests/
 
 echo "=== Lint check passed ==="

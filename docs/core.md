@@ -20,6 +20,10 @@ The `openenv.core` package provides the core abstractions for building and runni
 
 ::: openenv.core.env_client
 
+### Synchronous client wrapper
+
+::: openenv.core.sync_client
+
 ### Shared dataclasses
 
 ::: openenv.core.client_types

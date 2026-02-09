@@ -431,13 +431,15 @@ uv run --project . server
 
 ### Using Docker
 ```bash
+# From the repl_env directory
+cd envs/repl_env
 docker build -t repl-env:latest -f server/Dockerfile .
 docker run -p 8000:8000 repl-env:latest
 ```
 
 ### Testing
 ```bash
-pytest tests/
+pytest tests/envs/test_repl_env.py
 ```
 
 ## References

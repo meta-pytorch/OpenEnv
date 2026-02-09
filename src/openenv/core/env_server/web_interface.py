@@ -327,7 +327,7 @@ def create_web_interface_app(
     Returns:
         FastAPI application instance with web interface
     """
-    from .http_server import ConcurrencyConfig, create_fastapi_app
+    from .http_server import create_fastapi_app
 
     # Create the base environment app
     app = create_fastapi_app(

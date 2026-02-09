@@ -20,28 +20,26 @@ Both classes work with:
 Instead of manually importing specific environment classes:
 
 ```python
-# Old way
-from envs.coding_env import CodingEnv, CodeAction
-env = CodingEnv.from_docker_image("coding-env:latest")
+# Old way - requires knowing the module path
+from coding_env import CodingEnv, CodeAction
 ```
 
 You can now use the auto-discovery API:
 
 ```python
-# New way
 from openenv import AutoEnv, AutoAction
 
-# Create environment
+# Create environment (returns async client)
 env = AutoEnv.from_env("coding-env")
 
 # Get action class
 CodeAction = AutoAction.from_env("coding-env")
 
-# Use them together
-result = env.reset()
-action = CodeAction(code="print('Hello, OpenEnv!')")
-step_result = env.step(action)
-env.close()
+# Use with sync wrapper for simple scripts
+with env.sync() as client:
+    result = client.reset()
+    action = CodeAction(code="print('Hello, OpenEnv!')")
+    step_result = client.step(action)
 ```
 
 ## AutoEnv API
@@ -211,13 +209,12 @@ env = AutoEnv.from_env("username/coding-env-test")
 # Get action class
 CodeAction = AutoAction.from_env("username/coding-env-test")
 
-# Use normally
-result = env.reset()
-action = CodeAction(code="print('Hello from HF Space!')")
-step_result = env.step(action)
-
-print(f"Output: {step_result.observation.stdout}")
-env.close()
+# Use with sync wrapper
+with env.sync() as client:
+    result = client.reset()
+    action = CodeAction(code="print('Hello from HF Space!')")
+    step_result = client.step(action)
+    print(f"Output: {step_result.observation.stdout}")
 ```
 
 The system automatically:
@@ -282,18 +279,18 @@ from openenv import AutoEnv, AutoAction
 print("Available environments:")
 AutoEnv.list_environments()
 
-# 2. Create environment
+# 2. Create environment and get action class
 env = AutoEnv.from_env("coding-env")
-
-# 3. Get action class
 CodeAction = AutoAction.from_env("coding-env")
 
-# 4. Run environment
-result = env.reset()
-print(f"Environment ready: {result.observation}")
+# 3. Use with sync wrapper for simple scripts
+with env.sync() as client:
+    # Reset environment
+    result = client.reset()
+    print(f"Environment ready: {result.observation}")
 
-# 5. Execute actions
-action = CodeAction(code="""
+    # Execute actions
+    action = CodeAction(code="""
 def fibonacci(n):
     if n <= 1:
         return n
@@ -302,11 +299,23 @@ def fibonacci(n):
 print(f"Fibonacci(10) = {fibonacci(10)}")
 """)
 
-step_result = env.step(action)
-print(f"Output:\n{step_result.observation.stdout}")
+    step_result = client.step(action)
+    print(f"Output:\n{step_result.observation.stdout}")
+```
 
-# 6. Clean up
-env.close()
+For async usage (recommended for production):
+
+```python
+import asyncio
+from coding_env import CodingEnv, CodeAction
+
+async def main():
+    async with CodingEnv(base_url="http://localhost:8000") as client:
+        result = await client.reset()
+        result = await client.step(CodeAction(code="print('async!')"))
+        print(result.observation.stdout)
+
+asyncio.run(main())
 ```
 
 ## Error Handling

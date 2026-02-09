@@ -26,7 +26,7 @@ import re
 import tempfile
 from dataclasses import dataclass, asdict
 from pathlib import Path
-from typing import Dict, List, Optional, Type, Any
+from typing import Dict, Optional, Type, Any
 
 import yaml
 
