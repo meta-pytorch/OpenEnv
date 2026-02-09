@@ -337,29 +337,21 @@ print("Ready to explore OpenEnv!")
 #
 # First, let's import the OpenSpiel environment client and models:
 
-# Real imports from OpenEnv using the AutoEnv API
+# Real imports from OpenEnv
 try:
-    from openenv import AutoEnv, AutoAction
-
-    # Get environment and action classes via auto-discovery
-    OpenSpielEnv = AutoEnv.get_env_class("openspiel")
-    OpenSpielAction = AutoAction.from_env("openspiel")
-
-    # Get observation/state models from the environment's module
-    env_info = AutoEnv.get_env_info("openspiel")
-    import importlib
-    models_module = importlib.import_module(env_info["module"].rsplit(".", 1)[0] + ".models")
-    OpenSpielObservation = getattr(models_module, "OpenSpielObservation")
-    OpenSpielState = getattr(models_module, "OpenSpielState")
+    # Direct imports from the openspiel_env package
+    from openspiel_env.client import OpenSpielEnv
+    from openspiel_env.models import OpenSpielAction, OpenSpielObservation, OpenSpielState
 
     OPENENV_AVAILABLE = True
     print("✓ OpenEnv imports successful!")
     print(f"  - OpenSpielEnv: {OpenSpielEnv}")
     print(f"  - OpenSpielAction: {OpenSpielAction}")
-except (ImportError, ValueError) as e:
+except ImportError as e:
     OPENENV_AVAILABLE = False
     print(f"✗ OpenEnv not fully installed: {e}")
-    print("  Run: pip install openenv-core openenv-openspiel-env")
+    print("  Run: pip install openenv-core")
+    print("  And: pip install -e ./envs/openspiel_env")
 
 # %%
 # Connecting to an Environment

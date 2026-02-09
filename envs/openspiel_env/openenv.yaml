@@ -4,19 +4,3 @@ type: space
 runtime: fastapi
 app: server.app:app
 port: 8000
-
-client:
-  class_name: OpenSpielEnv
-  module: openspiel_env.client
-
-action:
-  class_name: OpenSpielAction
-  module: openspiel_env.models
-
-observation:
-  class_name: OpenSpielObservation
-  module: openspiel_env.models
-
-default_image: openspiel-env:latest
-description: OpenSpiel Environment for OpenEnv - integration with DeepMind's game research framework
-version: 0.1.0
