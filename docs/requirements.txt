@@ -9,3 +9,4 @@ sphinxext-opengraph
 sphinx-sitemap==2.7.1
 sphinx-gallery>=0.14.0
 matplotlib
+openenv-core #quicktest

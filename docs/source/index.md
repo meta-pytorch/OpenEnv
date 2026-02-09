@@ -95,6 +95,7 @@ OpenEnv is currently in an experimental stage. You should expect bugs, incomplet
 auto_getting_started/index
 tutorials/index
 environment-builder
+environments
 ```
 
 ```{toctree}
@@ -103,6 +104,6 @@ environment-builder
 :hidden:
 
 cli
+auto_discovery
 core
-environments
 ```
