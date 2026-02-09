@@ -20,6 +20,16 @@ What You'll Learn
 """
 
 # %%
+# Setup: Enable nested async event loops
+# --------------------------------------
+#
+# This is needed when running in environments like Sphinx-Gallery or Jupyter
+# that already have an event loop running.
+
+import nest_asyncio
+nest_asyncio.apply()
+
+# %%
 # What is OpenEnv?
 # ----------------
 #

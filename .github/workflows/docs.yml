@@ -21,6 +21,17 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-latest
+    services:
+      openspiel:
+        image: ghcr.io/meta-pytorch/openenv-openspiel-env:latest
+        ports:
+          - 8000:8000
+        options: >-
+          --health-cmd "curl -f http://localhost:8000/health || exit 1"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+          --health-start-period 30s
     steps:
       - name: Checkout
         uses: actions/checkout@v4

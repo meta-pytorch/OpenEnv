@@ -30,6 +30,9 @@ import subprocess
 import sys
 from pathlib import Path
 
+import nest_asyncio
+nest_asyncio.apply()
+
 # Detect environment
 try:
     import google.colab
@@ -123,8 +126,8 @@ print("=" * 70)
 
 # Import the environment client
 try:
-    from envs.openspiel_env import OpenSpielEnv, OpenSpielAction
-    from envs.openspiel_env.models import OpenSpielObservation, OpenSpielState
+    from openspiel_env.client import OpenSpielEnv
+    from openspiel_env.models import OpenSpielAction, OpenSpielObservation, OpenSpielState
 
     IMPORTS_OK = True
     print("✓ Imports successful")
@@ -650,11 +653,13 @@ USE_LIVE = False
 if IMPORTS_OK:
     try:
         test_env = OpenSpielEnv(base_url=SERVER_URL)
-        test_env.connect()
-        test_env.close()
+        with test_env.sync() as client:
+            pass  # Quick test to verify connection
         USE_LIVE = True
-    except Exception:
+        print(f"✓ Connected to server at {SERVER_URL}")
+    except Exception as e:
         USE_LIVE = False
+        print(f"✗ No server running at {SERVER_URL}: {e}")
 
 print("=" * 70)
 if USE_LIVE:
@@ -673,8 +678,9 @@ for policy in policies:
     print(f"  Evaluating {policy.name}...", end=" ", flush=True)
 
     if USE_LIVE:
-        with OpenSpielEnv(base_url=SERVER_URL) as env:
-            result = evaluate_policy_live(policy, env, NUM_EPISODES)
+        env = OpenSpielEnv(base_url=SERVER_URL)
+        with env.sync() as client:
+            result = evaluate_policy_live(policy, client, NUM_EPISODES)
     else:
         result = evaluate_policy_simulated(policy, NUM_EPISODES)
 
@@ -729,7 +735,7 @@ print()
 
 # Create actual action instances for different games
 if IMPORTS_OK:
-    from envs.openspiel_env.models import OpenSpielAction as ActionModel
+    from openspiel_env.models import OpenSpielAction as ActionModel
 
     # Catch actions
     print("CATCH GAME ACTIONS:")
@@ -827,7 +833,7 @@ print()
 
 # Create observation instances for multi-player games
 if IMPORTS_OK:
-    from envs.openspiel_env.models import OpenSpielObservation as ObsModel
+    from openspiel_env.models import OpenSpielObservation as ObsModel
 
     # Single-player observation (like Catch)
     print("SINGLE-PLAYER OBSERVATION (Catch):")

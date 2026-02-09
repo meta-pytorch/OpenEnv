@@ -58,6 +58,7 @@ docs = [
     "sphinx-sitemap==2.7.1",
     "sphinx-gallery>=0.14.0",
     "matplotlib",
+    "nest-asyncio",
 ]
 all = [
     "openenv-core[core]",

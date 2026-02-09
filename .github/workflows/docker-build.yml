@@ -97,6 +97,9 @@ jobs:
           - name: openapp-env
             dockerfile: server/Dockerfile
             context: envs/openapp_env
+          - name: openspiel-env
+            dockerfile: server/Dockerfile
+            context: envs/openspiel_env
 
     steps:
       - name: Checkout code
