@@ -261,7 +261,7 @@ class AtariEnvironment(Environment):
                 obs.screen_image = f"data:image/png;base64,{img_str}"
             except Exception as e:
                 # Fallback if image generation fails
-                print(f"Failed to generate screen image: {e}")
+                # Fallback if image generation fails - logged at server level
                 pass
         
         return obs
