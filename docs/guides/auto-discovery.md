@@ -49,15 +49,16 @@ with env.sync() as client:
 Create an environment client from a name or HuggingFace Hub repository.
 
 **Parameters:**
-- `name`: Environment name or Hub repo ID
-  - Local: `"coding"`, `"coding-env"`, `"coding_env"`
-  - Hub: `"meta-pytorch/coding-env"`, `"username/env-name"`
-- `base_url`: Optional base URL for HTTP connection
-- `docker_image`: Optional Docker image name (overrides default)
-- `container_provider`: Optional container provider
-- `wait_timeout`: Timeout for container startup (default: 30s)
-- `env_vars`: Optional environment variables for the container
-- `**kwargs`: Additional arguments passed to the client class
+
+| Parameter | Description |
+|-----------|-------------|
+| `name` | Environment name or Hub repo ID. Local: `"coding"`, `"coding-env"`, `"coding_env"`. Hub: `"meta-pytorch/coding-env"`, `"username/env-name"` |
+| `base_url` | Optional base URL for HTTP connection |
+| `docker_image` | Optional Docker image name (overrides default) |
+| `container_provider` | Optional container provider |
+| `wait_timeout` | Timeout for container startup (default: 30s) |
+| `env_vars` | Optional environment variables for the container |
+| `**kwargs` | Additional arguments passed to the client class |
 
 **Returns:** Instance of the environment client class
 
@@ -132,7 +133,10 @@ env = CodingEnv.from_docker_image("coding-env:latest", wait_timeout=60.0)
 Get the Action class from an environment name or HuggingFace Hub repository.
 
 **Parameters:**
-- `name`: Environment name or Hub repo ID
+
+| Parameter | Description |
+|-----------|-------------|
+| `name` | Environment name or Hub repo ID |
 
 **Returns:** Action class (not an instance!)
 
@@ -417,12 +421,14 @@ spec_version: 1
 
 ## Benefits
 
-✅ **Simple**: No need to know which module to import from
-✅ **Flexible**: Works with local packages and HuggingFace Hub
-✅ **Discoverable**: List and explore available environments
-✅ **Type-Safe**: Returns properly typed environment classes
-✅ **HuggingFace-style**: Familiar API for ML practitioners
-✅ **Performant**: Caching and lazy loading for efficiency
+| Benefit | Description |
+|---------|-------------|
+| **Simple** | No need to know which module to import from |
+| **Flexible** | Works with local packages and HuggingFace Hub |
+| **Discoverable** | List and explore available environments |
+| **Type-Safe** | Returns properly typed environment classes |
+| **HuggingFace-style** | Familiar API for ML practitioners |
+| **Performant** | Caching and lazy loading for efficiency |
 
 ## See Also
 
