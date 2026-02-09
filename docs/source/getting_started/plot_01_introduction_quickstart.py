@@ -429,9 +429,11 @@ SERVER_AVAILABLE = False
 
 if OPENENV_AVAILABLE:
     try:
-        # Try to connect
+        # Try to connect using sync wrapper
         env = OpenSpielEnv(base_url=SERVER_URL)
-        env.connect()
+        with env.sync() as client:
+            # Quick test to verify connection
+            pass
         SERVER_AVAILABLE = True
         print(f"✓ Connected to server at {SERVER_URL}")
     except Exception as e:
@@ -454,9 +456,10 @@ if OPENENV_AVAILABLE and SERVER_AVAILABLE:
     print("   PLAYING CATCH - LIVE!")
     print("=" * 70)
 
-    with OpenSpielEnv(base_url=SERVER_URL) as env:
+    env = OpenSpielEnv(base_url=SERVER_URL)
+    with env.sync() as client:
         # Reset to start a new episode
-        result = env.reset()
+        result = client.reset()
 
         print(f"\nEpisode started!")
         print(f"  Observation type: {type(result.observation).__name__}")
@@ -471,7 +474,7 @@ if OPENENV_AVAILABLE and SERVER_AVAILABLE:
             action = OpenSpielAction(action_id=action_id, game_name="catch")
 
             # Take the action
-            result = env.step(action)
+            result = client.step(action)
             step_count += 1
 
             print(f"\nStep {step_count}:")
@@ -480,7 +483,7 @@ if OPENENV_AVAILABLE and SERVER_AVAILABLE:
             print(f"  Done: {result.done}")
 
         # Get final state
-        state = env.state()
+        state = client.state()
         print(f"\nEpisode complete!")
         print(f"  Total steps: {state.step_count}")
         print(f"  Final reward: {result.reward}")
