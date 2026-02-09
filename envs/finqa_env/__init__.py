@@ -1,4 +1,4 @@
-# src/envs/finqa_env/__init__.py
+# envs/finqa_env/__init__.py
 """
 FinQA Environment for OpenEnv.
 

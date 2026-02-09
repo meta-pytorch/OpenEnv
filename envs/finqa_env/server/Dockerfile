@@ -1,7 +1,7 @@
 # FinQA Environment Dockerfile
 #
 # Build from repository root:
-#   docker build -t finqa-env:latest -f src/envs/finqa_env/server/Dockerfile .
+#   docker build -t finqa-env:latest -f envs/finqa_env/server/Dockerfile .
 #
 # Run:
 #   docker run -p 8000:8000 finqa-env:latest
@@ -16,7 +16,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 WORKDIR /app
 
 # Copy and install requirements
-COPY src/envs/finqa_env/server/requirements.txt /tmp/requirements.txt
+COPY envs/finqa_env/server/requirements.txt /tmp/requirements.txt
 RUN pip install --no-cache-dir -r /tmp/requirements.txt && rm /tmp/requirements.txt
 
 # Install core OpenEnv dependencies (fastapi, uvicorn, etc.)
@@ -27,16 +27,17 @@ RUN pip install --no-cache-dir \
     gunicorn>=21.0.0
 
 # Set PYTHONPATH
-ENV PYTHONPATH="/app/src"
+ENV PYTHONPATH="/app/src:/app"
 
 # Copy core library
-COPY src/core/ /app/src/core/
+COPY src/openenv/core/ /app/src/openenv/core/
+COPY src/openenv/__init__.py /app/src/openenv/__init__.py
 
 # Copy environment code
-COPY src/envs/finqa_env/ /app/src/envs/finqa_env/
+COPY envs/finqa_env/ /app/envs/finqa_env/
 
 # Environment variables with defaults
-ENV FINQA_DATA_PATH="/app/src/envs/finqa_env/data"
+ENV FINQA_DATA_PATH="/app/envs/finqa_env/data"
 ENV FINQA_MAX_STEPS="50"
 ENV FINQA_TASK="finqa"
 

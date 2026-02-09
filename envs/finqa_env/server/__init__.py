@@ -1,4 +1,4 @@
-# src/envs/finqa_env/server/__init__.py
+# envs/finqa_env/server/__init__.py
 """Server-side components for the FinQA environment."""
 
 from .finqa_environment import FinQAEnvironment

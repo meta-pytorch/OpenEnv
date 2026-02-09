@@ -14,7 +14,7 @@ Prerequisites
 -------------
 1. Build the FinQA Docker image::
 
-       docker build -f src/envs/finqa_env/server/Dockerfile -t finqa-env:latest .
+       docker build -f envs/finqa_env/server/Dockerfile -t finqa-env:latest .
 
 2. Set your API key::
 

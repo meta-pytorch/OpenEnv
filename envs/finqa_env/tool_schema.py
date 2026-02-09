@@ -1,4 +1,4 @@
-# src/envs/finqa_env/tool_schema.py
+# envs/finqa_env/tool_schema.py
 """
 Utilities for auto-generating OpenAI tool schemas from function definitions.
 """

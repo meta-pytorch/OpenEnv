@@ -1,20 +1,20 @@
-# src/envs/finqa_env/server/app.py
+# envs/finqa_env/server/app.py
 """
 FastAPI server for the FinQA environment.
 
 Environment Variables:
-    FINQA_DATA_PATH: Path to data directory (default: /app/src/envs/finqa_env/data)
+    FINQA_DATA_PATH: Path to data directory (default: /app/envs/finqa_env/data)
     FINQA_MAX_STEPS: Maximum tool calls per episode (default: 50)
     FINQA_TASK: Task name (default: finqa)
 """
 
 import os
 
-from core.env_server import create_app
+from openenv.core.env_server import create_app
 from ..models import FinQAAction, FinQAObservation, get_tool_schemas
 from .finqa_environment import FinQAEnvironment
 
-DATA_PATH = os.environ.get("FINQA_DATA_PATH", "/app/src/envs/finqa_env/data")
+DATA_PATH = os.environ.get("FINQA_DATA_PATH", "/app/envs/finqa_env/data")
 MAX_STEPS = int(os.environ.get("FINQA_MAX_STEPS", "50"))
 TASK = os.environ.get("FINQA_TASK", "finqa")
 

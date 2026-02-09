@@ -24,7 +24,7 @@ FinQA tests an agent's ability to:
 
 ```bash
 # Build the image (from OpenEnv repo root)
-docker build -t finqa-env:latest -f src/envs/finqa_env/server/Dockerfile .
+docker build -t finqa-env:latest -f envs/finqa_env/server/Dockerfile .
 
 # Run the server
 docker run -p 8000:8000 finqa-env:latest
@@ -40,7 +40,7 @@ API_BASE_URL=https://api.openai.com/v1 API_KEY=$OPENAI_API_KEY MODEL=gpt-5 pytho
 uv pip install pandas
 
 # Download data from HuggingFace
-cd src/envs/finqa_env
+cd envs/finqa_env
 ./download_data.sh
 ```
 
@@ -142,7 +142,7 @@ class FinQAObservation(Observation):
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `FINQA_DATA_PATH` | `/app/src/envs/finqa_env/data` | Path to data directory |
+| `FINQA_DATA_PATH` | `/app/envs/finqa_env/data` | Path to data directory |
 | `FINQA_MAX_STEPS` | `50` | Maximum tool calls per episode |
 | `FINQA_TASK` | `finqa` | Task name |
 
@@ -159,7 +159,7 @@ Rewards use fuzzy numerical matching:
 
 ```bash
 # From OpenEnv repo root
-cd src/envs/finqa_env
+cd envs/finqa_env
 
 # Run server locally
 FINQA_DATA_PATH=./data uvicorn server.app:app --reload --port 8000

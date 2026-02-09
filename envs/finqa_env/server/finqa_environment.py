@@ -1,4 +1,4 @@
-# src/envs/finqa_env/server/finqa_environment.py
+# envs/finqa_env/server/finqa_environment.py
 """
 FinQA Environment Implementation.
 
@@ -14,7 +14,7 @@ from typing import List, Dict, Any
 
 import pandas as pd
 
-from core.env_server import Environment
+from openenv.core.env_server import Environment
 from ..models import FinQAAction, FinQAObservation, FinQAState, AVAILABLE_TOOLS
 from .tools import FinQATools
 from .rewards import compute_reward, extract_boxed_answer

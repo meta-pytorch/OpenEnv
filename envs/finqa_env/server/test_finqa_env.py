@@ -1,9 +1,9 @@
-# src/envs/finqa_env/server/test_finqa_env.py
+# envs/finqa_env/server/test_finqa_env.py
 """
 Unit tests for the FinQA environment.
 
 Run from OpenEnv repo root:
-    python -m pytest src/envs/finqa_env/server/test_finqa_env.py -v
+    python -m pytest envs/finqa_env/server/test_finqa_env.py -v
 """
 
 import os

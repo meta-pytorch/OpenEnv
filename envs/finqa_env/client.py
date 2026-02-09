@@ -1,4 +1,4 @@
-# src/envs/finqa_env/client.py
+# envs/finqa_env/client.py
 """
 HTTP client for the FinQA environment.
 
@@ -38,15 +38,16 @@ Example:
 
 from typing import Dict, Any, List
 
-from core.http_env_client import HTTPEnvClient, StepResult
+from openenv.core.client_types import StepResult
+from openenv.core.env_client import EnvClient
 from .models import FinQAAction, FinQAObservation, FinQAState, AVAILABLE_TOOLS
 
 
-class FinQAEnv(HTTPEnvClient[FinQAAction, FinQAObservation]):
+class FinQAEnv(EnvClient[FinQAAction, FinQAObservation, FinQAState]):
     """
-    HTTP client for the FinQA environment.
+    Client for the FinQA environment.
 
-    Inherits from HTTPEnvClient and implements the serialization/deserialization
+    Inherits from EnvClient and implements the serialization/deserialization
     logic for FinQA-specific action and observation types.
     """
 

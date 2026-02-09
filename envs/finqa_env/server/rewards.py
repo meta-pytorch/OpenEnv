@@ -1,4 +1,4 @@
-# src/envs/finqa_env/server/rewards.py
+# envs/finqa_env/server/rewards.py
 """
 Reward computation for the FinQA environment.
 

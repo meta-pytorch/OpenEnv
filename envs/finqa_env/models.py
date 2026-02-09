@@ -1,4 +1,4 @@
-# src/envs/finqa_env/models.py
+# envs/finqa_env/models.py
 """
 Action/Observation/State types for the FinQA environment.
 
@@ -10,7 +10,7 @@ calculations, etc.) on SEC 10-K filing data.
 from dataclasses import dataclass, field
 from typing import Dict, List, Any
 
-from core.env_server import Action, Observation, State
+from openenv.core.env_server import Action, Observation, State
 
 
 # Tool names - defined statically to avoid circular imports
