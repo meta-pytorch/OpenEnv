@@ -1,4 +1,4 @@
-# Build Your Own Environment
+# Build An Environment
 
 This guide walks you through creating a custom environment using the `OpenEnv` framework and the `openenv` CLI.
 

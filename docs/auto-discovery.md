@@ -1,4 +1,4 @@
-# AutoEnv & AutoAction API
+# Auto-Discovery API
 
 OpenEnv provides a HuggingFace-style auto-discovery API that makes it easy to work with environments without manual imports.
 
