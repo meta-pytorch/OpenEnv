@@ -1,0 +1,159 @@
+<ix:nonnumeric contextref="C_fc05cf1b-e190-46aa-968d-fdf3a84013da" continued-fact="false" enabled-fact="true" escape="true" hover-fact="false" id="fact-identifier-3400" inside-table="false" ix="F_5474def9-94e4-4dcb-9b5d-1a113b68cdae" name="brka:ScheduleOfInsurancePremiumsWrittenByGeographicRegionTableTextBlock" selected-fact="false"><p><span>Insurance premiums written by geographic region (based upon the domicile of the insured or reinsured) are summarized below (in millions).</span><span> </span></p><p><span> </span></p>
+<table>
+<tbody><tr>
+<td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td></tr>
+<tr>
+<td><p><span> </span></p></td>
+<td colspan="8"><p><span>Property/Casualty</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td colspan="8"><p><span>Life/Health</span></p></td>
+<td><p><span> </span></p></td>
+</tr>
+<tr>
+<td><p><span> </span></p></td>
+<td colspan="2"><p><span>2024</span></p></td>
+<td><p><span> </span></p></td>
+<td colspan="2"><p><span>2023</span></p></td>
+<td><p><span> </span></p></td>
+<td colspan="2"><p><span>2022</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td colspan="2"><p><span>2024</span></p></td>
+<td><p><span> </span></p></td>
+<td colspan="2"><p><span>2023</span></p></td>
+<td><p><span> </span></p></td>
+<td colspan="2"><p><span>2022</span></p></td>
+<td><p><span> </span></p></td>
+</tr>
+<tr>
+<td><p><span>United States</span></p></td>
+<td><p><span>$</span></p></td>
+<td><p><span><ix:nonfraction contextref="C_1757915d-b90a-43c1-8bf3-4f25c0b12831" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-3353" inside-table="true" ix="F_7877d469-968b-44be-9386-1292fce157fd" name="us-gaap:PremiumsWrittenNet" scale="6" unitref="U_USD">71,723</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>$</span></p></td>
+<td><p><span><ix:nonfraction contextref="C_51fed50f-e478-4fa6-86c5-ee62830d8663" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-3354" inside-table="true" ix="F_db65e89b-8f3e-47a7-836f-0f724c2fe934" name="us-gaap:PremiumsWrittenNet" scale="6" unitref="U_USD">67,831</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>$</span></p></td>
+<td><p><span><ix:nonfraction contextref="C_ad090c77-65ac-4597-ad5b-e410b33c71cb" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-3355" inside-table="true" ix="F_403bfa29-c10a-47d6-9f98-feaead73084d" name="us-gaap:PremiumsWrittenNet" scale="6" unitref="U_USD">59,648</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>$</span></p></td>
+<td><p><span><ix:nonfraction contextref="C_a0651c11-7d0e-401e-af48-eee491e947fa" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-3356" inside-table="true" ix="F_e503656b-5122-4795-8c3c-607ce0b48d28" name="us-gaap:PremiumsWrittenNet" scale="6" unitref="U_USD">1,358</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>$</span></p></td>
+<td><p><span><ix:nonfraction contextref="C_326f26ce-db13-4e0e-8903-153c55c9ee1b" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-3357" inside-table="true" ix="F_762bca1d-1bff-47d8-811a-a778b282eba9" name="us-gaap:PremiumsWrittenNet" scale="6" unitref="U_USD">1,285</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>$</span></p></td>
+<td><p><span><ix:nonfraction contextref="C_c47ac5f9-c3f1-46bd-9dba-605746c7db65" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-3358" inside-table="true" ix="F_935a70b2-7bff-4ad3-9386-169e0a5eede3" name="us-gaap:PremiumsWrittenNet" scale="6" unitref="U_USD">2,107</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+</tr>
+<tr>
+<td><p><span>Western Europe</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><ix:nonfraction contextref="C_9aa8fb57-edcf-4d3e-ad66-413c34b267f1" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-3359" inside-table="true" ix="F_133563ff-7011-43d6-90ad-a78e3e871422" name="us-gaap:PremiumsWrittenNet" scale="6" unitref="U_USD">5,252</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><ix:nonfraction contextref="C_ae4bf0e2-1c0e-4a6c-9464-e06d54aed4fe" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-3360" inside-table="true" ix="F_4ec91446-84dc-4fcd-b956-025369cee679" name="us-gaap:PremiumsWrittenNet" scale="6" unitref="U_USD">5,014</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><ix:nonfraction contextref="C_dec190c5-b2af-45b3-b543-aee024eeaae8" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-3361" inside-table="true" ix="F_cfea4229-da1e-4579-8b93-abce3d1a1859" name="us-gaap:PremiumsWrittenNet" scale="6" unitref="U_USD">4,901</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><ix:nonfraction contextref="C_947fe08e-0ab5-4802-8ec3-8b33300379a3" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-3362" inside-table="true" ix="F_a5146419-746d-42b1-807d-65828fe8cca3" name="us-gaap:PremiumsWrittenNet" scale="6" unitref="U_USD">1,407</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><ix:nonfraction contextref="C_71f82b26-5733-4094-b3ef-877721cc8f63" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-3363" inside-table="true" ix="F_91abdbb2-3a5f-49bb-9839-c439164ce1bb" name="us-gaap:PremiumsWrittenNet" scale="6" unitref="U_USD">1,323</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><ix:nonfraction contextref="C_5a1aae97-5cc8-488d-8558-fab11b37c1eb" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-3364" inside-table="true" ix="F_f82560f5-f292-43e9-a32a-5f0ee588a823" name="us-gaap:PremiumsWrittenNet" scale="6" unitref="U_USD">1,235</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+</tr>
+<tr>
+<td><p><span>Asia Pacific</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><ix:nonfraction contextref="C_2a14bffa-7e2d-43ee-8d79-0b2a3d1f5edb" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-3365" inside-table="true" ix="F_de54d06d-f8b5-4169-8d9e-132d237bf76a" name="us-gaap:PremiumsWrittenNet" scale="6" unitref="U_USD">5,043</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><ix:nonfraction contextref="C_025deaa7-84b1-4e7e-8679-7fef76c6a78e" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-3366" inside-table="true" ix="F_488ef6f9-2551-4c86-8e0a-b494ce9b44e1" name="us-gaap:PremiumsWrittenNet" scale="6" unitref="U_USD">5,306</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><ix:nonfraction contextref="C_28b8e3bd-dd40-46d4-bc29-bdc579a9eb78" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-3367" inside-table="true" ix="F_0524b0f7-66f3-4296-a277-6d26470523c0" name="us-gaap:PremiumsWrittenNet" scale="6" unitref="U_USD">4,699</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><ix:nonfraction contextref="C_9c29373e-f225-407c-80b0-6bbad584ba54" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-3368" inside-table="true" ix="F_2a9ba668-bd70-4553-a1bf-ae819515226b" name="us-gaap:PremiumsWrittenNet" scale="6" unitref="U_USD">1,548</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><ix:nonfraction contextref="C_a97b1f8a-ddfb-4c81-8ac7-1032166735dd" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-3369" inside-table="true" ix="F_2a2ced89-eb30-4011-951f-234364d6b453" name="us-gaap:PremiumsWrittenNet" scale="6" unitref="U_USD">1,760</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><ix:nonfraction contextref="C_2cdfeadd-7983-491f-9bc6-d8d9d1f6b28a" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-3370" inside-table="true" ix="F_b1ebf489-d659-4170-9223-6618e5493f3e" name="us-gaap:PremiumsWrittenNet" scale="6" unitref="U_USD">1,704</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+</tr>
+<tr>
+<td><p><span>All other</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><ix:nonfraction contextref="C_791fa221-916c-45a4-a18b-3bc854c197c7" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-3371" inside-table="true" ix="F_009303f2-c90d-48f8-afcf-22c446387558" name="us-gaap:PremiumsWrittenNet" scale="6" unitref="U_USD">1,668</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><ix:nonfraction contextref="C_d189d39f-600a-443b-a3f4-ad55e9128afb" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-3372" inside-table="true" ix="F_7c1d321d-927f-4e93-b67f-c181abda6627" name="us-gaap:PremiumsWrittenNet" scale="6" unitref="U_USD">2,188</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><ix:nonfraction contextref="C_c6d33f9a-baa2-486a-a973-6993589ba2b5" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-3373" inside-table="true" ix="F_cf694931-fea0-4264-ba1c-7ddce5240696" name="us-gaap:PremiumsWrittenNet" scale="6" unitref="U_USD">1,440</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><ix:nonfraction contextref="C_22ca38c9-b68e-4f39-aa00-f3a0175a5b9b" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-3374" inside-table="true" ix="F_ff6e66ae-4ca9-4732-9c86-97677257426f" name="us-gaap:PremiumsWrittenNet" scale="6" unitref="U_USD">694</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><ix:nonfraction contextref="C_c68e7b80-0257-4ea7-be31-fa3ff9989443" decimals="-6" id="fact-identifier-3375" inside-table="true" ix="F_8cf59c11-2520-4106-83a8-40b86efc9d91" name="us-gaap:PremiumsWrittenNet" scale="6" unitref="U_USD">725</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><ix:nonfraction contextref="C_62435d24-4911-4682-9ffe-35bff5524a0f" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-3376" inside-table="true" ix="F_e65ddb96-f63e-439f-9ebc-095b6ea88074" name="us-gaap:PremiumsWrittenNet" scale="6" unitref="U_USD">721</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+</tr>
+<tr>
+<td><p><span> </span></p></td>
+<td><p><span>$</span></p></td>
+<td><p><span><ix:nonfraction contextref="C_147dde1d-c33a-4daa-bb77-3e4c1ee8a91a" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-3377" inside-table="true" ix="F_d635c6e8-cf5f-4a48-b1ef-fb1072e08b14" name="us-gaap:PremiumsWrittenNet" scale="6" unitref="U_USD">83,686</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>$</span></p></td>
+<td><p><span><ix:nonfraction contextref="C_d2b6b130-8c8b-4164-9c26-b25db62a56f0" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-3378" inside-table="true" ix="F_20a4eb63-b4f0-4379-9965-5e7d77789869" name="us-gaap:PremiumsWrittenNet" scale="6" unitref="U_USD">80,339</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>$</span></p></td>
+<td><p><span><ix:nonfraction contextref="C_ec36d3bc-079b-4821-a1d2-7849ca41d99e" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-3379" inside-table="true" ix="F_2fabdab9-88c4-4f6e-bf35-027dfbacc2d6" name="us-gaap:PremiumsWrittenNet" scale="6" unitref="U_USD">70,688</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>$</span></p></td>
+<td><p><span><ix:nonfraction contextref="C_f0f3ff08-e9a4-4f57-bbb7-17f873cdae5f" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-3380" inside-table="true" ix="F_03b99fa5-3c67-461d-9755-d37aa602c54a" name="us-gaap:PremiumsWrittenNet" scale="6" unitref="U_USD">5,007</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>$</span></p></td>
+<td><p><span><ix:nonfraction contextref="C_b38537be-4090-4261-b8bb-415ffc713673" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-3381" inside-table="true" ix="F_79b777d2-8c72-41b9-a4e4-f00fffef2b44" name="us-gaap:PremiumsWrittenNet" scale="6" unitref="U_USD">5,093</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>$</span></p></td>
+<td><p><span><ix:nonfraction contextref="C_f4558c0b-18ad-4311-85ab-ab55f692e555" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-3382" inside-table="true" ix="F_c8697f05-72b3-4ec7-9c0d-52a3317c8386" name="us-gaap:PremiumsWrittenNet" scale="6" unitref="U_USD">5,767</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+</tr>
+</tbody></table></ix:nonnumeric>

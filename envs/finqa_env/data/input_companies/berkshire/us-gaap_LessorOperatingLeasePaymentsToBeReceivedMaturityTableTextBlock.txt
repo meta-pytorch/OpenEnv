@@ -1,0 +1,83 @@
+<ix:nonnumeric contextref="C_fc05cf1b-e190-46aa-968d-fdf3a84013da" continued-fact="false" continued-main-fact="true" continuedat="F_0a8c99d6-712b-43f9-89e9-628eace03204_1" enabled-fact="true" escape="true" hover-fact="false" id="fact-identifier-1649" inside-table="false" ix="F_0a8c99d6-712b-43f9-89e9-628eace03204" name="us-gaap:LessorOperatingLeasePaymentsToBeReceivedMaturityTableTextBlock" selected-fact="false"><p><span>A summary of future operating lease receipts as of December 31, 2024 follows (in millions).</span></p><p><span> </span></p>
+<table>
+<tbody><tr>
+<td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td></tr>
+<tr>
+<td colspan="2"><p><span>2025</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td colspan="2"><p><span>2026</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td colspan="2"><p><span>2027</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td colspan="2"><p><span>2028</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td colspan="2"><p><span>2029</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td colspan="2"><p><span>Thereafter</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td colspan="2"><p><span>Total</span></p></td>
+<td><p><span> </span></p></td>
+</tr>
+<tr>
+<td><p><span>$</span></p></td>
+<td><p><span><ix:nonfraction contextref="C_7bf1c469-da4f-4e0d-80ab-b368cc556db0" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-1650" inside-table="true" ix="F_2c8437d6-48bb-4852-b181-18d883b94188" name="us-gaap:LessorOperatingLeasePaymentsToBeReceivedNextTwelveMonths" scale="6" unitref="U_USD">4,263</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>$</span></p></td>
+<td><p><span><ix:nonfraction contextref="C_7bf1c469-da4f-4e0d-80ab-b368cc556db0" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-1651" inside-table="true" ix="F_2346c6ed-7ecc-4abd-9f51-90b96cec26a0" name="us-gaap:LessorOperatingLeasePaymentsToBeReceivedTwoYears" scale="6" unitref="U_USD">3,455</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>$</span></p></td>
+<td><p><span><ix:nonfraction contextref="C_7bf1c469-da4f-4e0d-80ab-b368cc556db0" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-1652" inside-table="true" ix="F_6a97751c-266d-4df2-9f41-1d181b0626f7" name="us-gaap:LessorOperatingLeasePaymentsToBeReceivedThreeYears" scale="6" unitref="U_USD">2,596</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>$</span></p></td>
+<td><p><span><ix:nonfraction contextref="C_7bf1c469-da4f-4e0d-80ab-b368cc556db0" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-1653" inside-table="true" ix="F_eeb67397-ea30-476a-b12e-36a43d2e07aa" name="us-gaap:LessorOperatingLeasePaymentsToBeReceivedFourYears" scale="6" unitref="U_USD">1,724</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>$</span></p></td>
+<td><p><span><ix:nonfraction contextref="C_7bf1c469-da4f-4e0d-80ab-b368cc556db0" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-1654" inside-table="true" ix="F_f062903c-5e5e-4d31-a024-dcc2018c4218" name="us-gaap:LessorOperatingLeasePaymentsToBeReceivedFiveYears" scale="6" unitref="U_USD">769</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>$</span></p></td>
+<td><p><span><ix:nonfraction contextref="C_7bf1c469-da4f-4e0d-80ab-b368cc556db0" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-1655" inside-table="true" ix="F_4945f133-9f45-439b-bab7-33e7b309b340" name="us-gaap:LessorOperatingLeasePaymentsToBeReceivedThereafter" scale="6" unitref="U_USD">339</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>$</span></p></td>
+<td><p><span><ix:nonfraction contextref="C_7bf1c469-da4f-4e0d-80ab-b368cc556db0" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-1656" inside-table="true" ix="F_540d4121-1795-4e0f-a140-8667c60eaeaf" name="us-gaap:LessorOperatingLeasePaymentsToBeReceived" scale="6" unitref="U_USD">13,146</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+</tr>
+</tbody></table></ix:nonnumeric>

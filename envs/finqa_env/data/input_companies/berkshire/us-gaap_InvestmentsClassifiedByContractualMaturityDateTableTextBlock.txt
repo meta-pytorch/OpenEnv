@@ -1,0 +1,101 @@
+<ix:nonnumeric contextref="C_fc05cf1b-e190-46aa-968d-fdf3a84013da" continued-fact="false" enabled-fact="true" escape="true" hover-fact="false" id="fact-identifier-1388" inside-table="false" ix="F_d5bbfe47-014b-4ad0-b339-5e8b070cbe73" name="us-gaap:InvestmentsClassifiedByContractualMaturityDateTableTextBlock" selected-fact="false"><p> </p>
+<table>
+<tbody><tr>
+<td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td></tr>
+<tr>
+<td><p><span> </span></p></td>
+<td colspan="2"><p><span>Due in one<br/>year or less</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td colspan="2"><p><span>Due after one<br/>year through<br/>five years</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td colspan="2"><p><span>Due after five<br/>years through<br/>ten years</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td colspan="2"><p><span>Due after<br/>ten years</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td colspan="2"><p><span>Mortgage-backed<br/>securities</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td colspan="2"><p><span>Total</span></p></td>
+<td><p><span> </span></p></td>
+</tr>
+<tr>
+<td><p><span>Amortized cost</span></p></td>
+<td><p><span>$</span></p></td>
+<td><p><span><ix:nonfraction contextref="C_7bf1c469-da4f-4e0d-80ab-b368cc556db0" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-1389" inside-table="true" ix="F_b0c03ee7-443b-4581-a3fe-17b371964687" name="us-gaap:AvailableForSaleSecuritiesDebtMaturitiesNextRollingTwelveMonthsAmortizedCostBasis" scale="6" unitref="U_USD">10,228</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>$</span></p></td>
+<td><p><span><ix:nonfraction contextref="C_7bf1c469-da4f-4e0d-80ab-b368cc556db0" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-1390" inside-table="true" ix="F_ff1ab606-ea62-4fdb-9703-d26d84b844b8" name="us-gaap:AvailableForSaleSecuritiesDebtMaturitiesRollingYearTwoThroughFiveAmortizedCostBasis" scale="6" unitref="U_USD">4,202</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>$</span></p></td>
+<td><p><span><ix:nonfraction contextref="C_7bf1c469-da4f-4e0d-80ab-b368cc556db0" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-1391" inside-table="true" ix="F_3cb17118-d309-4094-b91c-58dd9f5e033c" name="us-gaap:AvailableForSaleSecuritiesDebtMaturitiesRollingYearSixThroughTenAmortizedCostBasis" scale="6" unitref="U_USD">532</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>$</span></p></td>
+<td><p><span><ix:nonfraction contextref="C_7bf1c469-da4f-4e0d-80ab-b368cc556db0" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-1392" inside-table="true" ix="F_7ee94bf8-d7c9-4aac-b9de-6c2c13028cb5" name="us-gaap:AvailableForSaleSecuritiesDebtMaturitiesRollingAfterYearTenAmortizedCostBasis" scale="6" unitref="U_USD">123</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>$</span></p></td>
+<td><p><span><ix:nonfraction contextref="C_7bf1c469-da4f-4e0d-80ab-b368cc556db0" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-1393" inside-table="true" ix="F_095c313c-111e-49cd-a465-bc19dccd7dbb" name="us-gaap:AvailableForSaleSecuritiesDebtMaturitiesWithoutSingleMaturityDateAmortizedCost" scale="6" unitref="U_USD">129</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>$</span></p></td>
+<td><p><span><ix:nonfraction contextref="C_7bf1c469-da4f-4e0d-80ab-b368cc556db0" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-1370" inside-table="true" ix="F_763bcde4-fd99-4739-955a-b811e9ad2a29" name="us-gaap:AvailableForSaleDebtSecuritiesAmortizedCostBasis" scale="6" unitref="U_USD">15,214</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+</tr>
+<tr>
+<td><p><span>Fair value</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><ix:nonfraction contextref="C_7bf1c469-da4f-4e0d-80ab-b368cc556db0" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-1394" inside-table="true" ix="F_d260c30f-c1ac-417e-8b65-eeac1fde219d" name="us-gaap:AvailableForSaleSecuritiesDebtMaturitiesNextRollingTwelveMonthsFairValue" scale="6" unitref="U_USD">10,107</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><ix:nonfraction contextref="C_7bf1c469-da4f-4e0d-80ab-b368cc556db0" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-1395" inside-table="true" ix="F_19f7170a-a306-41c6-bed1-19067695569a" name="us-gaap:AvailableForSaleSecuritiesDebtMaturitiesRollingYearTwoThroughFiveFairValue" scale="6" unitref="U_USD">4,267</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><ix:nonfraction contextref="C_7bf1c469-da4f-4e0d-80ab-b368cc556db0" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-1396" inside-table="true" ix="F_401dfc2a-dabd-46f9-b239-dccddac25ba3" name="us-gaap:AvailableForSaleSecuritiesDebtMaturitiesRollingYearSixThroughTenFairValue" scale="6" unitref="U_USD">718</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><ix:nonfraction contextref="C_7bf1c469-da4f-4e0d-80ab-b368cc556db0" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-1397" inside-table="true" ix="F_06923b70-1546-4716-8b26-08f96e246bdd" name="us-gaap:AvailableForSaleSecuritiesDebtMaturitiesRollingAfterYearTenFairValue" scale="6" unitref="U_USD">133</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><ix:nonfraction contextref="C_7bf1c469-da4f-4e0d-80ab-b368cc556db0" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-1398" inside-table="true" ix="F_3fc1aaaa-4938-4731-a947-47dc43c08887" name="us-gaap:AvailableForSaleSecuritiesDebtMaturitiesWithoutSingleMaturityDateFairValue" scale="6" unitref="U_USD">139</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><ix:nonfraction contextref="C_7bf1c469-da4f-4e0d-80ab-b368cc556db0" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-172" inside-table="true" ix="F_08ab7839-999a-4de8-acb3-5d787d079797" name="us-gaap:AvailableForSaleSecuritiesDebtSecurities" scale="6" unitref="U_USD">15,364</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+</tr>
+</tbody></table></ix:nonnumeric>

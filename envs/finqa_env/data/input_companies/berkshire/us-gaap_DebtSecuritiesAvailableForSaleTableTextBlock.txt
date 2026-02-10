@@ -1,0 +1,207 @@
+<ix:nonnumeric contextref="C_fc05cf1b-e190-46aa-968d-fdf3a84013da" continued-fact="false" enabled-fact="true" escape="true" hover-fact="false" id="fact-identifier-1361" inside-table="false" ix="F_7d3728b6-a296-41d5-bb85-5b551a5e9d8e" name="us-gaap:DebtSecuritiesAvailableForSaleTableTextBlock" selected-fact="false"><p><span>Investments in fixed maturity securities are summarized by type below (in millions).</span><span> </span></p><p><span> </span></p>
+<table>
+<tbody><tr>
+<td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td></tr>
+<tr>
+<td><p><span> </span></p></td>
+<td colspan="2"><p><span>Amortized<br/>Cost</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td colspan="2"><p><span>Unrealized<br/>Gains</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td colspan="2"><p><span>Unrealized<br/>Losses</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td colspan="2"><p><span>Fair<br/>Value</span></p></td>
+<td><p><span> </span></p></td>
+</tr>
+<tr>
+<td><p><span>December 31, 2024</span></p></td>
+<td colspan="2"><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td colspan="2"><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td colspan="2"><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td colspan="2"><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+</tr>
+<tr>
+<td><p><span>U.S. Treasury, U.S. government corporations and agencies</span></p></td>
+<td><p><span>$</span></p></td>
+<td><p><span><ix:nonfraction contextref="C_9cf6e41b-8d9e-4a4d-8a8c-0562963c12b6" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-1362" inside-table="true" ix="F_9170ce1d-c1f3-4ebe-aa34-91a4ed590c3e" name="us-gaap:AvailableForSaleDebtSecuritiesAmortizedCostBasis" scale="6" unitref="U_USD">4,447</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>$</span></p></td>
+<td><p><span><ix:nonfraction contextref="C_9cf6e41b-8d9e-4a4d-8a8c-0562963c12b6" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-1371" inside-table="true" ix="F_81939770-8a72-42ec-bacd-f918c24d9bff" name="us-gaap:AvailableForSaleDebtSecuritiesAccumulatedGrossUnrealizedGainBeforeTax" scale="6" unitref="U_USD">16</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>$</span></p></td>
+<td><p><span>(</span><span><ix:nonfraction contextref="C_9cf6e41b-8d9e-4a4d-8a8c-0562963c12b6" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-1379" inside-table="true" ix="F_d8c6b441-5f4c-49d8-8df1-1397133c99c1" name="us-gaap:AvailableForSaleDebtSecuritiesAccumulatedGrossUnrealizedLossBeforeTax" scale="6" unitref="U_USD">4</ix:nonfraction></span></p></td>
+<td><p><span>)</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>$</span></p></td>
+<td><p><span><ix:nonfraction contextref="C_9cf6e41b-8d9e-4a4d-8a8c-0562963c12b6" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-164" inside-table="true" ix="F_44d18711-f2d7-41a5-b013-fc4efcef15f8" name="us-gaap:AvailableForSaleSecuritiesDebtSecurities" scale="6" unitref="U_USD">4,459</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+</tr>
+<tr>
+<td><p><span>Foreign governments</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><ix:nonfraction contextref="C_ec8c6301-0fa1-4588-88df-571a617f6f69" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-1363" inside-table="true" ix="F_9f024d89-88b0-4cab-896a-4a85f683031f" name="us-gaap:AvailableForSaleDebtSecuritiesAmortizedCostBasis" scale="6" unitref="U_USD">9,443</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><ix:nonfraction contextref="C_ec8c6301-0fa1-4588-88df-571a617f6f69" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-1372" inside-table="true" ix="F_1487e3e9-3a48-462a-abb6-c2361b66288e" name="us-gaap:AvailableForSaleDebtSecuritiesAccumulatedGrossUnrealizedGainBeforeTax" scale="6" unitref="U_USD">16</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>(</span><span><ix:nonfraction contextref="C_ec8c6301-0fa1-4588-88df-571a617f6f69" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-1380" inside-table="true" ix="F_d1722c35-b23d-4881-bc98-664e9d337dbd" name="us-gaap:AvailableForSaleDebtSecuritiesAccumulatedGrossUnrealizedLossBeforeTax" scale="6" unitref="U_USD">97</ix:nonfraction></span></p></td>
+<td><p><span>)</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><ix:nonfraction contextref="C_ec8c6301-0fa1-4588-88df-571a617f6f69" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-165" inside-table="true" ix="F_762498c8-e3c1-4d5b-b905-bef8be9da342" name="us-gaap:AvailableForSaleSecuritiesDebtSecurities" scale="6" unitref="U_USD">9,362</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+</tr>
+<tr>
+<td><p><span>Corporate and other</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><ix:nonfraction contextref="C_a6362460-9793-44f6-82ce-dfa0c3ab9c14" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-1364" inside-table="true" ix="F_1555b9fe-cb08-41f8-b419-4929b1a2aa8c" name="us-gaap:AvailableForSaleDebtSecuritiesAmortizedCostBasis" scale="6" unitref="U_USD">1,324</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><ix:nonfraction contextref="C_a6362460-9793-44f6-82ce-dfa0c3ab9c14" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-1373" inside-table="true" ix="F_9e7a3bb9-7076-43fd-a0ba-e0fc48412ff4" name="us-gaap:AvailableForSaleDebtSecuritiesAccumulatedGrossUnrealizedGainBeforeTax" scale="6" unitref="U_USD">225</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>(</span><span><ix:nonfraction contextref="C_a6362460-9793-44f6-82ce-dfa0c3ab9c14" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-1381" inside-table="true" ix="F_097e3ff5-96b5-44c9-98f4-420416420ee8" name="us-gaap:AvailableForSaleDebtSecuritiesAccumulatedGrossUnrealizedLossBeforeTax" scale="6" unitref="U_USD">6</ix:nonfraction></span></p></td>
+<td><p><span>)</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><ix:nonfraction contextref="C_a6362460-9793-44f6-82ce-dfa0c3ab9c14" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-166" inside-table="true" ix="F_b35331c6-0485-48c7-9b8e-650b1bd2277b" name="us-gaap:AvailableForSaleSecuritiesDebtSecurities" scale="6" unitref="U_USD">1,543</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+</tr>
+<tr>
+<td><p><span> </span></p></td>
+<td><p><span>$</span></p></td>
+<td><p><span><ix:nonfraction contextref="C_7bf1c469-da4f-4e0d-80ab-b368cc556db0" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-1365" inside-table="true" ix="F_b23b90c0-8461-4455-a0f1-c40850716f26" name="us-gaap:AvailableForSaleDebtSecuritiesAmortizedCostBasis" scale="6" unitref="U_USD">15,214</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>$</span></p></td>
+<td><p><span><ix:nonfraction contextref="C_7bf1c469-da4f-4e0d-80ab-b368cc556db0" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-1374" inside-table="true" ix="F_a3ac19e1-af95-48b0-89a1-dcbba6700c93" name="us-gaap:AvailableForSaleDebtSecuritiesAccumulatedGrossUnrealizedGainBeforeTax" scale="6" unitref="U_USD">257</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>$</span></p></td>
+<td><p><span>(</span><span><ix:nonfraction contextref="C_7bf1c469-da4f-4e0d-80ab-b368cc556db0" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-1382" inside-table="true" ix="F_bd5dc47b-fb97-4412-a559-709fea271b55" name="us-gaap:AvailableForSaleDebtSecuritiesAccumulatedGrossUnrealizedLossBeforeTax" scale="6" unitref="U_USD">107</ix:nonfraction></span></p></td>
+<td><p><span>)</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>$</span></p></td>
+<td><p><span><ix:nonfraction contextref="C_7bf1c469-da4f-4e0d-80ab-b368cc556db0" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-167" inside-table="true" ix="F_0fe618e7-391e-4ea3-8db2-32ffd2d240fc" name="us-gaap:AvailableForSaleSecuritiesDebtSecurities" scale="6" unitref="U_USD">15,364</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+</tr>
+<tr>
+<td><p><span>December 31, 2023</span></p></td>
+<td colspan="2"><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td colspan="2"><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td colspan="2"><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td colspan="2"><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+</tr>
+<tr>
+<td><p><span>U.S. Treasury, U.S. government corporations and agencies</span></p></td>
+<td><p><span>$</span></p></td>
+<td><p><span><ix:nonfraction contextref="C_bf2edfe6-eb89-4a53-8b93-d3236a18542e" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-1366" inside-table="true" ix="F_cd29aeb9-f046-4805-9301-d6452e89007a" name="us-gaap:AvailableForSaleDebtSecuritiesAmortizedCostBasis" scale="6" unitref="U_USD">10,308</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>$</span></p></td>
+<td><p><span><ix:nonfraction contextref="C_bf2edfe6-eb89-4a53-8b93-d3236a18542e" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-1375" inside-table="true" ix="F_b913fb70-fea4-4e65-b393-62f3c0aa6c05" name="us-gaap:AvailableForSaleDebtSecuritiesAccumulatedGrossUnrealizedGainBeforeTax" scale="6" unitref="U_USD">14</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>$</span></p></td>
+<td><p><span>(</span><span><ix:nonfraction contextref="C_bf2edfe6-eb89-4a53-8b93-d3236a18542e" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-1383" inside-table="true" ix="F_b78e6927-b62b-4761-8b97-ad0cd201c025" name="us-gaap:AvailableForSaleDebtSecuritiesAccumulatedGrossUnrealizedLossBeforeTax" scale="6" unitref="U_USD">53</ix:nonfraction></span></p></td>
+<td><p><span>)</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>$</span></p></td>
+<td><p><span><ix:nonfraction contextref="C_bf2edfe6-eb89-4a53-8b93-d3236a18542e" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-168" inside-table="true" ix="F_2d01d73c-20c6-4922-8f8e-ab2b37035b30" name="us-gaap:AvailableForSaleSecuritiesDebtSecurities" scale="6" unitref="U_USD">10,269</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+</tr>
+<tr>
+<td><p><span>Foreign governments</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><ix:nonfraction contextref="C_c121e4ce-fe70-4e1c-b4db-650b2ee6ccb2" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-1367" inside-table="true" ix="F_80a1e63d-a8d2-4019-a97d-22bc15e29fcb" name="us-gaap:AvailableForSaleDebtSecuritiesAmortizedCostBasis" scale="6" unitref="U_USD">11,788</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><ix:nonfraction contextref="C_c121e4ce-fe70-4e1c-b4db-650b2ee6ccb2" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-1376" inside-table="true" ix="F_6beaaf9a-bd28-4bd9-b2df-ceeea2c06210" name="us-gaap:AvailableForSaleDebtSecuritiesAccumulatedGrossUnrealizedGainBeforeTax" scale="6" unitref="U_USD">58</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>(</span><span><ix:nonfraction contextref="C_c121e4ce-fe70-4e1c-b4db-650b2ee6ccb2" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-1384" inside-table="true" ix="F_ac87c89f-3878-4505-a28d-4f35329a84ac" name="us-gaap:AvailableForSaleDebtSecuritiesAccumulatedGrossUnrealizedLossBeforeTax" scale="6" unitref="U_USD">41</ix:nonfraction></span></p></td>
+<td><p><span>)</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><ix:nonfraction contextref="C_c121e4ce-fe70-4e1c-b4db-650b2ee6ccb2" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-169" inside-table="true" ix="F_d32ccdb6-94e0-4cda-8107-47afc22dfed5" name="us-gaap:AvailableForSaleSecuritiesDebtSecurities" scale="6" unitref="U_USD">11,805</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+</tr>
+<tr>
+<td><p><span>Corporate and other</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><ix:nonfraction contextref="C_c837367f-39b3-4c20-99aa-ccc1f3d8ca8a" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-1368" inside-table="true" ix="F_bb3fb0f3-f01b-4a0c-9714-6323ed04155c" name="us-gaap:AvailableForSaleDebtSecuritiesAmortizedCostBasis" scale="6" unitref="U_USD">1,429</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><ix:nonfraction contextref="C_c837367f-39b3-4c20-99aa-ccc1f3d8ca8a" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-1377" inside-table="true" ix="F_acb493f9-4010-4796-9165-3be0d26ea47d" name="us-gaap:AvailableForSaleDebtSecuritiesAccumulatedGrossUnrealizedGainBeforeTax" scale="6" unitref="U_USD">262</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>(</span><span><ix:nonfraction contextref="C_c837367f-39b3-4c20-99aa-ccc1f3d8ca8a" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-1385" inside-table="true" ix="F_f0314865-8f1d-4d93-b6c3-d61621e818f3" name="us-gaap:AvailableForSaleDebtSecuritiesAccumulatedGrossUnrealizedLossBeforeTax" scale="6" unitref="U_USD">7</ix:nonfraction></span></p></td>
+<td><p><span>)</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><ix:nonfraction contextref="C_c837367f-39b3-4c20-99aa-ccc1f3d8ca8a" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-170" inside-table="true" ix="F_7b9ae3af-1320-4af7-87ca-4b9addf1f5a5" name="us-gaap:AvailableForSaleSecuritiesDebtSecurities" scale="6" unitref="U_USD">1,684</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+</tr>
+<tr>
+<td><p><span> </span></p></td>
+<td><p><span>$</span></p></td>
+<td><p><span><ix:nonfraction contextref="C_9e1b6e77-993c-46e5-892b-af9f5c3a4201" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-1369" inside-table="true" ix="F_5cf60a0a-420b-426a-915a-5edfdfe9515d" name="us-gaap:AvailableForSaleDebtSecuritiesAmortizedCostBasis" scale="6" unitref="U_USD">23,525</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>$</span></p></td>
+<td><p><span><ix:nonfraction contextref="C_9e1b6e77-993c-46e5-892b-af9f5c3a4201" decimals="-6" id="fact-identifier-1378" inside-table="true" ix="F_362fdb24-741b-43e0-8020-cf95738378e7" name="us-gaap:AvailableForSaleDebtSecuritiesAccumulatedGrossUnrealizedGainBeforeTax" scale="6" unitref="U_USD">334</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>$</span></p></td>
+<td><p><span>(</span><span><ix:nonfraction contextref="C_9e1b6e77-993c-46e5-892b-af9f5c3a4201" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-1386" inside-table="true" ix="F_8c3d48e6-cdcf-4075-af0f-2a4c3a1edb12" name="us-gaap:AvailableForSaleDebtSecuritiesAccumulatedGrossUnrealizedLossBeforeTax" scale="6" unitref="U_USD">101</ix:nonfraction></span></p></td>
+<td><p><span>)</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>$</span></p></td>
+<td><p><span><ix:nonfraction contextref="C_9e1b6e77-993c-46e5-892b-af9f5c3a4201" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-171" inside-table="true" ix="F_c9339601-45fd-4819-98bd-1c95987a53e2" name="us-gaap:AvailableForSaleSecuritiesDebtSecurities" scale="6" unitref="U_USD">23,758</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+</tr>
+</tbody></table></ix:nonnumeric>

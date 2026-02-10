@@ -1,0 +1,1 @@
+<ix:nonnumeric contextref="c-1" continued-fact="false" continued-main-fact="true" continuedat="f-1618-1" enabled-fact="true" escape="true" hover-fact="false" id="fact-identifier-1894" inside-table="false" ix="f-1618" name="us-gaap:ScheduleOfInventoryCurrentTableTextBlock" selected-fact="false">Inventories at December 31 were as follows (in millions):</ix:nonnumeric>

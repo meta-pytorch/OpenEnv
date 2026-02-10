@@ -1,0 +1,109 @@
+<ix:nonnumeric contextref="C_fc05cf1b-e190-46aa-968d-fdf3a84013da" continued-fact="false" enabled-fact="true" escape="true" hover-fact="false" id="fact-identifier-2830" inside-table="false" ix="F_11629255-b763-4b97-a08d-bd0d5f23b6bf" name="us-gaap:FairValueNetDerivativeAssetLiabilityMeasuredOnRecurringBasisUnobservableInputReconciliationTableTextBlock" selected-fact="false"><p><span>Reconciliations of significant assets and liabilities measured and carried at fair value on a recurring basis with the use of significant unobservable inputs (Level 3) for each of the three years ending </span><span>December 31, 2024 follow (in millions).</span><span> </span></p><p><span> </span></p>
+<table>
+<tbody><tr>
+<td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td></tr>
+<tr>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td colspan="2"><p><span>Balance at the<br/>beginning<br/>of the year</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td colspan="2"><p><span>Gains (losses)<br/>included in<br/>earnings</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td colspan="2"><p><span>Acquisitions,<br/>dispositions<br/>and<br/>settlements</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td colspan="2"><p><span>Balance at the<br/>end of the year</span></p></td>
+<td><p><span> </span></p></td>
+</tr>
+<tr>
+<td><p><span><span><ix:nonnumeric contextref="C_9e3b27d8-3fdc-4842-8b62-10ad21ebf2e8" id="fact-identifier-45" inside-table="true" isadditionalitemsonly="true" ishiddenelement="true" ix="F_7d22186f-84cd-4782-a9a9-453cbb743603" name="us-gaap:FairValueRecurringBasisUnobservableInputReconciliationAssetGainLossStatementOfIncomeExtensibleList"><span><ix:nonnumeric contextref="C_4eb9843a-d382-4041-a3a8-25cbaa94cc89" id="fact-identifier-46" inside-table="true" isadditionalitemsonly="true" ishiddenelement="true" ix="F_3aba3418-bfb3-4752-9092-43fcc52e03e5" name="us-gaap:FairValueRecurringBasisUnobservableInputReconciliationAssetGainLossStatementOfIncomeExtensibleList"><span><ix:nonnumeric contextref="C_e847e1c2-0ca7-46be-9df2-e2f6edac6aa6" id="fact-identifier-47" inside-table="true" isadditionalitemsonly="true" ishiddenelement="true" ix="F_dca03458-0f2f-43d6-93c3-6bebeae17af3" name="us-gaap:FairValueRecurringBasisUnobservableInputReconciliationAssetGainLossStatementOfIncomeExtensibleList"><span>Investments in equity securities</span></ix:nonnumeric></span></ix:nonnumeric></span></ix:nonnumeric></span></span><span>:</span></p></td>
+<td><p><span> </span></p></td>
+<td colspan="2"><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td colspan="2"><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td colspan="2"><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td colspan="2"><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+</tr>
+<tr>
+<td><p><span>2024</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>$</span></p></td>
+<td><p><span><ix:nonfraction contextref="C_5a7a9aaa-6dcc-41d7-b819-573e79bac8ae" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-2831" inside-table="true" ix="F_a0fc49c0-42e9-4f36-82b8-6add2c190931" name="us-gaap:FairValueMeasurementWithUnobservableInputsReconciliationRecurringBasisAssetValue" scale="6" unitref="U_USD">10,468</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>$</span></p></td>
+<td><p><span>(</span><span><ix:nonfraction contextref="C_9e3b27d8-3fdc-4842-8b62-10ad21ebf2e8" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-2837" inside-table="true" ix="F_8d471f22-3417-4377-92fe-6c53c481045b" name="us-gaap:FairValueMeasurementWithUnobservableInputsReconciliationRecurringBasisAssetGainLossIncludedInEarnings1" scale="6" sign="-" unitref="U_USD">805</ix:nonfraction></span></p></td>
+<td><p><span>)</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>$</span></p></td>
+<td><p><span>—</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>$</span></p></td>
+<td><p><span><ix:nonfraction contextref="C_c832b8e0-6ba3-4f46-acce-bfafea5cfeb7" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-2832" inside-table="true" ix="F_184f57de-9f52-40ba-b0f2-3f0e954c277a" name="us-gaap:FairValueMeasurementWithUnobservableInputsReconciliationRecurringBasisAssetValue" scale="6" unitref="U_USD">9,663</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+</tr>
+<tr>
+<td><p><span>2023</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><ix:nonfraction contextref="C_6298bfe8-5b5c-470d-932a-1670783106bd" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-2833" inside-table="true" ix="F_93636dc2-27ce-4c1b-a728-45af9e446a96" name="us-gaap:FairValueMeasurementWithUnobservableInputsReconciliationRecurringBasisAssetValue" scale="6" unitref="U_USD">12,169</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>(</span><span><ix:nonfraction contextref="C_4eb9843a-d382-4041-a3a8-25cbaa94cc89" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-2838" inside-table="true" ix="F_a1159026-0f68-49fe-81d7-930d87123d09" name="us-gaap:FairValueMeasurementWithUnobservableInputsReconciliationRecurringBasisAssetGainLossIncludedInEarnings1" scale="6" sign="-" unitref="U_USD">40</ix:nonfraction></span></p></td>
+<td><p><span>)</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>(</span><span><ix:nonfraction contextref="C_4eb9843a-d382-4041-a3a8-25cbaa94cc89" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-2840" inside-table="true" ix="F_a106669e-4b1a-4a4f-bad2-266aeb26e032" name="us-gaap:FairValueMeasurementWithUnobservableInputsReconciliationRecurringBasisAssetPurchasesSalesIssuancesSettlements" scale="6" sign="-" unitref="U_USD">1,661</ix:nonfraction></span></p></td>
+<td><p><span>)</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><ix:nonfraction contextref="C_5a7a9aaa-6dcc-41d7-b819-573e79bac8ae" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-2834" inside-table="true" ix="F_a4e6c724-35d7-412c-8aa2-5fcf3a568b4e" name="us-gaap:FairValueMeasurementWithUnobservableInputsReconciliationRecurringBasisAssetValue" scale="6" unitref="U_USD">10,468</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+</tr>
+<tr>
+<td><p><span>2022</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><ix:nonfraction contextref="C_8e8d37d8-0789-4121-b4e1-008f72352dff" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-2835" inside-table="true" ix="F_ddf8a070-1c71-493f-8723-0952e3ca146d" name="us-gaap:FairValueMeasurementWithUnobservableInputsReconciliationRecurringBasisAssetValue" scale="6" unitref="U_USD">11,480</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><ix:nonfraction contextref="C_e847e1c2-0ca7-46be-9df2-e2f6edac6aa6" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-2839" inside-table="true" ix="F_20cc3c8f-2505-407e-bd24-9aa6f94f4f6d" name="us-gaap:FairValueMeasurementWithUnobservableInputsReconciliationRecurringBasisAssetGainLossIncludedInEarnings1" scale="6" unitref="U_USD">689</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>—</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><ix:nonfraction contextref="C_6298bfe8-5b5c-470d-932a-1670783106bd" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-2836" inside-table="true" ix="F_75b6ff1d-0413-4f6d-9694-fb585e6f20a1" name="us-gaap:FairValueMeasurementWithUnobservableInputsReconciliationRecurringBasisAssetValue" scale="6" unitref="U_USD">12,169</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+</tr>
+</tbody></table></ix:nonnumeric>

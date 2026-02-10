@@ -1,0 +1,62 @@
+<ix:nonnumeric contextref="C_749b88de-119c-422a-8b0a-ad5381517767" continued-taxonomy="false" data-original-id="F_157fba51-67a9-4bd5-87bb-b9500aa4422e" enabled-taxonomy="true" escape="true" highlight-taxonomy="false" hover-taxonomy="false" id="fact-identifier-1032" inside-table="false" isadditionalitemsonly="false" isamountsonly="false" iscalculationsonly="false" iscustomonly="false" isnegativesonly="false" isstandardonly="true" istextonly="true" name="us-gaap:ShareBasedCompensationArrangementByShareBasedPaymentAwardOptionsVestedAndExpectedToVestOutstandingAndExercisableTableTextBlock" onclick="Taxonomies.clickEvent(event, this)" onkeyup="Taxonomies.clickEvent(event, this)" onmouseenter="Taxonomies.enterElement(event, this);" onmouseleave="Taxonomies.leaveElement(event, this);" selected-taxonomy="false" tabindex="18" text-block-taxonomy="true"><p><span>Stock option vesting during the years ended May 31 was as follows:</span><span> </span></p><p><span> </span></p>
+<table>
+<tbody><tr>
+<td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td></tr>
+<tr>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td colspan="6"><p><span>Stock Options</span></p></td>
+<td><p><span> </span></p></td>
+</tr>
+<tr>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td colspan="2"><p><span>Vested during<br/>the year</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td colspan="2"><p><span>Fair value<br/>(in millions)</span></p></td>
+<td><p><span> </span></p></td>
+</tr>
+<tr>
+<td><p><span>2024</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><span><ix:nonfraction contextref="C_749b88de-119c-422a-8b0a-ad5381517767" continued-taxonomy="false" data-original-id="F_00854378-1310-4e1d-b683-4d074d1420eb" decimals="INF" enabled-taxonomy="true" format="ixt:num-dot-decimal" highlight-taxonomy="false" hover-taxonomy="false" id="fact-identifier-1033" inside-table="true" isadditionalitemsonly="false" isamountsonly="true" iscalculationsonly="false" iscustomonly="false" isnegativesonly="false" isstandardonly="true" istextonly="false" name="us-gaap:SharebasedCompensationArrangementBySharebasedPaymentAwardOptionsVestedNumberOfShares" onclick="Taxonomies.clickEvent(event, this)" onkeyup="Taxonomies.clickEvent(event, this)" onmouseenter="Taxonomies.enterElement(event, this);" onmouseleave="Taxonomies.leaveElement(event, this);" selected-taxonomy="false" tabindex="18" unitref="U_shares">2,599,042</ix:nonfraction></span></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>$</span></p></td>
+<td><p><span><span><ix:nonfraction contextref="C_749b88de-119c-422a-8b0a-ad5381517767" continued-taxonomy="false" data-original-id="F_ab09d2fe-f2e4-4026-a7be-9d5d4b50e8da" decimals="-6" enabled-taxonomy="true" highlight-taxonomy="false" hover-taxonomy="false" id="fact-identifier-1034" inside-table="true" isadditionalitemsonly="false" isamountsonly="true" iscalculationsonly="false" iscustomonly="false" isnegativesonly="false" isstandardonly="true" istextonly="false" name="us-gaap:SharebasedCompensationArrangementBySharebasedPaymentAwardOptionsVestedInPeriodFairValue1" onclick="Taxonomies.clickEvent(event, this)" onkeyup="Taxonomies.clickEvent(event, this)" onmouseenter="Taxonomies.enterElement(event, this);" onmouseleave="Taxonomies.leaveElement(event, this);" scale="6" selected-taxonomy="false" tabindex="18" unitref="U_USD">137</ix:nonfraction></span></span></p></td>
+<td><p><span> </span></p></td>
+</tr>
+<tr>
+<td><p><span>2023</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><span><ix:nonfraction contextref="C_25681470-dd9e-4da2-8c53-86863baed3a5" continued-taxonomy="false" data-original-id="F_968584f3-489b-47ca-9caa-2d3748cb2b3b" decimals="INF" enabled-taxonomy="true" format="ixt:num-dot-decimal" highlight-taxonomy="false" hover-taxonomy="false" id="fact-identifier-1035" inside-table="true" isadditionalitemsonly="false" isamountsonly="true" iscalculationsonly="false" iscustomonly="false" isnegativesonly="false" isstandardonly="true" istextonly="false" name="us-gaap:SharebasedCompensationArrangementBySharebasedPaymentAwardOptionsVestedNumberOfShares" onclick="Taxonomies.clickEvent(event, this)" onkeyup="Taxonomies.clickEvent(event, this)" onmouseenter="Taxonomies.enterElement(event, this);" onmouseleave="Taxonomies.leaveElement(event, this);" selected-taxonomy="false" tabindex="18" unitref="U_shares">2,711,215</ix:nonfraction></span></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>$</span></p></td>
+<td><p><span><span><ix:nonfraction contextref="C_25681470-dd9e-4da2-8c53-86863baed3a5" continued-taxonomy="false" data-original-id="F_0a397ffd-8a58-42c3-8b89-b270572c66dc" decimals="-6" enabled-taxonomy="true" highlight-taxonomy="false" hover-taxonomy="false" id="fact-identifier-1036" inside-table="true" isadditionalitemsonly="false" isamountsonly="true" iscalculationsonly="false" iscustomonly="false" isnegativesonly="false" isstandardonly="true" istextonly="false" name="us-gaap:SharebasedCompensationArrangementBySharebasedPaymentAwardOptionsVestedInPeriodFairValue1" onclick="Taxonomies.clickEvent(event, this)" onkeyup="Taxonomies.clickEvent(event, this)" onmouseenter="Taxonomies.enterElement(event, this);" onmouseleave="Taxonomies.leaveElement(event, this);" scale="6" selected-taxonomy="false" tabindex="18" unitref="U_USD">137</ix:nonfraction></span></span></p></td>
+<td><p><span> </span></p></td>
+</tr>
+<tr>
+<td><p><span>2022</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><span><ix:nonfraction contextref="C_8dc3871f-12f9-4a9b-8e88-7314ee19d497" continued-taxonomy="false" data-original-id="F_c07075dc-a280-4f78-99e1-d225a8972d4e" decimals="INF" enabled-taxonomy="true" format="ixt:num-dot-decimal" highlight-taxonomy="false" hover-taxonomy="false" id="fact-identifier-1037" inside-table="true" isadditionalitemsonly="false" isamountsonly="true" iscalculationsonly="false" iscustomonly="false" isnegativesonly="false" isstandardonly="true" istextonly="false" name="us-gaap:SharebasedCompensationArrangementBySharebasedPaymentAwardOptionsVestedNumberOfShares" onclick="Taxonomies.clickEvent(event, this)" onkeyup="Taxonomies.clickEvent(event, this)" onmouseenter="Taxonomies.enterElement(event, this);" onmouseleave="Taxonomies.leaveElement(event, this);" selected-taxonomy="false" tabindex="18" unitref="U_shares">3,005,727</ix:nonfraction></span></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>$</span></p></td>
+<td><p><span><span><ix:nonfraction contextref="C_8dc3871f-12f9-4a9b-8e88-7314ee19d497" continued-taxonomy="false" data-original-id="F_69c4966c-0af3-4abf-a64e-758407c6d350" decimals="-6" enabled-taxonomy="true" highlight-taxonomy="false" hover-taxonomy="false" id="fact-identifier-1038" inside-table="true" isadditionalitemsonly="false" isamountsonly="true" iscalculationsonly="false" iscustomonly="false" isnegativesonly="false" isstandardonly="true" istextonly="false" name="us-gaap:SharebasedCompensationArrangementBySharebasedPaymentAwardOptionsVestedInPeriodFairValue1" onclick="Taxonomies.clickEvent(event, this)" onkeyup="Taxonomies.clickEvent(event, this)" onmouseenter="Taxonomies.enterElement(event, this);" onmouseleave="Taxonomies.leaveElement(event, this);" scale="6" selected-taxonomy="false" tabindex="18" unitref="U_USD">138</ix:nonfraction></span></span></p></td>
+<td><p><span> </span></p></td>
+</tr>
+</tbody></table></ix:nonnumeric>

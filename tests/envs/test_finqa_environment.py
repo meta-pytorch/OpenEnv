@@ -448,7 +448,6 @@ DATA_PATH = str(Path(__file__).parent.parent.parent / "envs" / "finqa_env" / "da
 _data_available = os.path.isfile(os.path.join(DATA_PATH, "benchmark_questions", "finqa.csv"))
 
 
-@pytest.mark.skipif(not _data_available, reason="FinQA data not downloaded. Run: cd envs/finqa_env && ./download_data.sh")
 class TestTools:
     """Test tool implementations."""
 
@@ -484,7 +483,6 @@ class TestTools:
         assert "Error" in result
 
 
-@pytest.mark.skipif(not _data_available, reason="FinQA data not downloaded. Run: cd envs/finqa_env && ./download_data.sh")
 class TestEnvironment:
     """Test environment logic."""
 

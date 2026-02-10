@@ -1,0 +1,39 @@
+<ix:nonnumeric contextref="C_749b88de-119c-422a-8b0a-ad5381517767" continued-taxonomy="false" data-original-id="F_bbac5a7a-6b3c-490c-8b49-9adcca276d51" enabled-taxonomy="true" escape="true" highlight-taxonomy="false" hover-taxonomy="false" id="fact-identifier-605" inside-table="false" isadditionalitemsonly="false" isamountsonly="false" iscalculationsonly="false" iscustomonly="false" isnegativesonly="false" isstandardonly="true" istextonly="true" name="us-gaap:ScheduleofFiniteLivedIntangibleAssetsFutureAmortizationExpenseTableTextBlock" onclick="Taxonomies.clickEvent(event, this)" onkeyup="Taxonomies.clickEvent(event, this)" onmouseenter="Taxonomies.enterElement(event, this);" onmouseleave="Taxonomies.leaveElement(event, this);" selected-taxonomy="false" tabindex="18" text-block-taxonomy="true"><p><span>Expected amortization expense for the next five years is as follows (in millions):</span><span> </span></p><p><span> </span></p>
+<table>
+<tbody><tr>
+<td>
+</td><td>
+</td><td>
+</td><td>
+</td></tr>
+<tr>
+<td><p><span>2025</span></p></td>
+<td><p><span>$</span></p></td>
+<td><p><span><span><ix:nonfraction contextref="C_48b4e0c4-670a-43c6-afdd-1c2d97cb59aa" continued-taxonomy="false" data-original-id="F_414f4a46-6501-443f-920d-f537cc9a798a" decimals="-6" enabled-taxonomy="true" format="ixt:num-dot-decimal" highlight-taxonomy="false" hover-taxonomy="false" id="fact-identifier-606" inside-table="true" isadditionalitemsonly="false" isamountsonly="true" iscalculationsonly="false" iscustomonly="false" isnegativesonly="false" isstandardonly="true" istextonly="false" name="us-gaap:FiniteLivedIntangibleAssetsAmortizationExpenseNextTwelveMonths" onclick="Taxonomies.clickEvent(event, this)" onkeyup="Taxonomies.clickEvent(event, this)" onmouseenter="Taxonomies.enterElement(event, this);" onmouseleave="Taxonomies.leaveElement(event, this);" scale="6" selected-taxonomy="false" tabindex="18" unitref="U_USD">45</ix:nonfraction></span></span></p></td>
+<td><p><span> </span></p></td>
+</tr>
+<tr>
+<td><p><span>2026</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><span><ix:nonfraction contextref="C_48b4e0c4-670a-43c6-afdd-1c2d97cb59aa" continued-taxonomy="false" data-original-id="F_88d9f8ca-714f-4a0b-9706-9b682fe75391" decimals="-6" enabled-taxonomy="true" format="ixt:num-dot-decimal" highlight-taxonomy="false" hover-taxonomy="false" id="fact-identifier-607" inside-table="true" isadditionalitemsonly="false" isamountsonly="true" iscalculationsonly="false" iscustomonly="false" isnegativesonly="false" isstandardonly="true" istextonly="false" name="us-gaap:FiniteLivedIntangibleAssetsAmortizationExpenseYearTwo" onclick="Taxonomies.clickEvent(event, this)" onkeyup="Taxonomies.clickEvent(event, this)" onmouseenter="Taxonomies.enterElement(event, this);" onmouseleave="Taxonomies.leaveElement(event, this);" scale="6" selected-taxonomy="false" tabindex="18" unitref="U_USD">45</ix:nonfraction></span></span></p></td>
+<td><p><span> </span></p></td>
+</tr>
+<tr>
+<td><p><span>2027</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><span><ix:nonfraction contextref="C_48b4e0c4-670a-43c6-afdd-1c2d97cb59aa" continued-taxonomy="false" data-original-id="F_182264c4-b653-41af-8bf1-2f2ec17d8d84" decimals="-6" enabled-taxonomy="true" format="ixt:num-dot-decimal" highlight-taxonomy="false" hover-taxonomy="false" id="fact-identifier-608" inside-table="true" isadditionalitemsonly="false" isamountsonly="true" iscalculationsonly="false" iscustomonly="false" isnegativesonly="false" isstandardonly="true" istextonly="false" name="us-gaap:FiniteLivedIntangibleAssetsAmortizationExpenseYearThree" onclick="Taxonomies.clickEvent(event, this)" onkeyup="Taxonomies.clickEvent(event, this)" onmouseenter="Taxonomies.enterElement(event, this);" onmouseleave="Taxonomies.leaveElement(event, this);" scale="6" selected-taxonomy="false" tabindex="18" unitref="U_USD">43</ix:nonfraction></span></span></p></td>
+<td><p><span> </span></p></td>
+</tr>
+<tr>
+<td><p><span>2028</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><span><ix:nonfraction contextref="C_48b4e0c4-670a-43c6-afdd-1c2d97cb59aa" continued-taxonomy="false" data-original-id="F_38494d2a-ac6c-4757-89a1-8d684b4a6ff6" decimals="-6" enabled-taxonomy="true" format="ixt:num-dot-decimal" highlight-taxonomy="false" hover-taxonomy="false" id="fact-identifier-609" inside-table="true" isadditionalitemsonly="false" isamountsonly="true" iscalculationsonly="false" iscustomonly="false" isnegativesonly="false" isstandardonly="true" istextonly="false" name="us-gaap:FiniteLivedIntangibleAssetsAmortizationExpenseYearFour" onclick="Taxonomies.clickEvent(event, this)" onkeyup="Taxonomies.clickEvent(event, this)" onmouseenter="Taxonomies.enterElement(event, this);" onmouseleave="Taxonomies.leaveElement(event, this);" scale="6" selected-taxonomy="false" tabindex="18" unitref="U_USD">41</ix:nonfraction></span></span></p></td>
+<td><p><span> </span></p></td>
+</tr>
+<tr>
+<td><p><span>2029</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><span><ix:nonfraction contextref="C_48b4e0c4-670a-43c6-afdd-1c2d97cb59aa" continued-taxonomy="false" data-original-id="F_6933b7d9-31a9-4cce-8472-19ee9e9ac3e0" decimals="-6" enabled-taxonomy="true" format="ixt:num-dot-decimal" highlight-taxonomy="false" hover-taxonomy="false" id="fact-identifier-610" inside-table="true" isadditionalitemsonly="false" isamountsonly="true" iscalculationsonly="false" iscustomonly="false" isnegativesonly="false" isstandardonly="true" istextonly="false" name="us-gaap:FiniteLivedIntangibleAssetsAmortizationExpenseYearFive" onclick="Taxonomies.clickEvent(event, this)" onkeyup="Taxonomies.clickEvent(event, this)" onmouseenter="Taxonomies.enterElement(event, this);" onmouseleave="Taxonomies.leaveElement(event, this);" scale="6" selected-taxonomy="false" tabindex="18" unitref="U_USD">2</ix:nonfraction></span></span></p></td>
+<td><p><span> </span></p></td>
+</tr>
+</tbody></table></ix:nonnumeric>

@@ -1,0 +1,1 @@
+<ix:nonnumeric contextref="c-1" continued-fact="false" enabled-fact="true" hover-fact="false" id="fact-identifier-2062" inside-table="false" ix="f-1052" name="cb:ScheduleOfPartiallyOwnedInsuranceCompaniesTableTextBlock" selected-fact="false" xsi:nil="true"></ix:nonnumeric>

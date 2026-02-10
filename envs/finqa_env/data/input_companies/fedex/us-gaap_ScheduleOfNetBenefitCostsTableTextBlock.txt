@@ -1,0 +1,318 @@
+<ix:nonnumeric contextref="C_749b88de-119c-422a-8b0a-ad5381517767" continued-taxonomy="false" data-original-id="F_7e1a1ad1-bf0b-4fe9-b382-c97f3f9cdfef" enabled-taxonomy="true" escape="true" highlight-taxonomy="false" hover-taxonomy="false" id="fact-identifier-1606" inside-table="false" isadditionalitemsonly="false" isamountsonly="false" iscalculationsonly="false" iscustomonly="false" isnegativesonly="false" isstandardonly="true" istextonly="true" name="us-gaap:ScheduleOfNetBenefitCostsTableTextBlock" onclick="Taxonomies.clickEvent(event, this)" onkeyup="Taxonomies.clickEvent(event, this)" onmouseenter="Taxonomies.enterElement(event, this);" onmouseleave="Taxonomies.leaveElement(event, this);" selected-taxonomy="false" tabindex="18" text-block-taxonomy="true"><p><span>Net periodic benefit (income) cost for the years ended May 31 were as follows (in millions):</span><span> </span></p><p><span> </span></p>
+<table>
+<tbody><tr>
+<td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td></tr>
+<tr>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td colspan="10"><p><span>U.S. Pension Plans</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td colspan="10"><p><span>International Pension Plans</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td colspan="10"><p><span>Postretirement Healthcare Plans</span></p></td>
+<td><p><span> </span></p></td>
+</tr>
+<tr>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td colspan="2"><p><span>2024</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td colspan="2"><p><span>2023</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td colspan="2"><p><span>2022</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td colspan="2"><p><span>2024</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td colspan="2"><p><span>2023</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td colspan="2"><p><span>2022</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td colspan="2"><p><span>2024</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td colspan="2"><p><span>2023</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td colspan="2"><p><span>2022</span></p></td>
+<td><p><span> </span></p></td>
+</tr>
+<tr>
+<td><p><span>Service cost</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>$</span></p></td>
+<td><p><span><span><ix:nonfraction contextref="C_3d2f9062-04fc-494c-8725-77645a793457" continued-taxonomy="false" data-original-id="F_560a40d3-1f49-4862-92d3-0cf0af09a430" decimals="-6" enabled-taxonomy="true" format="ixt:num-dot-decimal" highlight-taxonomy="false" hover-taxonomy="false" id="fact-identifier-1607" inside-table="true" isadditionalitemsonly="false" isamountsonly="true" iscalculationsonly="false" iscustomonly="false" isnegativesonly="false" isstandardonly="true" istextonly="false" name="us-gaap:DefinedBenefitPlanServiceCost" onclick="Taxonomies.clickEvent(event, this)" onkeyup="Taxonomies.clickEvent(event, this)" onmouseenter="Taxonomies.enterElement(event, this);" onmouseleave="Taxonomies.leaveElement(event, this);" scale="6" selected-taxonomy="false" tabindex="18" unitref="U_USD">544</ix:nonfraction></span></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>$</span></p></td>
+<td><p><span><span><ix:nonfraction contextref="C_35ea1b64-7863-4428-a75b-0c07ade048ea" continued-taxonomy="false" data-original-id="F_37753dfd-2365-44d8-99e2-2b057d66c7f9" decimals="-6" enabled-taxonomy="true" format="ixt:num-dot-decimal" highlight-taxonomy="false" hover-taxonomy="false" id="fact-identifier-1608" inside-table="true" isadditionalitemsonly="false" isamountsonly="true" iscalculationsonly="false" iscustomonly="false" isnegativesonly="false" isstandardonly="true" istextonly="false" name="us-gaap:DefinedBenefitPlanServiceCost" onclick="Taxonomies.clickEvent(event, this)" onkeyup="Taxonomies.clickEvent(event, this)" onmouseenter="Taxonomies.enterElement(event, this);" onmouseleave="Taxonomies.leaveElement(event, this);" scale="6" selected-taxonomy="false" tabindex="18" unitref="U_USD">651</ix:nonfraction></span></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>$</span></p></td>
+<td><p><span><span><ix:nonfraction contextref="C_25a4d507-1833-4dd5-908b-1833c853d679" continued-taxonomy="false" data-original-id="F_34f6fc88-bee9-4266-8e42-ded0a193712e" decimals="-6" enabled-taxonomy="true" format="ixt:num-dot-decimal" highlight-taxonomy="false" hover-taxonomy="false" id="fact-identifier-1609" inside-table="true" isadditionalitemsonly="false" isamountsonly="true" iscalculationsonly="false" iscustomonly="false" isnegativesonly="false" isstandardonly="true" istextonly="false" name="us-gaap:DefinedBenefitPlanServiceCost" onclick="Taxonomies.clickEvent(event, this)" onkeyup="Taxonomies.clickEvent(event, this)" onmouseenter="Taxonomies.enterElement(event, this);" onmouseleave="Taxonomies.leaveElement(event, this);" scale="6" selected-taxonomy="false" tabindex="18" unitref="U_USD">835</ix:nonfraction></span></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>$</span></p></td>
+<td><p><span><span><ix:nonfraction contextref="C_2ccda43a-c671-44d1-b6ab-5ea318490e02" continued-taxonomy="false" data-original-id="F_b26c0b17-6d5a-4fc3-8942-f0bb1910f0bc" decimals="-6" enabled-taxonomy="true" format="ixt:num-dot-decimal" highlight-taxonomy="false" hover-taxonomy="false" id="fact-identifier-1610" inside-table="true" isadditionalitemsonly="false" isamountsonly="true" iscalculationsonly="false" iscustomonly="false" isnegativesonly="false" isstandardonly="true" istextonly="false" name="us-gaap:DefinedBenefitPlanServiceCost" onclick="Taxonomies.clickEvent(event, this)" onkeyup="Taxonomies.clickEvent(event, this)" onmouseenter="Taxonomies.enterElement(event, this);" onmouseleave="Taxonomies.leaveElement(event, this);" scale="6" selected-taxonomy="false" tabindex="18" unitref="U_USD">38</ix:nonfraction></span></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>$</span></p></td>
+<td><p><span><span><ix:nonfraction contextref="C_22c919c6-d9e0-49f1-9114-626abe4cf811" continued-taxonomy="false" data-original-id="F_c665e43d-4427-4091-8059-50454cd29f66" decimals="-6" enabled-taxonomy="true" format="ixt:num-dot-decimal" highlight-taxonomy="false" hover-taxonomy="false" id="fact-identifier-1611" inside-table="true" isadditionalitemsonly="false" isamountsonly="true" iscalculationsonly="false" iscustomonly="false" isnegativesonly="false" isstandardonly="true" istextonly="false" name="us-gaap:DefinedBenefitPlanServiceCost" onclick="Taxonomies.clickEvent(event, this)" onkeyup="Taxonomies.clickEvent(event, this)" onmouseenter="Taxonomies.enterElement(event, this);" onmouseleave="Taxonomies.leaveElement(event, this);" scale="6" selected-taxonomy="false" tabindex="18" unitref="U_USD">44</ix:nonfraction></span></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>$</span></p></td>
+<td><p><span><span><ix:nonfraction contextref="C_fa8edb40-074a-4024-b409-18334559ba33" continued-taxonomy="false" data-original-id="F_8ea5f8da-90ee-4a4c-b300-5f80aa714093" decimals="-6" enabled-taxonomy="true" format="ixt:num-dot-decimal" highlight-taxonomy="false" hover-taxonomy="false" id="fact-identifier-1612" inside-table="true" isadditionalitemsonly="false" isamountsonly="true" iscalculationsonly="false" iscustomonly="false" isnegativesonly="false" isstandardonly="true" istextonly="false" name="us-gaap:DefinedBenefitPlanServiceCost" onclick="Taxonomies.clickEvent(event, this)" onkeyup="Taxonomies.clickEvent(event, this)" onmouseenter="Taxonomies.enterElement(event, this);" onmouseleave="Taxonomies.leaveElement(event, this);" scale="6" selected-taxonomy="false" tabindex="18" unitref="U_USD">56</ix:nonfraction></span></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>$</span></p></td>
+<td><p><span><span><ix:nonfraction contextref="C_65d88368-ca48-475d-8cdc-9e0dd5c572a0" continued-taxonomy="false" data-original-id="F_29ac9b61-5374-4dee-9d28-9fe276a18e04" decimals="-6" enabled-taxonomy="true" format="ixt:num-dot-decimal" highlight-taxonomy="false" hover-taxonomy="false" id="fact-identifier-1613" inside-table="true" isadditionalitemsonly="false" isamountsonly="true" iscalculationsonly="false" iscustomonly="false" isnegativesonly="false" isstandardonly="true" istextonly="false" name="us-gaap:DefinedBenefitPlanServiceCost" onclick="Taxonomies.clickEvent(event, this)" onkeyup="Taxonomies.clickEvent(event, this)" onmouseenter="Taxonomies.enterElement(event, this);" onmouseleave="Taxonomies.leaveElement(event, this);" scale="6" selected-taxonomy="false" tabindex="18" unitref="U_USD">27</ix:nonfraction></span></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>$</span></p></td>
+<td><p><span><span><ix:nonfraction contextref="C_bb213b8e-9a17-46e0-9e42-649b0115efa5" continued-taxonomy="false" data-original-id="F_300eb699-191d-4875-9c8c-bedb38f793a9" decimals="-6" enabled-taxonomy="true" format="ixt:num-dot-decimal" highlight-taxonomy="false" hover-taxonomy="false" id="fact-identifier-1614" inside-table="true" isadditionalitemsonly="false" isamountsonly="true" iscalculationsonly="false" iscustomonly="false" isnegativesonly="false" isstandardonly="true" istextonly="false" name="us-gaap:DefinedBenefitPlanServiceCost" onclick="Taxonomies.clickEvent(event, this)" onkeyup="Taxonomies.clickEvent(event, this)" onmouseenter="Taxonomies.enterElement(event, this);" onmouseleave="Taxonomies.leaveElement(event, this);" scale="6" selected-taxonomy="false" tabindex="18" unitref="U_USD">37</ix:nonfraction></span></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>$</span></p></td>
+<td><p><span><span><ix:nonfraction contextref="C_9fa8f648-7b01-4b10-8797-a2a05a8e8303" continued-taxonomy="false" data-original-id="F_735adb73-893b-431d-9ff3-79e9346d68aa" decimals="-6" enabled-taxonomy="true" format="ixt:num-dot-decimal" highlight-taxonomy="false" hover-taxonomy="false" id="fact-identifier-1615" inside-table="true" isadditionalitemsonly="false" isamountsonly="true" iscalculationsonly="false" iscustomonly="false" isnegativesonly="false" isstandardonly="true" istextonly="false" name="us-gaap:DefinedBenefitPlanServiceCost" onclick="Taxonomies.clickEvent(event, this)" onkeyup="Taxonomies.clickEvent(event, this)" onmouseenter="Taxonomies.enterElement(event, this);" onmouseleave="Taxonomies.leaveElement(event, this);" scale="6" selected-taxonomy="false" tabindex="18" unitref="U_USD">48</ix:nonfraction></span></span></p></td>
+<td><p><span> </span></p></td>
+</tr>
+<tr>
+<td><p><span>Interest cost</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><span><ix:nonfraction contextref="C_3d2f9062-04fc-494c-8725-77645a793457" continued-taxonomy="false" data-original-id="F_a9b6fd1c-1c7f-470f-bc96-67887c2987c5" decimals="-6" enabled-taxonomy="true" format="ixt:num-dot-decimal" highlight-taxonomy="false" hover-taxonomy="false" id="fact-identifier-1616" inside-table="true" isadditionalitemsonly="false" isamountsonly="true" iscalculationsonly="false" iscustomonly="false" isnegativesonly="false" isstandardonly="true" istextonly="false" name="us-gaap:DefinedBenefitPlanInterestCost" onclick="Taxonomies.clickEvent(event, this)" onkeyup="Taxonomies.clickEvent(event, this)" onmouseenter="Taxonomies.enterElement(event, this);" onmouseleave="Taxonomies.leaveElement(event, this);" scale="6" selected-taxonomy="false" tabindex="18" unitref="U_USD">1,362</ix:nonfraction></span></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><span><ix:nonfraction contextref="C_35ea1b64-7863-4428-a75b-0c07ade048ea" continued-taxonomy="false" data-original-id="F_d1846cd8-a836-4715-bf48-728fc210717f" decimals="-6" enabled-taxonomy="true" format="ixt:num-dot-decimal" highlight-taxonomy="false" hover-taxonomy="false" id="fact-identifier-1617" inside-table="true" isadditionalitemsonly="false" isamountsonly="true" iscalculationsonly="false" iscustomonly="false" isnegativesonly="false" isstandardonly="true" istextonly="false" name="us-gaap:DefinedBenefitPlanInterestCost" onclick="Taxonomies.clickEvent(event, this)" onkeyup="Taxonomies.clickEvent(event, this)" onmouseenter="Taxonomies.enterElement(event, this);" onmouseleave="Taxonomies.leaveElement(event, this);" scale="6" selected-taxonomy="false" tabindex="18" unitref="U_USD">1,218</ix:nonfraction></span></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><span><ix:nonfraction contextref="C_25a4d507-1833-4dd5-908b-1833c853d679" continued-taxonomy="false" data-original-id="F_aead06e4-c2eb-47ab-9481-de2dea4a5b2c" decimals="-6" enabled-taxonomy="true" format="ixt:num-dot-decimal" highlight-taxonomy="false" hover-taxonomy="false" id="fact-identifier-1618" inside-table="true" isadditionalitemsonly="false" isamountsonly="true" iscalculationsonly="false" iscustomonly="false" isnegativesonly="false" isstandardonly="true" istextonly="false" name="us-gaap:DefinedBenefitPlanInterestCost" onclick="Taxonomies.clickEvent(event, this)" onkeyup="Taxonomies.clickEvent(event, this)" onmouseenter="Taxonomies.enterElement(event, this);" onmouseleave="Taxonomies.leaveElement(event, this);" scale="6" selected-taxonomy="false" tabindex="18" unitref="U_USD">1,020</ix:nonfraction></span></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><span><ix:nonfraction contextref="C_2ccda43a-c671-44d1-b6ab-5ea318490e02" continued-taxonomy="false" data-original-id="F_076606b8-bd76-4b76-a10e-a91227f96085" decimals="-6" enabled-taxonomy="true" format="ixt:num-dot-decimal" highlight-taxonomy="false" hover-taxonomy="false" id="fact-identifier-1619" inside-table="true" isadditionalitemsonly="false" isamountsonly="true" iscalculationsonly="false" iscustomonly="false" isnegativesonly="false" isstandardonly="true" istextonly="false" name="us-gaap:DefinedBenefitPlanInterestCost" onclick="Taxonomies.clickEvent(event, this)" onkeyup="Taxonomies.clickEvent(event, this)" onmouseenter="Taxonomies.enterElement(event, this);" onmouseleave="Taxonomies.leaveElement(event, this);" scale="6" selected-taxonomy="false" tabindex="18" unitref="U_USD">42</ix:nonfraction></span></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><span><ix:nonfraction contextref="C_22c919c6-d9e0-49f1-9114-626abe4cf811" continued-taxonomy="false" data-original-id="F_4de6db7e-ded9-4c29-9666-5730f3632b3b" decimals="-6" enabled-taxonomy="true" format="ixt:num-dot-decimal" highlight-taxonomy="false" hover-taxonomy="false" id="fact-identifier-1620" inside-table="true" isadditionalitemsonly="false" isamountsonly="true" iscalculationsonly="false" iscustomonly="false" isnegativesonly="false" isstandardonly="true" istextonly="false" name="us-gaap:DefinedBenefitPlanInterestCost" onclick="Taxonomies.clickEvent(event, this)" onkeyup="Taxonomies.clickEvent(event, this)" onmouseenter="Taxonomies.enterElement(event, this);" onmouseleave="Taxonomies.leaveElement(event, this);" scale="6" selected-taxonomy="false" tabindex="18" unitref="U_USD">34</ix:nonfraction></span></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><span><ix:nonfraction contextref="C_fa8edb40-074a-4024-b409-18334559ba33" continued-taxonomy="false" data-original-id="F_aa71089d-925a-4919-9f88-2b05732b322c" decimals="-6" enabled-taxonomy="true" format="ixt:num-dot-decimal" highlight-taxonomy="false" hover-taxonomy="false" id="fact-identifier-1621" inside-table="true" isadditionalitemsonly="false" isamountsonly="true" iscalculationsonly="false" iscustomonly="false" isnegativesonly="false" isstandardonly="true" istextonly="false" name="us-gaap:DefinedBenefitPlanInterestCost" onclick="Taxonomies.clickEvent(event, this)" onkeyup="Taxonomies.clickEvent(event, this)" onmouseenter="Taxonomies.enterElement(event, this);" onmouseleave="Taxonomies.leaveElement(event, this);" scale="6" selected-taxonomy="false" tabindex="18" unitref="U_USD">32</ix:nonfraction></span></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><span><ix:nonfraction contextref="C_65d88368-ca48-475d-8cdc-9e0dd5c572a0" continued-taxonomy="false" data-original-id="F_cbfc849f-ebf8-4d99-b5ad-f3bdc723ea6c" decimals="-6" enabled-taxonomy="true" format="ixt:num-dot-decimal" highlight-taxonomy="false" hover-taxonomy="false" id="fact-identifier-1622" inside-table="true" isadditionalitemsonly="false" isamountsonly="true" iscalculationsonly="false" iscustomonly="false" isnegativesonly="false" isstandardonly="true" istextonly="false" name="us-gaap:DefinedBenefitPlanInterestCost" onclick="Taxonomies.clickEvent(event, this)" onkeyup="Taxonomies.clickEvent(event, this)" onmouseenter="Taxonomies.enterElement(event, this);" onmouseleave="Taxonomies.leaveElement(event, this);" scale="6" selected-taxonomy="false" tabindex="18" unitref="U_USD">61</ix:nonfraction></span></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><span><ix:nonfraction contextref="C_bb213b8e-9a17-46e0-9e42-649b0115efa5" continued-taxonomy="false" data-original-id="F_3b148e13-27d5-4cb9-bd6b-9dff02b882bc" decimals="-6" enabled-taxonomy="true" format="ixt:num-dot-decimal" highlight-taxonomy="false" hover-taxonomy="false" id="fact-identifier-1623" inside-table="true" isadditionalitemsonly="false" isamountsonly="true" iscalculationsonly="false" iscustomonly="false" isnegativesonly="false" isstandardonly="true" istextonly="false" name="us-gaap:DefinedBenefitPlanInterestCost" onclick="Taxonomies.clickEvent(event, this)" onkeyup="Taxonomies.clickEvent(event, this)" onmouseenter="Taxonomies.enterElement(event, this);" onmouseleave="Taxonomies.leaveElement(event, this);" scale="6" selected-taxonomy="false" tabindex="18" unitref="U_USD">55</ix:nonfraction></span></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><span><ix:nonfraction contextref="C_9fa8f648-7b01-4b10-8797-a2a05a8e8303" continued-taxonomy="false" data-original-id="F_75487bdb-07a0-4d7d-9fd2-ac1ee67ae49f" decimals="-6" enabled-taxonomy="true" format="ixt:num-dot-decimal" highlight-taxonomy="false" hover-taxonomy="false" id="fact-identifier-1624" inside-table="true" isadditionalitemsonly="false" isamountsonly="true" iscalculationsonly="false" iscustomonly="false" isnegativesonly="false" isstandardonly="true" istextonly="false" name="us-gaap:DefinedBenefitPlanInterestCost" onclick="Taxonomies.clickEvent(event, this)" onkeyup="Taxonomies.clickEvent(event, this)" onmouseenter="Taxonomies.enterElement(event, this);" onmouseleave="Taxonomies.leaveElement(event, this);" scale="6" selected-taxonomy="false" tabindex="18" unitref="U_USD">41</ix:nonfraction></span></span></p></td>
+<td><p><span> </span></p></td>
+</tr>
+<tr>
+<td><p><span>Expected return on plan<br/>   assets</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>(</span><span><span><ix:nonfraction contextref="C_3d2f9062-04fc-494c-8725-77645a793457" continued-taxonomy="false" data-original-id="F_32d68b4f-35fc-4097-965e-95d7650fd65b" decimals="-6" enabled-taxonomy="true" format="ixt:num-dot-decimal" highlight-taxonomy="false" hover-taxonomy="false" id="fact-identifier-1625" inside-table="true" isadditionalitemsonly="false" isamountsonly="true" iscalculationsonly="false" iscustomonly="false" isnegativesonly="false" isstandardonly="true" istextonly="false" name="us-gaap:DefinedBenefitPlanExpectedReturnOnPlanAssets" onclick="Taxonomies.clickEvent(event, this)" onkeyup="Taxonomies.clickEvent(event, this)" onmouseenter="Taxonomies.enterElement(event, this);" onmouseleave="Taxonomies.leaveElement(event, this);" scale="6" selected-taxonomy="false" tabindex="18" unitref="U_USD">1,598</ix:nonfraction></span></span></p></td>
+<td><p><span>)</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>(</span><span><span><ix:nonfraction contextref="C_35ea1b64-7863-4428-a75b-0c07ade048ea" continued-taxonomy="false" data-original-id="F_33873245-9244-4586-9d1e-04b39a6c2e05" decimals="-6" enabled-taxonomy="true" format="ixt:num-dot-decimal" highlight-taxonomy="false" hover-taxonomy="false" id="fact-identifier-1626" inside-table="true" isadditionalitemsonly="false" isamountsonly="true" iscalculationsonly="false" iscustomonly="false" isnegativesonly="false" isstandardonly="true" istextonly="false" name="us-gaap:DefinedBenefitPlanExpectedReturnOnPlanAssets" onclick="Taxonomies.clickEvent(event, this)" onkeyup="Taxonomies.clickEvent(event, this)" onmouseenter="Taxonomies.enterElement(event, this);" onmouseleave="Taxonomies.leaveElement(event, this);" scale="6" selected-taxonomy="false" tabindex="18" unitref="U_USD">1,688</ix:nonfraction></span></span></p></td>
+<td><p><span>)</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>(</span><span><span><ix:nonfraction contextref="C_25a4d507-1833-4dd5-908b-1833c853d679" continued-taxonomy="false" data-original-id="F_c74ef45c-c85c-4368-834d-6480acdc3193" decimals="-6" enabled-taxonomy="true" format="ixt:num-dot-decimal" highlight-taxonomy="false" hover-taxonomy="false" id="fact-identifier-1627" inside-table="true" isadditionalitemsonly="false" isamountsonly="true" iscalculationsonly="false" iscustomonly="false" isnegativesonly="false" isstandardonly="true" istextonly="false" name="us-gaap:DefinedBenefitPlanExpectedReturnOnPlanAssets" onclick="Taxonomies.clickEvent(event, this)" onkeyup="Taxonomies.clickEvent(event, this)" onmouseenter="Taxonomies.enterElement(event, this);" onmouseleave="Taxonomies.leaveElement(event, this);" scale="6" selected-taxonomy="false" tabindex="18" unitref="U_USD">1,910</ix:nonfraction></span></span></p></td>
+<td><p><span>)</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>(</span><span><span><ix:nonfraction contextref="C_2ccda43a-c671-44d1-b6ab-5ea318490e02" continued-taxonomy="false" data-original-id="F_0eefe3aa-5e4d-407b-ad43-75d8cea538f0" decimals="-6" enabled-taxonomy="true" format="ixt:num-dot-decimal" highlight-taxonomy="false" hover-taxonomy="false" id="fact-identifier-1628" inside-table="true" isadditionalitemsonly="false" isamountsonly="true" iscalculationsonly="false" iscustomonly="false" isnegativesonly="false" isstandardonly="true" istextonly="false" name="us-gaap:DefinedBenefitPlanExpectedReturnOnPlanAssets" onclick="Taxonomies.clickEvent(event, this)" onkeyup="Taxonomies.clickEvent(event, this)" onmouseenter="Taxonomies.enterElement(event, this);" onmouseleave="Taxonomies.leaveElement(event, this);" scale="6" selected-taxonomy="false" tabindex="18" unitref="U_USD">18</ix:nonfraction></span></span></p></td>
+<td><p><span>)</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>(</span><span><span><ix:nonfraction contextref="C_22c919c6-d9e0-49f1-9114-626abe4cf811" continued-taxonomy="false" data-original-id="F_1f89b6c7-75aa-40bc-9a37-8771c6a71d41" decimals="-6" enabled-taxonomy="true" format="ixt:num-dot-decimal" highlight-taxonomy="false" hover-taxonomy="false" id="fact-identifier-1629" inside-table="true" isadditionalitemsonly="false" isamountsonly="true" iscalculationsonly="false" iscustomonly="false" isnegativesonly="false" isstandardonly="true" istextonly="false" name="us-gaap:DefinedBenefitPlanExpectedReturnOnPlanAssets" onclick="Taxonomies.clickEvent(event, this)" onkeyup="Taxonomies.clickEvent(event, this)" onmouseenter="Taxonomies.enterElement(event, this);" onmouseleave="Taxonomies.leaveElement(event, this);" scale="6" selected-taxonomy="false" tabindex="18" unitref="U_USD">14</ix:nonfraction></span></span></p></td>
+<td><p><span>)</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>(</span><span><span><ix:nonfraction contextref="C_fa8edb40-074a-4024-b409-18334559ba33" continued-taxonomy="false" data-original-id="F_fbdc0df2-fd0c-4733-919f-28d9cfc0810b" decimals="-6" enabled-taxonomy="true" format="ixt:num-dot-decimal" highlight-taxonomy="false" hover-taxonomy="false" id="fact-identifier-1630" inside-table="true" isadditionalitemsonly="false" isamountsonly="true" iscalculationsonly="false" iscustomonly="false" isnegativesonly="false" isstandardonly="true" istextonly="false" name="us-gaap:DefinedBenefitPlanExpectedReturnOnPlanAssets" onclick="Taxonomies.clickEvent(event, this)" onkeyup="Taxonomies.clickEvent(event, this)" onmouseenter="Taxonomies.enterElement(event, this);" onmouseleave="Taxonomies.leaveElement(event, this);" scale="6" selected-taxonomy="false" tabindex="18" unitref="U_USD">26</ix:nonfraction></span></span></p></td>
+<td><p><span>)</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>—</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>—</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>—</span></p></td>
+<td><p><span> </span></p></td>
+</tr>
+<tr>
+<td><p><span>Amortization of prior <br/>   service credit</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>(</span><span><span><ix:nonfraction contextref="C_3d2f9062-04fc-494c-8725-77645a793457" continued-taxonomy="false" data-original-id="F_3d949976-fc9f-40e8-8ca5-4930f2a68e2c" decimals="-6" enabled-taxonomy="true" format="ixt:num-dot-decimal" highlight-taxonomy="false" hover-taxonomy="false" id="fact-identifier-1631" inside-table="true" isadditionalitemsonly="false" isamountsonly="true" iscalculationsonly="false" iscustomonly="false" isnegativesonly="true" isstandardonly="true" istextonly="false" name="us-gaap:DefinedBenefitPlanAmortizationOfPriorServiceCostCredit" onclick="Taxonomies.clickEvent(event, this)" onkeyup="Taxonomies.clickEvent(event, this)" onmouseenter="Taxonomies.enterElement(event, this);" onmouseleave="Taxonomies.leaveElement(event, this);" scale="6" selected-taxonomy="false" sign="-" tabindex="18" unitref="U_USD">7</ix:nonfraction></span></span></p></td>
+<td><p><span>)</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>(</span><span><span><ix:nonfraction contextref="C_35ea1b64-7863-4428-a75b-0c07ade048ea" continued-taxonomy="false" data-original-id="F_8137f950-f1f5-490e-a2cc-f630a489ceda" decimals="-6" enabled-taxonomy="true" format="ixt:num-dot-decimal" highlight-taxonomy="false" hover-taxonomy="false" id="fact-identifier-1632" inside-table="true" isadditionalitemsonly="false" isamountsonly="true" iscalculationsonly="false" iscustomonly="false" isnegativesonly="true" isstandardonly="true" istextonly="false" name="us-gaap:DefinedBenefitPlanAmortizationOfPriorServiceCostCredit" onclick="Taxonomies.clickEvent(event, this)" onkeyup="Taxonomies.clickEvent(event, this)" onmouseenter="Taxonomies.enterElement(event, this);" onmouseleave="Taxonomies.leaveElement(event, this);" scale="6" selected-taxonomy="false" sign="-" tabindex="18" unitref="U_USD">7</ix:nonfraction></span></span></p></td>
+<td><p><span>)</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>(</span><span><span><ix:nonfraction contextref="C_25a4d507-1833-4dd5-908b-1833c853d679" continued-taxonomy="false" data-original-id="F_5afaf96f-c42d-4923-8d65-614d0af79843" decimals="-6" enabled-taxonomy="true" format="ixt:num-dot-decimal" highlight-taxonomy="false" hover-taxonomy="false" id="fact-identifier-1633" inside-table="true" isadditionalitemsonly="false" isamountsonly="true" iscalculationsonly="false" iscustomonly="false" isnegativesonly="true" isstandardonly="true" istextonly="false" name="us-gaap:DefinedBenefitPlanAmortizationOfPriorServiceCostCredit" onclick="Taxonomies.clickEvent(event, this)" onkeyup="Taxonomies.clickEvent(event, this)" onmouseenter="Taxonomies.enterElement(event, this);" onmouseleave="Taxonomies.leaveElement(event, this);" scale="6" selected-taxonomy="false" sign="-" tabindex="18" unitref="U_USD">7</ix:nonfraction></span></span></p></td>
+<td><p><span>)</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>—</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>(</span><span><span><ix:nonfraction contextref="C_22c919c6-d9e0-49f1-9114-626abe4cf811" continued-taxonomy="false" data-original-id="F_72a17d76-c149-4c9b-8e27-75241cd4ac5d" decimals="-6" enabled-taxonomy="true" format="ixt:num-dot-decimal" highlight-taxonomy="false" hover-taxonomy="false" id="fact-identifier-1634" inside-table="true" isadditionalitemsonly="false" isamountsonly="true" iscalculationsonly="false" iscustomonly="false" isnegativesonly="true" isstandardonly="true" istextonly="false" name="us-gaap:DefinedBenefitPlanAmortizationOfPriorServiceCostCredit" onclick="Taxonomies.clickEvent(event, this)" onkeyup="Taxonomies.clickEvent(event, this)" onmouseenter="Taxonomies.enterElement(event, this);" onmouseleave="Taxonomies.leaveElement(event, this);" scale="6" selected-taxonomy="false" sign="-" tabindex="18" unitref="U_USD">2</ix:nonfraction></span></span></p></td>
+<td><p><span>)</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>(</span><span><span><ix:nonfraction contextref="C_fa8edb40-074a-4024-b409-18334559ba33" continued-taxonomy="false" data-original-id="F_fda8b8e8-2e3c-4c92-8ae3-3945933bb7d5" decimals="-6" enabled-taxonomy="true" format="ixt:num-dot-decimal" highlight-taxonomy="false" hover-taxonomy="false" id="fact-identifier-1635" inside-table="true" isadditionalitemsonly="false" isamountsonly="true" iscalculationsonly="false" iscustomonly="false" isnegativesonly="true" isstandardonly="true" istextonly="false" name="us-gaap:DefinedBenefitPlanAmortizationOfPriorServiceCostCredit" onclick="Taxonomies.clickEvent(event, this)" onkeyup="Taxonomies.clickEvent(event, this)" onmouseenter="Taxonomies.enterElement(event, this);" onmouseleave="Taxonomies.leaveElement(event, this);" scale="6" selected-taxonomy="false" sign="-" tabindex="18" unitref="U_USD">2</ix:nonfraction></span></span></p></td>
+<td><p><span>)</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>(</span><span><span><ix:nonfraction contextref="C_65d88368-ca48-475d-8cdc-9e0dd5c572a0" continued-taxonomy="false" data-original-id="F_45c6b807-bbf5-4b5d-a8fb-c456238e9d2c" decimals="-6" enabled-taxonomy="true" format="ixt:num-dot-decimal" highlight-taxonomy="false" hover-taxonomy="false" id="fact-identifier-1636" inside-table="true" isadditionalitemsonly="false" isamountsonly="true" iscalculationsonly="false" iscustomonly="false" isnegativesonly="true" isstandardonly="true" istextonly="false" name="us-gaap:DefinedBenefitPlanAmortizationOfPriorServiceCostCredit" onclick="Taxonomies.clickEvent(event, this)" onkeyup="Taxonomies.clickEvent(event, this)" onmouseenter="Taxonomies.enterElement(event, this);" onmouseleave="Taxonomies.leaveElement(event, this);" scale="6" selected-taxonomy="false" sign="-" tabindex="18" unitref="U_USD">3</ix:nonfraction></span></span></p></td>
+<td><p><span>)</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>—</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>—</span></p></td>
+<td><p><span> </span></p></td>
+</tr>
+<tr>
+<td><p><span>Actuarial losses (gains) <br/>   and other</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>(</span><span><span><ix:nonfraction contextref="C_3d2f9062-04fc-494c-8725-77645a793457" continued-taxonomy="false" data-original-id="F_5babaeb3-0946-4268-bf28-d956835c04e2" decimals="-6" enabled-taxonomy="true" format="ixt:num-dot-decimal" highlight-taxonomy="false" hover-taxonomy="false" id="fact-identifier-1637" inside-table="true" isadditionalitemsonly="false" isamountsonly="true" iscalculationsonly="false" iscustomonly="true" isnegativesonly="true" isstandardonly="false" istextonly="false" name="fdx:DefinedBenefitPlanAmortizationOfGainsLossesAndOther" onclick="Taxonomies.clickEvent(event, this)" onkeyup="Taxonomies.clickEvent(event, this)" onmouseenter="Taxonomies.enterElement(event, this);" onmouseleave="Taxonomies.leaveElement(event, this);" scale="6" selected-taxonomy="false" sign="-" tabindex="18" unitref="U_USD">590</ix:nonfraction></span></span></p></td>
+<td><p><span>)</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>(</span><span><span><ix:nonfraction contextref="C_35ea1b64-7863-4428-a75b-0c07ade048ea" continued-taxonomy="false" data-original-id="F_36700211-133c-493d-a6d0-fa228a942c8e" decimals="-6" enabled-taxonomy="true" format="ixt:num-dot-decimal" highlight-taxonomy="false" hover-taxonomy="false" id="fact-identifier-1638" inside-table="true" isadditionalitemsonly="false" isamountsonly="true" iscalculationsonly="false" iscustomonly="true" isnegativesonly="true" isstandardonly="false" istextonly="false" name="fdx:DefinedBenefitPlanAmortizationOfGainsLossesAndOther" onclick="Taxonomies.clickEvent(event, this)" onkeyup="Taxonomies.clickEvent(event, this)" onmouseenter="Taxonomies.enterElement(event, this);" onmouseleave="Taxonomies.leaveElement(event, this);" scale="6" selected-taxonomy="false" sign="-" tabindex="18" unitref="U_USD">487</ix:nonfraction></span></span></p></td>
+<td><p><span>)</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><span><ix:nonfraction contextref="C_25a4d507-1833-4dd5-908b-1833c853d679" continued-taxonomy="false" data-original-id="F_c94994c9-9b02-40db-a2b0-21e5f9a2016f" decimals="-6" enabled-taxonomy="true" format="ixt:num-dot-decimal" highlight-taxonomy="false" hover-taxonomy="false" id="fact-identifier-1639" inside-table="true" isadditionalitemsonly="false" isamountsonly="true" iscalculationsonly="false" iscustomonly="true" isnegativesonly="false" isstandardonly="false" istextonly="false" name="fdx:DefinedBenefitPlanAmortizationOfGainsLossesAndOther" onclick="Taxonomies.clickEvent(event, this)" onkeyup="Taxonomies.clickEvent(event, this)" onmouseenter="Taxonomies.enterElement(event, this);" onmouseleave="Taxonomies.leaveElement(event, this);" scale="6" selected-taxonomy="false" tabindex="18" unitref="U_USD">1,683</ix:nonfraction></span></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><span><ix:nonfraction contextref="C_2ccda43a-c671-44d1-b6ab-5ea318490e02" continued-taxonomy="false" data-original-id="F_a8748bd5-dc98-49ab-9b00-23a75cb94ad2" decimals="-6" enabled-taxonomy="true" format="ixt:num-dot-decimal" highlight-taxonomy="false" hover-taxonomy="false" id="fact-identifier-1640" inside-table="true" isadditionalitemsonly="false" isamountsonly="true" iscalculationsonly="false" iscustomonly="true" isnegativesonly="false" isstandardonly="false" istextonly="false" name="fdx:DefinedBenefitPlanAmortizationOfGainsLossesAndOther" onclick="Taxonomies.clickEvent(event, this)" onkeyup="Taxonomies.clickEvent(event, this)" onmouseenter="Taxonomies.enterElement(event, this);" onmouseleave="Taxonomies.leaveElement(event, this);" scale="6" selected-taxonomy="false" tabindex="18" unitref="U_USD">13</ix:nonfraction></span></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>(</span><span><span><ix:nonfraction contextref="C_22c919c6-d9e0-49f1-9114-626abe4cf811" continued-taxonomy="false" data-original-id="F_63783495-6055-4c52-b4b4-8948940abf23" decimals="-6" enabled-taxonomy="true" format="ixt:num-dot-decimal" highlight-taxonomy="false" hover-taxonomy="false" id="fact-identifier-1641" inside-table="true" isadditionalitemsonly="false" isamountsonly="true" iscalculationsonly="false" iscustomonly="true" isnegativesonly="true" isstandardonly="false" istextonly="false" name="fdx:DefinedBenefitPlanAmortizationOfGainsLossesAndOther" onclick="Taxonomies.clickEvent(event, this)" onkeyup="Taxonomies.clickEvent(event, this)" onmouseenter="Taxonomies.enterElement(event, this);" onmouseleave="Taxonomies.leaveElement(event, this);" scale="6" selected-taxonomy="false" sign="-" tabindex="18" unitref="U_USD">25</ix:nonfraction></span></span></p></td>
+<td><p><span>)</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><span><ix:nonfraction contextref="C_fa8edb40-074a-4024-b409-18334559ba33" continued-taxonomy="false" data-original-id="F_33eb4827-a7e2-49e2-a52e-e609718ea710" decimals="-6" enabled-taxonomy="true" format="ixt:num-dot-decimal" highlight-taxonomy="false" hover-taxonomy="false" id="fact-identifier-1642" inside-table="true" isadditionalitemsonly="false" isamountsonly="true" iscalculationsonly="false" iscustomonly="true" isnegativesonly="false" isstandardonly="false" istextonly="false" name="fdx:DefinedBenefitPlanAmortizationOfGainsLossesAndOther" onclick="Taxonomies.clickEvent(event, this)" onkeyup="Taxonomies.clickEvent(event, this)" onmouseenter="Taxonomies.enterElement(event, this);" onmouseleave="Taxonomies.leaveElement(event, this);" scale="6" selected-taxonomy="false" tabindex="18" unitref="U_USD">87</ix:nonfraction></span></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><span><ix:nonfraction contextref="C_65d88368-ca48-475d-8cdc-9e0dd5c572a0" continued-taxonomy="false" data-original-id="F_d2d0c686-4fbf-45f5-872a-e29b4cae963e" decimals="-6" enabled-taxonomy="true" format="ixt:num-dot-decimal" highlight-taxonomy="false" hover-taxonomy="false" id="fact-identifier-1643" inside-table="true" isadditionalitemsonly="false" isamountsonly="true" iscalculationsonly="false" iscustomonly="true" isnegativesonly="false" isstandardonly="false" istextonly="false" name="fdx:DefinedBenefitPlanAmortizationOfGainsLossesAndOther" onclick="Taxonomies.clickEvent(event, this)" onkeyup="Taxonomies.clickEvent(event, this)" onmouseenter="Taxonomies.enterElement(event, this);" onmouseleave="Taxonomies.leaveElement(event, this);" scale="6" selected-taxonomy="false" tabindex="18" unitref="U_USD">16</ix:nonfraction></span></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>(</span><span><span><ix:nonfraction contextref="C_bb213b8e-9a17-46e0-9e42-649b0115efa5" continued-taxonomy="false" data-original-id="F_8e83b25f-49c1-4a58-a8a2-f0e6eb88e0b5" decimals="-6" enabled-taxonomy="true" format="ixt:num-dot-decimal" highlight-taxonomy="false" hover-taxonomy="false" id="fact-identifier-1644" inside-table="true" isadditionalitemsonly="false" isamountsonly="true" iscalculationsonly="false" iscustomonly="true" isnegativesonly="true" isstandardonly="false" istextonly="false" name="fdx:DefinedBenefitPlanAmortizationOfGainsLossesAndOther" onclick="Taxonomies.clickEvent(event, this)" onkeyup="Taxonomies.clickEvent(event, this)" onmouseenter="Taxonomies.enterElement(event, this);" onmouseleave="Taxonomies.leaveElement(event, this);" scale="6" selected-taxonomy="false" sign="-" tabindex="18" unitref="U_USD">138</ix:nonfraction></span></span></p></td>
+<td><p><span>)</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>(</span><span><span><ix:nonfraction contextref="C_9fa8f648-7b01-4b10-8797-a2a05a8e8303" continued-taxonomy="false" data-original-id="F_b941c25e-96d3-494c-a174-f072f5d16e9f" decimals="-6" enabled-taxonomy="true" format="ixt:num-dot-decimal" highlight-taxonomy="false" hover-taxonomy="false" id="fact-identifier-1645" inside-table="true" isadditionalitemsonly="false" isamountsonly="true" iscalculationsonly="false" iscustomonly="true" isnegativesonly="true" isstandardonly="false" istextonly="false" name="fdx:DefinedBenefitPlanAmortizationOfGainsLossesAndOther" onclick="Taxonomies.clickEvent(event, this)" onkeyup="Taxonomies.clickEvent(event, this)" onmouseenter="Taxonomies.enterElement(event, this);" onmouseleave="Taxonomies.leaveElement(event, this);" scale="6" selected-taxonomy="false" sign="-" tabindex="18" unitref="U_USD">192</ix:nonfraction></span></span></p></td>
+<td><p><span>)</span></p></td>
+</tr>
+<tr>
+<td><p><span>Net periodic benefit (income) cost</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>$</span></p></td>
+<td><p><span>(</span><span><span><ix:nonfraction contextref="C_3d2f9062-04fc-494c-8725-77645a793457" continued-taxonomy="false" data-original-id="F_dd16adc9-c40c-4e50-bd7a-5bbfe39f3c07" decimals="-6" enabled-taxonomy="true" format="ixt:num-dot-decimal" highlight-taxonomy="false" hover-taxonomy="false" id="fact-identifier-1646" inside-table="true" isadditionalitemsonly="false" isamountsonly="true" iscalculationsonly="false" iscustomonly="false" isnegativesonly="true" isstandardonly="true" istextonly="false" name="us-gaap:DefinedBenefitPlanNetPeriodicBenefitCost" onclick="Taxonomies.clickEvent(event, this)" onkeyup="Taxonomies.clickEvent(event, this)" onmouseenter="Taxonomies.enterElement(event, this);" onmouseleave="Taxonomies.leaveElement(event, this);" scale="6" selected-taxonomy="false" sign="-" tabindex="18" unitref="U_USD">289</ix:nonfraction></span></span></p></td>
+<td><p><span>)</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>$</span></p></td>
+<td><p><span>(</span><span><span><ix:nonfraction contextref="C_35ea1b64-7863-4428-a75b-0c07ade048ea" continued-taxonomy="false" data-original-id="F_eb275a41-717e-4e5d-a3d2-0babd25186a8" decimals="-6" enabled-taxonomy="true" format="ixt:num-dot-decimal" highlight-taxonomy="false" hover-taxonomy="false" id="fact-identifier-1647" inside-table="true" isadditionalitemsonly="false" isamountsonly="true" iscalculationsonly="false" iscustomonly="false" isnegativesonly="true" isstandardonly="true" istextonly="false" name="us-gaap:DefinedBenefitPlanNetPeriodicBenefitCost" onclick="Taxonomies.clickEvent(event, this)" onkeyup="Taxonomies.clickEvent(event, this)" onmouseenter="Taxonomies.enterElement(event, this);" onmouseleave="Taxonomies.leaveElement(event, this);" scale="6" selected-taxonomy="false" sign="-" tabindex="18" unitref="U_USD">313</ix:nonfraction></span></span></p></td>
+<td><p><span>)</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>$</span></p></td>
+<td><p><span><span><ix:nonfraction contextref="C_25a4d507-1833-4dd5-908b-1833c853d679" continued-taxonomy="false" data-original-id="F_2ff0b8b8-3bd8-41b1-ba44-6f297911c1e3" decimals="-6" enabled-taxonomy="true" format="ixt:num-dot-decimal" highlight-taxonomy="false" hover-taxonomy="false" id="fact-identifier-1648" inside-table="true" isadditionalitemsonly="false" isamountsonly="true" iscalculationsonly="false" iscustomonly="false" isnegativesonly="false" isstandardonly="true" istextonly="false" name="us-gaap:DefinedBenefitPlanNetPeriodicBenefitCost" onclick="Taxonomies.clickEvent(event, this)" onkeyup="Taxonomies.clickEvent(event, this)" onmouseenter="Taxonomies.enterElement(event, this);" onmouseleave="Taxonomies.leaveElement(event, this);" scale="6" selected-taxonomy="false" tabindex="18" unitref="U_USD">1,621</ix:nonfraction></span></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>$</span></p></td>
+<td><p><span><span><ix:nonfraction contextref="C_2ccda43a-c671-44d1-b6ab-5ea318490e02" continued-taxonomy="false" data-original-id="F_49cc220f-9862-4d37-8369-c35e735846a1" decimals="-6" enabled-taxonomy="true" highlight-taxonomy="false" hover-taxonomy="false" id="fact-identifier-1649" inside-table="true" isadditionalitemsonly="false" isamountsonly="true" iscalculationsonly="false" iscustomonly="false" isnegativesonly="false" isstandardonly="true" istextonly="false" name="us-gaap:DefinedBenefitPlanNetPeriodicBenefitCost" onclick="Taxonomies.clickEvent(event, this)" onkeyup="Taxonomies.clickEvent(event, this)" onmouseenter="Taxonomies.enterElement(event, this);" onmouseleave="Taxonomies.leaveElement(event, this);" scale="6" selected-taxonomy="false" tabindex="18" unitref="U_USD">75</ix:nonfraction></span></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>$</span></p></td>
+<td><p><span><span><ix:nonfraction contextref="C_22c919c6-d9e0-49f1-9114-626abe4cf811" continued-taxonomy="false" data-original-id="F_3f2944fb-4458-4dc7-8526-d4b4e52d2594" decimals="-6" enabled-taxonomy="true" highlight-taxonomy="false" hover-taxonomy="false" id="fact-identifier-1650" inside-table="true" isadditionalitemsonly="false" isamountsonly="true" iscalculationsonly="false" iscustomonly="false" isnegativesonly="false" isstandardonly="true" istextonly="false" name="us-gaap:DefinedBenefitPlanNetPeriodicBenefitCost" onclick="Taxonomies.clickEvent(event, this)" onkeyup="Taxonomies.clickEvent(event, this)" onmouseenter="Taxonomies.enterElement(event, this);" onmouseleave="Taxonomies.leaveElement(event, this);" scale="6" selected-taxonomy="false" tabindex="18" unitref="U_USD">37</ix:nonfraction></span></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>$</span></p></td>
+<td><p><span><span><ix:nonfraction contextref="C_fa8edb40-074a-4024-b409-18334559ba33" continued-taxonomy="false" data-original-id="F_5daeb5ef-0ccc-4540-9414-fa401373d39b" decimals="-6" enabled-taxonomy="true" highlight-taxonomy="false" hover-taxonomy="false" id="fact-identifier-1651" inside-table="true" isadditionalitemsonly="false" isamountsonly="true" iscalculationsonly="false" iscustomonly="false" isnegativesonly="false" isstandardonly="true" istextonly="false" name="us-gaap:DefinedBenefitPlanNetPeriodicBenefitCost" onclick="Taxonomies.clickEvent(event, this)" onkeyup="Taxonomies.clickEvent(event, this)" onmouseenter="Taxonomies.enterElement(event, this);" onmouseleave="Taxonomies.leaveElement(event, this);" scale="6" selected-taxonomy="false" tabindex="18" unitref="U_USD">147</ix:nonfraction></span></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>$</span></p></td>
+<td><p><span><span><ix:nonfraction contextref="C_65d88368-ca48-475d-8cdc-9e0dd5c572a0" continued-taxonomy="false" data-original-id="F_c46fa963-0dd4-44b8-be52-d49b5ec68162" decimals="-6" enabled-taxonomy="true" format="ixt:num-dot-decimal" highlight-taxonomy="false" hover-taxonomy="false" id="fact-identifier-1652" inside-table="true" isadditionalitemsonly="false" isamountsonly="true" iscalculationsonly="false" iscustomonly="false" isnegativesonly="false" isstandardonly="true" istextonly="false" name="us-gaap:DefinedBenefitPlanNetPeriodicBenefitCost" onclick="Taxonomies.clickEvent(event, this)" onkeyup="Taxonomies.clickEvent(event, this)" onmouseenter="Taxonomies.enterElement(event, this);" onmouseleave="Taxonomies.leaveElement(event, this);" scale="6" selected-taxonomy="false" tabindex="18" unitref="U_USD">101</ix:nonfraction></span></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>$</span></p></td>
+<td><p><span>(</span><span><span><ix:nonfraction contextref="C_bb213b8e-9a17-46e0-9e42-649b0115efa5" continued-taxonomy="false" data-original-id="F_39e23924-0205-4a30-946a-830584f402ae" decimals="-6" enabled-taxonomy="true" format="ixt:num-dot-decimal" highlight-taxonomy="false" hover-taxonomy="false" id="fact-identifier-1653" inside-table="true" isadditionalitemsonly="false" isamountsonly="true" iscalculationsonly="false" iscustomonly="false" isnegativesonly="true" isstandardonly="true" istextonly="false" name="us-gaap:DefinedBenefitPlanNetPeriodicBenefitCost" onclick="Taxonomies.clickEvent(event, this)" onkeyup="Taxonomies.clickEvent(event, this)" onmouseenter="Taxonomies.enterElement(event, this);" onmouseleave="Taxonomies.leaveElement(event, this);" scale="6" selected-taxonomy="false" sign="-" tabindex="18" unitref="U_USD">46</ix:nonfraction></span></span></p></td>
+<td><p><span>)</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>$</span></p></td>
+<td><p><span>(</span><span><span><ix:nonfraction contextref="C_9fa8f648-7b01-4b10-8797-a2a05a8e8303" continued-taxonomy="false" data-original-id="F_f7e6e37b-b66d-4d30-98bb-1ea8141e75ef" decimals="-6" enabled-taxonomy="true" format="ixt:num-dot-decimal" highlight-taxonomy="false" hover-taxonomy="false" id="fact-identifier-1654" inside-table="true" isadditionalitemsonly="false" isamountsonly="true" iscalculationsonly="false" iscustomonly="false" isnegativesonly="true" isstandardonly="true" istextonly="false" name="us-gaap:DefinedBenefitPlanNetPeriodicBenefitCost" onclick="Taxonomies.clickEvent(event, this)" onkeyup="Taxonomies.clickEvent(event, this)" onmouseenter="Taxonomies.enterElement(event, this);" onmouseleave="Taxonomies.leaveElement(event, this);" scale="6" selected-taxonomy="false" sign="-" tabindex="18" unitref="U_USD">103</ix:nonfraction></span></span></p></td>
+<td><p><span>)</span></p></td>
+</tr>
+</tbody></table></ix:nonnumeric>

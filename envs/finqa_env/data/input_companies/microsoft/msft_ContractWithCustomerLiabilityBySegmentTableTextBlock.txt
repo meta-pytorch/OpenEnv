@@ -1,0 +1,118 @@
+<ix:nonnumeric contextref="C_6dbdb3a2-9baf-41b4-922d-f59879124337" continued-taxonomy="false" data-original-id="F_4e23db89-9d30-43db-aa9d-e5bfa26b51cb" enabled-taxonomy="true" escape="true" highlight-taxonomy="false" hover-taxonomy="false" id="fact-identifier-1412" inside-table="false" isadditionalitemsonly="false" isamountsonly="false" iscalculationsonly="false" iscustomonly="true" isnegativesonly="false" isstandardonly="false" istextonly="true" name="msft:ContractWithCustomerLiabilityBySegmentTableTextBlock" onclick="Taxonomies.clickEvent(event, this)" onkeyup="Taxonomies.clickEvent(event, this)" onmouseenter="Taxonomies.enterElement(event, this);" onmouseleave="Taxonomies.leaveElement(event, this);" selected-taxonomy="false" tabindex="18" text-block-taxonomy="true"><p><span>Unearned revenue by segment was as follows:</span><span> </span></p><p><span> </span></p>
+<table>
+<tbody><tr>
+<td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td></tr>
+<tr>
+<td><p><span>(In millions)</span></p></td>
+<td><p><span> </span></p></td>
+<td colspan="2"><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td colspan="2"><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+</tr>
+<tr>
+<td colspan="8"><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+</tr>
+<tr>
+<td><p><span> </span></p></td>
+<td colspan="4"><p><span> </span></p></td>
+<td colspan="3"><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+</tr>
+<tr>
+<td><p><span>June 30,</span></p></td>
+<td><p><span> </span></p></td>
+<td colspan="2"><p><span>2024</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td colspan="2"><p><span>2023</span></p></td>
+<td><p><span> </span></p></td>
+</tr>
+<tr>
+<td><p><span> </span></p></td>
+<td colspan="4"><p><span> </span></p></td>
+<td colspan="4"><p><span> </span></p></td>
+</tr>
+<tr>
+<td><p><span>Productivity and Business Processes</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>$</span></p></td>
+<td><p><span><span><ix:nonfraction contextref="C_de63ec16-6284-4a97-879c-0f062e5ef9fa" continued-taxonomy="false" data-original-id="F_6d928251-fdfd-4f29-b809-c4965642033c" decimals="-6" enabled-taxonomy="true" format="ixt:num-dot-decimal" highlight-taxonomy="false" hover-taxonomy="false" id="fact-identifier-1413" inside-table="true" isadditionalitemsonly="false" isamountsonly="true" iscalculationsonly="false" iscustomonly="false" isnegativesonly="false" isstandardonly="true" istextonly="false" name="us-gaap:ContractWithCustomerLiability" onclick="Taxonomies.clickEvent(event, this)" onkeyup="Taxonomies.clickEvent(event, this)" onmouseenter="Taxonomies.enterElement(event, this);" onmouseleave="Taxonomies.leaveElement(event, this);" scale="6" selected-taxonomy="false" tabindex="18" unitref="U_USD">30,879</ix:nonfraction></span></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>$</span></p></td>
+<td><p><span><span><ix:nonfraction contextref="C_48ace513-be04-411e-9392-bc4336333caf" continued-taxonomy="false" data-original-id="F_b1b4d86d-7ab8-4edc-b066-ef9600d013f9" decimals="-6" enabled-taxonomy="true" format="ixt:num-dot-decimal" highlight-taxonomy="false" hover-taxonomy="false" id="fact-identifier-1414" inside-table="true" isadditionalitemsonly="false" isamountsonly="true" iscalculationsonly="false" iscustomonly="false" isnegativesonly="false" isstandardonly="true" istextonly="false" name="us-gaap:ContractWithCustomerLiability" onclick="Taxonomies.clickEvent(event, this)" onkeyup="Taxonomies.clickEvent(event, this)" onmouseenter="Taxonomies.enterElement(event, this);" onmouseleave="Taxonomies.leaveElement(event, this);" scale="6" selected-taxonomy="false" tabindex="18" unitref="U_USD">27,572</ix:nonfraction></span></span></p></td>
+<td><p><span> </span></p></td>
+</tr>
+<tr>
+<td><p><span>Intelligent Cloud</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><span><ix:nonfraction contextref="C_bf1ad89f-e825-47ee-8a86-c466e4bd5e15" continued-taxonomy="false" data-original-id="F_8cfc0553-cd56-4750-9e70-217654520a78" decimals="-6" enabled-taxonomy="true" format="ixt:num-dot-decimal" highlight-taxonomy="false" hover-taxonomy="false" id="fact-identifier-1415" inside-table="true" isadditionalitemsonly="false" isamountsonly="true" iscalculationsonly="false" iscustomonly="false" isnegativesonly="false" isstandardonly="true" istextonly="false" name="us-gaap:ContractWithCustomerLiability" onclick="Taxonomies.clickEvent(event, this)" onkeyup="Taxonomies.clickEvent(event, this)" onmouseenter="Taxonomies.enterElement(event, this);" onmouseleave="Taxonomies.leaveElement(event, this);" scale="6" selected-taxonomy="false" tabindex="18" unitref="U_USD">23,117</ix:nonfraction></span></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><span><ix:nonfraction contextref="C_9cdfb2d1-b40c-43ea-aff2-e3b7cea54e79" continued-taxonomy="false" data-original-id="F_a38ae610-b47a-4957-b594-2f8b80d9d391" decimals="-6" enabled-taxonomy="true" format="ixt:num-dot-decimal" highlight-taxonomy="false" hover-taxonomy="false" id="fact-identifier-1416" inside-table="true" isadditionalitemsonly="false" isamountsonly="true" iscalculationsonly="false" iscustomonly="false" isnegativesonly="false" isstandardonly="true" istextonly="false" name="us-gaap:ContractWithCustomerLiability" onclick="Taxonomies.clickEvent(event, this)" onkeyup="Taxonomies.clickEvent(event, this)" onmouseenter="Taxonomies.enterElement(event, this);" onmouseleave="Taxonomies.leaveElement(event, this);" scale="6" selected-taxonomy="false" tabindex="18" unitref="U_USD">21,563</ix:nonfraction></span></span></p></td>
+<td><p><span> </span></p></td>
+</tr>
+<tr>
+<td><p><span>More Personal Computing</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><span><ix:nonfraction contextref="C_4598f74b-5b7b-4429-a17a-7baf51f4694e" continued-taxonomy="false" data-original-id="F_f593c0f2-ea62-4f1b-8f1e-1e8d730840fd" decimals="-6" enabled-taxonomy="true" format="ixt:num-dot-decimal" highlight-taxonomy="false" hover-taxonomy="false" id="fact-identifier-1417" inside-table="true" isadditionalitemsonly="false" isamountsonly="true" iscalculationsonly="false" iscustomonly="false" isnegativesonly="false" isstandardonly="true" istextonly="false" name="us-gaap:ContractWithCustomerLiability" onclick="Taxonomies.clickEvent(event, this)" onkeyup="Taxonomies.clickEvent(event, this)" onmouseenter="Taxonomies.enterElement(event, this);" onmouseleave="Taxonomies.leaveElement(event, this);" scale="6" selected-taxonomy="false" tabindex="18" unitref="U_USD">6,188</ix:nonfraction></span></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><span><ix:nonfraction contextref="C_650940a0-da85-437e-bfcf-8db0ffeb1362" continued-taxonomy="false" data-original-id="F_c3a3f1cf-0bea-404e-9fd9-292d1bf435d7" decimals="-6" enabled-taxonomy="true" format="ixt:num-dot-decimal" highlight-taxonomy="false" hover-taxonomy="false" id="fact-identifier-1418" inside-table="true" isadditionalitemsonly="false" isamountsonly="true" iscalculationsonly="false" iscustomonly="false" isnegativesonly="false" isstandardonly="true" istextonly="false" name="us-gaap:ContractWithCustomerLiability" onclick="Taxonomies.clickEvent(event, this)" onkeyup="Taxonomies.clickEvent(event, this)" onmouseenter="Taxonomies.enterElement(event, this);" onmouseleave="Taxonomies.leaveElement(event, this);" scale="6" selected-taxonomy="false" tabindex="18" unitref="U_USD">4,678</ix:nonfraction></span></span></p></td>
+<td><p><span> </span></p></td>
+</tr>
+<tr>
+<td colspan="4"><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+</tr>
+<tr>
+<td colspan="4"><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+</tr>
+<tr>
+<td><p><span>Total</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>$</span></p></td>
+<td><p><span><span><ix:nonfraction contextref="C_910b395a-5d62-4894-aa42-1da4086261cc" continued-taxonomy="false" data-original-id="F_3a4d3831-c066-4c02-8804-dac46acb001d" decimals="-6" enabled-taxonomy="true" format="ixt:num-dot-decimal" highlight-taxonomy="false" hover-taxonomy="false" id="fact-identifier-1419" inside-table="true" isadditionalitemsonly="false" isamountsonly="true" iscalculationsonly="false" iscustomonly="false" isnegativesonly="false" isstandardonly="true" istextonly="false" name="us-gaap:ContractWithCustomerLiability" onclick="Taxonomies.clickEvent(event, this)" onkeyup="Taxonomies.clickEvent(event, this)" onmouseenter="Taxonomies.enterElement(event, this);" onmouseleave="Taxonomies.leaveElement(event, this);" scale="6" selected-taxonomy="false" tabindex="18" unitref="U_USD">60,184</ix:nonfraction></span></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>$</span></p></td>
+<td><p><span><span><ix:nonfraction contextref="C_005805a9-264e-4b1d-93ea-497c67cc9a68" continued-taxonomy="false" data-original-id="F_b4ba7a12-b755-499e-bdbd-027f9eeecc60" decimals="-6" enabled-taxonomy="true" format="ixt:num-dot-decimal" highlight-taxonomy="false" hover-taxonomy="false" id="fact-identifier-1420" inside-table="true" isadditionalitemsonly="false" isamountsonly="true" iscalculationsonly="false" iscustomonly="false" isnegativesonly="false" isstandardonly="true" istextonly="false" name="us-gaap:ContractWithCustomerLiability" onclick="Taxonomies.clickEvent(event, this)" onkeyup="Taxonomies.clickEvent(event, this)" onmouseenter="Taxonomies.enterElement(event, this);" onmouseleave="Taxonomies.leaveElement(event, this);" scale="6" selected-taxonomy="false" tabindex="18" unitref="U_USD">53,813</ix:nonfraction></span></span></p></td>
+<td><p><span> </span></p></td>
+</tr>
+<tr>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+</tr>
+</tbody></table></ix:nonnumeric>

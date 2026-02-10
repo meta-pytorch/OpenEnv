@@ -1,0 +1,368 @@
+<ix:nonnumeric contextref="C_6dbdb3a2-9baf-41b4-922d-f59879124337" continued-taxonomy="false" data-original-id="F_3cb1e712-6981-4bb7-b107-27e85fd3c280" enabled-taxonomy="true" escape="true" highlight-taxonomy="false" hover-taxonomy="false" id="fact-identifier-358" inside-table="false" isadditionalitemsonly="false" isamountsonly="false" iscalculationsonly="false" iscustomonly="false" isnegativesonly="false" isstandardonly="true" istextonly="true" name="us-gaap:AllowanceForCreditLossesOnFinancingReceivablesTableTextBlock" onclick="Taxonomies.clickEvent(event, this)" onkeyup="Taxonomies.clickEvent(event, this)" onmouseenter="Taxonomies.enterElement(event, this);" onmouseleave="Taxonomies.leaveElement(event, this);" selected-taxonomy="false" tabindex="18" text-block-taxonomy="true"><p><span>Activity in the allowance for doubtful accounts was as follows:</span><span> </span></p><p><span> </span></p>
+<table>
+<tbody><tr>
+<td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td></tr>
+<tr>
+<td><p><span>(In millions)</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+</tr>
+<tr>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+</tr>
+<tr>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+</tr>
+<tr>
+<td><p><span>Year Ended June 30,</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>2024</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>2023</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>2022</span></p></td>
+<td><p><span> </span></p></td>
+</tr>
+<tr>
+<td><p><span> </span></p></td>
+<td colspan="3"><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td colspan="2"><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+</tr>
+<tr>
+<td><p><span>Balance, beginning of period</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>$</span></p></td>
+<td><p><span><span><ix:nonfraction contextref="C_2997e5d5-2bbb-4fde-a951-e4976b60bd7b" continued-taxonomy="false" data-original-id="F_51ab2c7c-9c60-47ed-b7d1-288ba924f62a" decimals="-6" enabled-taxonomy="true" format="ixt:num-dot-decimal" highlight-taxonomy="false" hover-taxonomy="false" id="fact-identifier-359" inside-table="true" isadditionalitemsonly="false" isamountsonly="true" iscalculationsonly="false" iscustomonly="false" isnegativesonly="false" isstandardonly="true" istextonly="false" name="us-gaap:ValuationAllowancesAndReservesBalance" onclick="Taxonomies.clickEvent(event, this)" onkeyup="Taxonomies.clickEvent(event, this)" onmouseenter="Taxonomies.enterElement(event, this);" onmouseleave="Taxonomies.leaveElement(event, this);" scale="6" selected-taxonomy="false" tabindex="18" unitref="U_USD">716</ix:nonfraction></span></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>$</span></p></td>
+<td><p><span><span><ix:nonfraction contextref="C_e43521b2-c878-4b9a-ac02-a44739cba21f" continued-taxonomy="false" data-original-id="F_3d592b1a-e052-4acf-9266-3f253f9052ec" decimals="-6" enabled-taxonomy="true" format="ixt:num-dot-decimal" highlight-taxonomy="false" hover-taxonomy="false" id="fact-identifier-360" inside-table="true" isadditionalitemsonly="false" isamountsonly="true" iscalculationsonly="false" iscustomonly="false" isnegativesonly="false" isstandardonly="true" istextonly="false" name="us-gaap:ValuationAllowancesAndReservesBalance" onclick="Taxonomies.clickEvent(event, this)" onkeyup="Taxonomies.clickEvent(event, this)" onmouseenter="Taxonomies.enterElement(event, this);" onmouseleave="Taxonomies.leaveElement(event, this);" scale="6" selected-taxonomy="false" tabindex="18" unitref="U_USD">710</ix:nonfraction></span></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>$</span></p></td>
+<td><p><span><span><ix:nonfraction contextref="C_bdfc9551-885c-48c9-b3a2-d85d6027c94a" continued-taxonomy="false" data-original-id="F_b78bdc51-29c2-4ad8-b893-f1bfbde6f7c4" decimals="-6" enabled-taxonomy="true" format="ixt:num-dot-decimal" highlight-taxonomy="false" hover-taxonomy="false" id="fact-identifier-361" inside-table="true" isadditionalitemsonly="false" isamountsonly="true" iscalculationsonly="false" iscustomonly="false" isnegativesonly="false" isstandardonly="true" istextonly="false" name="us-gaap:ValuationAllowancesAndReservesBalance" onclick="Taxonomies.clickEvent(event, this)" onkeyup="Taxonomies.clickEvent(event, this)" onmouseenter="Taxonomies.enterElement(event, this);" onmouseleave="Taxonomies.leaveElement(event, this);" scale="6" selected-taxonomy="false" tabindex="18" unitref="U_USD">798</ix:nonfraction></span></span></p></td>
+<td><p><span> </span></p></td>
+</tr>
+<tr>
+<td><p><span>Charged to costs and other</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><span><ix:nonfraction contextref="C_d1814252-7d4f-4eba-ad1a-d865d3435865" continued-taxonomy="false" data-original-id="F_08a24c02-7d8b-4ab4-9380-8b620818d7ad" decimals="-6" enabled-taxonomy="true" format="ixt:num-dot-decimal" highlight-taxonomy="false" hover-taxonomy="false" id="fact-identifier-362" inside-table="true" isadditionalitemsonly="false" isamountsonly="true" iscalculationsonly="false" iscustomonly="true" isnegativesonly="false" isstandardonly="false" istextonly="false" name="msft:ValuationAllowancesAndReservesChargedToCostsAndOther" onclick="Taxonomies.clickEvent(event, this)" onkeyup="Taxonomies.clickEvent(event, this)" onmouseenter="Taxonomies.enterElement(event, this);" onmouseleave="Taxonomies.leaveElement(event, this);" scale="6" selected-taxonomy="false" tabindex="18" unitref="U_USD">386</ix:nonfraction></span></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><span><ix:nonfraction contextref="C_c8446a36-6ad7-4055-8c11-642ff85e5733" continued-taxonomy="false" data-original-id="F_5a79107d-92c2-4d7a-b554-4c0f285a798a" decimals="-6" enabled-taxonomy="true" format="ixt:num-dot-decimal" highlight-taxonomy="false" hover-taxonomy="false" id="fact-identifier-363" inside-table="true" isadditionalitemsonly="false" isamountsonly="true" iscalculationsonly="false" iscustomonly="true" isnegativesonly="false" isstandardonly="false" istextonly="false" name="msft:ValuationAllowancesAndReservesChargedToCostsAndOther" onclick="Taxonomies.clickEvent(event, this)" onkeyup="Taxonomies.clickEvent(event, this)" onmouseenter="Taxonomies.enterElement(event, this);" onmouseleave="Taxonomies.leaveElement(event, this);" scale="6" selected-taxonomy="false" tabindex="18" unitref="U_USD">258</ix:nonfraction></span></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><span><ix:nonfraction contextref="C_2337c649-6b5c-412f-b574-d7b898d48a6f" continued-taxonomy="false" data-original-id="F_d25d69fc-dff1-41da-8b2b-5a7ac9a2e261" decimals="-6" enabled-taxonomy="true" format="ixt:num-dot-decimal" highlight-taxonomy="false" hover-taxonomy="false" id="fact-identifier-364" inside-table="true" isadditionalitemsonly="false" isamountsonly="true" iscalculationsonly="false" iscustomonly="true" isnegativesonly="false" isstandardonly="false" istextonly="false" name="msft:ValuationAllowancesAndReservesChargedToCostsAndOther" onclick="Taxonomies.clickEvent(event, this)" onkeyup="Taxonomies.clickEvent(event, this)" onmouseenter="Taxonomies.enterElement(event, this);" onmouseleave="Taxonomies.leaveElement(event, this);" scale="6" selected-taxonomy="false" tabindex="18" unitref="U_USD">157</ix:nonfraction></span></span></p></td>
+<td><p><span> </span></p></td>
+</tr>
+<tr>
+<td><p><span>Write-offs</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>(</span><span><span><ix:nonfraction contextref="C_d1814252-7d4f-4eba-ad1a-d865d3435865" continued-taxonomy="false" data-original-id="F_d0b613f7-10b5-4dbc-93c6-e782deb33193" decimals="-6" enabled-taxonomy="true" highlight-taxonomy="false" hover-taxonomy="false" id="fact-identifier-365" inside-table="true" isadditionalitemsonly="false" isamountsonly="true" iscalculationsonly="false" iscustomonly="false" isnegativesonly="false" isstandardonly="true" istextonly="false" name="us-gaap:ValuationAllowancesAndReservesDeductions" onclick="Taxonomies.clickEvent(event, this)" onkeyup="Taxonomies.clickEvent(event, this)" onmouseenter="Taxonomies.enterElement(event, this);" onmouseleave="Taxonomies.leaveElement(event, this);" scale="6" selected-taxonomy="false" tabindex="18" unitref="U_USD">218</ix:nonfraction></span></span></p></td>
+<td><p><span>)</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>(</span><span><span><ix:nonfraction contextref="C_c8446a36-6ad7-4055-8c11-642ff85e5733" continued-taxonomy="false" data-original-id="F_1af1bb0f-4f26-4eb9-9984-7284fabef2b4" decimals="-6" enabled-taxonomy="true" highlight-taxonomy="false" hover-taxonomy="false" id="fact-identifier-366" inside-table="true" isadditionalitemsonly="false" isamountsonly="true" iscalculationsonly="false" iscustomonly="false" isnegativesonly="false" isstandardonly="true" istextonly="false" name="us-gaap:ValuationAllowancesAndReservesDeductions" onclick="Taxonomies.clickEvent(event, this)" onkeyup="Taxonomies.clickEvent(event, this)" onmouseenter="Taxonomies.enterElement(event, this);" onmouseleave="Taxonomies.leaveElement(event, this);" scale="6" selected-taxonomy="false" tabindex="18" unitref="U_USD">252</ix:nonfraction></span></span></p></td>
+<td><p><span>)</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>(</span><span><span><ix:nonfraction contextref="C_2337c649-6b5c-412f-b574-d7b898d48a6f" continued-taxonomy="false" data-original-id="F_bdf5e278-664f-4d5f-9b3e-490bf190646b" decimals="-6" enabled-taxonomy="true" highlight-taxonomy="false" hover-taxonomy="false" id="fact-identifier-367" inside-table="true" isadditionalitemsonly="false" isamountsonly="true" iscalculationsonly="false" iscustomonly="false" isnegativesonly="false" isstandardonly="true" istextonly="false" name="us-gaap:ValuationAllowancesAndReservesDeductions" onclick="Taxonomies.clickEvent(event, this)" onkeyup="Taxonomies.clickEvent(event, this)" onmouseenter="Taxonomies.enterElement(event, this);" onmouseleave="Taxonomies.leaveElement(event, this);" scale="6" selected-taxonomy="false" tabindex="18" unitref="U_USD">245</ix:nonfraction></span></span></p></td>
+<td><p><span>)</span></p></td>
+</tr>
+<tr>
+<td colspan="4"><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+</tr>
+<tr>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+</tr>
+<tr>
+<td><p><span>Balance, end of period</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>$</span></p></td>
+<td><p><span><span><ix:nonfraction contextref="C_5396ba4f-6a95-4a4b-ba1d-5a9194e90df8" continued-taxonomy="false" data-original-id="F_1c8a4b85-238b-45f2-9682-a5a472ae9eb0" decimals="-6" enabled-taxonomy="true" highlight-taxonomy="false" hover-taxonomy="false" id="fact-identifier-368" inside-table="true" isadditionalitemsonly="false" isamountsonly="true" iscalculationsonly="false" iscustomonly="false" isnegativesonly="false" isstandardonly="true" istextonly="false" name="us-gaap:ValuationAllowancesAndReservesBalance" onclick="Taxonomies.clickEvent(event, this)" onkeyup="Taxonomies.clickEvent(event, this)" onmouseenter="Taxonomies.enterElement(event, this);" onmouseleave="Taxonomies.leaveElement(event, this);" scale="6" selected-taxonomy="false" tabindex="18" unitref="U_USD">884</ix:nonfraction></span></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>$</span></p></td>
+<td><p><span><span><ix:nonfraction contextref="C_2997e5d5-2bbb-4fde-a951-e4976b60bd7b" continued-taxonomy="false" data-original-id="F_b5071649-7b86-4dcb-8395-576c7cbb9311" decimals="-6" enabled-taxonomy="true" highlight-taxonomy="false" hover-taxonomy="false" id="fact-identifier-369" inside-table="true" isadditionalitemsonly="false" isamountsonly="true" iscalculationsonly="false" iscustomonly="false" isnegativesonly="false" isstandardonly="true" istextonly="false" name="us-gaap:ValuationAllowancesAndReservesBalance" onclick="Taxonomies.clickEvent(event, this)" onkeyup="Taxonomies.clickEvent(event, this)" onmouseenter="Taxonomies.enterElement(event, this);" onmouseleave="Taxonomies.leaveElement(event, this);" scale="6" selected-taxonomy="false" tabindex="18" unitref="U_USD">716</ix:nonfraction></span></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>$</span></p></td>
+<td><p><span><span><ix:nonfraction contextref="C_e43521b2-c878-4b9a-ac02-a44739cba21f" continued-taxonomy="false" data-original-id="F_f7ac1403-8a9c-40b0-a3f2-eb1b2a3f2e5c" decimals="-6" enabled-taxonomy="true" format="ixt:num-dot-decimal" highlight-taxonomy="false" hover-taxonomy="false" id="fact-identifier-370" inside-table="true" isadditionalitemsonly="false" isamountsonly="true" iscalculationsonly="false" iscustomonly="false" isnegativesonly="false" isstandardonly="true" istextonly="false" name="us-gaap:ValuationAllowancesAndReservesBalance" onclick="Taxonomies.clickEvent(event, this)" onkeyup="Taxonomies.clickEvent(event, this)" onmouseenter="Taxonomies.enterElement(event, this);" onmouseleave="Taxonomies.leaveElement(event, this);" scale="6" selected-taxonomy="false" tabindex="18" unitref="U_USD">710</ix:nonfraction></span></span></p></td>
+<td><p><span> </span></p></td>
+</tr>
+<tr>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+</tr>
+</tbody></table><p><span> </span></p><p><span>Allowance for doubtful accounts included in our consolidated balance sheets:</span></p><p><span> </span></p>
+<table>
+<tbody><tr>
+<td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td></tr>
+<tr>
+<td><p><span>(In millions)</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+</tr>
+<tr>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+</tr>
+<tr>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+</tr>
+<tr>
+<td><p><span>June 30,</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>2024</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>2023</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>2022</span></p></td>
+<td><p><span> </span></p></td>
+</tr>
+<tr>
+<td><p><span> </span></p></td>
+<td colspan="4"><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+</tr>
+<tr>
+<td><p><span>Accounts receivable, net of allowance for doubtful accounts</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>$</span></p></td>
+<td><p><span><span><ix:nonfraction contextref="C_c5d4c0fd-46c2-492a-adb5-cc89deffba52" continued-taxonomy="false" data-original-id="F_62bf562c-91df-491f-b3c8-224c6768d520" decimals="-6" enabled-taxonomy="true" highlight-taxonomy="false" hover-taxonomy="false" id="fact-identifier-371" inside-table="true" isadditionalitemsonly="false" isamountsonly="true" iscalculationsonly="false" iscustomonly="false" isnegativesonly="false" isstandardonly="true" istextonly="false" name="us-gaap:ValuationAllowancesAndReservesBalance" onclick="Taxonomies.clickEvent(event, this)" onkeyup="Taxonomies.clickEvent(event, this)" onmouseenter="Taxonomies.enterElement(event, this);" onmouseleave="Taxonomies.leaveElement(event, this);" scale="6" selected-taxonomy="false" tabindex="18" unitref="U_USD">830</ix:nonfraction></span></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>$</span></p></td>
+<td><p><span><span><ix:nonfraction contextref="C_a3a59aa5-587f-459b-87ec-c6cdb77233a4" continued-taxonomy="false" data-original-id="F_ebb3b2e7-fe6f-44ce-afa8-ed00023c8eb6" decimals="-6" enabled-taxonomy="true" format="ixt:num-dot-decimal" highlight-taxonomy="false" hover-taxonomy="false" id="fact-identifier-372" inside-table="true" isadditionalitemsonly="false" isamountsonly="true" iscalculationsonly="false" iscustomonly="false" isnegativesonly="false" isstandardonly="true" istextonly="false" name="us-gaap:ValuationAllowancesAndReservesBalance" onclick="Taxonomies.clickEvent(event, this)" onkeyup="Taxonomies.clickEvent(event, this)" onmouseenter="Taxonomies.enterElement(event, this);" onmouseleave="Taxonomies.leaveElement(event, this);" scale="6" selected-taxonomy="false" tabindex="18" unitref="U_USD">650</ix:nonfraction></span></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>$</span></p></td>
+<td><p><span><span><ix:nonfraction contextref="C_142fd920-6e10-496f-a8bc-e57b4eb16748" continued-taxonomy="false" data-original-id="F_b3bd5584-f8d4-4537-ac3c-faf82f3f7882" decimals="-6" enabled-taxonomy="true" format="ixt:num-dot-decimal" highlight-taxonomy="false" hover-taxonomy="false" id="fact-identifier-373" inside-table="true" isadditionalitemsonly="false" isamountsonly="true" iscalculationsonly="false" iscustomonly="false" isnegativesonly="false" isstandardonly="true" istextonly="false" name="us-gaap:ValuationAllowancesAndReservesBalance" onclick="Taxonomies.clickEvent(event, this)" onkeyup="Taxonomies.clickEvent(event, this)" onmouseenter="Taxonomies.enterElement(event, this);" onmouseleave="Taxonomies.leaveElement(event, this);" scale="6" selected-taxonomy="false" tabindex="18" unitref="U_USD">633</ix:nonfraction></span></span></p></td>
+<td><p><span> </span></p></td>
+</tr>
+<tr>
+<td><p><span>Other long-term assets</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><span><ix:nonfraction contextref="C_e318dbea-94cd-4672-97fc-ab8d8a34263e" continued-taxonomy="false" data-original-id="F_1f5a488a-7eca-4ef8-9a68-f4f9bc678dc1" decimals="-6" enabled-taxonomy="true" format="ixt:num-dot-decimal" highlight-taxonomy="false" hover-taxonomy="false" id="fact-identifier-374" inside-table="true" isadditionalitemsonly="false" isamountsonly="true" iscalculationsonly="false" iscustomonly="false" isnegativesonly="false" isstandardonly="true" istextonly="false" name="us-gaap:ValuationAllowancesAndReservesBalance" onclick="Taxonomies.clickEvent(event, this)" onkeyup="Taxonomies.clickEvent(event, this)" onmouseenter="Taxonomies.enterElement(event, this);" onmouseleave="Taxonomies.leaveElement(event, this);" scale="6" selected-taxonomy="false" tabindex="18" unitref="U_USD">54</ix:nonfraction></span></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><span><ix:nonfraction contextref="C_00963363-935c-4fee-9b35-2fddeb06b4e6" continued-taxonomy="false" data-original-id="F_88616737-59b7-421f-ba77-0df393a6394f" decimals="-6" enabled-taxonomy="true" format="ixt:num-dot-decimal" highlight-taxonomy="false" hover-taxonomy="false" id="fact-identifier-375" inside-table="true" isadditionalitemsonly="false" isamountsonly="true" iscalculationsonly="false" iscustomonly="false" isnegativesonly="false" isstandardonly="true" istextonly="false" name="us-gaap:ValuationAllowancesAndReservesBalance" onclick="Taxonomies.clickEvent(event, this)" onkeyup="Taxonomies.clickEvent(event, this)" onmouseenter="Taxonomies.enterElement(event, this);" onmouseleave="Taxonomies.leaveElement(event, this);" scale="6" selected-taxonomy="false" tabindex="18" unitref="U_USD">66</ix:nonfraction></span></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><span><ix:nonfraction contextref="C_af6c5ebd-bc00-4d4a-a572-c7258ee24c8b" continued-taxonomy="false" data-original-id="F_6ab9f7d7-3796-495f-8824-d7a0a48ad67f" decimals="-6" enabled-taxonomy="true" format="ixt:num-dot-decimal" highlight-taxonomy="false" hover-taxonomy="false" id="fact-identifier-376" inside-table="true" isadditionalitemsonly="false" isamountsonly="true" iscalculationsonly="false" iscustomonly="false" isnegativesonly="false" isstandardonly="true" istextonly="false" name="us-gaap:ValuationAllowancesAndReservesBalance" onclick="Taxonomies.clickEvent(event, this)" onkeyup="Taxonomies.clickEvent(event, this)" onmouseenter="Taxonomies.enterElement(event, this);" onmouseleave="Taxonomies.leaveElement(event, this);" scale="6" selected-taxonomy="false" tabindex="18" unitref="U_USD">77</ix:nonfraction></span></span></p></td>
+<td><p><span> </span></p></td>
+</tr>
+<tr>
+<td colspan="4"><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+</tr>
+<tr>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+</tr>
+<tr>
+<td><p><span>Total</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>$</span></p></td>
+<td><p><span><span><ix:nonfraction contextref="C_5396ba4f-6a95-4a4b-ba1d-5a9194e90df8" continued-taxonomy="false" data-original-id="F_a4f4e1a9-44c6-4116-a514-2556b43799c0" decimals="-6" enabled-taxonomy="true" highlight-taxonomy="false" hover-taxonomy="false" id="fact-identifier-377" inside-table="true" isadditionalitemsonly="false" isamountsonly="true" iscalculationsonly="false" iscustomonly="false" isnegativesonly="false" isstandardonly="true" istextonly="false" name="us-gaap:ValuationAllowancesAndReservesBalance" onclick="Taxonomies.clickEvent(event, this)" onkeyup="Taxonomies.clickEvent(event, this)" onmouseenter="Taxonomies.enterElement(event, this);" onmouseleave="Taxonomies.leaveElement(event, this);" scale="6" selected-taxonomy="false" tabindex="18" unitref="U_USD">884</ix:nonfraction></span></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>$</span></p></td>
+<td><p><span><span><ix:nonfraction contextref="C_2997e5d5-2bbb-4fde-a951-e4976b60bd7b" continued-taxonomy="false" data-original-id="F_93b37cdf-692e-443d-9484-d980439904e9" decimals="-6" enabled-taxonomy="true" format="ixt:num-dot-decimal" highlight-taxonomy="false" hover-taxonomy="false" id="fact-identifier-378" inside-table="true" isadditionalitemsonly="false" isamountsonly="true" iscalculationsonly="false" iscustomonly="false" isnegativesonly="false" isstandardonly="true" istextonly="false" name="us-gaap:ValuationAllowancesAndReservesBalance" onclick="Taxonomies.clickEvent(event, this)" onkeyup="Taxonomies.clickEvent(event, this)" onmouseenter="Taxonomies.enterElement(event, this);" onmouseleave="Taxonomies.leaveElement(event, this);" scale="6" selected-taxonomy="false" tabindex="18" unitref="U_USD">716</ix:nonfraction></span></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>$</span></p></td>
+<td><p><span><span><ix:nonfraction contextref="C_e43521b2-c878-4b9a-ac02-a44739cba21f" continued-taxonomy="false" data-original-id="F_32736819-77eb-476c-818a-3d846ad3a0dc" decimals="-6" enabled-taxonomy="true" format="ixt:num-dot-decimal" highlight-taxonomy="false" hover-taxonomy="false" id="fact-identifier-379" inside-table="true" isadditionalitemsonly="false" isamountsonly="true" iscalculationsonly="false" iscustomonly="false" isnegativesonly="false" isstandardonly="true" istextonly="false" name="us-gaap:ValuationAllowancesAndReservesBalance" onclick="Taxonomies.clickEvent(event, this)" onkeyup="Taxonomies.clickEvent(event, this)" onmouseenter="Taxonomies.enterElement(event, this);" onmouseleave="Taxonomies.leaveElement(event, this);" scale="6" selected-taxonomy="false" tabindex="18" unitref="U_USD">710</ix:nonfraction></span></span></p></td>
+<td><p><span> </span></p></td>
+</tr>
+<tr>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+</tr>
+</tbody></table></ix:nonnumeric>

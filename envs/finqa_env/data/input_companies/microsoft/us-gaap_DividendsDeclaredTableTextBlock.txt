@@ -1,0 +1,436 @@
+<ix:nonnumeric contextref="C_6dbdb3a2-9baf-41b4-922d-f59879124337" continued-taxonomy="false" data-original-id="F_4f402e57-e195-4134-bebb-99ad33c44808" enabled-taxonomy="true" escape="true" highlight-taxonomy="false" hover-taxonomy="false" id="fact-identifier-1574" inside-table="false" isadditionalitemsonly="false" isamountsonly="false" iscalculationsonly="false" iscustomonly="false" isnegativesonly="false" isstandardonly="true" istextonly="true" name="us-gaap:DividendsDeclaredTableTextBlock" onclick="Taxonomies.clickEvent(event, this)" onkeyup="Taxonomies.clickEvent(event, this)" onmouseenter="Taxonomies.enterElement(event, this);" onmouseleave="Taxonomies.leaveElement(event, this);" selected-taxonomy="false" tabindex="18" text-block-taxonomy="true"><p><span>Our Board of Directors declared the following dividends:</span><span> </span></p><p><span> </span></p>
+<table>
+<tbody><tr>
+<td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td></tr>
+<tr>
+<td><p><span>Declaration Date</span></p></td>
+<td colspan="3"><p><span>Record Date</span><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td colspan="2"><p><span>Payment Date</span><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td colspan="3"><p><span>Dividend</span></p><p><span>Per Share</span><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td colspan="2"><p><span>Amount</span><span> </span></p></td>
+<td><p><span> </span></p></td>
+</tr>
+<tr>
+<td colspan="16"><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+</tr>
+<tr>
+<td colspan="16"><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+</tr>
+<tr>
+<td><p><span>Fiscal Year 2024</span></p></td>
+<td colspan="3"><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td colspan="2"><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td colspan="3"><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td colspan="2"><p><span>(In millions)</span></p></td>
+<td><p><span> </span></p></td>
+</tr>
+<tr>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+</tr>
+<tr>
+<td><p><span><span><ix:nonnumeric contextref="C_eb607ed3-ad9f-4775-8247-4d553534f41f" continued-taxonomy="false" data-original-id="F_c2e3f51a-d3e5-444b-8098-b54870c7c130" enabled-taxonomy="true" format="ixt:date-monthname-day-year-en" highlight-taxonomy="false" hover-taxonomy="false" id="fact-identifier-1575" inside-table="true" isadditionalitemsonly="false" isamountsonly="false" iscalculationsonly="false" iscustomonly="false" isnegativesonly="false" isstandardonly="true" istextonly="true" name="us-gaap:DividendsPayableDateDeclaredDayMonthAndYear" onclick="Taxonomies.clickEvent(event, this)" onkeyup="Taxonomies.clickEvent(event, this)" onmouseenter="Taxonomies.enterElement(event, this);" onmouseleave="Taxonomies.leaveElement(event, this);" selected-taxonomy="false" tabindex="18"><span>September 19, 2023</span></ix:nonnumeric></span></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><span><ix:nonnumeric contextref="C_eb607ed3-ad9f-4775-8247-4d553534f41f" continued-taxonomy="false" data-original-id="F_b209e332-9326-4a71-85eb-4ded721b075e" enabled-taxonomy="true" format="ixt:date-monthname-day-year-en" highlight-taxonomy="false" hover-taxonomy="false" id="fact-identifier-1576" inside-table="true" isadditionalitemsonly="false" isamountsonly="false" iscalculationsonly="false" iscustomonly="false" isnegativesonly="false" isstandardonly="true" istextonly="true" name="us-gaap:DividendsPayableDateOfRecordDayMonthAndYear" onclick="Taxonomies.clickEvent(event, this)" onkeyup="Taxonomies.clickEvent(event, this)" onmouseenter="Taxonomies.enterElement(event, this);" onmouseleave="Taxonomies.leaveElement(event, this);" selected-taxonomy="false" tabindex="18"><span>November 16, 2023</span></ix:nonnumeric></span></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><span><ix:nonnumeric contextref="C_eb607ed3-ad9f-4775-8247-4d553534f41f" continued-taxonomy="false" data-original-id="F_73315a3f-d6ca-4ef1-9327-586573b1b33d" enabled-taxonomy="true" format="ixt:date-monthname-day-year-en" highlight-taxonomy="false" hover-taxonomy="false" id="fact-identifier-1577" inside-table="true" isadditionalitemsonly="false" isamountsonly="false" iscalculationsonly="false" iscustomonly="false" isnegativesonly="false" isstandardonly="true" istextonly="true" name="us-gaap:DividendPayableDateToBePaidDayMonthAndYear" onclick="Taxonomies.clickEvent(event, this)" onkeyup="Taxonomies.clickEvent(event, this)" onmouseenter="Taxonomies.enterElement(event, this);" onmouseleave="Taxonomies.leaveElement(event, this);" selected-taxonomy="false" tabindex="18"><span>December 14, 2023</span></ix:nonnumeric></span></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>$</span></p></td>
+<td><p><span><span><ix:nonfraction contextref="C_eb607ed3-ad9f-4775-8247-4d553534f41f" continued-taxonomy="false" data-original-id="F_3c96543e-b6bc-4487-8c53-381a27a3a730" decimals="INF" enabled-taxonomy="true" format="ixt:num-dot-decimal" highlight-taxonomy="false" hover-taxonomy="false" id="fact-identifier-1578" inside-table="true" isadditionalitemsonly="false" isamountsonly="true" iscalculationsonly="false" iscustomonly="false" isnegativesonly="false" isstandardonly="true" istextonly="false" name="us-gaap:CommonStockDividendsPerShareDeclared" onclick="Taxonomies.clickEvent(event, this)" onkeyup="Taxonomies.clickEvent(event, this)" onmouseenter="Taxonomies.enterElement(event, this);" onmouseleave="Taxonomies.leaveElement(event, this);" selected-taxonomy="false" tabindex="18" unitref="U_UnitedStatesOfAmericaDollarsShare">0.75</ix:nonfraction></span></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>$</span></p></td>
+<td><p><span><span><ix:nonfraction contextref="C_eb607ed3-ad9f-4775-8247-4d553534f41f" continued-taxonomy="false" data-original-id="F_5475ae21-2abf-4aa4-b6f8-22dd1bdbd33b" decimals="-6" enabled-taxonomy="true" format="ixt:num-dot-decimal" highlight-taxonomy="false" hover-taxonomy="false" id="fact-identifier-1579" inside-table="true" isadditionalitemsonly="false" isamountsonly="true" iscalculationsonly="false" iscustomonly="false" isnegativesonly="false" isstandardonly="true" istextonly="false" name="us-gaap:DividendsCommonStockCash" onclick="Taxonomies.clickEvent(event, this)" onkeyup="Taxonomies.clickEvent(event, this)" onmouseenter="Taxonomies.enterElement(event, this);" onmouseleave="Taxonomies.leaveElement(event, this);" scale="6" selected-taxonomy="false" tabindex="18" unitref="U_USD">5,574</ix:nonfraction></span></span></p></td>
+<td><p><span> </span></p></td>
+</tr>
+<tr>
+<td><p><span><span><ix:nonnumeric contextref="C_d9b46974-c099-4966-9181-909bb117f92e" continued-taxonomy="false" data-original-id="F_19471bed-460a-417a-a51c-27ae6f3ab75a" enabled-taxonomy="true" format="ixt:date-monthname-day-year-en" highlight-taxonomy="false" hover-taxonomy="false" id="fact-identifier-1580" inside-table="true" isadditionalitemsonly="false" isamountsonly="false" iscalculationsonly="false" iscustomonly="false" isnegativesonly="false" isstandardonly="true" istextonly="true" name="us-gaap:DividendsPayableDateDeclaredDayMonthAndYear" onclick="Taxonomies.clickEvent(event, this)" onkeyup="Taxonomies.clickEvent(event, this)" onmouseenter="Taxonomies.enterElement(event, this);" onmouseleave="Taxonomies.leaveElement(event, this);" selected-taxonomy="false" tabindex="18"><span>November 28, 2023</span></ix:nonnumeric></span></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><span><ix:nonnumeric contextref="C_d9b46974-c099-4966-9181-909bb117f92e" continued-taxonomy="false" data-original-id="F_db5b1cb5-908e-4b0a-9331-0d5888535024" enabled-taxonomy="true" format="ixt:date-monthname-day-year-en" highlight-taxonomy="false" hover-taxonomy="false" id="fact-identifier-1581" inside-table="true" isadditionalitemsonly="false" isamountsonly="false" iscalculationsonly="false" iscustomonly="false" isnegativesonly="false" isstandardonly="true" istextonly="true" name="us-gaap:DividendsPayableDateOfRecordDayMonthAndYear" onclick="Taxonomies.clickEvent(event, this)" onkeyup="Taxonomies.clickEvent(event, this)" onmouseenter="Taxonomies.enterElement(event, this);" onmouseleave="Taxonomies.leaveElement(event, this);" selected-taxonomy="false" tabindex="18"><span>February 15, 2024</span></ix:nonnumeric></span></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><span><ix:nonnumeric contextref="C_d9b46974-c099-4966-9181-909bb117f92e" continued-taxonomy="false" data-original-id="F_7ee722d6-6caa-442a-8c99-cb372143af0d" enabled-taxonomy="true" format="ixt:date-monthname-day-year-en" highlight-taxonomy="false" hover-taxonomy="false" id="fact-identifier-1582" inside-table="true" isadditionalitemsonly="false" isamountsonly="false" iscalculationsonly="false" iscustomonly="false" isnegativesonly="false" isstandardonly="true" istextonly="true" name="us-gaap:DividendPayableDateToBePaidDayMonthAndYear" onclick="Taxonomies.clickEvent(event, this)" onkeyup="Taxonomies.clickEvent(event, this)" onmouseenter="Taxonomies.enterElement(event, this);" onmouseleave="Taxonomies.leaveElement(event, this);" selected-taxonomy="false" tabindex="18"><span>March 14, 2024</span></ix:nonnumeric></span></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><span><ix:nonfraction contextref="C_d9b46974-c099-4966-9181-909bb117f92e" continued-taxonomy="false" data-original-id="F_43ffef54-94a9-4f62-9ad3-b97601ece0b1" decimals="INF" enabled-taxonomy="true" format="ixt:num-dot-decimal" highlight-taxonomy="false" hover-taxonomy="false" id="fact-identifier-1583" inside-table="true" isadditionalitemsonly="false" isamountsonly="true" iscalculationsonly="false" iscustomonly="false" isnegativesonly="false" isstandardonly="true" istextonly="false" name="us-gaap:CommonStockDividendsPerShareDeclared" onclick="Taxonomies.clickEvent(event, this)" onkeyup="Taxonomies.clickEvent(event, this)" onmouseenter="Taxonomies.enterElement(event, this);" onmouseleave="Taxonomies.leaveElement(event, this);" selected-taxonomy="false" tabindex="18" unitref="U_UnitedStatesOfAmericaDollarsShare">0.75</ix:nonfraction></span></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><span><ix:nonfraction contextref="C_d9b46974-c099-4966-9181-909bb117f92e" continued-taxonomy="false" data-original-id="F_c24ec3a9-91ee-4d63-9525-a775692a8241" decimals="-6" enabled-taxonomy="true" format="ixt:num-dot-decimal" highlight-taxonomy="false" hover-taxonomy="false" id="fact-identifier-1584" inside-table="true" isadditionalitemsonly="false" isamountsonly="true" iscalculationsonly="false" iscustomonly="false" isnegativesonly="false" isstandardonly="true" istextonly="false" name="us-gaap:DividendsCommonStockCash" onclick="Taxonomies.clickEvent(event, this)" onkeyup="Taxonomies.clickEvent(event, this)" onmouseenter="Taxonomies.enterElement(event, this);" onmouseleave="Taxonomies.leaveElement(event, this);" scale="6" selected-taxonomy="false" tabindex="18" unitref="U_USD">5,573</ix:nonfraction></span></span></p></td>
+<td><p><span> </span></p></td>
+</tr>
+<tr>
+<td><p><span><span><ix:nonnumeric contextref="C_625d777e-c000-4e34-9c86-68b755e45724" continued-taxonomy="false" data-original-id="F_fdbc9b92-9f29-42cf-b225-72e6fc0396a1" enabled-taxonomy="true" format="ixt:date-monthname-day-year-en" highlight-taxonomy="false" hover-taxonomy="false" id="fact-identifier-1585" inside-table="true" isadditionalitemsonly="false" isamountsonly="false" iscalculationsonly="false" iscustomonly="false" isnegativesonly="false" isstandardonly="true" istextonly="true" name="us-gaap:DividendsPayableDateDeclaredDayMonthAndYear" onclick="Taxonomies.clickEvent(event, this)" onkeyup="Taxonomies.clickEvent(event, this)" onmouseenter="Taxonomies.enterElement(event, this);" onmouseleave="Taxonomies.leaveElement(event, this);" selected-taxonomy="false" tabindex="18"><span>March 12, 2024</span></ix:nonnumeric></span></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><span><ix:nonnumeric contextref="C_625d777e-c000-4e34-9c86-68b755e45724" continued-taxonomy="false" data-original-id="F_27f63e0c-8af4-445e-83e8-fa005b8e85bb" enabled-taxonomy="true" format="ixt:date-monthname-day-year-en" highlight-taxonomy="false" hover-taxonomy="false" id="fact-identifier-1586" inside-table="true" isadditionalitemsonly="false" isamountsonly="false" iscalculationsonly="false" iscustomonly="false" isnegativesonly="false" isstandardonly="true" istextonly="true" name="us-gaap:DividendsPayableDateOfRecordDayMonthAndYear" onclick="Taxonomies.clickEvent(event, this)" onkeyup="Taxonomies.clickEvent(event, this)" onmouseenter="Taxonomies.enterElement(event, this);" onmouseleave="Taxonomies.leaveElement(event, this);" selected-taxonomy="false" tabindex="18"><span>May 16, 2024</span></ix:nonnumeric></span></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><span><ix:nonnumeric contextref="C_625d777e-c000-4e34-9c86-68b755e45724" continued-taxonomy="false" data-original-id="F_246209d9-927a-48e4-a0bc-16f504ef5666" enabled-taxonomy="true" format="ixt:date-monthname-day-year-en" highlight-taxonomy="false" hover-taxonomy="false" id="fact-identifier-1587" inside-table="true" isadditionalitemsonly="false" isamountsonly="false" iscalculationsonly="false" iscustomonly="false" isnegativesonly="false" isstandardonly="true" istextonly="true" name="us-gaap:DividendPayableDateToBePaidDayMonthAndYear" onclick="Taxonomies.clickEvent(event, this)" onkeyup="Taxonomies.clickEvent(event, this)" onmouseenter="Taxonomies.enterElement(event, this);" onmouseleave="Taxonomies.leaveElement(event, this);" selected-taxonomy="false" tabindex="18"><span>June 13, 2024</span></ix:nonnumeric></span></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><span><ix:nonfraction contextref="C_625d777e-c000-4e34-9c86-68b755e45724" continued-taxonomy="false" data-original-id="F_38b078d8-64b4-493d-9c47-5f334436a088" decimals="INF" enabled-taxonomy="true" format="ixt:num-dot-decimal" highlight-taxonomy="false" hover-taxonomy="false" id="fact-identifier-1588" inside-table="true" isadditionalitemsonly="false" isamountsonly="true" iscalculationsonly="false" iscustomonly="false" isnegativesonly="false" isstandardonly="true" istextonly="false" name="us-gaap:CommonStockDividendsPerShareDeclared" onclick="Taxonomies.clickEvent(event, this)" onkeyup="Taxonomies.clickEvent(event, this)" onmouseenter="Taxonomies.enterElement(event, this);" onmouseleave="Taxonomies.leaveElement(event, this);" selected-taxonomy="false" tabindex="18" unitref="U_UnitedStatesOfAmericaDollarsShare">0.75</ix:nonfraction></span></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><span><ix:nonfraction contextref="C_625d777e-c000-4e34-9c86-68b755e45724" continued-taxonomy="false" data-original-id="F_6e6ebfd8-b189-42aa-906b-eb88557e0e27" decimals="-6" enabled-taxonomy="true" format="ixt:num-dot-decimal" highlight-taxonomy="false" hover-taxonomy="false" id="fact-identifier-1589" inside-table="true" isadditionalitemsonly="false" isamountsonly="true" iscalculationsonly="false" iscustomonly="false" isnegativesonly="false" isstandardonly="true" istextonly="false" name="us-gaap:DividendsCommonStockCash" onclick="Taxonomies.clickEvent(event, this)" onkeyup="Taxonomies.clickEvent(event, this)" onmouseenter="Taxonomies.enterElement(event, this);" onmouseleave="Taxonomies.leaveElement(event, this);" scale="6" selected-taxonomy="false" tabindex="18" unitref="U_USD">5,574</ix:nonfraction></span></span></p></td>
+<td><p><span> </span></p></td>
+</tr>
+<tr>
+<td><p><span><span><ix:nonnumeric contextref="C_a2937446-8a94-4d5d-98f3-c79b3eae7899" continued-taxonomy="false" data-original-id="F_cb79f00d-d070-4c31-841c-d74d0ee4242e" enabled-taxonomy="true" format="ixt:date-monthname-day-year-en" highlight-taxonomy="false" hover-taxonomy="false" id="fact-identifier-1590" inside-table="true" isadditionalitemsonly="false" isamountsonly="false" iscalculationsonly="false" iscustomonly="false" isnegativesonly="false" isstandardonly="true" istextonly="true" name="us-gaap:DividendsPayableDateDeclaredDayMonthAndYear" onclick="Taxonomies.clickEvent(event, this)" onkeyup="Taxonomies.clickEvent(event, this)" onmouseenter="Taxonomies.enterElement(event, this);" onmouseleave="Taxonomies.leaveElement(event, this);" selected-taxonomy="false" tabindex="18"><span>June 12, 2024</span></ix:nonnumeric></span></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><span><ix:nonnumeric contextref="C_a2937446-8a94-4d5d-98f3-c79b3eae7899" continued-taxonomy="false" data-original-id="F_05fd9f01-f65e-41a8-91e2-790889dc39a1" enabled-taxonomy="true" format="ixt:date-monthname-day-year-en" highlight-taxonomy="false" hover-taxonomy="false" id="fact-identifier-1591" inside-table="true" isadditionalitemsonly="false" isamountsonly="false" iscalculationsonly="false" iscustomonly="false" isnegativesonly="false" isstandardonly="true" istextonly="true" name="us-gaap:DividendsPayableDateOfRecordDayMonthAndYear" onclick="Taxonomies.clickEvent(event, this)" onkeyup="Taxonomies.clickEvent(event, this)" onmouseenter="Taxonomies.enterElement(event, this);" onmouseleave="Taxonomies.leaveElement(event, this);" selected-taxonomy="false" tabindex="18"><span>August 15, 2024</span></ix:nonnumeric></span></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><span><ix:nonnumeric contextref="C_a2937446-8a94-4d5d-98f3-c79b3eae7899" continued-taxonomy="false" data-original-id="F_319d0c00-c210-4cd2-881b-d7c2f1c4fa3a" enabled-taxonomy="true" format="ixt:date-monthname-day-year-en" highlight-taxonomy="false" hover-taxonomy="false" id="fact-identifier-1592" inside-table="true" isadditionalitemsonly="false" isamountsonly="false" iscalculationsonly="false" iscustomonly="false" isnegativesonly="false" isstandardonly="true" istextonly="true" name="us-gaap:DividendPayableDateToBePaidDayMonthAndYear" onclick="Taxonomies.clickEvent(event, this)" onkeyup="Taxonomies.clickEvent(event, this)" onmouseenter="Taxonomies.enterElement(event, this);" onmouseleave="Taxonomies.leaveElement(event, this);" selected-taxonomy="false" tabindex="18"><span>September 12, 2024</span></ix:nonnumeric></span></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><span><ix:nonfraction contextref="C_a2937446-8a94-4d5d-98f3-c79b3eae7899" continued-taxonomy="false" data-original-id="F_ac9e4a6a-394c-45b7-bd1b-571d10a671c2" decimals="INF" enabled-taxonomy="true" format="ixt:num-dot-decimal" highlight-taxonomy="false" hover-taxonomy="false" id="fact-identifier-1593" inside-table="true" isadditionalitemsonly="false" isamountsonly="true" iscalculationsonly="false" iscustomonly="false" isnegativesonly="false" isstandardonly="true" istextonly="false" name="us-gaap:CommonStockDividendsPerShareDeclared" onclick="Taxonomies.clickEvent(event, this)" onkeyup="Taxonomies.clickEvent(event, this)" onmouseenter="Taxonomies.enterElement(event, this);" onmouseleave="Taxonomies.leaveElement(event, this);" selected-taxonomy="false" tabindex="18" unitref="U_UnitedStatesOfAmericaDollarsShare">0.75</ix:nonfraction></span></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><span><ix:nonfraction contextref="C_a2937446-8a94-4d5d-98f3-c79b3eae7899" continued-taxonomy="false" data-original-id="F_af6b9a01-5e5d-467c-a12b-fa9534dd195d" decimals="-6" enabled-taxonomy="true" format="ixt:num-dot-decimal" highlight-taxonomy="false" hover-taxonomy="false" id="fact-identifier-1594" inside-table="true" isadditionalitemsonly="false" isamountsonly="true" iscalculationsonly="false" iscustomonly="false" isnegativesonly="false" isstandardonly="true" istextonly="false" name="us-gaap:DividendsCommonStockCash" onclick="Taxonomies.clickEvent(event, this)" onkeyup="Taxonomies.clickEvent(event, this)" onmouseenter="Taxonomies.enterElement(event, this);" onmouseleave="Taxonomies.leaveElement(event, this);" scale="6" selected-taxonomy="false" tabindex="18" unitref="U_USD">5,575</ix:nonfraction></span></span></p></td>
+<td><p><span> </span></p></td>
+</tr>
+<tr>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+</tr>
+<tr>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+</tr>
+<tr>
+<td><p><span>Total</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>$</span></p></td>
+<td><p><span><span><ix:nonfraction contextref="C_6dbdb3a2-9baf-41b4-922d-f59879124337" continued-taxonomy="false" data-original-id="F_5bac2012-8638-4233-aca0-9d2bf79bc154" decimals="INF" enabled-taxonomy="true" format="ixt:num-dot-decimal" highlight-taxonomy="false" hover-taxonomy="false" id="fact-identifier-1595" inside-table="true" isadditionalitemsonly="false" isamountsonly="true" iscalculationsonly="false" iscustomonly="false" isnegativesonly="false" isstandardonly="true" istextonly="false" name="us-gaap:CommonStockDividendsPerShareDeclared" onclick="Taxonomies.clickEvent(event, this)" onkeyup="Taxonomies.clickEvent(event, this)" onmouseenter="Taxonomies.enterElement(event, this);" onmouseleave="Taxonomies.leaveElement(event, this);" selected-taxonomy="false" tabindex="18" unitref="U_UnitedStatesOfAmericaDollarsShare">3.00</ix:nonfraction></span></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>$</span></p></td>
+<td><p><span><span><ix:nonfraction contextref="C_6dbdb3a2-9baf-41b4-922d-f59879124337" continued-taxonomy="false" data-original-id="F_0f828b93-d1d5-4102-8b80-b656704cb91b" decimals="-6" enabled-taxonomy="true" format="ixt:num-dot-decimal" highlight-taxonomy="false" hover-taxonomy="false" id="fact-identifier-1596" inside-table="true" isadditionalitemsonly="false" isamountsonly="true" iscalculationsonly="false" iscustomonly="false" isnegativesonly="false" isstandardonly="true" istextonly="false" name="us-gaap:DividendsCommonStockCash" onclick="Taxonomies.clickEvent(event, this)" onkeyup="Taxonomies.clickEvent(event, this)" onmouseenter="Taxonomies.enterElement(event, this);" onmouseleave="Taxonomies.leaveElement(event, this);" scale="6" selected-taxonomy="false" tabindex="18" unitref="U_USD">22,296</ix:nonfraction></span></span></p></td>
+<td><p><span> </span></p></td>
+</tr>
+<tr>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+</tr>
+<tr>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+</tr>
+<tr>
+<td><p><span>Fiscal Year 2023</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+</tr>
+<tr>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+</tr>
+<tr>
+<td><p><span><span><ix:nonnumeric contextref="C_31b983f0-46c0-4d14-87e0-f0cb6596dff2" continued-taxonomy="false" data-original-id="F_55036447-bb2c-43e1-bf45-6d9107266349" enabled-taxonomy="true" format="ixt:date-monthname-day-year-en" highlight-taxonomy="false" hover-taxonomy="false" id="fact-identifier-1597" inside-table="true" isadditionalitemsonly="false" isamountsonly="false" iscalculationsonly="false" iscustomonly="false" isnegativesonly="false" isstandardonly="true" istextonly="true" name="us-gaap:DividendsPayableDateDeclaredDayMonthAndYear" onclick="Taxonomies.clickEvent(event, this)" onkeyup="Taxonomies.clickEvent(event, this)" onmouseenter="Taxonomies.enterElement(event, this);" onmouseleave="Taxonomies.leaveElement(event, this);" selected-taxonomy="false" tabindex="18"><span>September 20, 2022</span></ix:nonnumeric></span></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><span><ix:nonnumeric contextref="C_31b983f0-46c0-4d14-87e0-f0cb6596dff2" continued-taxonomy="false" data-original-id="F_ea423789-3d9c-4f49-bcad-182bde3cf256" enabled-taxonomy="true" format="ixt:date-monthname-day-year-en" highlight-taxonomy="false" hover-taxonomy="false" id="fact-identifier-1598" inside-table="true" isadditionalitemsonly="false" isamountsonly="false" iscalculationsonly="false" iscustomonly="false" isnegativesonly="false" isstandardonly="true" istextonly="true" name="us-gaap:DividendsPayableDateOfRecordDayMonthAndYear" onclick="Taxonomies.clickEvent(event, this)" onkeyup="Taxonomies.clickEvent(event, this)" onmouseenter="Taxonomies.enterElement(event, this);" onmouseleave="Taxonomies.leaveElement(event, this);" selected-taxonomy="false" tabindex="18"><span>November 17, 2022</span></ix:nonnumeric></span></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><span><ix:nonnumeric contextref="C_31b983f0-46c0-4d14-87e0-f0cb6596dff2" continued-taxonomy="false" data-original-id="F_4614aeb7-bf8e-458e-9834-de12934e9b5c" enabled-taxonomy="true" format="ixt:date-monthname-day-year-en" highlight-taxonomy="false" hover-taxonomy="false" id="fact-identifier-1599" inside-table="true" isadditionalitemsonly="false" isamountsonly="false" iscalculationsonly="false" iscustomonly="false" isnegativesonly="false" isstandardonly="true" istextonly="true" name="us-gaap:DividendPayableDateToBePaidDayMonthAndYear" onclick="Taxonomies.clickEvent(event, this)" onkeyup="Taxonomies.clickEvent(event, this)" onmouseenter="Taxonomies.enterElement(event, this);" onmouseleave="Taxonomies.leaveElement(event, this);" selected-taxonomy="false" tabindex="18"><span>December 8, 2022</span></ix:nonnumeric></span></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>$</span></p></td>
+<td><p><span><span><ix:nonfraction contextref="C_31b983f0-46c0-4d14-87e0-f0cb6596dff2" continued-taxonomy="false" data-original-id="F_c059a703-b2a6-44a4-844e-a63e4a01099e" decimals="INF" enabled-taxonomy="true" highlight-taxonomy="false" hover-taxonomy="false" id="fact-identifier-1600" inside-table="true" isadditionalitemsonly="false" isamountsonly="true" iscalculationsonly="false" iscustomonly="false" isnegativesonly="false" isstandardonly="true" istextonly="false" name="us-gaap:CommonStockDividendsPerShareDeclared" onclick="Taxonomies.clickEvent(event, this)" onkeyup="Taxonomies.clickEvent(event, this)" onmouseenter="Taxonomies.enterElement(event, this);" onmouseleave="Taxonomies.leaveElement(event, this);" selected-taxonomy="false" tabindex="18" unitref="U_UnitedStatesOfAmericaDollarsShare">0.68</ix:nonfraction></span></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>$</span></p></td>
+<td><p><span><span><ix:nonfraction contextref="C_31b983f0-46c0-4d14-87e0-f0cb6596dff2" continued-taxonomy="false" data-original-id="F_52b91f9e-6ca6-4e1c-96a0-89c9adf325d8" decimals="-6" enabled-taxonomy="true" format="ixt:num-dot-decimal" highlight-taxonomy="false" hover-taxonomy="false" id="fact-identifier-1601" inside-table="true" isadditionalitemsonly="false" isamountsonly="true" iscalculationsonly="false" iscustomonly="false" isnegativesonly="false" isstandardonly="true" istextonly="false" name="us-gaap:DividendsCommonStockCash" onclick="Taxonomies.clickEvent(event, this)" onkeyup="Taxonomies.clickEvent(event, this)" onmouseenter="Taxonomies.enterElement(event, this);" onmouseleave="Taxonomies.leaveElement(event, this);" scale="6" selected-taxonomy="false" tabindex="18" unitref="U_USD">5,066</ix:nonfraction></span></span></p></td>
+<td><p><span> </span></p></td>
+</tr>
+<tr>
+<td><p><span><span><ix:nonnumeric contextref="C_a3281e72-4f16-4324-9e04-a75e006d549d" continued-taxonomy="false" data-original-id="F_522b8bc4-ba49-49cf-a331-2b708117e484" enabled-taxonomy="true" format="ixt:date-monthname-day-year-en" highlight-taxonomy="false" hover-taxonomy="false" id="fact-identifier-1602" inside-table="true" isadditionalitemsonly="false" isamountsonly="false" iscalculationsonly="false" iscustomonly="false" isnegativesonly="false" isstandardonly="true" istextonly="true" name="us-gaap:DividendsPayableDateDeclaredDayMonthAndYear" onclick="Taxonomies.clickEvent(event, this)" onkeyup="Taxonomies.clickEvent(event, this)" onmouseenter="Taxonomies.enterElement(event, this);" onmouseleave="Taxonomies.leaveElement(event, this);" selected-taxonomy="false" tabindex="18"><span>November 29, 2022</span></ix:nonnumeric></span></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><span><ix:nonnumeric contextref="C_a3281e72-4f16-4324-9e04-a75e006d549d" continued-taxonomy="false" data-original-id="F_6b021b94-65b3-4bbd-82c6-014e818a5aeb" enabled-taxonomy="true" format="ixt:date-monthname-day-year-en" highlight-taxonomy="false" hover-taxonomy="false" id="fact-identifier-1603" inside-table="true" isadditionalitemsonly="false" isamountsonly="false" iscalculationsonly="false" iscustomonly="false" isnegativesonly="false" isstandardonly="true" istextonly="true" name="us-gaap:DividendsPayableDateOfRecordDayMonthAndYear" onclick="Taxonomies.clickEvent(event, this)" onkeyup="Taxonomies.clickEvent(event, this)" onmouseenter="Taxonomies.enterElement(event, this);" onmouseleave="Taxonomies.leaveElement(event, this);" selected-taxonomy="false" tabindex="18"><span>February 16, 2023</span></ix:nonnumeric></span></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><span><ix:nonnumeric contextref="C_a3281e72-4f16-4324-9e04-a75e006d549d" continued-taxonomy="false" data-original-id="F_86b3084f-d0b8-4f3e-8017-efb013b87b7c" enabled-taxonomy="true" format="ixt:date-monthname-day-year-en" highlight-taxonomy="false" hover-taxonomy="false" id="fact-identifier-1604" inside-table="true" isadditionalitemsonly="false" isamountsonly="false" iscalculationsonly="false" iscustomonly="false" isnegativesonly="false" isstandardonly="true" istextonly="true" name="us-gaap:DividendPayableDateToBePaidDayMonthAndYear" onclick="Taxonomies.clickEvent(event, this)" onkeyup="Taxonomies.clickEvent(event, this)" onmouseenter="Taxonomies.enterElement(event, this);" onmouseleave="Taxonomies.leaveElement(event, this);" selected-taxonomy="false" tabindex="18"><span>March 9, 2023</span></ix:nonnumeric></span></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><span><ix:nonfraction contextref="C_a3281e72-4f16-4324-9e04-a75e006d549d" continued-taxonomy="false" data-original-id="F_a36cca55-078e-4f90-9680-83441b79717d" decimals="INF" enabled-taxonomy="true" highlight-taxonomy="false" hover-taxonomy="false" id="fact-identifier-1605" inside-table="true" isadditionalitemsonly="false" isamountsonly="true" iscalculationsonly="false" iscustomonly="false" isnegativesonly="false" isstandardonly="true" istextonly="false" name="us-gaap:CommonStockDividendsPerShareDeclared" onclick="Taxonomies.clickEvent(event, this)" onkeyup="Taxonomies.clickEvent(event, this)" onmouseenter="Taxonomies.enterElement(event, this);" onmouseleave="Taxonomies.leaveElement(event, this);" selected-taxonomy="false" tabindex="18" unitref="U_UnitedStatesOfAmericaDollarsShare">0.68</ix:nonfraction></span></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><span><ix:nonfraction contextref="C_a3281e72-4f16-4324-9e04-a75e006d549d" continued-taxonomy="false" data-original-id="F_176ecbe5-ef9e-4692-8058-1f27d86a77cd" decimals="-6" enabled-taxonomy="true" format="ixt:num-dot-decimal" highlight-taxonomy="false" hover-taxonomy="false" id="fact-identifier-1606" inside-table="true" isadditionalitemsonly="false" isamountsonly="true" iscalculationsonly="false" iscustomonly="false" isnegativesonly="false" isstandardonly="true" istextonly="false" name="us-gaap:DividendsCommonStockCash" onclick="Taxonomies.clickEvent(event, this)" onkeyup="Taxonomies.clickEvent(event, this)" onmouseenter="Taxonomies.enterElement(event, this);" onmouseleave="Taxonomies.leaveElement(event, this);" scale="6" selected-taxonomy="false" tabindex="18" unitref="U_USD">5,059</ix:nonfraction></span></span></p></td>
+<td><p><span> </span></p></td>
+</tr>
+<tr>
+<td><p><span><span><ix:nonnumeric contextref="C_5804d481-482d-40ae-81fa-dc61a93a9be8" continued-taxonomy="false" data-original-id="F_41a3077f-56f4-40be-8f34-9950b381e525" enabled-taxonomy="true" format="ixt:date-monthname-day-year-en" highlight-taxonomy="false" hover-taxonomy="false" id="fact-identifier-1607" inside-table="true" isadditionalitemsonly="false" isamountsonly="false" iscalculationsonly="false" iscustomonly="false" isnegativesonly="false" isstandardonly="true" istextonly="true" name="us-gaap:DividendsPayableDateDeclaredDayMonthAndYear" onclick="Taxonomies.clickEvent(event, this)" onkeyup="Taxonomies.clickEvent(event, this)" onmouseenter="Taxonomies.enterElement(event, this);" onmouseleave="Taxonomies.leaveElement(event, this);" selected-taxonomy="false" tabindex="18"><span>March 14, 2023</span></ix:nonnumeric></span></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><span><ix:nonnumeric contextref="C_5804d481-482d-40ae-81fa-dc61a93a9be8" continued-taxonomy="false" data-original-id="F_0a433737-ae7e-4f73-82a7-a0bd18df8dd6" enabled-taxonomy="true" format="ixt:date-monthname-day-year-en" highlight-taxonomy="false" hover-taxonomy="false" id="fact-identifier-1608" inside-table="true" isadditionalitemsonly="false" isamountsonly="false" iscalculationsonly="false" iscustomonly="false" isnegativesonly="false" isstandardonly="true" istextonly="true" name="us-gaap:DividendsPayableDateOfRecordDayMonthAndYear" onclick="Taxonomies.clickEvent(event, this)" onkeyup="Taxonomies.clickEvent(event, this)" onmouseenter="Taxonomies.enterElement(event, this);" onmouseleave="Taxonomies.leaveElement(event, this);" selected-taxonomy="false" tabindex="18"><span>May 18, 2023</span></ix:nonnumeric></span></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><span><ix:nonnumeric contextref="C_5804d481-482d-40ae-81fa-dc61a93a9be8" continued-taxonomy="false" data-original-id="F_9a449a34-6d2a-4176-be31-1bdf3b1e721d" enabled-taxonomy="true" format="ixt:date-monthname-day-year-en" highlight-taxonomy="false" hover-taxonomy="false" id="fact-identifier-1609" inside-table="true" isadditionalitemsonly="false" isamountsonly="false" iscalculationsonly="false" iscustomonly="false" isnegativesonly="false" isstandardonly="true" istextonly="true" name="us-gaap:DividendPayableDateToBePaidDayMonthAndYear" onclick="Taxonomies.clickEvent(event, this)" onkeyup="Taxonomies.clickEvent(event, this)" onmouseenter="Taxonomies.enterElement(event, this);" onmouseleave="Taxonomies.leaveElement(event, this);" selected-taxonomy="false" tabindex="18"><span>June 8, 2023</span></ix:nonnumeric></span></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><span><ix:nonfraction contextref="C_5804d481-482d-40ae-81fa-dc61a93a9be8" continued-taxonomy="false" data-original-id="F_70d0383b-f291-4fc9-8789-96a747862284" decimals="INF" enabled-taxonomy="true" highlight-taxonomy="false" hover-taxonomy="false" id="fact-identifier-1610" inside-table="true" isadditionalitemsonly="false" isamountsonly="true" iscalculationsonly="false" iscustomonly="false" isnegativesonly="false" isstandardonly="true" istextonly="false" name="us-gaap:CommonStockDividendsPerShareDeclared" onclick="Taxonomies.clickEvent(event, this)" onkeyup="Taxonomies.clickEvent(event, this)" onmouseenter="Taxonomies.enterElement(event, this);" onmouseleave="Taxonomies.leaveElement(event, this);" selected-taxonomy="false" tabindex="18" unitref="U_UnitedStatesOfAmericaDollarsShare">0.68</ix:nonfraction></span></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><span><ix:nonfraction contextref="C_5804d481-482d-40ae-81fa-dc61a93a9be8" continued-taxonomy="false" data-original-id="F_18874922-642f-4a4c-8fa0-2c8f0e90ad57" decimals="-6" enabled-taxonomy="true" format="ixt:num-dot-decimal" highlight-taxonomy="false" hover-taxonomy="false" id="fact-identifier-1611" inside-table="true" isadditionalitemsonly="false" isamountsonly="true" iscalculationsonly="false" iscustomonly="false" isnegativesonly="false" isstandardonly="true" istextonly="false" name="us-gaap:DividendsCommonStockCash" onclick="Taxonomies.clickEvent(event, this)" onkeyup="Taxonomies.clickEvent(event, this)" onmouseenter="Taxonomies.enterElement(event, this);" onmouseleave="Taxonomies.leaveElement(event, this);" scale="6" selected-taxonomy="false" tabindex="18" unitref="U_USD">5,054</ix:nonfraction></span></span></p></td>
+<td><p><span> </span></p></td>
+</tr>
+<tr>
+<td><p><span><span><ix:nonnumeric contextref="C_3093eabf-e154-422a-83b2-70c4882793cc" continued-taxonomy="false" data-original-id="F_c6bd0773-e3ed-4747-9313-a0671d56603b" enabled-taxonomy="true" format="ixt:date-monthname-day-year-en" highlight-taxonomy="false" hover-taxonomy="false" id="fact-identifier-1612" inside-table="true" isadditionalitemsonly="false" isamountsonly="false" iscalculationsonly="false" iscustomonly="false" isnegativesonly="false" isstandardonly="true" istextonly="true" name="us-gaap:DividendsPayableDateDeclaredDayMonthAndYear" onclick="Taxonomies.clickEvent(event, this)" onkeyup="Taxonomies.clickEvent(event, this)" onmouseenter="Taxonomies.enterElement(event, this);" onmouseleave="Taxonomies.leaveElement(event, this);" selected-taxonomy="false" tabindex="18"><span>June 13, 2023</span></ix:nonnumeric></span></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><span><ix:nonnumeric contextref="C_3093eabf-e154-422a-83b2-70c4882793cc" continued-taxonomy="false" data-original-id="F_1119f5b9-251b-4c8d-becc-8ff6c4e56ad0" enabled-taxonomy="true" format="ixt:date-monthname-day-year-en" highlight-taxonomy="false" hover-taxonomy="false" id="fact-identifier-1613" inside-table="true" isadditionalitemsonly="false" isamountsonly="false" iscalculationsonly="false" iscustomonly="false" isnegativesonly="false" isstandardonly="true" istextonly="true" name="us-gaap:DividendsPayableDateOfRecordDayMonthAndYear" onclick="Taxonomies.clickEvent(event, this)" onkeyup="Taxonomies.clickEvent(event, this)" onmouseenter="Taxonomies.enterElement(event, this);" onmouseleave="Taxonomies.leaveElement(event, this);" selected-taxonomy="false" tabindex="18"><span>August 17, 2023</span></ix:nonnumeric></span></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><span><ix:nonnumeric contextref="C_3093eabf-e154-422a-83b2-70c4882793cc" continued-taxonomy="false" data-original-id="F_fcb76fcf-946e-429b-a5c8-a9b65b31e5c3" enabled-taxonomy="true" format="ixt:date-monthname-day-year-en" highlight-taxonomy="false" hover-taxonomy="false" id="fact-identifier-1614" inside-table="true" isadditionalitemsonly="false" isamountsonly="false" iscalculationsonly="false" iscustomonly="false" isnegativesonly="false" isstandardonly="true" istextonly="true" name="us-gaap:DividendPayableDateToBePaidDayMonthAndYear" onclick="Taxonomies.clickEvent(event, this)" onkeyup="Taxonomies.clickEvent(event, this)" onmouseenter="Taxonomies.enterElement(event, this);" onmouseleave="Taxonomies.leaveElement(event, this);" selected-taxonomy="false" tabindex="18"><span>September 14, 2023</span></ix:nonnumeric></span></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><span><ix:nonfraction contextref="C_3093eabf-e154-422a-83b2-70c4882793cc" continued-taxonomy="false" data-original-id="F_4e89855d-b15b-4235-970a-dd47fd514f7d" decimals="INF" enabled-taxonomy="true" highlight-taxonomy="false" hover-taxonomy="false" id="fact-identifier-1615" inside-table="true" isadditionalitemsonly="false" isamountsonly="true" iscalculationsonly="false" iscustomonly="false" isnegativesonly="false" isstandardonly="true" istextonly="false" name="us-gaap:CommonStockDividendsPerShareDeclared" onclick="Taxonomies.clickEvent(event, this)" onkeyup="Taxonomies.clickEvent(event, this)" onmouseenter="Taxonomies.enterElement(event, this);" onmouseleave="Taxonomies.leaveElement(event, this);" selected-taxonomy="false" tabindex="18" unitref="U_UnitedStatesOfAmericaDollarsShare">0.68</ix:nonfraction></span></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><span><ix:nonfraction contextref="C_3093eabf-e154-422a-83b2-70c4882793cc" continued-taxonomy="false" data-original-id="F_0d47d552-901a-4388-8bdf-b63dede462e5" decimals="-6" enabled-taxonomy="true" format="ixt:num-dot-decimal" highlight-taxonomy="false" hover-taxonomy="false" id="fact-identifier-1616" inside-table="true" isadditionalitemsonly="false" isamountsonly="true" iscalculationsonly="false" iscustomonly="false" isnegativesonly="false" isstandardonly="true" istextonly="false" name="us-gaap:DividendsCommonStockCash" onclick="Taxonomies.clickEvent(event, this)" onkeyup="Taxonomies.clickEvent(event, this)" onmouseenter="Taxonomies.enterElement(event, this);" onmouseleave="Taxonomies.leaveElement(event, this);" scale="6" selected-taxonomy="false" tabindex="18" unitref="U_USD">5,051</ix:nonfraction></span></span></p></td>
+<td><p><span> </span></p></td>
+</tr>
+<tr>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+</tr>
+<tr>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+</tr>
+<tr>
+<td><p><span>Total</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>$</span></p></td>
+<td><p><span><span><ix:nonfraction contextref="C_ae7e339c-3219-4fd1-a57c-be06046f6b58" continued-taxonomy="false" data-original-id="F_5ba82b23-7945-4319-8f78-3ac2d43aabe2" decimals="INF" enabled-taxonomy="true" highlight-taxonomy="false" hover-taxonomy="false" id="fact-identifier-1617" inside-table="true" isadditionalitemsonly="false" isamountsonly="true" iscalculationsonly="false" iscustomonly="false" isnegativesonly="false" isstandardonly="true" istextonly="false" name="us-gaap:CommonStockDividendsPerShareDeclared" onclick="Taxonomies.clickEvent(event, this)" onkeyup="Taxonomies.clickEvent(event, this)" onmouseenter="Taxonomies.enterElement(event, this);" onmouseleave="Taxonomies.leaveElement(event, this);" selected-taxonomy="false" tabindex="18" unitref="U_UnitedStatesOfAmericaDollarsShare">2.72</ix:nonfraction></span></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>$</span></p></td>
+<td><p><span><span><ix:nonfraction contextref="C_ae7e339c-3219-4fd1-a57c-be06046f6b58" continued-taxonomy="false" data-original-id="F_2e174239-0a1b-4d31-8f11-668bfbe67425" decimals="-6" enabled-taxonomy="true" format="ixt:num-dot-decimal" highlight-taxonomy="false" hover-taxonomy="false" id="fact-identifier-1618" inside-table="true" isadditionalitemsonly="false" isamountsonly="true" iscalculationsonly="false" iscustomonly="false" isnegativesonly="false" isstandardonly="true" istextonly="false" name="us-gaap:DividendsCommonStockCash" onclick="Taxonomies.clickEvent(event, this)" onkeyup="Taxonomies.clickEvent(event, this)" onmouseenter="Taxonomies.enterElement(event, this);" onmouseleave="Taxonomies.leaveElement(event, this);" scale="6" selected-taxonomy="false" tabindex="18" unitref="U_USD">20,230</ix:nonfraction></span></span></p></td>
+<td><p><span> </span></p></td>
+</tr>
+<tr>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+</tr>
+</tbody></table></ix:nonnumeric>

@@ -1,0 +1,1 @@
+<ix:nonnumeric contextref="c-1" continued-fact="false" continued-main-fact="true" continuedat="f-4133-1" enabled-fact="true" escape="true" hover-fact="false" id="fact-identifier-4804" inside-table="false" ix="f-4133" name="us-gaap:MarketRiskBenefitActivityTableTextBlock" selected-fact="false">The following table presents a roll-forward of MRB:</ix:nonnumeric>

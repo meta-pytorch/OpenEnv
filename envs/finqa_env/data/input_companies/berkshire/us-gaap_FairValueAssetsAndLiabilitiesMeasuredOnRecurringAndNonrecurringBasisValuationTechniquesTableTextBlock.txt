@@ -1,0 +1,102 @@
+<ix:nonnumeric contextref="C_fc05cf1b-e190-46aa-968d-fdf3a84013da" continued-fact="false" enabled-fact="true" escape="true" hover-fact="false" id="fact-identifier-2841" inside-table="false" ix="F_e37b4944-fbae-49dc-a876-db43198d5cee" name="us-gaap:FairValueAssetsAndLiabilitiesMeasuredOnRecurringAndNonrecurringBasisValuationTechniquesTableTextBlock" selected-fact="false"><p><span>Quantitative information as of </span><span>December 31, 2024 for the significant assets measured and carried at fair value on a recurring basis with the use of significant unobservable inputs (Level 3) follows (dollars in millions).</span><span> </span></p><p><span> </span></p>
+<table>
+<tbody><tr>
+<td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td></tr>
+<tr>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td colspan="2"><p><span>Fair<br/>Value</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>Principal<br/>Valuation<br/>Techniques</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>Unobservable<br/>Inputs</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>Weighted<br/>Average</span></p></td>
+</tr>
+<tr>
+<td><p><span>Investments in equity securities:</span></p></td>
+<td><p><span> </span></p></td>
+<td colspan="2"><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+</tr>
+<tr>
+<td><p><span>Preferred stock</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>$</span></p></td>
+<td><p><span><ix:nonfraction contextref="C_4c3d32c1-a7e2-4677-82c3-c47b0eb37008" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-217" inside-table="true" ix="F_640cc4ef-6734-47f5-ad77-9d2b50a7c670" name="us-gaap:EquitySecuritiesFvNi" scale="6" unitref="U_USD">8,429</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>Discounted cash flow</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>Expected duration</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><ix:nonnumeric contextref="C_cb180462-78aa-4e82-804d-950c18487adf" format="ixt-sec:durwordsen" id="fact-identifier-2842" inside-table="true" ix="F_b661485b-8033-44fa-a56c-8ca3b5c58248" name="brka:EquitySecuritiesFVNITerm"><span>5 years</span></ix:nonnumeric></span></p></td>
+</tr>
+<tr>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td colspan="2"><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>Discount for illiquidity and subordination</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><ix:nonfraction contextref="C_069f4ae9-f092-4bc4-b400-34e45fd81233" decimals="4" format="ixt:num-dot-decimal" id="fact-identifier-2844" inside-table="true" ix="F_2eb167f1-ac82-4a3f-963b-ec8da5d9696b" name="us-gaap:EquitySecuritiesFvNiMeasurementInput" scale="-4" unitref="U_pure">372</ix:nonfraction></span><span> bps</span></p></td>
+</tr>
+<tr>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td colspan="2"><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+</tr>
+<tr>
+<td><p><span>Common stock warrants</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><ix:nonfraction contextref="C_874c2ac1-ac59-4296-b272-0c5e20e55cbb" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-218" inside-table="true" ix="F_78c6083d-11fd-4114-b8f8-fbfb0303cccc" name="us-gaap:EquitySecuritiesFvNi" scale="6" unitref="U_USD">1,234</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>Warrant pricing model</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>Expected duration</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><ix:nonnumeric contextref="C_744d38bf-1abc-4a3a-8f54-c73c48d3076d" format="ixt-sec:durwordsen" id="fact-identifier-2843" inside-table="true" ix="F_3eb2aa6f-f95a-4dd0-9945-11d37c0acde4" name="brka:EquitySecuritiesFVNITerm"><span>6 years</span></ix:nonnumeric></span></p></td>
+</tr>
+<tr>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td colspan="2"><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>Volatility</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><ix:nonfraction contextref="C_590348f2-e5da-498d-8aae-ea15b037122d" decimals="2" format="ixt:num-dot-decimal" id="fact-identifier-2845" inside-table="true" ix="F_05806e56-8cd1-46de-984e-ba3d28e184f5" name="us-gaap:EquitySecuritiesFvNiMeasurementInput" scale="-2" unitref="U_pure">42</ix:nonfraction></span><span>%</span></p></td>
+</tr>
+</tbody></table></ix:nonnumeric>

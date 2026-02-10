@@ -1,0 +1,228 @@
+<ix:nonnumeric contextref="C_fc05cf1b-e190-46aa-968d-fdf3a84013da" continued-fact="false" enabled-fact="true" escape="true" hover-fact="false" id="fact-identifier-3059" inside-table="false" ix="F_8542f09c-05d0-4c1d-9637-2b1e122fab62" name="us-gaap:ChangesInProjectedBenefitObligationsFairValueOfPlanAssetsAndFundedStatusOfPlanTableTextBlock" selected-fact="false"><p><span>Reconciliations of the changes in plan assets and PBOs for each of the two years ending December 31, 2024 and the asset and liability balances reflected in the Consolidated Balance Sheets at year end 2024 and 2023 follow (in millions).</span><span> </span></p><p><span> </span></p>
+<table>
+<tbody><tr>
+<td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td></tr>
+<tr>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td colspan="2"><p><span>2024</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td colspan="2"><p><span>2023</span></p></td>
+<td><p><span> </span></p></td>
+</tr>
+<tr>
+<td><p><span>Plan assets</span></p></td>
+<td><p><span> </span></p></td>
+<td colspan="2"><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td colspan="2"><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+</tr>
+<tr>
+<td><p><span>Balance at the beginning of the year</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>$</span></p></td>
+<td><p><span><ix:nonfraction contextref="C_b1a85cca-b2a7-48fa-a821-46f8567615c9" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-3060" inside-table="true" ix="F_b7be88ec-5826-4177-9fe1-4ba3e0e00d31" name="us-gaap:DefinedBenefitPlanFairValueOfPlanAssets" scale="6" unitref="U_USD">13,379</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>$</span></p></td>
+<td><p><span><ix:nonfraction contextref="C_4e36be8e-c886-4006-8b71-2ae5b262ad3a" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-3061" inside-table="true" ix="F_4c34171e-2218-4129-90c6-a14c4a2cec11" name="us-gaap:DefinedBenefitPlanFairValueOfPlanAssets" scale="6" unitref="U_USD">12,592</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+</tr>
+<tr>
+<td><p><span>Employer contributions</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><ix:nonfraction contextref="C_ee3414b1-9b90-485a-bd59-463b6e6f1c45" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-3105" inside-table="true" ix="F_ecb94491-8cce-4d4c-820e-94ba2f2425cd" name="us-gaap:DefinedBenefitPlanContributionsByEmployer" scale="6" unitref="U_USD">111</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><ix:nonfraction contextref="C_745b8bbf-f1ed-4ccd-b30a-8010182e07cc" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-3106" inside-table="true" ix="F_73c35959-8062-406c-8a00-016103c84683" name="us-gaap:DefinedBenefitPlanContributionsByEmployer" scale="6" unitref="U_USD">145</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+</tr>
+<tr>
+<td><p><span>Benefits paid</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>(</span><span><ix:nonfraction contextref="C_ee3414b1-9b90-485a-bd59-463b6e6f1c45" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-3107" inside-table="true" ix="F_ef64b080-9b57-40f2-bc04-f3a9dce3c013" name="us-gaap:DefinedBenefitPlanPlanAssetsBenefitsPaid" scale="6" unitref="U_USD">810</ix:nonfraction></span></p></td>
+<td><p><span>)</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>(</span><span><ix:nonfraction contextref="C_745b8bbf-f1ed-4ccd-b30a-8010182e07cc" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-3108" inside-table="true" ix="F_bf0df1d1-16c1-4758-b6ab-54454de40752" name="us-gaap:DefinedBenefitPlanPlanAssetsBenefitsPaid" scale="6" unitref="U_USD">852</ix:nonfraction></span></p></td>
+<td><p><span>)</span></p></td>
+</tr>
+<tr>
+<td><p><span>Settlements paid</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>(</span><span><ix:nonfraction contextref="C_ee3414b1-9b90-485a-bd59-463b6e6f1c45" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-3109" inside-table="true" ix="F_71f482ec-798c-471f-b301-9a70cb1691c0" name="us-gaap:DefinedBenefitPlanSettlementsPlanAssets" scale="6" unitref="U_USD">354</ix:nonfraction></span></p></td>
+<td><p><span>)</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>(</span><span><ix:nonfraction contextref="C_745b8bbf-f1ed-4ccd-b30a-8010182e07cc" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-3110" inside-table="true" ix="F_0038fde2-902d-407d-bc65-5e9aba59da2e" name="us-gaap:DefinedBenefitPlanSettlementsPlanAssets" scale="6" unitref="U_USD">448</ix:nonfraction></span></p></td>
+<td><p><span>)</span></p></td>
+</tr>
+<tr>
+<td><p><span>Actual return on plan assets</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><ix:nonfraction contextref="C_ee3414b1-9b90-485a-bd59-463b6e6f1c45" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-3111" inside-table="true" ix="F_bd7af772-2fab-4e33-b1cd-17ab5dbc6a87" name="us-gaap:DefinedBenefitPlanActualReturnOnPlanAssets" scale="6" unitref="U_USD">1,909</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><ix:nonfraction contextref="C_745b8bbf-f1ed-4ccd-b30a-8010182e07cc" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-3112" inside-table="true" ix="F_34f86baa-9361-4626-ad06-3a755afee466" name="us-gaap:DefinedBenefitPlanActualReturnOnPlanAssets" scale="6" unitref="U_USD">1,783</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+</tr>
+<tr>
+<td><p><span>Other</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>(</span><span><ix:nonfraction contextref="C_ee3414b1-9b90-485a-bd59-463b6e6f1c45" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-3113" inside-table="true" ix="F_622d2e24-f998-4da4-87ef-0889400a3ea7" name="brka:DefinedBenefitPlanPlanAssetsOtherCostCredit" scale="6" sign="-" unitref="U_USD">55</ix:nonfraction></span></p></td>
+<td><p><span>)</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><ix:nonfraction contextref="C_745b8bbf-f1ed-4ccd-b30a-8010182e07cc" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-3114" inside-table="true" ix="F_b83ddec6-d0dd-4f7e-93c0-1c930cf6dd9b" name="brka:DefinedBenefitPlanPlanAssetsOtherCostCredit" scale="6" unitref="U_USD">159</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+</tr>
+<tr>
+<td><p><span>Balance at the end of the year</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>$</span></p></td>
+<td><p><span><ix:nonfraction contextref="C_2aa45265-bb2c-4f35-a371-d803f5472d81" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-3062" inside-table="true" ix="F_8f7abf8b-e9ff-46ad-afcb-e82aeb9f9c58" name="us-gaap:DefinedBenefitPlanFairValueOfPlanAssets" scale="6" unitref="U_USD">14,180</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>$</span></p></td>
+<td><p><span><ix:nonfraction contextref="C_b1a85cca-b2a7-48fa-a821-46f8567615c9" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-3063" inside-table="true" ix="F_2e353326-af34-4f53-99c8-d08e235b2077" name="us-gaap:DefinedBenefitPlanFairValueOfPlanAssets" scale="6" unitref="U_USD">13,379</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+</tr>
+<tr>
+<td><p><span>Projected benefit obligations</span></p></td>
+<td><p><span> </span></p></td>
+<td colspan="2"><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td colspan="2"><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+</tr>
+<tr>
+<td><p><span>Balance at the beginning of the year</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>$</span></p></td>
+<td><p><span><ix:nonfraction contextref="C_b1a85cca-b2a7-48fa-a821-46f8567615c9" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-3115" inside-table="true" ix="F_0dd234c2-2141-407f-9982-32ced64ae10b" name="us-gaap:DefinedBenefitPlanBenefitObligation" scale="6" unitref="U_USD">12,767</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>$</span></p></td>
+<td><p><span><ix:nonfraction contextref="C_4e36be8e-c886-4006-8b71-2ae5b262ad3a" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-3116" inside-table="true" ix="F_a5740892-a2f1-466a-8ca2-91bbaf35bef2" name="us-gaap:DefinedBenefitPlanBenefitObligation" scale="6" unitref="U_USD">12,738</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+</tr>
+<tr>
+<td><p><span>Service cost</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><ix:nonfraction contextref="C_ee3414b1-9b90-485a-bd59-463b6e6f1c45" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-3041" inside-table="true" ix="F_8b3f4a28-fdb7-4c1e-8399-74d3b2c57bcd" name="us-gaap:DefinedBenefitPlanServiceCost" scale="6" unitref="U_USD">107</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><ix:nonfraction contextref="C_745b8bbf-f1ed-4ccd-b30a-8010182e07cc" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-3042" inside-table="true" ix="F_590b33f7-983c-437c-b80e-eb9369cd3a11" name="us-gaap:DefinedBenefitPlanServiceCost" scale="6" unitref="U_USD">111</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+</tr>
+<tr>
+<td><p><span><span><ix:nonnumeric contextref="C_ee3414b1-9b90-485a-bd59-463b6e6f1c45" id="fact-identifier-54" inside-table="true" isadditionalitemsonly="true" ishiddenelement="true" ix="F_33401802-9d39-4c05-b714-98d658d89564" name="us-gaap:DefinedBenefitPlanNetPeriodicBenefitCostCreditInterestCostStatementOfIncomeOrComprehensiveIncomeExtensibleList"><span><ix:nonnumeric contextref="C_745b8bbf-f1ed-4ccd-b30a-8010182e07cc" id="fact-identifier-55" inside-table="true" isadditionalitemsonly="true" ishiddenelement="true" ix="F_1cfb14be-c782-4d23-8122-d170b5cc6eef" name="us-gaap:DefinedBenefitPlanNetPeriodicBenefitCostCreditInterestCostStatementOfIncomeOrComprehensiveIncomeExtensibleList"><span>Interest</span></ix:nonnumeric></span></ix:nonnumeric></span></span><span> cost</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><ix:nonfraction contextref="C_ee3414b1-9b90-485a-bd59-463b6e6f1c45" decimals="-6" id="fact-identifier-3046" inside-table="true" ix="F_30de5daa-4f2e-4f6d-a206-66d05b5c8fea" name="us-gaap:DefinedBenefitPlanInterestCost" scale="6" unitref="U_USD">617</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><ix:nonfraction contextref="C_745b8bbf-f1ed-4ccd-b30a-8010182e07cc" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-3047" inside-table="true" ix="F_c359b165-fd25-4853-8886-752f615560b0" name="us-gaap:DefinedBenefitPlanInterestCost" scale="6" unitref="U_USD">640</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+</tr>
+<tr>
+<td><p><span>Benefits paid</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>(</span><span><ix:nonfraction contextref="C_ee3414b1-9b90-485a-bd59-463b6e6f1c45" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-3121" inside-table="true" ix="F_fadb6dce-a1a8-435f-9b52-5c06dc2c3b54" name="us-gaap:DefinedBenefitPlanBenefitObligationBenefitsPaid" scale="6" unitref="U_USD">810</ix:nonfraction></span></p></td>
+<td><p><span>)</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>(</span><span><ix:nonfraction contextref="C_745b8bbf-f1ed-4ccd-b30a-8010182e07cc" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-3122" inside-table="true" ix="F_deae8404-fbcb-4fc7-8395-9cbf733c9be5" name="us-gaap:DefinedBenefitPlanBenefitObligationBenefitsPaid" scale="6" unitref="U_USD">852</ix:nonfraction></span></p></td>
+<td><p><span>)</span></p></td>
+</tr>
+<tr>
+<td><p><span>Settlements paid</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>(</span><span><ix:nonfraction contextref="C_ee3414b1-9b90-485a-bd59-463b6e6f1c45" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-3123" inside-table="true" ix="F_a4816ce9-e613-4c8a-ab20-bdb26f4aeed3" name="us-gaap:DefinedBenefitPlanSettlementsBenefitObligation" scale="6" unitref="U_USD">354</ix:nonfraction></span></p></td>
+<td><p><span>)</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>(</span><span><ix:nonfraction contextref="C_745b8bbf-f1ed-4ccd-b30a-8010182e07cc" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-3124" inside-table="true" ix="F_30fbbf70-c6d2-4866-846c-389810101492" name="us-gaap:DefinedBenefitPlanSettlementsBenefitObligation" scale="6" unitref="U_USD">448</ix:nonfraction></span></p></td>
+<td><p><span>)</span></p></td>
+</tr>
+<tr>
+<td><p><span>Actuarial (gains) losses and other</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>(</span><span><ix:nonfraction contextref="C_ee3414b1-9b90-485a-bd59-463b6e6f1c45" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-3125" inside-table="true" ix="F_6eb0e0f4-df31-4489-9651-4638060bd99a" name="us-gaap:DefinedBenefitPlanActuarialGainLoss" scale="6" sign="-" unitref="U_USD">607</ix:nonfraction></span></p></td>
+<td><p><span>)</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><ix:nonfraction contextref="C_745b8bbf-f1ed-4ccd-b30a-8010182e07cc" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-3126" inside-table="true" ix="F_07e4786f-b371-4bba-826f-6da33b28631d" name="us-gaap:DefinedBenefitPlanActuarialGainLoss" scale="6" unitref="U_USD">578</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+</tr>
+<tr>
+<td><p><span>Balance at the end of the year</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>$</span></p></td>
+<td><p><span><ix:nonfraction contextref="C_2aa45265-bb2c-4f35-a371-d803f5472d81" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-3117" inside-table="true" ix="F_821a3a33-a336-423c-9282-a1c59c3f347d" name="us-gaap:DefinedBenefitPlanBenefitObligation" scale="6" unitref="U_USD">11,720</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>$</span></p></td>
+<td><p><span><ix:nonfraction contextref="C_b1a85cca-b2a7-48fa-a821-46f8567615c9" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-3118" inside-table="true" ix="F_1a485f29-1fdc-4262-8919-d5fd9d6f67d0" name="us-gaap:DefinedBenefitPlanBenefitObligation" scale="6" unitref="U_USD">12,767</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+</tr>
+<tr>
+<td><p><span>Net funded status - asset (liability)</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>$</span></p></td>
+<td><p><span><ix:nonfraction contextref="C_2aa45265-bb2c-4f35-a371-d803f5472d81" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-3127" inside-table="true" ix="F_58e2ba0d-210f-4479-916e-0932750acfeb" name="us-gaap:DefinedBenefitPlanFundedStatusOfPlan" scale="6" unitref="U_USD">2,460</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>$</span></p></td>
+<td><p><span><ix:nonfraction contextref="C_b1a85cca-b2a7-48fa-a821-46f8567615c9" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-3128" inside-table="true" ix="F_2c706877-f47f-47b4-a259-0c2b9dd70015" name="us-gaap:DefinedBenefitPlanFundedStatusOfPlan" scale="6" unitref="U_USD">612</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+</tr>
+<tr>
+<td><p><span>Balances included in other assets</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>$</span></p></td>
+<td><p><span><ix:nonfraction contextref="C_2aa45265-bb2c-4f35-a371-d803f5472d81" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-3129" inside-table="true" ix="F_a13725e2-5a80-4ce1-918c-198ced195995" name="us-gaap:DefinedBenefitPlanAssetsForPlanBenefitsNoncurrent" scale="6" unitref="U_USD">3,490</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>$</span></p></td>
+<td><p><span><ix:nonfraction contextref="C_b1a85cca-b2a7-48fa-a821-46f8567615c9" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-3130" inside-table="true" ix="F_653c518f-7449-4960-80a8-c41a96414d70" name="us-gaap:DefinedBenefitPlanAssetsForPlanBenefitsNoncurrent" scale="6" unitref="U_USD">1,823</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+</tr>
+<tr>
+<td><p><span>Balances included in accounts payable and other liabilities</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>$</span></p></td>
+<td><p><span><ix:nonfraction contextref="C_2aa45265-bb2c-4f35-a371-d803f5472d81" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-3131" inside-table="true" ix="F_35aaf6fe-0820-4608-9c75-12bf966fba4a" name="us-gaap:PensionAndOtherPostretirementDefinedBenefitPlansLiabilitiesCurrentAndNoncurrent" scale="6" unitref="U_USD">1,030</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>$</span></p></td>
+<td><p><span><ix:nonfraction contextref="C_b1a85cca-b2a7-48fa-a821-46f8567615c9" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-3132" inside-table="true" ix="F_91f7e492-0d94-48d7-b31d-ee627dbadee0" name="us-gaap:PensionAndOtherPostretirementDefinedBenefitPlansLiabilitiesCurrentAndNoncurrent" scale="6" unitref="U_USD">1,211</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+</tr>
+</tbody></table></ix:nonnumeric>

@@ -1,0 +1,156 @@
+<ix:nonnumeric contextref="C_fc05cf1b-e190-46aa-968d-fdf3a84013da" continued-fact="false" enabled-fact="true" escape="true" hover-fact="false" id="fact-identifier-1768" inside-table="false" ix="F_5df85fa5-fc7e-4ec3-a062-a4388e20f92e" name="us-gaap:ScheduleOfCashFlowSupplementalDisclosuresTableTextBlock" selected-fact="false"><p><span>A summary of supplemental cash flow information follows (in millions).</span><span> </span></p><p><span> </span></p>
+<table>
+<tbody><tr>
+<td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td></tr>
+<tr>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td colspan="2"><p><span>2024</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td colspan="2"><p><span>2023</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td colspan="2"><p><span>2022</span></p></td>
+<td><p><span> </span></p></td>
+</tr>
+<tr>
+<td><p><span>Cash paid during the year for:</span></p></td>
+<td><p><span> </span></p></td>
+<td colspan="2"><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td colspan="2"><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td colspan="2"><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+</tr>
+<tr>
+<td><p><span>Income taxes</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>$</span></p></td>
+<td><p><span><ix:nonfraction contextref="C_fc05cf1b-e190-46aa-968d-fdf3a84013da" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-1769" inside-table="true" ix="F_fba33a87-362d-4ded-8e50-e91e4fc667fc" name="us-gaap:IncomeTaxesPaidNet" scale="6" unitref="U_USD">28,544</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>$</span></p></td>
+<td><p><span><ix:nonfraction contextref="C_18c36197-3712-4dfe-8f62-98ad9cc65858" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-1770" inside-table="true" ix="F_725e69cd-0fe6-4a45-b24f-83925942f9fb" name="us-gaap:IncomeTaxesPaidNet" scale="6" unitref="U_USD">7,765</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>$</span></p></td>
+<td><p><span><ix:nonfraction contextref="C_0c5bfb34-fd33-43a2-943e-42077bf3f707" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-1771" inside-table="true" ix="F_381a9c84-3a4c-4dc8-90f4-4a930c512bde" name="us-gaap:IncomeTaxesPaidNet" scale="6" unitref="U_USD">4,236</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+</tr>
+<tr>
+<td><p><span>Interest:</span></p></td>
+<td><p><span> </span></p></td>
+<td colspan="2"><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td colspan="2"><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td colspan="2"><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+</tr>
+<tr>
+<td><p><span>Insurance and other</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><ix:nonfraction contextref="C_642c88f7-190a-4404-a21e-9555df0e997a" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-1775" inside-table="true" ix="F_38c9c4f6-cff1-4fb9-84e6-35868fd98966" name="us-gaap:InterestPaidNet" scale="6" unitref="U_USD">1,362</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><ix:nonfraction contextref="C_a9cda1e4-adb4-4e4e-9d69-f031f773d0d7" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-1776" inside-table="true" ix="F_9a21ecc8-2243-4c70-8173-545307370c77" name="us-gaap:InterestPaidNet" scale="6" unitref="U_USD">1,670</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><ix:nonfraction contextref="C_50ae5b45-4a32-4d36-a7e9-8eb5c56f8b50" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-1777" inside-table="true" ix="F_75fa289e-3bf0-43e2-85fa-59c2d911f747" name="us-gaap:InterestPaidNet" scale="6" unitref="U_USD">1,150</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+</tr>
+<tr>
+<td><p><span>Railroad, utilities and energy</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><ix:nonfraction contextref="C_bbf04874-6e65-471d-90a1-a2de7e93861c" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-1778" inside-table="true" ix="F_e95200ab-c910-4fd3-baf5-b11b41cbf911" name="us-gaap:InterestPaidNet" scale="6" unitref="U_USD">3,577</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><ix:nonfraction contextref="C_62808cae-b245-4d66-82b9-a66d5d962478" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-1779" inside-table="true" ix="F_7e6ad8b6-ae79-4668-adb1-efb864b7fa45" name="us-gaap:InterestPaidNet" scale="6" unitref="U_USD">3,327</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><ix:nonfraction contextref="C_8dc1d99a-e53d-45b0-8f19-ffa9df862cf1" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-1780" inside-table="true" ix="F_2918fd5f-be7a-45c2-b4ac-6fa525da7e23" name="us-gaap:InterestPaidNet" scale="6" unitref="U_USD">3,195</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+</tr>
+<tr>
+<td><p><span>Non-cash investing and financing activities:</span></p></td>
+<td><p><span> </span></p></td>
+<td colspan="2"><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td colspan="2"><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td colspan="2"><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+</tr>
+<tr>
+<td><p><span>Liabilities assumed in connection with business acquisitions</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><ix:nonfraction contextref="C_fc05cf1b-e190-46aa-968d-fdf3a84013da" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-1781" inside-table="true" ix="F_1468a6d1-8dad-4f48-9a61-a54c557a8719" name="us-gaap:NoncashOrPartNoncashAcquisitionValueOfLiabilitiesAssumed1" scale="6" unitref="U_USD">22</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><ix:nonfraction contextref="C_18c36197-3712-4dfe-8f62-98ad9cc65858" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-1782" inside-table="true" ix="F_a915727f-ffc1-404e-8834-692030a04d66" name="us-gaap:NoncashOrPartNoncashAcquisitionValueOfLiabilitiesAssumed1" scale="6" unitref="U_USD">10,938</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><ix:nonfraction contextref="C_0c5bfb34-fd33-43a2-943e-42077bf3f707" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-1783" inside-table="true" ix="F_79d4ac40-d599-4041-9de7-181f678f38e3" name="us-gaap:NoncashOrPartNoncashAcquisitionValueOfLiabilitiesAssumed1" scale="6" unitref="U_USD">24,186</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+</tr>
+<tr>
+<td><p><span>Operating lease liabilities arising from obtaining right-of-use assets</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><ix:nonfraction contextref="C_fc05cf1b-e190-46aa-968d-fdf3a84013da" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-1784" inside-table="true" ix="F_c5ef3de7-72a6-457d-9343-1d38d09a0eb5" name="us-gaap:RightOfUseAssetObtainedInExchangeForOperatingLeaseLiability" scale="6" unitref="U_USD">2,007</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><ix:nonfraction contextref="C_18c36197-3712-4dfe-8f62-98ad9cc65858" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-1785" inside-table="true" ix="F_2c4fa6c7-a4b5-4b83-898f-023fc5c1d109" name="us-gaap:RightOfUseAssetObtainedInExchangeForOperatingLeaseLiability" scale="6" unitref="U_USD">1,645</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><ix:nonfraction contextref="C_0c5bfb34-fd33-43a2-943e-42077bf3f707" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-1786" inside-table="true" ix="F_7f6d4a0c-7eb0-464d-ba4d-bbca5eaba115" name="us-gaap:RightOfUseAssetObtainedInExchangeForOperatingLeaseLiability" scale="6" unitref="U_USD">1,118</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+</tr>
+<tr>
+<td><p><span>Class B common stock issued in exchange for noncontrolling interests</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><ix:nonfraction contextref="C_fc05cf1b-e190-46aa-968d-fdf3a84013da" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-1787" inside-table="true" ix="F_e7fe4d47-3f03-4847-876b-53e7ca6a2299" name="brka:CommonStockIssuedInExchangeForNoncontrollingInterests" scale="6" unitref="U_USD">1,045</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>—</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>—</span></p></td>
+<td><p><span> </span></p></td>
+</tr>
+</tbody></table></ix:nonnumeric>

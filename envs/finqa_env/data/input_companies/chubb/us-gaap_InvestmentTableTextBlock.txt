@@ -1,0 +1,1 @@
+<ix:nonnumeric contextref="c-1" continued-fact="false" continued-main-fact="true" continuedat="f-696-1" enabled-fact="true" escape="true" hover-fact="false" id="fact-identifier-1773" inside-table="false" ix="f-696" name="us-gaap:InvestmentTableTextBlock" selected-fact="false">Investments </ix:nonnumeric>

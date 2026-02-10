@@ -1,0 +1,253 @@
+<ix:nonnumeric contextref="C_73ba8b1f-44df-4ab3-9c52-b56d0c2859b2" continued-fact="false" enabled-fact="true" escape="true" hover-fact="false" id="fact-identifier-1884" inside-table="false" ix="F_a521c302-ed55-4716-8955-56ddc60fb615" name="us-gaap:ShortdurationInsuranceContractsClaimsDevelopmentTableTextBlock" selected-fact="false"><p><span>Physical Damage</span></p><p><span> </span></p>
+<table>
+<tbody><tr>
+<td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td></tr>
+<tr>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td colspan="8"><p><span>Losses and ALAE Incurred through December 31,</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td colspan="2"><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td colspan="2"><p><span>Cumulative<br/>Number of</span></p></td>
+<td><p><span> </span></p></td>
+</tr>
+<tr>
+<td><p><span>Accident<br/>Year</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td colspan="2"><p><span>2023*</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td colspan="2"><p><span>2024</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td colspan="2"><p><span>IBNR and Case<br/>Development<br/>Liabilities</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td colspan="2"><p><span>Reported<br/>Claims<br/>(in thousands)</span></p></td>
+<td><p><span> </span></p></td>
+</tr>
+<tr>
+<td><p><span>2023</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>$</span></p></td>
+<td><p><span><ix:nonfraction contextref="C_824416e1-c757-4134-98a8-5a57abffd57b" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-1890" inside-table="true" ix="F_65dab131-b76d-46bb-93ad-9d1373e53a97" name="us-gaap:ShortdurationInsuranceContractsIncurredClaimsAndAllocatedClaimAdjustmentExpenseNet" scale="6" unitref="U_USD">12,273</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>$</span></p></td>
+<td><p><span><ix:nonfraction contextref="C_e5e9146d-4408-4c13-a79f-4108e60135eb" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-1891" inside-table="true" ix="F_2752f6ce-7271-4039-a26f-1cd9c68f202a" name="us-gaap:ShortdurationInsuranceContractsIncurredClaimsAndAllocatedClaimAdjustmentExpenseNet" scale="6" unitref="U_USD">11,900</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>$</span></p></td>
+<td><p><span><ix:nonfraction contextref="C_e5e9146d-4408-4c13-a79f-4108e60135eb" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-2134" inside-table="true" ix="F_93e6a16f-8841-485f-8e79-a64ee858cc41" name="us-gaap:ShortdurationInsuranceContractsIncurredButNotReportedIbnrClaimsLiabilityNet" scale="6" unitref="U_USD">111</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><ix:nonfraction contextref="C_e5e9146d-4408-4c13-a79f-4108e60135eb" decimals="-3" format="ixt:num-dot-decimal" id="fact-identifier-2181" inside-table="true" ix="F_d2279d45-b1fb-46e8-827f-2390d7e24c1b" name="us-gaap:ShortdurationInsuranceContractsNumberOfReportedClaims" scale="3" unitref="U_Claim">7,430</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+</tr>
+<tr>
+<td><p><span>2024</span></p></td>
+<td><p><span> </span></p></td>
+<td colspan="4"><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><ix:nonfraction contextref="C_80554bcc-3ea7-4277-8038-20c170ebed0d" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-1892" inside-table="true" ix="F_15c72511-d13e-40bf-b1a0-1b04e3c39f02" name="us-gaap:ShortdurationInsuranceContractsIncurredClaimsAndAllocatedClaimAdjustmentExpenseNet" scale="6" unitref="U_USD">11,095</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>(</span><span><ix:nonfraction contextref="C_80554bcc-3ea7-4277-8038-20c170ebed0d" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-2135" inside-table="true" ix="F_648d6402-d32a-4486-a3b2-f2f21ae2d283" name="us-gaap:ShortdurationInsuranceContractsIncurredButNotReportedIbnrClaimsLiabilityNet" scale="6" sign="-" unitref="U_USD">454</ix:nonfraction></span></p></td>
+<td><p><span>)</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><ix:nonfraction contextref="C_80554bcc-3ea7-4277-8038-20c170ebed0d" decimals="-3" format="ixt:num-dot-decimal" id="fact-identifier-2182" inside-table="true" ix="F_3e9b3004-afb3-4bc5-91d2-12a9402f053e" name="us-gaap:ShortdurationInsuranceContractsNumberOfReportedClaims" scale="3" unitref="U_Claim">6,380</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+</tr>
+<tr>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td colspan="4"><p><span>Losses and ALAE incurred</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>$</span></p></td>
+<td><p><span><ix:nonfraction contextref="C_0e092532-992e-4ccc-bb98-e034d5af85ee" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-1893" inside-table="true" ix="F_62d618c1-a62d-44e8-a6b0-0abdc901378d" name="us-gaap:ShortdurationInsuranceContractsIncurredClaimsAndAllocatedClaimAdjustmentExpenseNet" scale="6" unitref="U_USD">22,995</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td colspan="2"><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td colspan="2"><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+</tr>
+<tr>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td colspan="2"><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td colspan="2"><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td colspan="2"><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td colspan="2"><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+</tr>
+<tr>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td colspan="8"><p><span>Cumulative Losses and ALAE Paid through December 31,</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td colspan="2"><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td colspan="2"><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+</tr>
+<tr>
+<td><p><span>Accident<br/>Year</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td colspan="2"><p><span>2023*</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td colspan="2"><p><span>2024</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td colspan="2"><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td colspan="2"><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+</tr>
+<tr>
+<td><p><span>2023</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>$</span></p></td>
+<td><p><span><ix:nonfraction contextref="C_824416e1-c757-4134-98a8-5a57abffd57b" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-2208" inside-table="true" ix="F_18d45631-c167-44b0-ad3b-c31c4e5d1e0a" name="us-gaap:ShortdurationInsuranceContractsCumulativePaidClaimsAndAllocatedClaimAdjustmentExpenseNet" scale="6" unitref="U_USD">11,567</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>$</span></p></td>
+<td><p><span><ix:nonfraction contextref="C_e5e9146d-4408-4c13-a79f-4108e60135eb" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-2209" inside-table="true" ix="F_c363109c-10da-4b00-a85c-c660dd483432" name="us-gaap:ShortdurationInsuranceContractsCumulativePaidClaimsAndAllocatedClaimAdjustmentExpenseNet" scale="6" unitref="U_USD">11,771</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td colspan="2"><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td colspan="2"><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+</tr>
+<tr>
+<td><p><span>2024</span></p></td>
+<td><p><span> </span></p></td>
+<td colspan="4"><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><ix:nonfraction contextref="C_80554bcc-3ea7-4277-8038-20c170ebed0d" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-2210" inside-table="true" ix="F_aa38371d-1dcb-4c69-a163-ec313579f558" name="us-gaap:ShortdurationInsuranceContractsCumulativePaidClaimsAndAllocatedClaimAdjustmentExpenseNet" scale="6" unitref="U_USD">10,495</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td colspan="2"><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td colspan="2"><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+</tr>
+<tr>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td colspan="4"><p><span>Losses and ALAE paid</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><ix:nonfraction contextref="C_0e092532-992e-4ccc-bb98-e034d5af85ee" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-2211" inside-table="true" ix="F_0079a8c8-ce86-42c2-99b5-99da160708ae" name="us-gaap:ShortdurationInsuranceContractsCumulativePaidClaimsAndAllocatedClaimAdjustmentExpenseNet" scale="6" unitref="U_USD">22,266</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td colspan="2"><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td colspan="2"><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+</tr>
+<tr>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td colspan="4"><p><span>Net unpaid losses and ALAE for 2023 – 2024 accident years</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><ix:nonfraction contextref="C_1de69723-d83f-43bd-9fbc-94a26c7bc74c" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-1869" inside-table="true" ix="F_c03b3c3d-e55d-4d41-8a83-19a0ceba4053" name="us-gaap:ShortdurationInsuranceContractsLiabilityForUnpaidClaimsAndAllocatedClaimAdjustmentExpenseNet" scale="6" unitref="U_USD">729</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td colspan="2"><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td colspan="2"><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+</tr>
+<tr>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td colspan="4"><p><span>Net unpaid losses and ALAE for accident years before 2023</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><ix:nonfraction contextref="C_79a0ba23-452c-4a7b-aa43-10795eb72322" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-2452" inside-table="true" ix="F_e9196ee4-514c-4094-ad8d-1ef42b3672f3" name="us-gaap:ShortdurationInsuranceContractsLiabilityForUnpaidClaimsAndAllocatedClaimAdjustmentExpenseNetNotSeparatelyPresented" scale="6" unitref="U_USD">156</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td colspan="2"><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td colspan="2"><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+</tr>
+<tr>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td colspan="4"><p><span>Net unpaid losses and ALAE</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>$</span></p></td>
+<td><p><span><ix:nonfraction contextref="C_0e092532-992e-4ccc-bb98-e034d5af85ee" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-1870" inside-table="true" ix="F_5621a557-bf9b-4df6-ae66-852d2cd28f29" name="us-gaap:ShortdurationInsuranceContractsLiabilityForUnpaidClaimsAndAllocatedClaimAdjustmentExpenseNet" scale="6" unitref="U_USD">885</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td colspan="2"><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td colspan="2"><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+</tr>
+</tbody></table></ix:nonnumeric>

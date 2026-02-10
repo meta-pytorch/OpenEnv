@@ -7,8 +7,9 @@ ability to answer complex financial questions using tool calls (SQL queries,
 calculations, etc.) on SEC 10-K filing data.
 """
 
-from dataclasses import dataclass, field
 from typing import Dict, List, Any
+
+from pydantic import Field
 
 from openenv.core.env_server import Action, Observation, State
 
@@ -27,7 +28,6 @@ def get_tool_schemas():
     return generate_tool_schemas(FinQATools, AVAILABLE_TOOLS)
 
 
-@dataclass
 class FinQAAction(Action):
     """
     Action taken by the agent - a tool call.
@@ -37,10 +37,9 @@ class FinQAAction(Action):
         tool_args: Arguments for the tool call
     """
     tool_name: str
-    tool_args: Dict[str, Any] = field(default_factory=dict)
+    tool_args: Dict[str, Any] = Field(default_factory=dict)
 
 
-@dataclass
 class FinQAObservation(Observation):
     """
     Observation returned after each step.
@@ -57,12 +56,11 @@ class FinQAObservation(Observation):
     question: str = ""
     company: str = ""
     tool_result: str = ""
-    history: List[Dict[str, Any]] = field(default_factory=list)
+    history: List[Dict[str, Any]] = Field(default_factory=list)
     step_count: int = 0
-    available_tools: List[str] = field(default_factory=lambda: AVAILABLE_TOOLS.copy())
+    available_tools: List[str] = Field(default_factory=lambda: AVAILABLE_TOOLS.copy())
 
 
-@dataclass
 class FinQAState(State):
     """
     Internal environment state for tracking the current episode.

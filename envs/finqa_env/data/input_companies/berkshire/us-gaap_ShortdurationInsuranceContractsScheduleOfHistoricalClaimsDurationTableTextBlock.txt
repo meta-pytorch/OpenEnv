@@ -1,0 +1,182 @@
+<ix:nonnumeric contextref="C_fc05cf1b-e190-46aa-968d-fdf3a84013da" continued-fact="false" enabled-fact="true" escape="true" hover-fact="false" id="fact-identifier-2457" inside-table="false" ix="F_1e7fb0da-680f-4fab-a2a5-b601f8f75792" name="us-gaap:ShortdurationInsuranceContractsScheduleOfHistoricalClaimsDurationTableTextBlock" selected-fact="false"><p><span>Required supplemental unaudited average historical claims duration information based on the net losses and ALAE incurred and paid accident year data in the preceding tables follows. The percentages show the average portions of net losses and ALAE paid by each succeeding year, with year 1 representing the current accident year.</span><span> </span></p><p><span> </span></p>
+<table>
+<tbody><tr>
+<td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td></tr>
+<tr>
+<td colspan="20"><p><span>Average Annual Percentage Payout of Losses Incurred by Age, Net of Reinsurance</span></p></td>
+</tr>
+<tr>
+<td><p><span>In Year</span></p></td>
+<td><p><span>1</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>2</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>3</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>4</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>5</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>6</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>7</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>8</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>9</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>10</span></p></td>
+</tr>
+<tr>
+<td><p><span>GEICO Physical Damage</span></p></td>
+<td><p><span><ix:nonfraction contextref="C_0e092532-992e-4ccc-bb98-e034d5af85ee" decimals="2" format="ixt:num-dot-decimal" id="fact-identifier-2458" inside-table="true" ix="F_e8b21b25-17bc-4d2d-96e2-9137e3699a2d" name="us-gaap:ShortdurationInsuranceContractsHistoricalClaimsDurationYearOne" scale="-2" unitref="U_pure">97</ix:nonfraction></span><span>%</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><ix:nonfraction contextref="C_0e092532-992e-4ccc-bb98-e034d5af85ee" decimals="2" format="ixt:num-dot-decimal" id="fact-identifier-2464" inside-table="true" ix="F_c254aca2-77fa-4796-ad91-97b7a7d82207" name="us-gaap:ShortdurationInsuranceContractsHistoricalClaimsDurationYearTwo" scale="-2" unitref="U_pure">3</ix:nonfraction></span><span>%</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+</tr>
+<tr>
+<td><p><span>GEICO Auto Liability</span></p></td>
+<td><p><span><ix:nonfraction contextref="C_ba830ebc-c1a2-4288-a018-beafd028b8aa" decimals="2" format="ixt:num-dot-decimal" id="fact-identifier-2459" inside-table="true" ix="F_13c8da7f-3dc7-46fd-8cd0-994cd8099e27" name="us-gaap:ShortdurationInsuranceContractsHistoricalClaimsDurationYearOne" scale="-2" unitref="U_pure">41</ix:nonfraction></span><span>%</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><ix:nonfraction contextref="C_ba830ebc-c1a2-4288-a018-beafd028b8aa" decimals="2" format="ixt:num-dot-decimal" id="fact-identifier-2465" inside-table="true" ix="F_d415a345-9151-4ce3-ac5e-8533f5f54184" name="us-gaap:ShortdurationInsuranceContractsHistoricalClaimsDurationYearTwo" scale="-2" unitref="U_pure">31</ix:nonfraction></span><span>%</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><ix:nonfraction contextref="C_ba830ebc-c1a2-4288-a018-beafd028b8aa" decimals="2" format="ixt:num-dot-decimal" id="fact-identifier-2470" inside-table="true" ix="F_93fcd0ef-8882-41f7-9df5-b56c2ed70bd0" name="us-gaap:ShortdurationInsuranceContractsHistoricalClaimsDurationYearThree" scale="-2" unitref="U_pure">13</ix:nonfraction></span><span>%</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><ix:nonfraction contextref="C_ba830ebc-c1a2-4288-a018-beafd028b8aa" decimals="2" format="ixt:num-dot-decimal" id="fact-identifier-2475" inside-table="true" ix="F_4a5df6a2-a0f2-4d1d-96b2-4621e6d2c57f" name="us-gaap:ShortdurationInsuranceContractsHistoricalClaimsDurationYearFour" scale="-2" unitref="U_pure">7</ix:nonfraction></span><span>%</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><ix:nonfraction contextref="C_ba830ebc-c1a2-4288-a018-beafd028b8aa" decimals="2" format="ixt:num-dot-decimal" id="fact-identifier-2480" inside-table="true" ix="F_9b1b5e72-9d64-43d6-9a4a-94a7ec42ee99" name="us-gaap:ShortdurationInsuranceContractsHistoricalClaimsDurationYearFive" scale="-2" unitref="U_pure">4</ix:nonfraction></span><span>%</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+</tr>
+<tr>
+<td><p><span>BH Primary Medical Professional Liability</span></p></td>
+<td><p><span><ix:nonfraction contextref="C_b2dfa673-41db-496d-8966-4c5f1d7cade8" decimals="2" format="ixt:num-dot-decimal" id="fact-identifier-2460" inside-table="true" ix="F_de6b7562-2d5e-46bf-84fd-640dd837fb67" name="us-gaap:ShortdurationInsuranceContractsHistoricalClaimsDurationYearOne" scale="-2" unitref="U_pure">2</ix:nonfraction></span><span>%</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><ix:nonfraction contextref="C_b2dfa673-41db-496d-8966-4c5f1d7cade8" decimals="2" format="ixt:num-dot-decimal" id="fact-identifier-2466" inside-table="true" ix="F_319ba079-92a5-4291-a44a-964a6eb1258e" name="us-gaap:ShortdurationInsuranceContractsHistoricalClaimsDurationYearTwo" scale="-2" unitref="U_pure">8</ix:nonfraction></span><span>%</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><ix:nonfraction contextref="C_b2dfa673-41db-496d-8966-4c5f1d7cade8" decimals="2" format="ixt:num-dot-decimal" id="fact-identifier-2471" inside-table="true" ix="F_864feed0-3a4d-409e-83a6-f6f0cbf37eac" name="us-gaap:ShortdurationInsuranceContractsHistoricalClaimsDurationYearThree" scale="-2" unitref="U_pure">12</ix:nonfraction></span><span>%</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><ix:nonfraction contextref="C_b2dfa673-41db-496d-8966-4c5f1d7cade8" decimals="2" format="ixt:num-dot-decimal" id="fact-identifier-2476" inside-table="true" ix="F_35195850-8017-4a42-8af8-18beb9e38946" name="us-gaap:ShortdurationInsuranceContractsHistoricalClaimsDurationYearFour" scale="-2" unitref="U_pure">14</ix:nonfraction></span><span>%</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><ix:nonfraction contextref="C_b2dfa673-41db-496d-8966-4c5f1d7cade8" decimals="2" format="ixt:num-dot-decimal" id="fact-identifier-2481" inside-table="true" ix="F_cb5042b6-7b02-43a0-b9a6-e32e48e30a3b" name="us-gaap:ShortdurationInsuranceContractsHistoricalClaimsDurationYearFive" scale="-2" unitref="U_pure">13</ix:nonfraction></span><span>%</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><ix:nonfraction contextref="C_b2dfa673-41db-496d-8966-4c5f1d7cade8" decimals="2" format="ixt:num-dot-decimal" id="fact-identifier-2485" inside-table="true" ix="F_92688216-a033-4e59-b340-7d497e83983c" name="us-gaap:ShortdurationInsuranceContractsHistoricalClaimsDurationYearSix" scale="-2" unitref="U_pure">12</ix:nonfraction></span><span>%</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><ix:nonfraction contextref="C_b2dfa673-41db-496d-8966-4c5f1d7cade8" decimals="2" format="ixt:num-dot-decimal" id="fact-identifier-2489" inside-table="true" ix="F_16f2c574-1a5f-479f-9fcf-f15535d585f9" name="us-gaap:ShortdurationInsuranceContractsHistoricalClaimsDurationYearSeven" scale="-2" unitref="U_pure">8</ix:nonfraction></span><span>%</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><ix:nonfraction contextref="C_b2dfa673-41db-496d-8966-4c5f1d7cade8" decimals="2" format="ixt:num-dot-decimal" id="fact-identifier-2493" inside-table="true" ix="F_1479601a-2a9e-49e5-8d7b-6de3564f4c54" name="us-gaap:ShortdurationInsuranceContractsHistoricalClaimsDurationYearEight" scale="-2" unitref="U_pure">8</ix:nonfraction></span><span>%</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><ix:nonfraction contextref="C_b2dfa673-41db-496d-8966-4c5f1d7cade8" decimals="2" format="ixt:num-dot-decimal" id="fact-identifier-2497" inside-table="true" ix="F_ad05d8a5-1463-4f8c-97db-5fe0ca7a97f0" name="us-gaap:ShortdurationInsuranceContractsHistoricalClaimsDurationYearNine" scale="-2" unitref="U_pure">4</ix:nonfraction></span><span>%</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><ix:nonfraction contextref="C_b2dfa673-41db-496d-8966-4c5f1d7cade8" decimals="2" format="ixt:num-dot-decimal" id="fact-identifier-2501" inside-table="true" ix="F_cc948213-a71a-4166-8351-2f349f32eeaa" name="us-gaap:ShortdurationInsuranceContractsHistoricalClaimsDurationYearTen" scale="-2" unitref="U_pure">4</ix:nonfraction></span><span>%</span></p></td>
+</tr>
+<tr>
+<td><p><span>BH Primary Workers’ Compensation and Other Casualty</span></p></td>
+<td><p><span><ix:nonfraction contextref="C_57594aef-02d9-45f8-b15c-a823693a9885" decimals="2" format="ixt:num-dot-decimal" id="fact-identifier-2461" inside-table="true" ix="F_f6f66941-ac33-4e35-bd09-252baca1ffb0" name="us-gaap:ShortdurationInsuranceContractsHistoricalClaimsDurationYearOne" scale="-2" unitref="U_pure">14</ix:nonfraction></span><span>%</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><ix:nonfraction contextref="C_57594aef-02d9-45f8-b15c-a823693a9885" decimals="2" format="ixt:num-dot-decimal" id="fact-identifier-2467" inside-table="true" ix="F_44cf316f-65d0-4618-816d-042a814678c3" name="us-gaap:ShortdurationInsuranceContractsHistoricalClaimsDurationYearTwo" scale="-2" unitref="U_pure">17</ix:nonfraction></span><span>%</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><ix:nonfraction contextref="C_57594aef-02d9-45f8-b15c-a823693a9885" decimals="2" format="ixt:num-dot-decimal" id="fact-identifier-2472" inside-table="true" ix="F_814f221b-9c34-49c1-b385-079c98639d00" name="us-gaap:ShortdurationInsuranceContractsHistoricalClaimsDurationYearThree" scale="-2" unitref="U_pure">14</ix:nonfraction></span><span>%</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><ix:nonfraction contextref="C_57594aef-02d9-45f8-b15c-a823693a9885" decimals="2" format="ixt:num-dot-decimal" id="fact-identifier-2477" inside-table="true" ix="F_39353774-b1f4-49d5-be2a-1ba6f0bdb47b" name="us-gaap:ShortdurationInsuranceContractsHistoricalClaimsDurationYearFour" scale="-2" unitref="U_pure">12</ix:nonfraction></span><span>%</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><ix:nonfraction contextref="C_57594aef-02d9-45f8-b15c-a823693a9885" decimals="2" format="ixt:num-dot-decimal" id="fact-identifier-2482" inside-table="true" ix="F_04951983-6632-4c3a-a9c9-c10ae5375bbe" name="us-gaap:ShortdurationInsuranceContractsHistoricalClaimsDurationYearFive" scale="-2" unitref="U_pure">10</ix:nonfraction></span><span>%</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><ix:nonfraction contextref="C_57594aef-02d9-45f8-b15c-a823693a9885" decimals="2" format="ixt:num-dot-decimal" id="fact-identifier-2486" inside-table="true" ix="F_87a61004-d531-425c-81df-5d1d5f76fb31" name="us-gaap:ShortdurationInsuranceContractsHistoricalClaimsDurationYearSix" scale="-2" unitref="U_pure">7</ix:nonfraction></span><span>%</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><ix:nonfraction contextref="C_57594aef-02d9-45f8-b15c-a823693a9885" decimals="2" format="ixt:num-dot-decimal" id="fact-identifier-2490" inside-table="true" ix="F_fc261145-8d96-4cf9-b93c-dc45af7ca8ab" name="us-gaap:ShortdurationInsuranceContractsHistoricalClaimsDurationYearSeven" scale="-2" unitref="U_pure">5</ix:nonfraction></span><span>%</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><ix:nonfraction contextref="C_57594aef-02d9-45f8-b15c-a823693a9885" decimals="2" format="ixt:num-dot-decimal" id="fact-identifier-2494" inside-table="true" ix="F_5812dba8-9346-48fe-8590-6e86094a49c1" name="us-gaap:ShortdurationInsuranceContractsHistoricalClaimsDurationYearEight" scale="-2" unitref="U_pure">3</ix:nonfraction></span><span>%</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><ix:nonfraction contextref="C_57594aef-02d9-45f8-b15c-a823693a9885" decimals="2" format="ixt:num-dot-decimal" id="fact-identifier-2498" inside-table="true" ix="F_e45979d0-7285-415b-8643-dc99a2fb0221" name="us-gaap:ShortdurationInsuranceContractsHistoricalClaimsDurationYearNine" scale="-2" unitref="U_pure">1</ix:nonfraction></span><span>%</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><ix:nonfraction contextref="C_57594aef-02d9-45f8-b15c-a823693a9885" decimals="2" format="ixt:num-dot-decimal" id="fact-identifier-2502" inside-table="true" ix="F_39150311-6bcf-426a-a8a5-4305e5a3f439" name="us-gaap:ShortdurationInsuranceContractsHistoricalClaimsDurationYearTen" scale="-2" unitref="U_pure">1</ix:nonfraction></span><span>%</span></p></td>
+</tr>
+<tr>
+<td><p><span>BHRG Property</span></p></td>
+<td><p><span><ix:nonfraction contextref="C_a5b4613b-ff57-4d5a-968b-6cee63885c1d" decimals="2" format="ixt:num-dot-decimal" id="fact-identifier-2462" inside-table="true" ix="F_9166b91e-0525-4df0-8508-2ffada97f573" name="us-gaap:ShortdurationInsuranceContractsHistoricalClaimsDurationYearOne" scale="-2" unitref="U_pure">22</ix:nonfraction></span><span>%</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><ix:nonfraction contextref="C_a5b4613b-ff57-4d5a-968b-6cee63885c1d" decimals="2" format="ixt:num-dot-decimal" id="fact-identifier-2468" inside-table="true" ix="F_4ba4a189-791e-4722-87f8-4fbd6f0fe8d0" name="us-gaap:ShortdurationInsuranceContractsHistoricalClaimsDurationYearTwo" scale="-2" unitref="U_pure">35</ix:nonfraction></span><span>%</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><ix:nonfraction contextref="C_a5b4613b-ff57-4d5a-968b-6cee63885c1d" decimals="2" format="ixt:num-dot-decimal" id="fact-identifier-2473" inside-table="true" ix="F_1dc6a4e8-c41c-43ad-b8a4-d8669029a08e" name="us-gaap:ShortdurationInsuranceContractsHistoricalClaimsDurationYearThree" scale="-2" unitref="U_pure">15</ix:nonfraction></span><span>%</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><ix:nonfraction contextref="C_a5b4613b-ff57-4d5a-968b-6cee63885c1d" decimals="2" format="ixt:num-dot-decimal" id="fact-identifier-2478" inside-table="true" ix="F_f31da024-4cf8-49d4-b910-c9c1cfedc0a9" name="us-gaap:ShortdurationInsuranceContractsHistoricalClaimsDurationYearFour" scale="-2" unitref="U_pure">8</ix:nonfraction></span><span>%</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><ix:nonfraction contextref="C_a5b4613b-ff57-4d5a-968b-6cee63885c1d" decimals="2" format="ixt:num-dot-decimal" id="fact-identifier-2483" inside-table="true" ix="F_e890ce74-7e2a-4d2f-aaad-d94a3cfa016c" name="us-gaap:ShortdurationInsuranceContractsHistoricalClaimsDurationYearFive" scale="-2" unitref="U_pure">4</ix:nonfraction></span><span>%</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><ix:nonfraction contextref="C_a5b4613b-ff57-4d5a-968b-6cee63885c1d" decimals="2" format="ixt:num-dot-decimal" id="fact-identifier-2487" inside-table="true" ix="F_41ccb213-0a2c-4d51-814d-d61a8db41a7b" name="us-gaap:ShortdurationInsuranceContractsHistoricalClaimsDurationYearSix" scale="-2" unitref="U_pure">4</ix:nonfraction></span><span>%</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><ix:nonfraction contextref="C_a5b4613b-ff57-4d5a-968b-6cee63885c1d" decimals="2" format="ixt:num-dot-decimal" id="fact-identifier-2491" inside-table="true" ix="F_115785ad-50ac-4d49-80fc-6873e1c3cfa6" name="us-gaap:ShortdurationInsuranceContractsHistoricalClaimsDurationYearSeven" scale="-2" unitref="U_pure">2</ix:nonfraction></span><span>%</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><ix:nonfraction contextref="C_a5b4613b-ff57-4d5a-968b-6cee63885c1d" decimals="2" format="ixt:num-dot-decimal" id="fact-identifier-2495" inside-table="true" ix="F_1919bba0-9837-45a6-9e1d-3f1edec318a6" name="us-gaap:ShortdurationInsuranceContractsHistoricalClaimsDurationYearEight" scale="-2" unitref="U_pure">1</ix:nonfraction></span><span>%</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><ix:nonfraction contextref="C_a5b4613b-ff57-4d5a-968b-6cee63885c1d" decimals="2" format="ixt:num-dot-decimal" id="fact-identifier-2499" inside-table="true" ix="F_bae49f52-80d2-4f97-b587-10f9631d99a4" name="us-gaap:ShortdurationInsuranceContractsHistoricalClaimsDurationYearNine" scale="-2" unitref="U_pure">2</ix:nonfraction></span><span>%</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><ix:nonfraction contextref="C_a5b4613b-ff57-4d5a-968b-6cee63885c1d" decimals="2" format="ixt:num-dot-decimal" id="fact-identifier-2503" inside-table="true" ix="F_cad5e2ec-4a83-4bb6-a41d-c0b06e94021b" name="us-gaap:ShortdurationInsuranceContractsHistoricalClaimsDurationYearTen" scale="-2" unitref="U_pure">2</ix:nonfraction></span><span>%</span></p></td>
+</tr>
+<tr>
+<td><p><span>BHRG Casualty</span></p></td>
+<td><p><span><ix:nonfraction contextref="C_d9d20242-37f7-43aa-9ebb-8f49830d9cde" decimals="2" format="ixt:num-dot-decimal" id="fact-identifier-2463" inside-table="true" ix="F_4a56f3d5-1f52-4286-a4e9-b8dcd422d78c" name="us-gaap:ShortdurationInsuranceContractsHistoricalClaimsDurationYearOne" scale="-2" unitref="U_pure">13</ix:nonfraction></span><span>%</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><ix:nonfraction contextref="C_d9d20242-37f7-43aa-9ebb-8f49830d9cde" decimals="2" format="ixt:num-dot-decimal" id="fact-identifier-2469" inside-table="true" ix="F_ba8b57de-7356-4090-845d-eb5403617f83" name="us-gaap:ShortdurationInsuranceContractsHistoricalClaimsDurationYearTwo" scale="-2" unitref="U_pure">17</ix:nonfraction></span><span>%</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><ix:nonfraction contextref="C_d9d20242-37f7-43aa-9ebb-8f49830d9cde" decimals="2" format="ixt:num-dot-decimal" id="fact-identifier-2474" inside-table="true" ix="F_4424f42a-9acb-4315-96df-0d05f6b04194" name="us-gaap:ShortdurationInsuranceContractsHistoricalClaimsDurationYearThree" scale="-2" unitref="U_pure">13</ix:nonfraction></span><span>%</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><ix:nonfraction contextref="C_d9d20242-37f7-43aa-9ebb-8f49830d9cde" decimals="2" format="ixt:num-dot-decimal" id="fact-identifier-2479" inside-table="true" ix="F_0e31e10c-77e3-4ae3-84a5-9ea07346b414" name="us-gaap:ShortdurationInsuranceContractsHistoricalClaimsDurationYearFour" scale="-2" unitref="U_pure">11</ix:nonfraction></span><span>%</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><ix:nonfraction contextref="C_d9d20242-37f7-43aa-9ebb-8f49830d9cde" decimals="2" format="ixt:num-dot-decimal" id="fact-identifier-2484" inside-table="true" ix="F_cddb86b1-7e82-446c-b405-9876b5b335b1" name="us-gaap:ShortdurationInsuranceContractsHistoricalClaimsDurationYearFive" scale="-2" unitref="U_pure">8</ix:nonfraction></span><span>%</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><ix:nonfraction contextref="C_d9d20242-37f7-43aa-9ebb-8f49830d9cde" decimals="2" format="ixt:num-dot-decimal" id="fact-identifier-2488" inside-table="true" ix="F_12a15dfe-8fad-4237-a7d8-9f0fe5bb8290" name="us-gaap:ShortdurationInsuranceContractsHistoricalClaimsDurationYearSix" scale="-2" unitref="U_pure">6</ix:nonfraction></span><span>%</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><ix:nonfraction contextref="C_d9d20242-37f7-43aa-9ebb-8f49830d9cde" decimals="2" format="ixt:num-dot-decimal" id="fact-identifier-2492" inside-table="true" ix="F_f82d1637-3d40-46eb-81ab-aa99dc1d97f9" name="us-gaap:ShortdurationInsuranceContractsHistoricalClaimsDurationYearSeven" scale="-2" unitref="U_pure">5</ix:nonfraction></span><span>%</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><ix:nonfraction contextref="C_d9d20242-37f7-43aa-9ebb-8f49830d9cde" decimals="2" format="ixt:num-dot-decimal" id="fact-identifier-2496" inside-table="true" ix="F_2a36cddc-d1a6-4526-ad8c-9ec0270f967a" name="us-gaap:ShortdurationInsuranceContractsHistoricalClaimsDurationYearEight" scale="-2" unitref="U_pure">4</ix:nonfraction></span><span>%</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><ix:nonfraction contextref="C_d9d20242-37f7-43aa-9ebb-8f49830d9cde" decimals="2" format="ixt:num-dot-decimal" id="fact-identifier-2500" inside-table="true" ix="F_40189031-f5a5-4081-8efe-5179f966ff03" name="us-gaap:ShortdurationInsuranceContractsHistoricalClaimsDurationYearNine" scale="-2" unitref="U_pure">4</ix:nonfraction></span><span>%</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><ix:nonfraction contextref="C_d9d20242-37f7-43aa-9ebb-8f49830d9cde" decimals="2" format="ixt:num-dot-decimal" id="fact-identifier-2504" inside-table="true" ix="F_363e91de-ac84-4e0a-bb36-03b4358e642a" name="us-gaap:ShortdurationInsuranceContractsHistoricalClaimsDurationYearTen" scale="-2" unitref="U_pure">3</ix:nonfraction></span><span>%</span></p></td>
+</tr>
+</tbody></table></ix:nonnumeric>

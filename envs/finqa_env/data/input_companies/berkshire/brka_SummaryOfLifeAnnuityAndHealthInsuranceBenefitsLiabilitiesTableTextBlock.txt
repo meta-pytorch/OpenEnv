@@ -1,0 +1,66 @@
+<ix:nonnumeric contextref="C_fc05cf1b-e190-46aa-968d-fdf3a84013da" continued-fact="false" enabled-fact="true" escape="true" hover-fact="false" id="fact-identifier-2511" inside-table="false" ix="F_baecffa9-5fac-4456-a5d7-c8ce5a18fb40" name="brka:SummaryOfLifeAnnuityAndHealthInsuranceBenefitsLiabilitiesTableTextBlock" selected-fact="false"><p><span>A summary of our long-duration life, annuity and health insurance benefits liabilities disaggregated by our two principal product categories, periodic payment annuity (</span><span>“annuities”) and life and health insurance, follows (in millions). Other liabilities include IBNR claims and claims in the course of settlement.</span></p>
+<table>
+<tbody><tr>
+<td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td></tr>
+<tr>
+<td><p><span> </span></p></td>
+<td colspan="6"><p><span>December 31,</span></p></td>
+<td><p><span> </span></p></td>
+</tr>
+<tr>
+<td><p><span> </span></p></td>
+<td colspan="2"><p><span>2024</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td colspan="2"><p><span>2023</span></p></td>
+<td><p><span> </span></p></td>
+</tr>
+<tr>
+<td><p><span>Annuities</span></p></td>
+<td><p><span>$</span></p></td>
+<td><p><span><ix:nonfraction contextref="C_749c3b14-79db-4baf-b4b2-af773eb3ba3e" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-375" inside-table="true" ix="F_4895e0b7-87c3-4eb2-a0e7-ad779c341a18" name="us-gaap:LiabilityForFuturePolicyBenefits" scale="6" unitref="U_USD">10,276</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>$</span></p></td>
+<td><p><span><ix:nonfraction contextref="C_693fbd28-74f9-43b2-baf4-25d3a3b63fa6" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-376" inside-table="true" ix="F_bd379f90-d9b6-4d18-878d-91529109d48d" name="us-gaap:LiabilityForFuturePolicyBenefits" scale="6" unitref="U_USD">11,212</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+</tr>
+<tr>
+<td><p><span>Life and health</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><ix:nonfraction contextref="C_55c6d826-b625-4a32-88ac-62c0099e14b0" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-377" inside-table="true" ix="F_4223c06a-3c84-4b30-b07f-2fe3231be7a4" name="us-gaap:LiabilityForFuturePolicyBenefits" scale="6" unitref="U_USD">4,490</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><ix:nonfraction contextref="C_be0d6c5c-720e-4341-92da-60e2c6f2c1e1" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-378" inside-table="true" ix="F_8efe8ccd-86a1-4745-af93-3f11606c694c" name="us-gaap:LiabilityForFuturePolicyBenefits" scale="6" unitref="U_USD">5,749</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+</tr>
+<tr>
+<td><p><span>Other liabilities</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><ix:nonfraction contextref="C_1993739f-94d1-4ba3-8c56-16ea31d1aa50" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-379" inside-table="true" ix="F_1ade95a2-eb5a-4ccc-8d5c-32d5bacc51cc" name="us-gaap:LiabilityForFuturePolicyBenefits" scale="6" unitref="U_USD">2,850</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><ix:nonfraction contextref="C_6251abe0-3a93-4511-8a5f-7940bf0ebf73" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-380" inside-table="true" ix="F_e039e8a5-030c-4d10-8962-e88582b6c8eb" name="us-gaap:LiabilityForFuturePolicyBenefits" scale="6" unitref="U_USD">3,252</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+</tr>
+<tr>
+<td><p><span> </span></p></td>
+<td><p><span>$</span></p></td>
+<td><p><span><ix:nonfraction contextref="C_7bf1c469-da4f-4e0d-80ab-b368cc556db0" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-381" inside-table="true" ix="F_974cb4d7-8bdb-4c7c-b288-a1aa798c1a1b" name="us-gaap:LiabilityForFuturePolicyBenefits" scale="6" unitref="U_USD">17,616</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>$</span></p></td>
+<td><p><span><ix:nonfraction contextref="C_9e1b6e77-993c-46e5-892b-af9f5c3a4201" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-382" inside-table="true" ix="F_2298e0f9-0967-4294-99f4-9113ba061985" name="us-gaap:LiabilityForFuturePolicyBenefits" scale="6" unitref="U_USD">20,213</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+</tr>
+</tbody></table></ix:nonnumeric>

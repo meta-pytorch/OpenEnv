@@ -1,0 +1,84 @@
+<ix:nonnumeric contextref="C_fc05cf1b-e190-46aa-968d-fdf3a84013da" continued-fact="false" enabled-fact="true" escape="true" hover-fact="false" id="fact-identifier-1571" inside-table="false" ix="F_28476aaf-0bc2-41a0-9520-fec7954f6e42" name="us-gaap:ScheduleOfInventoryCurrentTableTextBlock" selected-fact="false"><p><span>Inventories of our insurance and other businesses are comprised of the following (in millions).</span><span> </span></p>
+<table>
+<tbody><tr>
+<td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td></tr>
+<tr>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td colspan="6"><p><span>December 31,</span></p></td>
+<td><p><span> </span></p></td>
+</tr>
+<tr>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td colspan="2"><p><span>2024</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td colspan="2"><p><span>2023</span></p></td>
+<td><p><span> </span></p></td>
+</tr>
+<tr>
+<td><p><span>Raw materials</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>$</span></p></td>
+<td><p><span><ix:nonfraction contextref="C_7bf1c469-da4f-4e0d-80ab-b368cc556db0" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-1572" inside-table="true" ix="F_12ef0836-a636-469f-b13a-b0b10e0df162" name="us-gaap:InventoryRawMaterialsNetOfReserves" scale="6" unitref="U_USD">5,421</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>$</span></p></td>
+<td><p><span><ix:nonfraction contextref="C_9e1b6e77-993c-46e5-892b-af9f5c3a4201" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-1573" inside-table="true" ix="F_192f3657-ff53-45bf-8465-7072429505b8" name="us-gaap:InventoryRawMaterialsNetOfReserves" scale="6" unitref="U_USD">6,026</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+</tr>
+<tr>
+<td><p><span>Work in process and other</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><ix:nonfraction contextref="C_7bf1c469-da4f-4e0d-80ab-b368cc556db0" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-1574" inside-table="true" ix="F_fcaa0711-c1d2-482d-8883-c99e31184db6" name="brka:InventoryWorkInProcessAndOtherInventoryNetOfReserves" scale="6" unitref="U_USD">3,150</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><ix:nonfraction contextref="C_9e1b6e77-993c-46e5-892b-af9f5c3a4201" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-1575" inside-table="true" ix="F_3be19a0f-9632-4ec9-935d-ce5297e329c7" name="brka:InventoryWorkInProcessAndOtherInventoryNetOfReserves" scale="6" unitref="U_USD">3,345</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+</tr>
+<tr>
+<td><p><span>Finished manufactured goods</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><ix:nonfraction contextref="C_7bf1c469-da4f-4e0d-80ab-b368cc556db0" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-1576" inside-table="true" ix="F_6c32a1f5-5d72-4e19-bfdc-7874b570f624" name="us-gaap:InventoryFinishedGoodsNetOfReserves" scale="6" unitref="U_USD">4,898</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><ix:nonfraction contextref="C_9e1b6e77-993c-46e5-892b-af9f5c3a4201" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-1577" inside-table="true" ix="F_ca47e31a-dd8b-466e-a73e-56805d9705ea" name="us-gaap:InventoryFinishedGoodsNetOfReserves" scale="6" unitref="U_USD">4,969</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+</tr>
+<tr>
+<td><p><span>Goods acquired for resale</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><ix:nonfraction contextref="C_7bf1c469-da4f-4e0d-80ab-b368cc556db0" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-1578" inside-table="true" ix="F_25b37535-325a-413b-bd03-9dcc04d63681" name="brka:OtherInventoryPurchasedGoodsNetOfReserves" scale="6" unitref="U_USD">10,539</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><ix:nonfraction contextref="C_9e1b6e77-993c-46e5-892b-af9f5c3a4201" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-1579" inside-table="true" ix="F_2fb32ffd-5610-4c32-87aa-92c048787e2a" name="brka:OtherInventoryPurchasedGoodsNetOfReserves" scale="6" unitref="U_USD">11,516</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+</tr>
+<tr>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>$</span></p></td>
+<td><p><span><ix:nonfraction contextref="C_7bf1c469-da4f-4e0d-80ab-b368cc556db0" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-245" inside-table="true" ix="F_5504a7fb-0d5c-4cf8-ab98-7555b2cedb3d" name="us-gaap:InventoryNet" scale="6" unitref="U_USD">24,008</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>$</span></p></td>
+<td><p><span><ix:nonfraction contextref="C_9e1b6e77-993c-46e5-892b-af9f5c3a4201" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-246" inside-table="true" ix="F_c6b1c69a-a9d4-4174-bac2-006e0c38c043" name="us-gaap:InventoryNet" scale="6" unitref="U_USD">25,856</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+</tr>
+</tbody></table></ix:nonnumeric>

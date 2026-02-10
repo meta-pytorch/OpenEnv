@@ -1,0 +1,119 @@
+<ix:nonnumeric contextref="C_fc05cf1b-e190-46aa-968d-fdf3a84013da" continued-fact="false" enabled-fact="true" escape="true" hover-fact="false" id="fact-identifier-1445" inside-table="false" ix="F_840b300b-5567-4b06-9d9d-cafa97bffe76" name="brka:SummaryOfCarryingValueAndFairValueOfInvestmentsTableTextBlock" selected-fact="false"><p><span>The fair values and carrying values of these investments are included in the following table (in millions).</span><span> </span></p><p><span> </span></p>
+<table>
+<tbody><tr>
+<td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td></tr>
+<tr>
+<td><p><span> </span></p></td>
+<td colspan="6"><p><span>Carrying Value</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td colspan="6"><p><span>Fair Value</span></p></td>
+<td><p><span> </span></p></td>
+</tr>
+<tr>
+<td><p><span> </span></p></td>
+<td colspan="6"><p><span>December 31,</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td colspan="6"><p><span>December 31,</span></p></td>
+<td><p><span> </span></p></td>
+</tr>
+<tr>
+<td><p><span> </span></p></td>
+<td colspan="2"><p><span>2024</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td colspan="2"><p><span>2023</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td colspan="2"><p><span>2024</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td colspan="2"><p><span>2023</span></p></td>
+<td><p><span> </span></p></td>
+</tr>
+<tr>
+<td><p><span>Kraft Heinz</span></p></td>
+<td><p><span>$</span></p></td>
+<td><p><span><ix:nonfraction contextref="C_8bfb87b6-8d97-4abb-9811-390a1044ee26" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-221" inside-table="true" ix="F_35fc1477-fd89-415f-95a9-f1041412f9da" name="us-gaap:EquityMethodInvestments" scale="6" unitref="U_USD">13,395</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>$</span></p></td>
+<td><p><span><ix:nonfraction contextref="C_a034449c-dff2-4e7b-830f-d30126b02bfd" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-222" inside-table="true" ix="F_6c452be3-ede7-4fee-8d53-88b95cb3b152" name="us-gaap:EquityMethodInvestments" scale="6" unitref="U_USD">13,230</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>$</span></p></td>
+<td><p><span><ix:nonfraction contextref="C_8bfb87b6-8d97-4abb-9811-390a1044ee26" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-1446" inside-table="true" ix="F_719e6d03-d7f8-4fe3-aea4-1dc02deb9d34" name="us-gaap:EquityMethodInvestmentsFairValueDisclosure" scale="6" unitref="U_USD">9,994</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>$</span></p></td>
+<td><p><span><ix:nonfraction contextref="C_a034449c-dff2-4e7b-830f-d30126b02bfd" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-1447" inside-table="true" ix="F_0acb0143-ace2-4f2e-8a9a-6d27175c7053" name="us-gaap:EquityMethodInvestmentsFairValueDisclosure" scale="6" unitref="U_USD">12,035</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+</tr>
+<tr>
+<td><p><span>Occidental</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><ix:nonfraction contextref="C_6fb31c1d-a986-4d09-8ea3-2aadef889570" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-223" inside-table="true" ix="F_5087e231-c9ee-40e7-ad67-b50a06eaf088" name="us-gaap:EquityMethodInvestments" scale="6" unitref="U_USD">17,287</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><ix:nonfraction contextref="C_4f02adbf-15eb-4514-ab46-17b4fda4db77" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-224" inside-table="true" ix="F_0e6289f0-2fe9-4d9f-b5e8-2ef29dfd128a" name="us-gaap:EquityMethodInvestments" scale="6" unitref="U_USD">15,410</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><ix:nonfraction contextref="C_6fb31c1d-a986-4d09-8ea3-2aadef889570" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-1448" inside-table="true" ix="F_950ac3f8-30f1-4f8b-b258-94f279d5b1b9" name="us-gaap:EquityMethodInvestmentsFairValueDisclosure" scale="6" unitref="U_USD">13,053</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><ix:nonfraction contextref="C_4f02adbf-15eb-4514-ab46-17b4fda4db77" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-1449" inside-table="true" ix="F_8d4a34e2-27a5-4699-9c95-be845abe5d53" name="us-gaap:EquityMethodInvestmentsFairValueDisclosure" scale="6" unitref="U_USD">14,552</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+</tr>
+<tr>
+<td><p><span>Other</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><ix:nonfraction contextref="C_5a73eb16-7400-4ab8-9d79-911d450e6481" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-225" inside-table="true" ix="F_775de11a-f1ad-4840-828c-3cb17ee02d59" name="us-gaap:EquityMethodInvestments" scale="6" unitref="U_USD">452</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><ix:nonfraction contextref="C_1532d8a9-9296-4bca-84a0-7859595e78ed" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-226" inside-table="true" ix="F_7e3a2ce6-8146-4bab-9bf3-ff7833b57aa1" name="us-gaap:EquityMethodInvestments" scale="6" unitref="U_USD">426</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td colspan="2"><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td colspan="2"><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+</tr>
+<tr>
+<td><p><span> </span></p></td>
+<td><p><span>$</span></p></td>
+<td><p><span><ix:nonfraction contextref="C_7bf1c469-da4f-4e0d-80ab-b368cc556db0" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-227" inside-table="true" ix="F_ddf78083-ee28-4366-9dcb-874f457d7478" name="us-gaap:EquityMethodInvestments" scale="6" unitref="U_USD">31,134</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>$</span></p></td>
+<td><p><span><ix:nonfraction contextref="C_9e1b6e77-993c-46e5-892b-af9f5c3a4201" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-228" inside-table="true" ix="F_418edfd9-af6d-4b6c-8db6-c58e7f03ea64" name="us-gaap:EquityMethodInvestments" scale="6" unitref="U_USD">29,066</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td colspan="2"><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td colspan="2"><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+</tr>
+</tbody></table><p><span> </span></p></ix:nonnumeric>

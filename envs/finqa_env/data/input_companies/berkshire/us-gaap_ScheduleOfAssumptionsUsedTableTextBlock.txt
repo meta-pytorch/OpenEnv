@@ -1,0 +1,68 @@
+<ix:nonnumeric contextref="C_fc05cf1b-e190-46aa-968d-fdf3a84013da" continued-fact="false" enabled-fact="true" escape="true" hover-fact="false" id="fact-identifier-3133" inside-table="false" ix="F_7b4eebe2-b1f5-43fa-b154-6bc339569038" name="us-gaap:ScheduleOfAssumptionsUsedTableTextBlock" selected-fact="false"><p><span>Weighted average assumptions used in determining PBOs and net periodic pension expense follow.</span><span> </span></p><p><span> </span></p>
+<table>
+<tbody><tr>
+<td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td></tr>
+<tr>
+<td><p><span> </span></p></td>
+<td colspan="2"><p><span>2024</span></p></td>
+<td><p><span> </span></p></td>
+<td colspan="2"><p><span>2023</span></p></td>
+<td><p><span> </span></p></td>
+<td colspan="2"><p><span>2022</span></p></td>
+<td><p><span> </span></p></td>
+</tr>
+<tr>
+<td><p><span>Discount rate applicable to PBOs</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><ix:nonfraction contextref="C_2aa45265-bb2c-4f35-a371-d803f5472d81" decimals="3" format="ixt:num-dot-decimal" id="fact-identifier-3134" inside-table="true" ix="F_9aadc5dd-6cee-41bb-b7d5-f09a538b9168" name="us-gaap:DefinedBenefitPlanAssumptionsUsedCalculatingBenefitObligationDiscountRate" scale="-2" unitref="U_pure">5.5</ix:nonfraction></span></p></td>
+<td><p><span>%</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><ix:nonfraction contextref="C_b1a85cca-b2a7-48fa-a821-46f8567615c9" decimals="3" format="ixt:num-dot-decimal" id="fact-identifier-3135" inside-table="true" ix="F_8212a98e-b1c9-4df6-ab12-b2913daffdbd" name="us-gaap:DefinedBenefitPlanAssumptionsUsedCalculatingBenefitObligationDiscountRate" scale="-2" unitref="U_pure">5.0</ix:nonfraction></span></p></td>
+<td><p><span>%</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><ix:nonfraction contextref="C_4e36be8e-c886-4006-8b71-2ae5b262ad3a" decimals="3" format="ixt:num-dot-decimal" id="fact-identifier-3136" inside-table="true" ix="F_4985bcb9-ebac-42d4-aeff-8781eff86fa2" name="us-gaap:DefinedBenefitPlanAssumptionsUsedCalculatingBenefitObligationDiscountRate" scale="-2" unitref="U_pure">5.2</ix:nonfraction></span></p></td>
+<td><p><span>%</span></p></td>
+</tr>
+<tr>
+<td><p><span>Expected long-term rate of return on plan assets</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><ix:nonfraction contextref="C_2aa45265-bb2c-4f35-a371-d803f5472d81" decimals="3" format="ixt:num-dot-decimal" id="fact-identifier-3137" inside-table="true" ix="F_a3e2ed70-290e-464b-ac87-6e072b7778c0" name="brka:DefinedBenefitPlanAssumptionsUsedCalculatingBenefitObligationExpectedLongTermReturnOnAssets" scale="-2" unitref="U_pure">5.9</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><ix:nonfraction contextref="C_b1a85cca-b2a7-48fa-a821-46f8567615c9" decimals="3" format="ixt:num-dot-decimal" id="fact-identifier-3138" inside-table="true" ix="F_150c7798-fad9-4ebc-b174-da782eb7200b" name="brka:DefinedBenefitPlanAssumptionsUsedCalculatingBenefitObligationExpectedLongTermReturnOnAssets" scale="-2" unitref="U_pure">6.0</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td colspan="2"><p><span><ix:nonfraction contextref="C_4e36be8e-c886-4006-8b71-2ae5b262ad3a" decimals="3" format="ixt:num-dot-decimal" id="fact-identifier-3139" inside-table="true" ix="F_bfa965a7-b593-4d83-aaed-afb44a55b2ee" name="brka:DefinedBenefitPlanAssumptionsUsedCalculatingBenefitObligationExpectedLongTermReturnOnAssets" scale="-2" unitref="U_pure">5.9</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+</tr>
+<tr>
+<td><p><span>Rate of compensation increase</span></p></td>
+<td colspan="2"><p><span><ix:nonfraction contextref="C_ee3414b1-9b90-485a-bd59-463b6e6f1c45" decimals="3" format="ixt:num-dot-decimal" id="fact-identifier-3140" inside-table="true" ix="F_9a7e4703-e77e-4e72-b47b-a96f42443095" name="us-gaap:DefinedBenefitPlanAssumptionsUsedCalculatingNetPeriodicBenefitCostRateOfCompensationIncrease" scale="-2" unitref="U_pure">2.6</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td colspan="2"><p><span><ix:nonfraction contextref="C_745b8bbf-f1ed-4ccd-b30a-8010182e07cc" decimals="3" format="ixt:num-dot-decimal" id="fact-identifier-3141" inside-table="true" ix="F_ab7ce03c-35eb-4468-aac4-45fdb82fac71" name="us-gaap:DefinedBenefitPlanAssumptionsUsedCalculatingNetPeriodicBenefitCostRateOfCompensationIncrease" scale="-2" unitref="U_pure">2.6</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td colspan="2"><p><span><ix:nonfraction contextref="C_25c4e3ee-4490-4481-8757-a0d978f6c836" decimals="3" format="ixt:num-dot-decimal" id="fact-identifier-3142" inside-table="true" ix="F_8ed82400-4a65-464b-baea-e6f7243c737d" name="us-gaap:DefinedBenefitPlanAssumptionsUsedCalculatingNetPeriodicBenefitCostRateOfCompensationIncrease" scale="-2" unitref="U_pure">2.5</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+</tr>
+<tr>
+<td><p><span>Discount rate applicable to net periodic pension expense</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><ix:nonfraction contextref="C_ee3414b1-9b90-485a-bd59-463b6e6f1c45" decimals="3" format="ixt:num-dot-decimal" id="fact-identifier-3143" inside-table="true" ix="F_13d6841a-818d-4256-ab4b-63f22a8204dc" name="us-gaap:DefinedBenefitPlanAssumptionsUsedCalculatingNetPeriodicBenefitCostDiscountRate" scale="-2" unitref="U_pure">5.1</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><ix:nonfraction contextref="C_745b8bbf-f1ed-4ccd-b30a-8010182e07cc" decimals="3" format="ixt:num-dot-decimal" id="fact-identifier-3144" inside-table="true" ix="F_f627af88-7de9-404a-ac21-c7ab75296d13" name="us-gaap:DefinedBenefitPlanAssumptionsUsedCalculatingNetPeriodicBenefitCostDiscountRate" scale="-2" unitref="U_pure">5.3</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><ix:nonfraction contextref="C_25c4e3ee-4490-4481-8757-a0d978f6c836" decimals="3" format="ixt:num-dot-decimal" id="fact-identifier-3145" inside-table="true" ix="F_b095051f-5070-4646-8d81-a1c62e1755fb" name="us-gaap:DefinedBenefitPlanAssumptionsUsedCalculatingNetPeriodicBenefitCostDiscountRate" scale="-2" unitref="U_pure">2.9</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+</tr>
+</tbody></table></ix:nonnumeric>

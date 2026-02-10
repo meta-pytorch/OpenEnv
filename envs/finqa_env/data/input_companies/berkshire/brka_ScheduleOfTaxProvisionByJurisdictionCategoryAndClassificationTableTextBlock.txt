@@ -1,0 +1,147 @@
+<ix:nonnumeric contextref="C_fc05cf1b-e190-46aa-968d-fdf3a84013da" continued-fact="false" enabled-fact="true" escape="true" hover-fact="false" id="fact-identifier-2749" inside-table="false" ix="F_a166dc07-a60b-4bf5-bfdd-6551a0703631" name="brka:ScheduleOfTaxProvisionByJurisdictionCategoryAndClassificationTableTextBlock" selected-fact="false"><p><span>Income tax expense (benefit) for each of the three years ending December 31, 2024 is summarized as follows (in millions).</span><span> </span></p><p><span> </span></p>
+<table>
+<tbody><tr>
+<td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td></tr>
+<tr>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td colspan="2"><p><span>2024</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td colspan="2"><p><span>2023</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td colspan="2"><p><span>2022</span></p></td>
+<td><p><span> </span></p></td>
+</tr>
+<tr>
+<td><p><span>U.S. federal</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>$</span></p></td>
+<td><p><span><ix:nonfraction contextref="C_fc05cf1b-e190-46aa-968d-fdf3a84013da" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-2750" inside-table="true" ix="F_42158967-7af3-4c40-b0fd-c114d732f164" name="us-gaap:FederalIncomeTaxExpenseBenefitContinuingOperations" scale="6" unitref="U_USD">18,481</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>$</span></p></td>
+<td><p><span><ix:nonfraction contextref="C_18c36197-3712-4dfe-8f62-98ad9cc65858" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-2751" inside-table="true" ix="F_a10a9692-67fb-4898-ab01-868f284d282f" name="us-gaap:FederalIncomeTaxExpenseBenefitContinuingOperations" scale="6" unitref="U_USD">20,764</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>$</span></p></td>
+<td><p><span>(</span><span><ix:nonfraction contextref="C_0c5bfb34-fd33-43a2-943e-42077bf3f707" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-2752" inside-table="true" ix="F_44388e4b-95b2-49b6-9a76-92fe067792cb" name="us-gaap:FederalIncomeTaxExpenseBenefitContinuingOperations" scale="6" sign="-" unitref="U_USD">10,316</ix:nonfraction></span></p></td>
+<td><p><span>)</span></p></td>
+</tr>
+<tr>
+<td><p><span>U.S. state</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><ix:nonfraction contextref="C_fc05cf1b-e190-46aa-968d-fdf3a84013da" decimals="-6" id="fact-identifier-2753" inside-table="true" ix="F_81804e91-4ed3-4c38-abc5-b3d65b55e4a2" name="us-gaap:StateAndLocalIncomeTaxExpenseBenefitContinuingOperations" scale="6" unitref="U_USD">767</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><ix:nonfraction contextref="C_18c36197-3712-4dfe-8f62-98ad9cc65858" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-2754" inside-table="true" ix="F_80df3a8e-52b5-45dc-a276-6838204716b7" name="us-gaap:StateAndLocalIncomeTaxExpenseBenefitContinuingOperations" scale="6" unitref="U_USD">763</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><ix:nonfraction contextref="C_0c5bfb34-fd33-43a2-943e-42077bf3f707" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-2755" inside-table="true" ix="F_61bf2d0e-5518-424f-98ab-5d0471a0d089" name="us-gaap:StateAndLocalIncomeTaxExpenseBenefitContinuingOperations" scale="6" unitref="U_USD">762</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+</tr>
+<tr>
+<td><p><span>Foreign</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><ix:nonfraction contextref="C_fc05cf1b-e190-46aa-968d-fdf3a84013da" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-2756" inside-table="true" ix="F_7e0495c7-a2ee-4992-9168-883b3792256e" name="us-gaap:ForeignIncomeTaxExpenseBenefitContinuingOperations" scale="6" unitref="U_USD">1,567</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><ix:nonfraction contextref="C_18c36197-3712-4dfe-8f62-98ad9cc65858" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-2757" inside-table="true" ix="F_31f2f9d7-8623-4cb0-aa52-94ad69d1b7e6" name="us-gaap:ForeignIncomeTaxExpenseBenefitContinuingOperations" scale="6" unitref="U_USD">1,492</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><ix:nonfraction contextref="C_0c5bfb34-fd33-43a2-943e-42077bf3f707" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-2758" inside-table="true" ix="F_cf9d8f25-e3d6-4bb9-be03-6bdcfe58c7d0" name="us-gaap:ForeignIncomeTaxExpenseBenefitContinuingOperations" scale="6" unitref="U_USD">1,052</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+</tr>
+<tr>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>$</span></p></td>
+<td><p><span><ix:nonfraction contextref="C_fc05cf1b-e190-46aa-968d-fdf3a84013da" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-947" inside-table="true" ix="F_1fc5b974-228f-4791-8240-a1b6dc575e09" name="us-gaap:IncomeTaxExpenseBenefit" scale="6" unitref="U_USD">20,815</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>$</span></p></td>
+<td><p><span><ix:nonfraction contextref="C_18c36197-3712-4dfe-8f62-98ad9cc65858" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-948" inside-table="true" ix="F_403219fe-b14d-4752-829a-b50c43e04ab8" name="us-gaap:IncomeTaxExpenseBenefit" scale="6" unitref="U_USD">23,019</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>$</span></p></td>
+<td><p><span>(</span><span><ix:nonfraction contextref="C_0c5bfb34-fd33-43a2-943e-42077bf3f707" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-949" inside-table="true" ix="F_63af6aa3-e7f6-489a-8979-ead0c8e894dc" name="us-gaap:IncomeTaxExpenseBenefit" scale="6" sign="-" unitref="U_USD">8,502</ix:nonfraction></span></p></td>
+<td><p><span>)</span></p></td>
+</tr>
+<tr>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td colspan="2"><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td colspan="2"><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td colspan="2"><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+</tr>
+<tr>
+<td><p><span>Current</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>$</span></p></td>
+<td><p><span><ix:nonfraction contextref="C_fc05cf1b-e190-46aa-968d-fdf3a84013da" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-2759" inside-table="true" ix="F_dc0308a9-711a-42b5-9e63-c12c22fccd40" name="us-gaap:CurrentIncomeTaxExpenseBenefit" scale="6" unitref="U_USD">30,464</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>$</span></p></td>
+<td><p><span><ix:nonfraction contextref="C_18c36197-3712-4dfe-8f62-98ad9cc65858" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-2760" inside-table="true" ix="F_954c46a5-3b37-429e-8e28-f25c095fe757" name="us-gaap:CurrentIncomeTaxExpenseBenefit" scale="6" unitref="U_USD">7,642</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>$</span></p></td>
+<td><p><span><ix:nonfraction contextref="C_0c5bfb34-fd33-43a2-943e-42077bf3f707" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-2761" inside-table="true" ix="F_195e2772-fe3f-464b-b012-ecba6e136e18" name="us-gaap:CurrentIncomeTaxExpenseBenefit" scale="6" unitref="U_USD">4,815</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+</tr>
+<tr>
+<td><p><span>Deferred</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>(</span><span><ix:nonfraction contextref="C_fc05cf1b-e190-46aa-968d-fdf3a84013da" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-2762" inside-table="true" ix="F_9b52ee7f-f0a2-457d-bb15-46f52fcef404" name="us-gaap:DeferredIncomeTaxExpenseBenefit" scale="6" sign="-" unitref="U_USD">9,649</ix:nonfraction></span></p></td>
+<td><p><span>)</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><ix:nonfraction contextref="C_18c36197-3712-4dfe-8f62-98ad9cc65858" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-2763" inside-table="true" ix="F_88dd3b9e-193e-4e0e-ae4c-a3b27e1dfe84" name="us-gaap:DeferredIncomeTaxExpenseBenefit" scale="6" unitref="U_USD">15,377</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>(</span><span><ix:nonfraction contextref="C_0c5bfb34-fd33-43a2-943e-42077bf3f707" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-2764" inside-table="true" ix="F_2c931ae6-f710-4746-a8af-874d59f0adca" name="us-gaap:DeferredIncomeTaxExpenseBenefit" scale="6" sign="-" unitref="U_USD">13,317</ix:nonfraction></span></p></td>
+<td><p><span>)</span></p></td>
+</tr>
+<tr>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>$</span></p></td>
+<td><p><span><ix:nonfraction contextref="C_fc05cf1b-e190-46aa-968d-fdf3a84013da" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-950" inside-table="true" ix="F_2901d454-8c42-4529-b60c-b0f7bb447ad9" name="us-gaap:IncomeTaxExpenseBenefit" scale="6" unitref="U_USD">20,815</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>$</span></p></td>
+<td><p><span><ix:nonfraction contextref="C_18c36197-3712-4dfe-8f62-98ad9cc65858" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-951" inside-table="true" ix="F_b3d6f031-a96e-4e5e-b654-c3e780ff4b5b" name="us-gaap:IncomeTaxExpenseBenefit" scale="6" unitref="U_USD">23,019</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>$</span></p></td>
+<td><p><span>(</span><span><ix:nonfraction contextref="C_0c5bfb34-fd33-43a2-943e-42077bf3f707" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-952" inside-table="true" ix="F_ea6b803b-dade-4eab-9887-e874151166db" name="us-gaap:IncomeTaxExpenseBenefit" scale="6" sign="-" unitref="U_USD">8,502</ix:nonfraction></span></p></td>
+<td><p><span>)</span></p></td>
+</tr>
+</tbody></table><p><span> </span></p></ix:nonnumeric>

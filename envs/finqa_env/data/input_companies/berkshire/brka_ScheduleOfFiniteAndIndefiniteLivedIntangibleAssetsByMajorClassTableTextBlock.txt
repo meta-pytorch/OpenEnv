@@ -1,0 +1,318 @@
+<ix:nonnumeric contextref="C_fc05cf1b-e190-46aa-968d-fdf3a84013da" continued-fact="false" enabled-fact="true" escape="true" hover-fact="false" id="fact-identifier-1708" inside-table="false" ix="F_797eaed6-f843-44fc-9142-6c986efc4404" name="brka:ScheduleOfFiniteAndIndefiniteLivedIntangibleAssetsByMajorClassTableTextBlock" selected-fact="false"><p><span>Other intangible assets are summarized below (in millions).</span><span> </span></p><p><span> </span></p>
+<table>
+<tbody><tr>
+<td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td></tr>
+<tr>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td colspan="10"><p><span>December 31, 2024</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td colspan="10"><p><span>December 31, 2023</span></p></td>
+<td><p><span> </span></p></td>
+</tr>
+<tr>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td colspan="2"><p><span>Gross<br/>carrying<br/>amount</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td colspan="2"><p><span>Accumulated<br/>amortization</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td colspan="2"><p><span>Net<br/>carrying<br/>value</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td colspan="2"><p><span>Gross<br/>carrying<br/>amount</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td colspan="2"><p><span>Accumulated<br/>amortization</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td colspan="2"><p><span>Net<br/>carrying<br/>value</span></p></td>
+<td><p><span> </span></p></td>
+</tr>
+<tr>
+<td><p><span>Insurance and other:</span></p></td>
+<td><p><span> </span></p></td>
+<td colspan="2"><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td colspan="2"><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td colspan="2"><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td colspan="2"><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td colspan="2"><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td colspan="2"><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+</tr>
+<tr>
+<td><p><span>Customer relationships</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>$</span></p></td>
+<td><p><span><ix:nonfraction contextref="C_3de6ba20-210f-4c45-b286-91852bea10a9" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-1709" inside-table="true" ix="F_c788afbe-45a1-44bc-aafd-7b20c48ff728" name="us-gaap:IntangibleAssetsGrossExcludingGoodwill" scale="6" unitref="U_USD">30,941</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>$</span></p></td>
+<td><p><span><ix:nonfraction contextref="C_3de6ba20-210f-4c45-b286-91852bea10a9" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-1725" inside-table="true" ix="F_7d1ce382-e930-461f-9727-81f9c714c723" name="us-gaap:FiniteLivedIntangibleAssetsAccumulatedAmortization" scale="6" unitref="U_USD">8,840</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>$</span></p></td>
+<td><p><span><ix:nonfraction contextref="C_3de6ba20-210f-4c45-b286-91852bea10a9" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-1741" inside-table="true" ix="F_af11d103-e634-4064-95c3-c7040f5510be" name="brka:IntangibleAssetsExcludingGoodwill" scale="6" unitref="U_USD">22,101</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>$</span></p></td>
+<td><p><span><ix:nonfraction contextref="C_bddfdafd-9790-4d40-826c-0be6fe139c09" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-1710" inside-table="true" ix="F_207cd639-83ab-47d3-8171-1e08d9e14b7f" name="us-gaap:IntangibleAssetsGrossExcludingGoodwill" scale="6" unitref="U_USD">30,832</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>$</span></p></td>
+<td><p><span><ix:nonfraction contextref="C_bddfdafd-9790-4d40-826c-0be6fe139c09" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-1726" inside-table="true" ix="F_db183f72-3d12-4411-ae7f-76d2fa152c54" name="us-gaap:FiniteLivedIntangibleAssetsAccumulatedAmortization" scale="6" unitref="U_USD">8,048</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>$</span></p></td>
+<td><p><span><ix:nonfraction contextref="C_bddfdafd-9790-4d40-826c-0be6fe139c09" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-1742" inside-table="true" ix="F_35714e09-980c-46c8-b42f-41e82a856043" name="brka:IntangibleAssetsExcludingGoodwill" scale="6" unitref="U_USD">22,784</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+</tr>
+<tr>
+<td><p><span>Trademarks and trade names</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><ix:nonfraction contextref="C_dac8be0e-71d9-4a6f-abc2-283c139d514f" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-1711" inside-table="true" ix="F_f21c4dc4-934b-4245-8587-7231d1e92d51" name="us-gaap:IntangibleAssetsGrossExcludingGoodwill" scale="6" unitref="U_USD">9,007</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><ix:nonfraction contextref="C_dac8be0e-71d9-4a6f-abc2-283c139d514f" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-1727" inside-table="true" ix="F_d4c4036f-ecb8-468f-be63-00420ab7de86" name="us-gaap:FiniteLivedIntangibleAssetsAccumulatedAmortization" scale="6" unitref="U_USD">1,041</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><ix:nonfraction contextref="C_dac8be0e-71d9-4a6f-abc2-283c139d514f" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-1743" inside-table="true" ix="F_9b487146-abb9-476b-9c25-90b59d688a3c" name="brka:IntangibleAssetsExcludingGoodwill" scale="6" unitref="U_USD">7,966</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><ix:nonfraction contextref="C_1a4726e7-7dac-4605-a58e-6d8cb87377f0" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-1712" inside-table="true" ix="F_061024bb-db63-460d-8276-dc9da1845ccf" name="us-gaap:IntangibleAssetsGrossExcludingGoodwill" scale="6" unitref="U_USD">8,997</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><ix:nonfraction contextref="C_1a4726e7-7dac-4605-a58e-6d8cb87377f0" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-1728" inside-table="true" ix="F_c528f272-5de1-4c31-9097-00526c1e8da7" name="us-gaap:FiniteLivedIntangibleAssetsAccumulatedAmortization" scale="6" unitref="U_USD">899</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><ix:nonfraction contextref="C_1a4726e7-7dac-4605-a58e-6d8cb87377f0" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-1744" inside-table="true" ix="F_40849d59-5f67-4e57-a62f-54bd2d63e186" name="brka:IntangibleAssetsExcludingGoodwill" scale="6" unitref="U_USD">8,098</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+</tr>
+<tr>
+<td><p><span>Patents and technology</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><ix:nonfraction contextref="C_aa621867-4f9d-40cb-a886-66a22cbcd8af" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-1713" inside-table="true" ix="F_c5ae45dc-e75c-46a1-947c-fa076144d3de" name="us-gaap:IntangibleAssetsGrossExcludingGoodwill" scale="6" unitref="U_USD">5,375</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><ix:nonfraction contextref="C_aa621867-4f9d-40cb-a886-66a22cbcd8af" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-1729" inside-table="true" ix="F_950e61c2-9ad4-4931-95b7-19b50178b706" name="us-gaap:FiniteLivedIntangibleAssetsAccumulatedAmortization" scale="6" unitref="U_USD">4,359</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><ix:nonfraction contextref="C_aa621867-4f9d-40cb-a886-66a22cbcd8af" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-1745" inside-table="true" ix="F_ca0c45b3-c1eb-4bbb-ad22-5383edbb3f2d" name="brka:IntangibleAssetsExcludingGoodwill" scale="6" unitref="U_USD">1,016</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><ix:nonfraction contextref="C_c39989b6-2e81-4a7f-a871-31f9a34c8a16" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-1714" inside-table="true" ix="F_3b04e4d8-5e1f-4157-a4ec-d06e5ce35a88" name="us-gaap:IntangibleAssetsGrossExcludingGoodwill" scale="6" unitref="U_USD">5,238</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><ix:nonfraction contextref="C_c39989b6-2e81-4a7f-a871-31f9a34c8a16" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-1730" inside-table="true" ix="F_d4a59cf0-a01a-4dc5-8ce8-63aa4fca5e0e" name="us-gaap:FiniteLivedIntangibleAssetsAccumulatedAmortization" scale="6" unitref="U_USD">4,109</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><ix:nonfraction contextref="C_c39989b6-2e81-4a7f-a871-31f9a34c8a16" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-1746" inside-table="true" ix="F_542b5bd1-8f14-41ed-b6fa-c7880844665b" name="brka:IntangibleAssetsExcludingGoodwill" scale="6" unitref="U_USD">1,129</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+</tr>
+<tr>
+<td><p><span>Other</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><ix:nonfraction contextref="C_ece036cb-d4da-4cfe-9a50-c4e61dbca8f7" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-1715" inside-table="true" ix="F_684413f8-5a44-4e1e-a4db-d9ccbe207aa7" name="us-gaap:IntangibleAssetsGrossExcludingGoodwill" scale="6" unitref="U_USD">5,551</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><ix:nonfraction contextref="C_ece036cb-d4da-4cfe-9a50-c4e61dbca8f7" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-1731" inside-table="true" ix="F_e6439682-fa7f-460a-8c7b-12a7e5d86311" name="us-gaap:FiniteLivedIntangibleAssetsAccumulatedAmortization" scale="6" unitref="U_USD">1,996</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><ix:nonfraction contextref="C_ece036cb-d4da-4cfe-9a50-c4e61dbca8f7" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-1747" inside-table="true" ix="F_498a9cca-861c-497a-a964-9af18f78901c" name="brka:IntangibleAssetsExcludingGoodwill" scale="6" unitref="U_USD">3,555</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><ix:nonfraction contextref="C_ada456fb-83b5-41be-a9b9-fdf7493e03f1" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-1716" inside-table="true" ix="F_8a3243dd-6dee-4a1d-b47e-ea1f9ddd382f" name="us-gaap:IntangibleAssetsGrossExcludingGoodwill" scale="6" unitref="U_USD">5,764</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><ix:nonfraction contextref="C_ada456fb-83b5-41be-a9b9-fdf7493e03f1" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-1732" inside-table="true" ix="F_84953616-6c68-467f-94b3-31c3b8475bfe" name="us-gaap:FiniteLivedIntangibleAssetsAccumulatedAmortization" scale="6" unitref="U_USD">1,891</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><ix:nonfraction contextref="C_ada456fb-83b5-41be-a9b9-fdf7493e03f1" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-1748" inside-table="true" ix="F_bab9fa97-aa0b-463e-9d1b-3a5efd2346d7" name="brka:IntangibleAssetsExcludingGoodwill" scale="6" unitref="U_USD">3,873</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+</tr>
+<tr>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>$</span></p></td>
+<td><p><span><ix:nonfraction contextref="C_14bdbb1a-1355-4a82-a35a-80691631b1a9" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-1717" inside-table="true" ix="F_68e00895-65f2-473f-bba2-ad7cd3c9d48d" name="us-gaap:IntangibleAssetsGrossExcludingGoodwill" scale="6" unitref="U_USD">50,874</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>$</span></p></td>
+<td><p><span><ix:nonfraction contextref="C_14bdbb1a-1355-4a82-a35a-80691631b1a9" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-1733" inside-table="true" ix="F_0319b618-132b-41aa-99f0-e4a03b0a50f6" name="us-gaap:FiniteLivedIntangibleAssetsAccumulatedAmortization" scale="6" unitref="U_USD">16,236</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>$</span></p></td>
+<td><p><span><ix:nonfraction contextref="C_14bdbb1a-1355-4a82-a35a-80691631b1a9" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-1749" inside-table="true" ix="F_54c7385f-fcce-49d2-837e-511511bc2d82" name="brka:IntangibleAssetsExcludingGoodwill" scale="6" unitref="U_USD">34,638</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>$</span></p></td>
+<td><p><span><ix:nonfraction contextref="C_33e14c9b-4376-41a5-8e44-e3fa0a7c100b" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-1718" inside-table="true" ix="F_3eb08d1a-e6bc-40a1-b39c-7d672b14ea60" name="us-gaap:IntangibleAssetsGrossExcludingGoodwill" scale="6" unitref="U_USD">50,831</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>$</span></p></td>
+<td><p><span><ix:nonfraction contextref="C_33e14c9b-4376-41a5-8e44-e3fa0a7c100b" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-1734" inside-table="true" ix="F_f4ac2556-c0cc-4909-a151-1d3eea918fe5" name="us-gaap:FiniteLivedIntangibleAssetsAccumulatedAmortization" scale="6" unitref="U_USD">14,947</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>$</span></p></td>
+<td><p><span><ix:nonfraction contextref="C_33e14c9b-4376-41a5-8e44-e3fa0a7c100b" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-1750" inside-table="true" ix="F_e68f8108-f1d1-4875-8825-056536e70366" name="brka:IntangibleAssetsExcludingGoodwill" scale="6" unitref="U_USD">35,884</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+</tr>
+<tr>
+<td><p><span>Railroad, utilities and energy:</span></p></td>
+<td><p><span> </span></p></td>
+<td colspan="2"><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td colspan="2"><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td colspan="2"><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td colspan="2"><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td colspan="2"><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td colspan="2"><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+</tr>
+<tr>
+<td><p><span>Customer relationships and contracts</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>$</span></p></td>
+<td><p><span><ix:nonfraction contextref="C_d8c90aca-579e-47a8-ab10-3ad8a2993a8f" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-1719" inside-table="true" ix="F_1900b0b0-1fc8-42db-98a9-edff4fc33a57" name="us-gaap:IntangibleAssetsGrossExcludingGoodwill" scale="6" unitref="U_USD">1,553</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>$</span></p></td>
+<td><p><span><ix:nonfraction contextref="C_d8c90aca-579e-47a8-ab10-3ad8a2993a8f" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-1735" inside-table="true" ix="F_c9d27707-f1b5-4fd8-9aee-43e9676626bc" name="us-gaap:FiniteLivedIntangibleAssetsAccumulatedAmortization" scale="6" unitref="U_USD">728</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>$</span></p></td>
+<td><p><span><ix:nonfraction contextref="C_d8c90aca-579e-47a8-ab10-3ad8a2993a8f" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-1751" inside-table="true" ix="F_360968ad-beca-406e-92d2-765e8f7d862d" name="brka:IntangibleAssetsExcludingGoodwill" scale="6" unitref="U_USD">825</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>$</span></p></td>
+<td><p><span><ix:nonfraction contextref="C_8c307fa3-1b22-4644-8f94-956c8c13f922" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-1720" inside-table="true" ix="F_6c4c3864-81f9-4aed-86ba-ea70fe800802" name="us-gaap:IntangibleAssetsGrossExcludingGoodwill" scale="6" unitref="U_USD">1,565</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>$</span></p></td>
+<td><p><span><ix:nonfraction contextref="C_8c307fa3-1b22-4644-8f94-956c8c13f922" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-1736" inside-table="true" ix="F_31317a86-4a29-4bf4-b1b7-255b6f624a4b" name="us-gaap:FiniteLivedIntangibleAssetsAccumulatedAmortization" scale="6" unitref="U_USD">644</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>$</span></p></td>
+<td><p><span><ix:nonfraction contextref="C_8c307fa3-1b22-4644-8f94-956c8c13f922" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-1752" inside-table="true" ix="F_2f87c72d-fc3f-4e47-9a44-2422e1c91db3" name="brka:IntangibleAssetsExcludingGoodwill" scale="6" unitref="U_USD">921</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+</tr>
+<tr>
+<td><p><span>Other</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><ix:nonfraction contextref="C_6e45ec0f-a17a-4a26-8db4-532bbf78c6ed" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-1721" inside-table="true" ix="F_44428066-049c-48f6-915b-8d9b548ac737" name="us-gaap:IntangibleAssetsGrossExcludingGoodwill" scale="6" unitref="U_USD">437</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><ix:nonfraction contextref="C_6e45ec0f-a17a-4a26-8db4-532bbf78c6ed" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-1737" inside-table="true" ix="F_822f02ce-f842-4b35-85d5-159f5dee07e9" name="us-gaap:FiniteLivedIntangibleAssetsAccumulatedAmortization" scale="6" unitref="U_USD">126</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><ix:nonfraction contextref="C_6e45ec0f-a17a-4a26-8db4-532bbf78c6ed" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-1753" inside-table="true" ix="F_bfe19dc5-036d-4984-b52c-923466b09fef" name="brka:IntangibleAssetsExcludingGoodwill" scale="6" unitref="U_USD">311</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><ix:nonfraction contextref="C_b6eb311b-245d-437e-be74-f46b4d251ca3" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-1722" inside-table="true" ix="F_0f24f42e-9b9a-4c8b-a782-6f731a725895" name="us-gaap:IntangibleAssetsGrossExcludingGoodwill" scale="6" unitref="U_USD">450</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><ix:nonfraction contextref="C_b6eb311b-245d-437e-be74-f46b4d251ca3" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-1738" inside-table="true" ix="F_57ab3c0d-7883-4d3d-b11a-106c12b1973d" name="us-gaap:FiniteLivedIntangibleAssetsAccumulatedAmortization" scale="6" unitref="U_USD">115</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><ix:nonfraction contextref="C_b6eb311b-245d-437e-be74-f46b4d251ca3" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-1754" inside-table="true" ix="F_428a6db8-5349-42d2-b657-985e30e84366" name="brka:IntangibleAssetsExcludingGoodwill" scale="6" unitref="U_USD">335</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+</tr>
+<tr>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>$</span></p></td>
+<td><p><span><ix:nonfraction contextref="C_b0358cde-f294-4b97-826c-258297cbca5c" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-1723" inside-table="true" ix="F_51bc8c0b-dbac-4df2-a628-9cab724784c4" name="us-gaap:IntangibleAssetsGrossExcludingGoodwill" scale="6" unitref="U_USD">1,990</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>$</span></p></td>
+<td><p><span><ix:nonfraction contextref="C_b0358cde-f294-4b97-826c-258297cbca5c" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-1739" inside-table="true" ix="F_9c3cb313-7280-4723-93dc-5b37d6ed1f76" name="us-gaap:FiniteLivedIntangibleAssetsAccumulatedAmortization" scale="6" unitref="U_USD">854</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>$</span></p></td>
+<td><p><span><ix:nonfraction contextref="C_b0358cde-f294-4b97-826c-258297cbca5c" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-1755" inside-table="true" ix="F_b9b5a5e9-8589-45af-9ab4-2b306e545959" name="brka:IntangibleAssetsExcludingGoodwill" scale="6" unitref="U_USD">1,136</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>$</span></p></td>
+<td><p><span><ix:nonfraction contextref="C_c5791aa9-24a5-4a21-b720-bbf05e39c04b" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-1724" inside-table="true" ix="F_66bd67d3-24ed-43eb-9ee9-8b9a696f7d78" name="us-gaap:IntangibleAssetsGrossExcludingGoodwill" scale="6" unitref="U_USD">2,015</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>$</span></p></td>
+<td><p><span><ix:nonfraction contextref="C_c5791aa9-24a5-4a21-b720-bbf05e39c04b" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-1740" inside-table="true" ix="F_da257104-87cc-405f-8e1f-2d6fcdc7e230" name="us-gaap:FiniteLivedIntangibleAssetsAccumulatedAmortization" scale="6" unitref="U_USD">759</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>$</span></p></td>
+<td><p><span><ix:nonfraction contextref="C_c5791aa9-24a5-4a21-b720-bbf05e39c04b" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-1756" inside-table="true" ix="F_3e180278-d229-4c00-9190-3ef115539aea" name="brka:IntangibleAssetsExcludingGoodwill" scale="6" unitref="U_USD">1,256</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+</tr>
+</tbody></table></ix:nonnumeric>

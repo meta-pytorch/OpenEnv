@@ -1,0 +1,257 @@
+<ix:nonnumeric contextref="C_fc05cf1b-e190-46aa-968d-fdf3a84013da" continued-fact="false" enabled-fact="true" escape="true" hover-fact="false" id="fact-identifier-3329" inside-table="false" ix="F_d9200bee-fc8f-4093-b049-59d7e36e7530" name="brka:ScheduleOfPremiumsWrittenAndEarnedTableTextBlock" selected-fact="false"><p><span>Property/casualty and life/health insurance premiums written and earned are summarized below (in millions).</span><span> </span></p><p><span> </span></p>
+<table>
+<tbody><tr>
+<td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td></tr>
+<tr>
+<td><p><span> </span></p></td>
+<td colspan="8"><p><span>Property/Casualty</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td colspan="8"><p><span>Life/Health</span></p></td>
+<td><p><span> </span></p></td>
+</tr>
+<tr>
+<td><p><span> </span></p></td>
+<td colspan="2"><p><span>2024</span></p></td>
+<td><p><span> </span></p></td>
+<td colspan="2"><p><span>2023</span></p></td>
+<td><p><span> </span></p></td>
+<td colspan="2"><p><span>2022</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td colspan="2"><p><span>2024</span></p></td>
+<td><p><span> </span></p></td>
+<td colspan="2"><p><span>2023</span></p></td>
+<td><p><span> </span></p></td>
+<td colspan="2"><p><span>2022</span></p></td>
+<td><p><span> </span></p></td>
+</tr>
+<tr>
+<td><p><span>Premiums Written:</span></p></td>
+<td colspan="2"><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td colspan="2"><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td colspan="2"><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td colspan="2"><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td colspan="2"><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td colspan="2"><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+</tr>
+<tr>
+<td><p><span>Direct</span></p></td>
+<td><p><span>$</span></p></td>
+<td><p><span><ix:nonfraction contextref="C_147dde1d-c33a-4daa-bb77-3e4c1ee8a91a" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-3330" inside-table="true" ix="F_7b4c4194-6a78-4352-b58e-2417e8d46e25" name="us-gaap:DirectPremiumsWritten" scale="6" unitref="U_USD">65,495</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>$</span></p></td>
+<td><p><span><ix:nonfraction contextref="C_d2b6b130-8c8b-4164-9c26-b25db62a56f0" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-3331" inside-table="true" ix="F_65af84fa-e26c-4e33-ad98-bdb1ef72eb73" name="us-gaap:DirectPremiumsWritten" scale="6" unitref="U_USD">61,990</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>$</span></p></td>
+<td><p><span><ix:nonfraction contextref="C_ec36d3bc-079b-4821-a1d2-7849ca41d99e" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-3332" inside-table="true" ix="F_5eb5eee6-68ae-4dac-b0a4-07ec60bf69f6" name="us-gaap:DirectPremiumsWritten" scale="6" unitref="U_USD">56,700</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>$</span></p></td>
+<td><p><span><ix:nonfraction contextref="C_f0f3ff08-e9a4-4f57-bbb7-17f873cdae5f" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-3333" inside-table="true" ix="F_32e7343c-e9d9-466a-8126-90e17f4ca9ae" name="us-gaap:DirectPremiumsWritten" scale="6" unitref="U_USD">19</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>$</span></p></td>
+<td><p><span>—</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>$</span></p></td>
+<td><p><span><ix:nonfraction contextref="C_f4558c0b-18ad-4311-85ab-ab55f692e555" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-3334" inside-table="true" ix="F_0643961a-407d-4965-8ac7-aeb6ade28453" name="us-gaap:DirectPremiumsWritten" scale="6" unitref="U_USD">582</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+</tr>
+<tr>
+<td><p><span>Assumed</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><ix:nonfraction contextref="C_147dde1d-c33a-4daa-bb77-3e4c1ee8a91a" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-3335" inside-table="true" ix="F_3a30c39a-0edb-420c-b690-0d020a5f4915" name="us-gaap:AssumedPremiumsWritten" scale="6" unitref="U_USD">20,422</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><ix:nonfraction contextref="C_d2b6b130-8c8b-4164-9c26-b25db62a56f0" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-3336" inside-table="true" ix="F_ee8c6c3a-3fc1-47e2-a266-d231eaf23fc7" name="us-gaap:AssumedPremiumsWritten" scale="6" unitref="U_USD">20,751</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><ix:nonfraction contextref="C_ec36d3bc-079b-4821-a1d2-7849ca41d99e" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-3337" inside-table="true" ix="F_e18bd4c3-6cd4-4b0e-99f3-f510cc42cb04" name="us-gaap:AssumedPremiumsWritten" scale="6" unitref="U_USD">15,143</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><ix:nonfraction contextref="C_f0f3ff08-e9a4-4f57-bbb7-17f873cdae5f" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-3338" inside-table="true" ix="F_30bfb8db-df07-4df4-b6a4-cfb36b15600b" name="us-gaap:AssumedPremiumsWritten" scale="6" unitref="U_USD">5,016</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><ix:nonfraction contextref="C_b38537be-4090-4261-b8bb-415ffc713673" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-3339" inside-table="true" ix="F_a91944b7-6948-46bf-bc20-07493ec87ae9" name="us-gaap:AssumedPremiumsWritten" scale="6" unitref="U_USD">5,126</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><ix:nonfraction contextref="C_f4558c0b-18ad-4311-85ab-ab55f692e555" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-3340" inside-table="true" ix="F_1406561d-5b05-4995-a2f4-48f43b48420e" name="us-gaap:AssumedPremiumsWritten" scale="6" unitref="U_USD">5,222</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+</tr>
+<tr>
+<td><p><span>Ceded</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>(</span><span><ix:nonfraction contextref="C_147dde1d-c33a-4daa-bb77-3e4c1ee8a91a" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-3341" inside-table="true" ix="F_1135e14d-ad03-4302-a7a3-60609d94a6ab" name="us-gaap:CededPremiumsWritten" scale="6" unitref="U_USD">2,231</ix:nonfraction></span></p></td>
+<td><p><span>)</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>(</span><span><ix:nonfraction contextref="C_d2b6b130-8c8b-4164-9c26-b25db62a56f0" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-3342" inside-table="true" ix="F_6cac020e-43f1-4b65-a1ec-a92cbd130904" name="us-gaap:CededPremiumsWritten" scale="6" unitref="U_USD">2,402</ix:nonfraction></span></p></td>
+<td><p><span>)</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>(</span><span><ix:nonfraction contextref="C_ec36d3bc-079b-4821-a1d2-7849ca41d99e" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-3343" inside-table="true" ix="F_a37b129e-a8f0-4e6e-bd37-7a82aceb3e0a" name="us-gaap:CededPremiumsWritten" scale="6" unitref="U_USD">1,155</ix:nonfraction></span></p></td>
+<td><p><span>)</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>(</span><span><ix:nonfraction contextref="C_f0f3ff08-e9a4-4f57-bbb7-17f873cdae5f" decimals="-6" id="fact-identifier-3344" inside-table="true" ix="F_00e7a7b5-a6d9-4993-b870-2754a5651a30" name="us-gaap:CededPremiumsWritten" scale="6" unitref="U_USD">28</ix:nonfraction></span></p></td>
+<td><p><span>)</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>(</span><span><ix:nonfraction contextref="C_b38537be-4090-4261-b8bb-415ffc713673" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-3345" inside-table="true" ix="F_ec496e2f-db9a-444c-9f61-81b32665058f" name="us-gaap:CededPremiumsWritten" scale="6" unitref="U_USD">33</ix:nonfraction></span></p></td>
+<td><p><span>)</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>(</span><span><ix:nonfraction contextref="C_f4558c0b-18ad-4311-85ab-ab55f692e555" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-3346" inside-table="true" ix="F_50cc90ca-2812-46b4-83c9-a3705306ca70" name="us-gaap:CededPremiumsWritten" scale="6" unitref="U_USD">37</ix:nonfraction></span></p></td>
+<td><p><span>)</span></p></td>
+</tr>
+<tr>
+<td><p><span> </span></p></td>
+<td><p><span>$</span></p></td>
+<td><p><span><ix:nonfraction contextref="C_147dde1d-c33a-4daa-bb77-3e4c1ee8a91a" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-3347" inside-table="true" ix="F_7911ab18-f372-411d-9b7a-60b11b0038a5" name="us-gaap:PremiumsWrittenNet" scale="6" unitref="U_USD">83,686</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>$</span></p></td>
+<td><p><span><ix:nonfraction contextref="C_d2b6b130-8c8b-4164-9c26-b25db62a56f0" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-3348" inside-table="true" ix="F_da69d97b-3037-4212-a742-84a174831dd6" name="us-gaap:PremiumsWrittenNet" scale="6" unitref="U_USD">80,339</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>$</span></p></td>
+<td><p><span><ix:nonfraction contextref="C_ec36d3bc-079b-4821-a1d2-7849ca41d99e" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-3349" inside-table="true" ix="F_3099628e-8979-4b24-a65a-e8ab02fa7c4e" name="us-gaap:PremiumsWrittenNet" scale="6" unitref="U_USD">70,688</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>$</span></p></td>
+<td><p><span><ix:nonfraction contextref="C_f0f3ff08-e9a4-4f57-bbb7-17f873cdae5f" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-3350" inside-table="true" ix="F_7bd7d9b7-3d9a-45dd-b8e7-d33e6525f2b3" name="us-gaap:PremiumsWrittenNet" scale="6" unitref="U_USD">5,007</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>$</span></p></td>
+<td><p><span><ix:nonfraction contextref="C_b38537be-4090-4261-b8bb-415ffc713673" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-3351" inside-table="true" ix="F_cb9d0cf0-5740-40d2-86d8-a4eed144772f" name="us-gaap:PremiumsWrittenNet" scale="6" unitref="U_USD">5,093</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>$</span></p></td>
+<td><p><span><ix:nonfraction contextref="C_f4558c0b-18ad-4311-85ab-ab55f692e555" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-3352" inside-table="true" ix="F_133779cb-f90f-4a8a-9d3f-c0d3f1936eab" name="us-gaap:PremiumsWrittenNet" scale="6" unitref="U_USD">5,767</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+</tr>
+<tr>
+<td><p><span>Premiums Earned:</span></p></td>
+<td colspan="2"><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td colspan="2"><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td colspan="2"><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td colspan="2"><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td colspan="2"><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td colspan="2"><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+</tr>
+<tr>
+<td><p><span>Direct</span></p></td>
+<td><p><span>$</span></p></td>
+<td><p><span><ix:nonfraction contextref="C_147dde1d-c33a-4daa-bb77-3e4c1ee8a91a" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-3383" inside-table="true" ix="F_1e63a086-29e3-4cb3-b270-85290268be39" name="us-gaap:DirectPremiumsEarned" scale="6" unitref="U_USD">64,880</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>$</span></p></td>
+<td><p><span><ix:nonfraction contextref="C_d2b6b130-8c8b-4164-9c26-b25db62a56f0" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-3384" inside-table="true" ix="F_0b53fcf3-6662-486b-ba08-4bc0a0925526" name="us-gaap:DirectPremiumsEarned" scale="6" unitref="U_USD">60,437</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>$</span></p></td>
+<td><p><span><ix:nonfraction contextref="C_ec36d3bc-079b-4821-a1d2-7849ca41d99e" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-3385" inside-table="true" ix="F_7d2ccdff-0bf5-4a5e-a14d-6bd4b43c6dfe" name="us-gaap:DirectPremiumsEarned" scale="6" unitref="U_USD">55,879</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>$</span></p></td>
+<td><p><span><ix:nonfraction contextref="C_f0f3ff08-e9a4-4f57-bbb7-17f873cdae5f" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-3386" inside-table="true" ix="F_c4f78cfe-0791-47ea-93f3-87b94e3fd55c" name="us-gaap:DirectPremiumsEarned" scale="6" unitref="U_USD">18</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>$</span></p></td>
+<td><p><span>—</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>$</span></p></td>
+<td><p><span><ix:nonfraction contextref="C_f4558c0b-18ad-4311-85ab-ab55f692e555" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-3387" inside-table="true" ix="F_82cb254b-cdbe-4a3a-bce3-7fe401428d21" name="us-gaap:DirectPremiumsEarned" scale="6" unitref="U_USD">582</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+</tr>
+<tr>
+<td><p><span>Assumed</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><ix:nonfraction contextref="C_147dde1d-c33a-4daa-bb77-3e4c1ee8a91a" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-3388" inside-table="true" ix="F_62a17218-4466-4526-8da0-c32102c54e61" name="us-gaap:AssumedPremiumsEarned" scale="6" unitref="U_USD">20,738</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><ix:nonfraction contextref="C_d2b6b130-8c8b-4164-9c26-b25db62a56f0" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-3389" inside-table="true" ix="F_f9a079aa-9697-45c3-9cee-758b1eef3294" name="us-gaap:AssumedPremiumsEarned" scale="6" unitref="U_USD">20,442</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><ix:nonfraction contextref="C_ec36d3bc-079b-4821-a1d2-7849ca41d99e" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-3390" inside-table="true" ix="F_802b9cb0-d2fb-4a2e-951b-24e054698bf4" name="us-gaap:AssumedPremiumsEarned" scale="6" unitref="U_USD">14,184</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><ix:nonfraction contextref="C_f0f3ff08-e9a4-4f57-bbb7-17f873cdae5f" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-3391" inside-table="true" ix="F_b1086553-ea0f-4297-87e9-983beeb631c5" name="us-gaap:AssumedPremiumsEarned" scale="6" unitref="U_USD">5,008</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><ix:nonfraction contextref="C_b38537be-4090-4261-b8bb-415ffc713673" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-3392" inside-table="true" ix="F_a69a23fc-60f7-4983-b501-1bea36889551" name="us-gaap:AssumedPremiumsEarned" scale="6" unitref="U_USD">5,105</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><ix:nonfraction contextref="C_f4558c0b-18ad-4311-85ab-ab55f692e555" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-3393" inside-table="true" ix="F_41609116-0ed4-4130-ad5c-84ac06df79b3" name="us-gaap:AssumedPremiumsEarned" scale="6" unitref="U_USD">5,263</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+</tr>
+<tr>
+<td><p><span>Ceded</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>(</span><span><ix:nonfraction contextref="C_147dde1d-c33a-4daa-bb77-3e4c1ee8a91a" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-3394" inside-table="true" ix="F_f58804f8-75ac-40e8-9896-1d5b5d85726d" name="us-gaap:CededPremiumsEarned" scale="6" unitref="U_USD">2,359</ix:nonfraction></span></p></td>
+<td><p><span>)</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>(</span><span><ix:nonfraction contextref="C_d2b6b130-8c8b-4164-9c26-b25db62a56f0" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-3395" inside-table="true" ix="F_0c1144b9-92be-469a-bee9-4417d93134d2" name="us-gaap:CededPremiumsEarned" scale="6" unitref="U_USD">2,548</ix:nonfraction></span></p></td>
+<td><p><span>)</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>(</span><span><ix:nonfraction contextref="C_ec36d3bc-079b-4821-a1d2-7849ca41d99e" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-3396" inside-table="true" ix="F_aac0fa75-b20d-4810-84f2-722ee25e74be" name="us-gaap:CededPremiumsEarned" scale="6" unitref="U_USD">1,293</ix:nonfraction></span></p></td>
+<td><p><span>)</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>(</span><span><ix:nonfraction contextref="C_f0f3ff08-e9a4-4f57-bbb7-17f873cdae5f" decimals="-6" id="fact-identifier-3397" inside-table="true" ix="F_365371f0-794a-43bc-97cf-978e7ecb85ee" name="us-gaap:CededPremiumsEarned" scale="6" unitref="U_USD">28</ix:nonfraction></span></p></td>
+<td><p><span>)</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>(</span><span><ix:nonfraction contextref="C_b38537be-4090-4261-b8bb-415ffc713673" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-3398" inside-table="true" ix="F_b115bf56-c584-4c6f-b3be-7d35599f8626" name="us-gaap:CededPremiumsEarned" scale="6" unitref="U_USD">33</ix:nonfraction></span></p></td>
+<td><p><span>)</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>(</span><span><ix:nonfraction contextref="C_f4558c0b-18ad-4311-85ab-ab55f692e555" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-3399" inside-table="true" ix="F_783e6479-5950-4279-86d2-30b910ca43fd" name="us-gaap:CededPremiumsEarned" scale="6" unitref="U_USD">39</ix:nonfraction></span></p></td>
+<td><p><span>)</span></p></td>
+</tr>
+<tr>
+<td><p><span> </span></p></td>
+<td><p><span>$</span></p></td>
+<td><p><span><ix:nonfraction contextref="C_147dde1d-c33a-4daa-bb77-3e4c1ee8a91a" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-537" inside-table="true" ix="F_9da25ad8-6e06-465f-85fd-ea294a856b19" name="us-gaap:PremiumsEarnedNet" scale="6" unitref="U_USD">83,259</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>$</span></p></td>
+<td><p><span><ix:nonfraction contextref="C_d2b6b130-8c8b-4164-9c26-b25db62a56f0" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-538" inside-table="true" ix="F_4f671358-ca11-453e-9ddf-fe0b9e1eca0f" name="us-gaap:PremiumsEarnedNet" scale="6" unitref="U_USD">78,331</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>$</span></p></td>
+<td><p><span><ix:nonfraction contextref="C_ec36d3bc-079b-4821-a1d2-7849ca41d99e" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-539" inside-table="true" ix="F_8e88bf67-17a1-4cd4-a83e-3f60db697c07" name="us-gaap:PremiumsEarnedNet" scale="6" unitref="U_USD">68,770</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>$</span></p></td>
+<td><p><span><ix:nonfraction contextref="C_f0f3ff08-e9a4-4f57-bbb7-17f873cdae5f" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-540" inside-table="true" ix="F_2f925f5d-61fa-470d-895a-eb3ecf0a7104" name="us-gaap:PremiumsEarnedNet" scale="6" unitref="U_USD">4,998</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>$</span></p></td>
+<td><p><span><ix:nonfraction contextref="C_b38537be-4090-4261-b8bb-415ffc713673" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-541" inside-table="true" ix="F_a4d7333d-48ea-472b-9134-1da9ea819d4e" name="us-gaap:PremiumsEarnedNet" scale="6" unitref="U_USD">5,072</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>$</span></p></td>
+<td><p><span><ix:nonfraction contextref="C_f4558c0b-18ad-4311-85ab-ab55f692e555" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-542" inside-table="true" ix="F_22a05509-38ea-483d-a8fa-7353995ad1ea" name="us-gaap:PremiumsEarnedNet" scale="6" unitref="U_USD">5,806</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+</tr>
+</tbody></table></ix:nonnumeric>

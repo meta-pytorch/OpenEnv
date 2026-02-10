@@ -1,0 +1,319 @@
+<ix:nonnumeric contextref="C_fc05cf1b-e190-46aa-968d-fdf3a84013da" continued-fact="false" enabled-fact="true" escape="true" hover-fact="false" id="fact-identifier-3153" inside-table="false" ix="F_cdbd6fed-f7d4-4a39-aab3-c1381c4bf770" name="us-gaap:ScheduleOfAllocationOfPlanAssetsTableTextBlock" selected-fact="false"><p><span>Fair value measurements of plan assets as of December 31, 2024 and 2023 follow (in millions).</span><span> </span></p><p><span> </span></p>
+<table>
+<tbody><tr>
+<td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td></tr>
+<tr>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td colspan="14"><p><span>Fair Value</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td colspan="2"><p><span>Investments<br/>carried at net</span></p></td>
+<td><p><span> </span></p></td>
+</tr>
+<tr>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td colspan="2"><p><span>Total</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td colspan="2"><p><span>Level 1</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td colspan="2"><p><span>Level 2</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td colspan="2"><p><span>Level 3</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td colspan="2"><p><span>asset value</span></p></td>
+<td><p><span> </span></p></td>
+</tr>
+<tr>
+<td><p><span>December 31, 2024</span></p></td>
+<td><p><span> </span></p></td>
+<td colspan="2"><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td colspan="2"><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td colspan="2"><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td colspan="2"><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td colspan="2"><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+</tr>
+<tr>
+<td><p><span>Cash and cash equivalents</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>$</span></p></td>
+<td><p><span><ix:nonfraction contextref="C_904f1467-be22-4087-959d-eeb630a3b6de" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-3064" inside-table="true" ix="F_43a6d486-6f9f-4fcb-af57-46f37758397e" name="us-gaap:DefinedBenefitPlanFairValueOfPlanAssets" scale="6" unitref="U_USD">600</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>$</span></p></td>
+<td><p><span><ix:nonfraction contextref="C_51bf725c-5de3-43e7-ad5c-c41caa2fefa8" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-3065" inside-table="true" ix="F_46069282-bf9b-4d53-bf97-64bdb83503cc" name="us-gaap:DefinedBenefitPlanFairValueOfPlanAssets" scale="6" unitref="U_USD">556</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>$</span></p></td>
+<td><p><span><ix:nonfraction contextref="C_59ed5531-a935-4764-aba7-962be854a83c" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-3066" inside-table="true" ix="F_e411bf43-d290-49c7-afef-ca064dd57b24" name="us-gaap:DefinedBenefitPlanFairValueOfPlanAssets" scale="6" unitref="U_USD">44</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>$</span></p></td>
+<td><p><span>—</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>$</span></p></td>
+<td><p><span>—</span></p></td>
+<td><p><span> </span></p></td>
+</tr>
+<tr>
+<td><p><span>Equity securities</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><ix:nonfraction contextref="C_bcc43568-f2ba-493f-b1d3-8afb9dc8ab81" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-3067" inside-table="true" ix="F_8effc058-3501-4174-8b3d-7ed85adbb4f6" name="us-gaap:DefinedBenefitPlanFairValueOfPlanAssets" scale="6" unitref="U_USD">9,757</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><ix:nonfraction contextref="C_2ab0c9bd-516a-4882-b3ba-a9f771dd1683" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-3068" inside-table="true" ix="F_338c5a7d-a308-4c9d-b818-ce611bc51e62" name="us-gaap:DefinedBenefitPlanFairValueOfPlanAssets" scale="6" unitref="U_USD">9,036</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><ix:nonfraction contextref="C_708c85f0-64a2-413e-acbc-b6c189f0c719" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-3069" inside-table="true" ix="F_8d951747-8ac4-4e3d-a000-cc475a0d048f" name="us-gaap:DefinedBenefitPlanFairValueOfPlanAssets" scale="6" unitref="U_USD">581</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><ix:nonfraction contextref="C_b25a5fa3-57d1-455b-bca3-3da325d4c116" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-3070" inside-table="true" ix="F_d07fd3b4-e11a-421c-aafa-3cc84775a5bb" name="us-gaap:DefinedBenefitPlanFairValueOfPlanAssets" scale="6" unitref="U_USD">140</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>—</span></p></td>
+<td><p><span> </span></p></td>
+</tr>
+<tr>
+<td><p><span>Fixed maturity securities</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><ix:nonfraction contextref="C_e55dd133-f026-455a-a04d-d21cbd9f8f3a" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-3071" inside-table="true" ix="F_941ed13d-9ae6-42fb-a363-de64b3e70f5f" name="us-gaap:DefinedBenefitPlanFairValueOfPlanAssets" scale="6" unitref="U_USD">1,747</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><ix:nonfraction contextref="C_97e8aded-81b9-4766-a1ef-9f5b88242f89" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-3072" inside-table="true" ix="F_96fad555-ad3a-4952-83fd-fc9642159e6d" name="us-gaap:DefinedBenefitPlanFairValueOfPlanAssets" scale="6" unitref="U_USD">953</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><ix:nonfraction contextref="C_cc840fb4-61b4-43d6-bd1b-67482dce8f25" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-3073" inside-table="true" ix="F_07d8e4b5-81f0-4651-ab81-c4efb5fc69e2" name="us-gaap:DefinedBenefitPlanFairValueOfPlanAssets" scale="6" unitref="U_USD">794</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>—</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>—</span></p></td>
+<td><p><span> </span></p></td>
+</tr>
+<tr>
+<td><p><span>Investment funds and other</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><ix:nonfraction contextref="C_0c93d69a-748b-4086-98a6-59fa022f7ca8" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-3074" inside-table="true" ix="F_10209b21-70b6-4f5a-84ff-038c394566ae" name="us-gaap:DefinedBenefitPlanFairValueOfPlanAssets" scale="6" unitref="U_USD">2,076</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><ix:nonfraction contextref="C_0cbddc98-79fb-427b-9324-a64f6c061110" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-3075" inside-table="true" ix="F_62267667-3944-480e-b0d5-916a0b255085" name="us-gaap:DefinedBenefitPlanFairValueOfPlanAssets" scale="6" unitref="U_USD">385</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><ix:nonfraction contextref="C_4ad3896e-ea65-4976-97da-6ae6dbab048e" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-3076" inside-table="true" ix="F_161bcdb8-f521-40ed-ab51-ba170315e771" name="us-gaap:DefinedBenefitPlanFairValueOfPlanAssets" scale="6" unitref="U_USD">144</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><ix:nonfraction contextref="C_3b526d4f-24e3-4009-b873-00322422336c" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-3077" inside-table="true" ix="F_da403e3d-7edc-4f19-83a1-78b7c38a30ce" name="us-gaap:DefinedBenefitPlanFairValueOfPlanAssets" scale="6" unitref="U_USD">23</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><ix:nonfraction contextref="C_b5472fee-52ec-4e18-a857-a262b144d6e2" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-3078" inside-table="true" ix="F_4f5ae794-7304-40ca-84fc-28a231d12402" name="us-gaap:DefinedBenefitPlanFairValueOfPlanAssets" scale="6" unitref="U_USD">1,524</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+</tr>
+<tr>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>$</span></p></td>
+<td><p><span><ix:nonfraction contextref="C_2aa45265-bb2c-4f35-a371-d803f5472d81" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-3079" inside-table="true" ix="F_f40f5f22-f22f-4d48-b8d5-fee1c4da2524" name="us-gaap:DefinedBenefitPlanFairValueOfPlanAssets" scale="6" unitref="U_USD">14,180</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>$</span></p></td>
+<td><p><span><ix:nonfraction contextref="C_535cb2d5-3f0e-485a-a5b8-bf9a84c919ab" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-3080" inside-table="true" ix="F_d82fa2e0-420c-4f33-b0cf-a8e31b5741cf" name="us-gaap:DefinedBenefitPlanFairValueOfPlanAssets" scale="6" unitref="U_USD">10,930</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>$</span></p></td>
+<td><p><span><ix:nonfraction contextref="C_b4e8467f-8d3d-4fb4-bae5-389e14e3c236" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-3081" inside-table="true" ix="F_3c53c015-ea8a-4c4c-ae13-c50baae00248" name="us-gaap:DefinedBenefitPlanFairValueOfPlanAssets" scale="6" unitref="U_USD">1,563</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>$</span></p></td>
+<td><p><span><ix:nonfraction contextref="C_bb1cd159-c610-4517-ace9-1886b02f32c4" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-3082" inside-table="true" ix="F_f8200862-6572-4322-bfe3-0d9d517bea6c" name="us-gaap:DefinedBenefitPlanFairValueOfPlanAssets" scale="6" unitref="U_USD">163</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>$</span></p></td>
+<td><p><span><ix:nonfraction contextref="C_df5e39ee-ab14-44ef-99a7-fc50a74b3e10" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-3083" inside-table="true" ix="F_f87a76f7-2c6b-41a8-be2a-7796d8e79619" name="us-gaap:DefinedBenefitPlanFairValueOfPlanAssets" scale="6" unitref="U_USD">1,524</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+</tr>
+<tr>
+<td><p><span>December 31, 2023</span></p></td>
+<td><p><span> </span></p></td>
+<td colspan="2"><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td colspan="2"><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td colspan="2"><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td colspan="2"><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td colspan="2"><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+</tr>
+<tr>
+<td><p><span>Cash and cash equivalents</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>$</span></p></td>
+<td><p><span><ix:nonfraction contextref="C_4f1e1c0b-1caa-4ab7-b504-e391965fe1ba" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-3084" inside-table="true" ix="F_b38416d1-3d9e-4cef-a3c0-15245927638a" name="us-gaap:DefinedBenefitPlanFairValueOfPlanAssets" scale="6" unitref="U_USD">449</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>$</span></p></td>
+<td><p><span><ix:nonfraction contextref="C_7f65b360-d1d1-4e98-9a14-1b4e8f547e54" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-3085" inside-table="true" ix="F_e6d42068-1d45-4138-bcbf-ab1351d9b9af" name="us-gaap:DefinedBenefitPlanFairValueOfPlanAssets" scale="6" unitref="U_USD">370</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>$</span></p></td>
+<td><p><span><ix:nonfraction contextref="C_9616e59f-bae4-477d-ac5b-f9f427d43ffa" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-3086" inside-table="true" ix="F_b61645f1-077b-4dcd-aa39-9b33b3b9f31d" name="us-gaap:DefinedBenefitPlanFairValueOfPlanAssets" scale="6" unitref="U_USD">79</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>$</span></p></td>
+<td><p><span>—</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>$</span></p></td>
+<td><p><span>—</span></p></td>
+<td><p><span> </span></p></td>
+</tr>
+<tr>
+<td><p><span>Equity securities</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><ix:nonfraction contextref="C_00c11727-eb23-473b-b5d4-9ddcabcf6abe" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-3087" inside-table="true" ix="F_02b35fae-f87c-40b9-9b79-4df94e7ec46d" name="us-gaap:DefinedBenefitPlanFairValueOfPlanAssets" scale="6" unitref="U_USD">8,487</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><ix:nonfraction contextref="C_66b623c7-e7a5-48ad-b8c2-5b590e0220cd" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-3088" inside-table="true" ix="F_0434a1d7-f3f1-4310-99cd-04ceaf47318f" name="us-gaap:DefinedBenefitPlanFairValueOfPlanAssets" scale="6" unitref="U_USD">7,808</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><ix:nonfraction contextref="C_238b7f06-d0e7-44da-b6e6-902b4a356d9d" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-3089" inside-table="true" ix="F_93b6d0f7-f401-4761-8974-12d15d4e27f8" name="us-gaap:DefinedBenefitPlanFairValueOfPlanAssets" scale="6" unitref="U_USD">543</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><ix:nonfraction contextref="C_d9676f7b-a7c6-4de9-8431-ecd3bfe483cf" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-3090" inside-table="true" ix="F_9fef6e4e-a9d1-4813-b18f-001a23baed34" name="us-gaap:DefinedBenefitPlanFairValueOfPlanAssets" scale="6" unitref="U_USD">136</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>—</span></p></td>
+<td><p><span> </span></p></td>
+</tr>
+<tr>
+<td><p><span>Fixed maturity securities</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><ix:nonfraction contextref="C_7c94cbae-2d48-4baa-909f-976c44bff6bd" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-3091" inside-table="true" ix="F_0455ab3c-e705-498f-ba84-21ba5ad3fb23" name="us-gaap:DefinedBenefitPlanFairValueOfPlanAssets" scale="6" unitref="U_USD">2,138</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><ix:nonfraction contextref="C_ae8d927d-ed0a-42de-967c-c0a40dff195d" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-3092" inside-table="true" ix="F_4f4ed838-17cc-4eba-a66a-332e7052df99" name="us-gaap:DefinedBenefitPlanFairValueOfPlanAssets" scale="6" unitref="U_USD">1,277</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><ix:nonfraction contextref="C_65cfe3cf-42e7-4447-b853-f7445bd93bb0" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-3093" inside-table="true" ix="F_ab478a79-f7f4-4ec7-a655-1ad26e93877d" name="us-gaap:DefinedBenefitPlanFairValueOfPlanAssets" scale="6" unitref="U_USD">851</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><ix:nonfraction contextref="C_ea0df54e-8bdb-40a3-9f40-e58f735330f9" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-3094" inside-table="true" ix="F_842b6859-5729-4b56-8e9f-f15e41bd6fcb" name="us-gaap:DefinedBenefitPlanFairValueOfPlanAssets" scale="6" unitref="U_USD">10</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>—</span></p></td>
+<td><p><span> </span></p></td>
+</tr>
+<tr>
+<td><p><span>Investment funds and other</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><ix:nonfraction contextref="C_016f7aa7-1565-42e2-83d2-196f17e7002a" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-3095" inside-table="true" ix="F_3b0ce0d8-92f1-4205-a11f-38561d585d53" name="us-gaap:DefinedBenefitPlanFairValueOfPlanAssets" scale="6" unitref="U_USD">2,305</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><ix:nonfraction contextref="C_ca81f412-9286-47dd-9abf-216a973e409f" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-3096" inside-table="true" ix="F_3cced318-5600-47a6-b8b6-2ba7d80fdc61" name="us-gaap:DefinedBenefitPlanFairValueOfPlanAssets" scale="6" unitref="U_USD">342</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><ix:nonfraction contextref="C_2dc8e4b4-7436-4101-b3a3-3352fb9dc641" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-3097" inside-table="true" ix="F_5272442b-6fe2-40dc-a036-4ae058896db5" name="us-gaap:DefinedBenefitPlanFairValueOfPlanAssets" scale="6" unitref="U_USD">272</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><ix:nonfraction contextref="C_07fbc0c0-9ab1-4baa-8192-28bab07da79b" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-3098" inside-table="true" ix="F_5349305d-0ede-408b-bba6-5bde4784f120" name="us-gaap:DefinedBenefitPlanFairValueOfPlanAssets" scale="6" unitref="U_USD">42</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><ix:nonfraction contextref="C_9ee603ca-d53a-4622-b3db-44e5f3753116" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-3099" inside-table="true" ix="F_84172077-6a4d-458c-8f95-64f4d2c6ff41" name="us-gaap:DefinedBenefitPlanFairValueOfPlanAssets" scale="6" unitref="U_USD">1,649</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+</tr>
+<tr>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>$</span></p></td>
+<td><p><span><ix:nonfraction contextref="C_b1a85cca-b2a7-48fa-a821-46f8567615c9" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-3100" inside-table="true" ix="F_ffd5b56f-72eb-4b2d-af94-d407b66fc877" name="us-gaap:DefinedBenefitPlanFairValueOfPlanAssets" scale="6" unitref="U_USD">13,379</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>$</span></p></td>
+<td><p><span><ix:nonfraction contextref="C_55cdb48c-cccb-4c2d-99e0-05c67b0ecbd0" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-3101" inside-table="true" ix="F_566549d1-eb8e-4266-851f-4e0179716259" name="us-gaap:DefinedBenefitPlanFairValueOfPlanAssets" scale="6" unitref="U_USD">9,797</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>$</span></p></td>
+<td><p><span><ix:nonfraction contextref="C_0265f78c-e78f-4941-8cb7-cb2af5ef5195" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-3102" inside-table="true" ix="F_43610c93-4a35-4b4f-9059-3f2887797f5f" name="us-gaap:DefinedBenefitPlanFairValueOfPlanAssets" scale="6" unitref="U_USD">1,745</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>$</span></p></td>
+<td><p><span><ix:nonfraction contextref="C_ddcc28da-8e51-4881-9199-13752c76a68c" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-3103" inside-table="true" ix="F_b4973454-1ab2-4fdc-9562-af472efd31ed" name="us-gaap:DefinedBenefitPlanFairValueOfPlanAssets" scale="6" unitref="U_USD">188</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>$</span></p></td>
+<td><p><span><ix:nonfraction contextref="C_0bd44f15-97a7-4c2b-9e01-01ea3c412f18" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-3104" inside-table="true" ix="F_4f6d71a1-ce76-4ae4-a153-adedb4318b59" name="us-gaap:DefinedBenefitPlanFairValueOfPlanAssets" scale="6" unitref="U_USD">1,649</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+</tr>
+</tbody></table></ix:nonnumeric>

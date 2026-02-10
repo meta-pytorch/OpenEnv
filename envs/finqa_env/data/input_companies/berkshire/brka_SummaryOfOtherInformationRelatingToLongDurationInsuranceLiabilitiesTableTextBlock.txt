@@ -1,0 +1,147 @@
+<ix:nonnumeric contextref="C_fc05cf1b-e190-46aa-968d-fdf3a84013da" continued-fact="false" enabled-fact="true" escape="true" hover-fact="false" id="fact-identifier-2577" inside-table="false" ix="F_724b22c9-5c25-4219-9a9f-f39e15c192ba" name="brka:SummaryOfOtherInformationRelatingToLongDurationInsuranceLiabilitiesTableTextBlock" selected-fact="false"><p><span>Other information relating to our long-duration insurance liabilities as of December 31, 2024 and 2023 follows (dollars in millions).</span><span> </span></p>
+<table>
+<tbody><tr>
+<td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td></tr>
+<tr>
+<td><p><span> </span></p></td>
+<td colspan="6"><p><span>Annuities</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td colspan="6"><p><span>Life and health</span></p></td>
+<td><p><span> </span></p></td>
+</tr>
+<tr>
+<td><p><span> </span></p></td>
+<td colspan="2"><p><span>2024</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td colspan="2"><p><span>2023</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td colspan="2"><p><span>2024</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td colspan="2"><p><span>2023</span></p></td>
+<td><p><span> </span></p></td>
+</tr>
+<tr>
+<td><p><span>Undiscounted expected future gross premiums</span></p></td>
+<td><p><span>$</span></p></td>
+<td><p><span>—</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>$</span></p></td>
+<td><p><span>—</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>$</span></p></td>
+<td><p><span><ix:nonfraction contextref="C_55c6d826-b625-4a32-88ac-62c0099e14b0" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-2578" inside-table="true" ix="F_0c8fd3c8-82f0-4d58-a5c2-1d5c477be5b3" name="us-gaap:LiabilityForFuturePolicyBenefitExpectedFutureGrossPremiumUndiscountedBeforeReinsurance" scale="6" unitref="U_USD">100,413</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>$</span></p></td>
+<td><p><span><ix:nonfraction contextref="C_be0d6c5c-720e-4341-92da-60e2c6f2c1e1" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-2579" inside-table="true" ix="F_74737af2-b6c9-482f-adc7-fd6cb2e63728" name="us-gaap:LiabilityForFuturePolicyBenefitExpectedFutureGrossPremiumUndiscountedBeforeReinsurance" scale="6" unitref="U_USD">117,078</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+</tr>
+<tr>
+<td><p><span>Discounted expected future gross premiums</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>—</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>—</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><ix:nonfraction contextref="C_55c6d826-b625-4a32-88ac-62c0099e14b0" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-2580" inside-table="true" ix="F_33b76720-e100-4606-a5d2-315fac5df7a1" name="us-gaap:LiabilityForFuturePolicyBenefitExpectedFutureGrossPremiumDiscountedBeforeReinsurance" scale="6" unitref="U_USD">58,881</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><ix:nonfraction contextref="C_be0d6c5c-720e-4341-92da-60e2c6f2c1e1" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-2581" inside-table="true" ix="F_b8bb3d8c-4400-418c-8fea-16c4f9eb4e0a" name="us-gaap:LiabilityForFuturePolicyBenefitExpectedFutureGrossPremiumDiscountedBeforeReinsurance" scale="6" unitref="U_USD">66,692</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+</tr>
+<tr>
+<td><p><span>Undiscounted expected future benefits</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><ix:nonfraction contextref="C_749c3b14-79db-4baf-b4b2-af773eb3ba3e" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-2582" inside-table="true" ix="F_53a7620a-2a52-43f7-b75e-aac06c7977a5" name="us-gaap:LiabilityForFuturePolicyBenefitExpectedFuturePolicyBenefitUndiscountedBeforeReinsurance" scale="6" unitref="U_USD">30,592</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><ix:nonfraction contextref="C_693fbd28-74f9-43b2-baf4-25d3a3b63fa6" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-2583" inside-table="true" ix="F_e44c4bba-1c31-40c1-90e8-afea11f2ebd0" name="us-gaap:LiabilityForFuturePolicyBenefitExpectedFuturePolicyBenefitUndiscountedBeforeReinsurance" scale="6" unitref="U_USD">31,066</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><ix:nonfraction contextref="C_55c6d826-b625-4a32-88ac-62c0099e14b0" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-2584" inside-table="true" ix="F_a458d9fa-b0bb-4c10-b07f-9930ff0174b7" name="us-gaap:LiabilityForFuturePolicyBenefitExpectedFuturePolicyBenefitUndiscountedBeforeReinsurance" scale="6" unitref="U_USD">91,493</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><ix:nonfraction contextref="C_be0d6c5c-720e-4341-92da-60e2c6f2c1e1" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-2585" inside-table="true" ix="F_6319427a-5072-4d95-91da-78c43bc289ac" name="us-gaap:LiabilityForFuturePolicyBenefitExpectedFuturePolicyBenefitUndiscountedBeforeReinsurance" scale="6" unitref="U_USD">111,630</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+</tr>
+<tr>
+<td><p><span>Weighted average discount rate</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><ix:nonfraction contextref="C_749c3b14-79db-4baf-b4b2-af773eb3ba3e" decimals="3" format="ixt:num-dot-decimal" id="fact-identifier-2586" inside-table="true" ix="F_cff10782-299f-4d43-b4eb-c8d498bc5613" name="us-gaap:LiabilityForFuturePolicyBenefitCurrentWeightedAverageDiscountRate" scale="-2" unitref="U_pure">5.8</ix:nonfraction></span></p></td>
+<td><p><span>%</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><ix:nonfraction contextref="C_693fbd28-74f9-43b2-baf4-25d3a3b63fa6" decimals="3" format="ixt:num-dot-decimal" id="fact-identifier-2587" inside-table="true" ix="F_c138acfe-c37a-41b7-a589-e27a42032152" name="us-gaap:LiabilityForFuturePolicyBenefitCurrentWeightedAverageDiscountRate" scale="-2" unitref="U_pure">5.1</ix:nonfraction></span></p></td>
+<td><p><span>%</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><ix:nonfraction contextref="C_55c6d826-b625-4a32-88ac-62c0099e14b0" decimals="3" format="ixt:num-dot-decimal" id="fact-identifier-2588" inside-table="true" ix="F_20495259-80d7-4955-82ca-9dad372f6078" name="us-gaap:LiabilityForFuturePolicyBenefitCurrentWeightedAverageDiscountRate" scale="-2" unitref="U_pure">4.9</ix:nonfraction></span></p></td>
+<td><p><span>%</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><ix:nonfraction contextref="C_be0d6c5c-720e-4341-92da-60e2c6f2c1e1" decimals="3" format="ixt:num-dot-decimal" id="fact-identifier-2589" inside-table="true" ix="F_1924eb40-aef3-42f1-badd-90c29704e04c" name="us-gaap:LiabilityForFuturePolicyBenefitCurrentWeightedAverageDiscountRate" scale="-2" unitref="U_pure">5.1</ix:nonfraction></span></p></td>
+<td><p><span>%</span></p></td>
+</tr>
+<tr>
+<td><p><span>Weighted average accretion rate</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><ix:nonfraction contextref="C_749c3b14-79db-4baf-b4b2-af773eb3ba3e" decimals="3" format="ixt:num-dot-decimal" id="fact-identifier-2590" inside-table="true" ix="F_4ab9149c-0146-4c94-a0b5-19cac8cf7c34" name="us-gaap:LiabilityForFuturePolicyBenefitWeightedAverageInterestAccretionRate" scale="-2" unitref="U_pure">4.8</ix:nonfraction></span></p></td>
+<td><p><span>%</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><ix:nonfraction contextref="C_693fbd28-74f9-43b2-baf4-25d3a3b63fa6" decimals="3" format="ixt:num-dot-decimal" id="fact-identifier-2591" inside-table="true" ix="F_fe7c107f-6c37-4df8-b094-ff934d7eafec" name="us-gaap:LiabilityForFuturePolicyBenefitWeightedAverageInterestAccretionRate" scale="-2" unitref="U_pure">4.8</ix:nonfraction></span></p></td>
+<td><p><span>%</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><ix:nonfraction contextref="C_55c6d826-b625-4a32-88ac-62c0099e14b0" decimals="3" format="ixt:num-dot-decimal" id="fact-identifier-2592" inside-table="true" ix="F_bff8c1fa-cba4-4ddf-90af-1091c03aa6c6" name="us-gaap:LiabilityForFuturePolicyBenefitWeightedAverageInterestAccretionRate" scale="-2" unitref="U_pure">2.7</ix:nonfraction></span></p></td>
+<td><p><span>%</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><ix:nonfraction contextref="C_be0d6c5c-720e-4341-92da-60e2c6f2c1e1" decimals="3" format="ixt:num-dot-decimal" id="fact-identifier-2593" inside-table="true" ix="F_9c6d38e3-d51b-4100-8642-4a29fef36f99" name="us-gaap:LiabilityForFuturePolicyBenefitWeightedAverageInterestAccretionRate" scale="-2" unitref="U_pure">3.3</ix:nonfraction></span></p></td>
+<td><p><span>%</span></p></td>
+</tr>
+<tr>
+<td><p><span>Weighted average duration</span></p></td>
+<td colspan="2"><p><span><ix:nonnumeric contextref="C_749c3b14-79db-4baf-b4b2-af773eb3ba3e" format="ixt-sec:duryear" id="fact-identifier-2594" inside-table="true" ix="F_7f2a14ed-4d3f-41c0-94c1-e1175e82a737" name="us-gaap:LiabilityForFuturePolicyBenefitWeightedAverageDuration"><span>16</span></ix:nonnumeric></span><span> years</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td colspan="2"><p><span><ix:nonnumeric contextref="C_693fbd28-74f9-43b2-baf4-25d3a3b63fa6" format="ixt-sec:duryear" id="fact-identifier-2595" inside-table="true" ix="F_bead350a-d5cb-4d75-b874-1adc6b3c8f3a" name="us-gaap:LiabilityForFuturePolicyBenefitWeightedAverageDuration"><span>18</span></ix:nonnumeric></span><span> years</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td colspan="2"><p><span><ix:nonnumeric contextref="C_55c6d826-b625-4a32-88ac-62c0099e14b0" format="ixt-sec:duryear" id="fact-identifier-2596" inside-table="true" ix="F_516468b2-6a0c-4740-97d7-df5db32047dc" name="us-gaap:LiabilityForFuturePolicyBenefitWeightedAverageDuration"><span>13</span></ix:nonnumeric></span><span> years</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td colspan="2"><p><span><ix:nonnumeric contextref="C_be0d6c5c-720e-4341-92da-60e2c6f2c1e1" format="ixt-sec:duryear" id="fact-identifier-2597" inside-table="true" ix="F_48c287de-e43a-461a-9a4c-37893d6c0faf" name="us-gaap:LiabilityForFuturePolicyBenefitWeightedAverageDuration"><span>13</span></ix:nonnumeric></span><span> years</span></p></td>
+<td><p><span> </span></p></td>
+</tr>
+</tbody></table></ix:nonnumeric>

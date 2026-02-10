@@ -1,0 +1,75 @@
+<ix:nonnumeric contextref="C_fc05cf1b-e190-46aa-968d-fdf3a84013da" continued-fact="false" enabled-fact="true" escape="true" hover-fact="false" id="fact-identifier-1618" inside-table="false" ix="F_85a143fb-762e-40b0-beb4-88c4f7a7391d" name="brka:ScheduleOfDepreciationExpenseTableTextBlock" selected-fact="false"><p><span>Depreciation expense for each of the three years ending December 31, 2024 is summarized below (in millions).</span><span> </span></p><p><span> </span></p>
+<table>
+<tbody><tr>
+<td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td></tr>
+<tr>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td colspan="2"><p><span>2024</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td colspan="2"><p><span>2023</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td colspan="2"><p><span>2022</span></p></td>
+<td><p><span> </span></p></td>
+</tr>
+<tr>
+<td><p><span>Insurance and other</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>$</span></p></td>
+<td><p><span><ix:nonfraction contextref="C_642c88f7-190a-4404-a21e-9555df0e997a" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-1619" inside-table="true" ix="F_84fb9255-a683-4e0d-9a26-69c8cfeade90" name="us-gaap:DepreciationExcludingLessorAssetUnderOperatingLease" scale="6" unitref="U_USD">3,117</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>$</span></p></td>
+<td><p><span><ix:nonfraction contextref="C_a9cda1e4-adb4-4e4e-9d69-f031f773d0d7" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-1620" inside-table="true" ix="F_a3274a1f-fc53-4243-bab6-aab13a6d606c" name="us-gaap:DepreciationExcludingLessorAssetUnderOperatingLease" scale="6" unitref="U_USD">2,898</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>$</span></p></td>
+<td><p><span><ix:nonfraction contextref="C_50ae5b45-4a32-4d36-a7e9-8eb5c56f8b50" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-1621" inside-table="true" ix="F_8f3de4d8-ad98-4b86-ae93-01aef1c6648f" name="us-gaap:DepreciationExcludingLessorAssetUnderOperatingLease" scale="6" unitref="U_USD">2,276</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+</tr>
+<tr>
+<td><p><span>Railroad, utilities and energy</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><ix:nonfraction contextref="C_bbf04874-6e65-471d-90a1-a2de7e93861c" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-1622" inside-table="true" ix="F_3fa62cde-20c1-4308-964c-99b4ea109fc4" name="us-gaap:DepreciationExcludingLessorAssetUnderOperatingLease" scale="6" unitref="U_USD">6,514</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><ix:nonfraction contextref="C_62808cae-b245-4d66-82b9-a66d5d962478" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-1623" inside-table="true" ix="F_38550f38-0a3c-4fbf-b97f-7a24708760f8" name="us-gaap:DepreciationExcludingLessorAssetUnderOperatingLease" scale="6" unitref="U_USD">6,494</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><ix:nonfraction contextref="C_8dc1d99a-e53d-45b0-8f19-ffa9df862cf1" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-1624" inside-table="true" ix="F_d7b33ecf-568c-415c-a5c7-116058a70c25" name="us-gaap:DepreciationExcludingLessorAssetUnderOperatingLease" scale="6" unitref="U_USD">6,181</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+</tr>
+<tr>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>$</span></p></td>
+<td><p><span><ix:nonfraction contextref="C_fc05cf1b-e190-46aa-968d-fdf3a84013da" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-1625" inside-table="true" ix="F_115deaad-3682-4050-abee-06b13fa6e3f3" name="us-gaap:DepreciationExcludingLessorAssetUnderOperatingLease" scale="6" unitref="U_USD">9,631</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>$</span></p></td>
+<td><p><span><ix:nonfraction contextref="C_18c36197-3712-4dfe-8f62-98ad9cc65858" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-1626" inside-table="true" ix="F_698e67a5-e816-4428-92a0-44987935bc06" name="us-gaap:DepreciationExcludingLessorAssetUnderOperatingLease" scale="6" unitref="U_USD">9,392</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>$</span></p></td>
+<td><p><span><ix:nonfraction contextref="C_0c5bfb34-fd33-43a2-943e-42077bf3f707" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-1627" inside-table="true" ix="F_bf92023e-660b-4f9f-9736-b7c922ae1ade" name="us-gaap:DepreciationExcludingLessorAssetUnderOperatingLease" scale="6" unitref="U_USD">8,457</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+</tr>
+</tbody></table><p><span> </span></p></ix:nonnumeric>

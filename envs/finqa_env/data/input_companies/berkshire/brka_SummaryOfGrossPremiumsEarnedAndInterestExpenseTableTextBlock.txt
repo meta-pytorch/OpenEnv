@@ -1,0 +1,79 @@
+<ix:nonnumeric contextref="C_fc05cf1b-e190-46aa-968d-fdf3a84013da" continued-fact="false" enabled-fact="true" escape="true" hover-fact="false" id="fact-identifier-2598" inside-table="false" ix="F_891e016a-c42e-46a8-afef-f7efbaeb034a" name="brka:SummaryOfGrossPremiumsEarnedAndInterestExpenseTableTextBlock" selected-fact="false"><p><span>Gross premiums earned and interest expense before reinsurance ceded for each of the two years ended December 31, 2024 follows (in millions).</span></p>
+<table>
+<tbody><tr>
+<td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td></tr>
+<tr>
+<td><p><span> </span></p></td>
+<td colspan="6"><p><span>Gross Premiums</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td colspan="6"><p><span>Interest Expense</span></p></td>
+<td><p><span> </span></p></td>
+</tr>
+<tr>
+<td><p><span> </span></p></td>
+<td colspan="2"><p><span>2024</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td colspan="2"><p><span>2023</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td colspan="2"><p><span>2024</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td colspan="2"><p><span>2023</span></p></td>
+<td><p><span> </span></p></td>
+</tr>
+<tr>
+<td><p><span>Annuities</span></p></td>
+<td><p><span>$</span></p></td>
+<td><p><span>—</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>$</span></p></td>
+<td><p><span>—</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>$</span></p></td>
+<td><p><span><ix:nonfraction contextref="C_277eae18-7a91-4dc5-be2a-9f77ab1439a2" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-2599" inside-table="true" ix="F_91be9825-efcb-4621-8b01-aa28592265da" name="us-gaap:LiabilityForFuturePolicyBenefitInterestExpense" scale="6" unitref="U_USD">550</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>$</span></p></td>
+<td><p><span><ix:nonfraction contextref="C_66ac7b88-6afb-47e2-9210-3de0dea333a5" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-2600" inside-table="true" ix="F_8fa2e24f-96f9-4c9a-a2c7-a827f00e88c3" name="us-gaap:LiabilityForFuturePolicyBenefitInterestExpense" scale="6" unitref="U_USD">537</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+</tr>
+<tr>
+<td><p><span>Life and health</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><ix:nonfraction contextref="C_f0f3ff08-e9a4-4f57-bbb7-17f873cdae5f" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-2603" inside-table="true" ix="F_7d828936-e314-44ad-9ae8-278e86564d59" name="us-gaap:LiabilityForFuturePolicyBenefitGrossPremiumIncome" scale="6" unitref="U_USD">3,830</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><ix:nonfraction contextref="C_b38537be-4090-4261-b8bb-415ffc713673" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-2604" inside-table="true" ix="F_8f212a91-9383-40c4-aebe-335123925185" name="us-gaap:LiabilityForFuturePolicyBenefitGrossPremiumIncome" scale="6" unitref="U_USD">3,627</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><ix:nonfraction contextref="C_f0f3ff08-e9a4-4f57-bbb7-17f873cdae5f" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-2601" inside-table="true" ix="F_4d1a7686-0d8e-455b-b1ca-7a9c5cf2523d" name="us-gaap:LiabilityForFuturePolicyBenefitInterestExpense" scale="6" unitref="U_USD">135</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><ix:nonfraction contextref="C_b38537be-4090-4261-b8bb-415ffc713673" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-2602" inside-table="true" ix="F_0e97d658-d82b-4392-bc70-bb6a80025d44" name="us-gaap:LiabilityForFuturePolicyBenefitInterestExpense" scale="6" unitref="U_USD">221</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+</tr>
+</tbody></table></ix:nonnumeric>

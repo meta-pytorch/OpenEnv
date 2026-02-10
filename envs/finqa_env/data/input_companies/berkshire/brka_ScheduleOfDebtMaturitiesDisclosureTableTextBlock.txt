@@ -1,0 +1,113 @@
+<ix:nonnumeric contextref="C_fc05cf1b-e190-46aa-968d-fdf3a84013da" continued-fact="false" enabled-fact="true" escape="true" hover-fact="false" id="fact-identifier-2689" inside-table="false" ix="F_b3fb0209-955f-4a62-8166-0b71da75e827" name="brka:ScheduleOfDebtMaturitiesDisclosureTableTextBlock" selected-fact="false"><p><span>Debt principal repayments expected during each of the next five years are as follows (in millions). Amounts in 2025 include short-term borrowings.</span></p><p><span> </span></p>
+<table>
+<tbody><tr>
+<td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td></tr>
+<tr>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td colspan="2"><p><span>2025</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td colspan="2"><p><span>2026</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td colspan="2"><p><span>2027</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td colspan="2"><p><span>2028</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td colspan="2"><p><span>2029</span></p></td>
+<td><p><span> </span></p></td>
+</tr>
+<tr>
+<td><p><span>Insurance and other</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>$</span></p></td>
+<td><p><span><ix:nonfraction contextref="C_14bdbb1a-1355-4a82-a35a-80691631b1a9" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-2690" inside-table="true" ix="F_c74402df-70ea-4b0b-a6c4-18cb187b3ba8" name="brka:RepaymentsOfDebtPrincipalInNextTwelveMonths" scale="6" unitref="U_USD">4,334</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>$</span></p></td>
+<td><p><span><ix:nonfraction contextref="C_14bdbb1a-1355-4a82-a35a-80691631b1a9" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-2694" inside-table="true" ix="F_1a5b0214-e5d3-47cb-88c2-071150e753e5" name="us-gaap:LongTermDebtMaturitiesRepaymentsOfPrincipalInYearTwo" scale="6" unitref="U_USD">4,313</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>$</span></p></td>
+<td><p><span><ix:nonfraction contextref="C_14bdbb1a-1355-4a82-a35a-80691631b1a9" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-2698" inside-table="true" ix="F_ce955954-077c-44f8-91d3-acdc33ece755" name="us-gaap:LongTermDebtMaturitiesRepaymentsOfPrincipalInYearThree" scale="6" unitref="U_USD">4,788</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>$</span></p></td>
+<td><p><span><ix:nonfraction contextref="C_14bdbb1a-1355-4a82-a35a-80691631b1a9" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-2702" inside-table="true" ix="F_5900f715-c7d0-41b5-8304-3b051abfd6c0" name="us-gaap:LongTermDebtMaturitiesRepaymentsOfPrincipalInYearFour" scale="6" unitref="U_USD">2,214</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>$</span></p></td>
+<td><p><span><ix:nonfraction contextref="C_14bdbb1a-1355-4a82-a35a-80691631b1a9" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-2706" inside-table="true" ix="F_63e1f16a-2792-4718-8e48-a291ab2053b2" name="us-gaap:LongTermDebtMaturitiesRepaymentsOfPrincipalInYearFive" scale="6" unitref="U_USD">2,595</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+</tr>
+<tr>
+<td><p><span>Railroad, utilities and energy</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><ix:nonfraction contextref="C_b0358cde-f294-4b97-826c-258297cbca5c" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-2691" inside-table="true" ix="F_679de63d-b5ba-4eda-b6f4-a91a2a769f05" name="brka:RepaymentsOfDebtPrincipalInNextTwelveMonths" scale="6" unitref="U_USD">5,032</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><ix:nonfraction contextref="C_b0358cde-f294-4b97-826c-258297cbca5c" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-2695" inside-table="true" ix="F_9f69a24f-0590-46c8-a006-1cfc22d781f8" name="us-gaap:LongTermDebtMaturitiesRepaymentsOfPrincipalInYearTwo" scale="6" unitref="U_USD">1,435</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><ix:nonfraction contextref="C_b0358cde-f294-4b97-826c-258297cbca5c" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-2699" inside-table="true" ix="F_045adc24-03ac-4c18-87df-4ff4ad5d1b9e" name="us-gaap:LongTermDebtMaturitiesRepaymentsOfPrincipalInYearThree" scale="6" unitref="U_USD">1,632</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><ix:nonfraction contextref="C_b0358cde-f294-4b97-826c-258297cbca5c" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-2703" inside-table="true" ix="F_78b124d7-1c3e-4a3d-a956-8f15bb1f512b" name="us-gaap:LongTermDebtMaturitiesRepaymentsOfPrincipalInYearFour" scale="6" unitref="U_USD">1,749</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><ix:nonfraction contextref="C_b0358cde-f294-4b97-826c-258297cbca5c" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-2707" inside-table="true" ix="F_6c5fd049-9e56-4496-bcf5-620a53517430" name="us-gaap:LongTermDebtMaturitiesRepaymentsOfPrincipalInYearFive" scale="6" unitref="U_USD">3,731</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+</tr>
+<tr>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>$</span></p></td>
+<td><p><span><ix:nonfraction contextref="C_7bf1c469-da4f-4e0d-80ab-b368cc556db0" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-2692" inside-table="true" ix="F_07aeea4d-c575-492d-801b-ca24389547db" name="brka:RepaymentsOfDebtPrincipalInNextTwelveMonths" scale="6" unitref="U_USD">9,366</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>$</span></p></td>
+<td><p><span><ix:nonfraction contextref="C_7bf1c469-da4f-4e0d-80ab-b368cc556db0" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-2696" inside-table="true" ix="F_60801244-3274-4312-9271-7bf169b32798" name="us-gaap:LongTermDebtMaturitiesRepaymentsOfPrincipalInYearTwo" scale="6" unitref="U_USD">5,748</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>$</span></p></td>
+<td><p><span><ix:nonfraction contextref="C_7bf1c469-da4f-4e0d-80ab-b368cc556db0" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-2700" inside-table="true" ix="F_59050362-adca-4e5a-a6b8-41a04b3a94c2" name="us-gaap:LongTermDebtMaturitiesRepaymentsOfPrincipalInYearThree" scale="6" unitref="U_USD">6,420</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>$</span></p></td>
+<td><p><span><ix:nonfraction contextref="C_7bf1c469-da4f-4e0d-80ab-b368cc556db0" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-2704" inside-table="true" ix="F_9df55e4f-5b74-4e8e-8279-85cd6d411e8b" name="us-gaap:LongTermDebtMaturitiesRepaymentsOfPrincipalInYearFour" scale="6" unitref="U_USD">3,963</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>$</span></p></td>
+<td><p><span><ix:nonfraction contextref="C_7bf1c469-da4f-4e0d-80ab-b368cc556db0" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-2708" inside-table="true" ix="F_ab871295-b040-47ed-a468-0e9ee5902633" name="us-gaap:LongTermDebtMaturitiesRepaymentsOfPrincipalInYearFive" scale="6" unitref="U_USD">6,326</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+</tr>
+</tbody></table><p><span> </span></p></ix:nonnumeric>

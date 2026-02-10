@@ -1,0 +1,60 @@
+<ix:nonnumeric contextref="C_fc05cf1b-e190-46aa-968d-fdf3a84013da" continued-fact="false" continued-main-fact="true" continuedat="F_c577a989-aca3-41a6-a624-8b519780b909_1" enabled-fact="true" escape="true" hover-fact="false" id="fact-identifier-3029" inside-table="false" ix="F_c577a989-aca3-41a6-a624-8b519780b909" name="us-gaap:RevenueRemainingPerformanceObligationExpectedTimingOfSatisfactionTableTextBlock" selected-fact="false"><p><span>A summary of the transaction price allocated to the significant unsatisfied remaining performance obligations related to contracts with expected durations exceeding one year as of December 31, 2024 and the timing of when the performance obligations are expected to be satisfied follows (in millions).</span><span> </span></p><p><span> </span></p>
+<table>
+<tbody><tr>
+<td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td><td>
+</td></tr>
+<tr>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td colspan="2"><p><span>Less than<br/>12 months</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td colspan="2"><p><span>Greater than<br/>12 months</span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td colspan="2"><p><span>Total</span></p></td>
+<td><p><span> </span></p></td>
+</tr>
+<tr>
+<td><p><span><span><ix:nonnumeric contextref="C_990faeb7-645f-44a4-9770-1f5b608f5443" format="ixt-sec:duryear" id="fact-identifier-50" inside-table="true" isadditionalitemsonly="true" ishiddenelement="true" ix="F_d799af04-49ce-4687-8138-5f06c0683e87" name="us-gaap:RevenueRemainingPerformanceObligationExpectedTimingOfSatisfactionPeriod1"><span><ix:nonnumeric contextref="C_3cd16fdc-7337-4bf7-a91b-a92bea72c334" id="fact-identifier-51" inside-table="true" isadditionalitemsonly="true" ishiddenelement="true" ix="F_05ff8747-f85b-46f2-9ae3-a9d0003405dd" name="us-gaap:RevenueRemainingPerformanceObligationExpectedTimingOfSatisfactionPeriod1" xsi:nil="true"><span>Electricity and natural gas</span></ix:nonnumeric></span></ix:nonnumeric></span></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>$</span></p></td>
+<td><p><span><ix:nonfraction contextref="C_990faeb7-645f-44a4-9770-1f5b608f5443" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-3030" inside-table="true" ix="F_04793bfb-cb1e-4da9-8d46-4805fe5ef744" name="us-gaap:RevenueRemainingPerformanceObligation" scale="6" unitref="U_USD">3,716</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>$</span></p></td>
+<td><p><span><ix:nonfraction contextref="C_3cd16fdc-7337-4bf7-a91b-a92bea72c334" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-3031" inside-table="true" ix="F_5709760a-4e53-4eea-b55f-9fbdfa202996" name="us-gaap:RevenueRemainingPerformanceObligation" scale="6" unitref="U_USD">18,958</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span>$</span></p></td>
+<td><p><span><ix:nonfraction contextref="C_416b28c7-b0ff-4c85-9182-3c57a97fa9de" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-3032" inside-table="true" ix="F_e9bff664-b7e9-42c7-8edf-35c308dbec2d" name="us-gaap:RevenueRemainingPerformanceObligation" scale="6" unitref="U_USD">22,674</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+</tr>
+<tr>
+<td><p><span><span><ix:nonnumeric contextref="C_f8981d2c-e244-4131-a1a1-ff9dc4c06976" format="ixt-sec:duryear" id="fact-identifier-52" inside-table="true" isadditionalitemsonly="true" ishiddenelement="true" ix="F_aa80bc82-0f02-4d9f-95d3-709ce33ad00b" name="us-gaap:RevenueRemainingPerformanceObligationExpectedTimingOfSatisfactionPeriod1"><span><ix:nonnumeric contextref="C_66475570-2de1-449b-8dcd-ad7ba945e027" id="fact-identifier-53" inside-table="true" isadditionalitemsonly="true" ishiddenelement="true" ix="F_c6337c6a-5e37-472f-824c-c83f2e964aa9" name="us-gaap:RevenueRemainingPerformanceObligationExpectedTimingOfSatisfactionPeriod1" xsi:nil="true"><span>Other sales and service contracts</span></ix:nonnumeric></span></ix:nonnumeric></span></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><ix:nonfraction contextref="C_f8981d2c-e244-4131-a1a1-ff9dc4c06976" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-3033" inside-table="true" ix="F_056c9001-e499-48ed-8fb3-9299772c71a2" name="us-gaap:RevenueRemainingPerformanceObligation" scale="6" unitref="U_USD">3,499</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><ix:nonfraction contextref="C_66475570-2de1-449b-8dcd-ad7ba945e027" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-3034" inside-table="true" ix="F_3a7235a4-1409-46ef-835a-50634d2d679a" name="us-gaap:RevenueRemainingPerformanceObligation" scale="6" unitref="U_USD">4,630</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span> </span></p></td>
+<td><p><span><ix:nonfraction contextref="C_34ef4ebb-9a61-4570-88d0-b75056f0863f" decimals="-6" format="ixt:num-dot-decimal" id="fact-identifier-3035" inside-table="true" ix="F_d1906798-d5f7-4a55-ab41-aca75ce361a1" name="us-gaap:RevenueRemainingPerformanceObligation" scale="6" unitref="U_USD">8,129</ix:nonfraction></span></p></td>
+<td><p><span> </span></p></td>
+</tr>
+</tbody></table></ix:nonnumeric>

@@ -118,7 +118,7 @@ class FinQATools:
         table_info = self.tables_cleaned[table_key].copy()
 
         # Load the actual table to get column info
-        cleaned_table = pd.read_json(table_info["table"])
+        cleaned_table = pd.DataFrame(json.loads(table_info["table"]))
 
         # Drop numeric columns (keep only structure columns for querying hints)
         cols_to_drop = []
