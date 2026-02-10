@@ -15,7 +15,7 @@ OUTPUT_DIR="${2:-./data}"
 
 if [ -z "$HF_REPO_OR_URL" ]; then
     echo "Usage: $0 <hf_repo_or_url> [output_dir]"
-    echo "Example: $0 your-org/finqa-data ./data"
+    echo "Example: $0 snorkelai/finqa-data ./data"
     exit 1
 fi
 
