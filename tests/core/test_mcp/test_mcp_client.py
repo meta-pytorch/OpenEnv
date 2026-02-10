@@ -245,6 +245,7 @@ class TestMCPToolClient:
         client = MCPToolClient.__new__(MCPToolClient)
         client._ws = None
         client._tools_cache = None
+        client.use_production_mode = False
 
         # Mock the step method (now async)
         mock_obs = ListToolsObservation(tools=mock_tools, done=False)

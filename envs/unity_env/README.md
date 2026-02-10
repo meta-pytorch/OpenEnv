@@ -253,6 +253,7 @@ python examples/unity_simple.py --direct --env 3DBall --width 1280 --height 720 
 
 ```bash
 # Build the image first
+cd envs/unity_env
 docker build -f server/Dockerfile -t unity-env:latest .
 
 # Run via Docker with graphics
@@ -557,6 +558,7 @@ docker logs <container_id>
 docker images | grep unity-env
 
 # Rebuild if necessary
+cd envs/unity_env
 docker build -f server/Dockerfile -t unity-env:latest .
 ```
 
