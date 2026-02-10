@@ -462,7 +462,18 @@ _data_available = os.path.isfile(
     os.path.join(DATA_PATH, "benchmark_questions", "finqa.csv")
 )
 
+try:
+    import pandas  # noqa: F401
 
+    _pandas_available = True
+except ImportError:
+    _pandas_available = False
+
+_integration_skip = not (_data_available and _pandas_available)
+_integration_reason = "requires downloaded data and pandas"
+
+
+@pytest.mark.skipif(_integration_skip, reason=_integration_reason)
 class TestTools:
     """Test tool implementations."""
 
@@ -499,6 +510,7 @@ class TestTools:
         assert "Error" in result
 
 
+@pytest.mark.skipif(_integration_skip, reason=_integration_reason)
 class TestEnvironment:
     """Test environment logic."""
 
