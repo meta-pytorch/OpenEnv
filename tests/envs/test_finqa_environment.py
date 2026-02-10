@@ -504,12 +504,6 @@ class TestEnvironment:
 
     @pytest.fixture
     def env(self):
-        from envs.finqa_env.models import (
-            FinQAAction,
-            FinQAObservation,
-            FinQAState,
-            AVAILABLE_TOOLS,
-        )
         from envs.finqa_env.server.finqa_environment import FinQAEnvironment
 
         return FinQAEnvironment(data_path=DATA_PATH, max_steps=10)
