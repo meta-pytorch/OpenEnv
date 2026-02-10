@@ -78,12 +78,18 @@ class FleetTaskEnv:
 
         # Create Fleet environment instance (provisions cloud resources)
         env_spec = self._build_env_spec()
+        # For computer_use tasks, use image_type='mcp' to select the MCP-enabled container
+        # image (e.g., famazon:mcp0.0.7 instead of famazon:0.0.7). The mcp images have:
+        # - scrot installed for screenshots
+        # - MCP server with 'computer' tool for mouse/keyboard control
+        image_type = 'mcp' if self.modality == 'computer_use' else None
         self._orch, self._tools = FleetEnvClient.from_fleet(
             api_key=self.api_key,
             env_key=env_spec,
             data_key=self._get_data_key(),
             data_version=self._get_data_version(),
             env_variables=self._get_env_variables(),
+            image_type=image_type,
             ttl_seconds=self.ttl_seconds,
             request_timeout_s=self.request_timeout_s,
         )
