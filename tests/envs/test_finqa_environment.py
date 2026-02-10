@@ -24,7 +24,11 @@ import pytest
 # Add repo root to path so envs/ is importable
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
-from envs.finqa_env.server.rewards import compute_reward, parse_number, extract_boxed_answer
+from envs.finqa_env.server.rewards import (
+    compute_reward,
+    parse_number,
+    extract_boxed_answer,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -253,7 +257,10 @@ class TestToleranceSettings:
         # With 2% tolerance but abs diff = 2 > 1.0, still fails
         assert compute_reward("102", r"\boxed{100}", tolerance=0.02) == 0.0
         # With 2% tolerance AND max_absolute_diff=3, passes
-        assert compute_reward("102", r"\boxed{100}", tolerance=0.02, max_absolute_diff=3.0) == 1.0
+        assert (
+            compute_reward("102", r"\boxed{100}", tolerance=0.02, max_absolute_diff=3.0)
+            == 1.0
+        )
 
     def test_absolute_tolerance_for_small_numbers(self):
         """Small numbers must pass both relative (1%) AND absolute (1.0) checks."""
@@ -319,7 +326,10 @@ class TestExtremeValues:
         # 1005000 vs 1000000 = 0.5% relative but abs diff = 5000 > 1.0, fails
         assert compute_reward("1005000", r"\boxed{1000000}") == 0.0
         # With custom max_absolute_diff, can pass
-        assert compute_reward("1005000", r"\boxed{1000000}", max_absolute_diff=10000) == 1.0
+        assert (
+            compute_reward("1005000", r"\boxed{1000000}", max_absolute_diff=10000)
+            == 1.0
+        )
 
     def test_very_small_decimals(self):
         """Test very small decimal values."""
@@ -432,10 +442,13 @@ class TestPercentagePointsNotation:
 
     def test_multi_value_in_single_boxed(self):
         """Test comma-separated values inside single \\boxed{} with tolerance."""
-        assert compute_reward(
-            "0.933, 0.931, 0.930",
-            r"\boxed{2022:\ 0.933,\; 2023:\ 0.930,\; 2024:\ 0.931}"
-        ) == 1.0
+        assert (
+            compute_reward(
+                "0.933, 0.931, 0.930",
+                r"\boxed{2022:\ 0.933,\; 2023:\ 0.930,\; 2024:\ 0.931}",
+            )
+            == 1.0
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -445,7 +458,9 @@ class TestPercentagePointsNotation:
 # Data path relative to repo root
 DATA_PATH = str(Path(__file__).parent.parent.parent / "envs" / "finqa_env" / "data")
 
-_data_available = os.path.isfile(os.path.join(DATA_PATH, "benchmark_questions", "finqa.csv"))
+_data_available = os.path.isfile(
+    os.path.join(DATA_PATH, "benchmark_questions", "finqa.csv")
+)
 
 
 class TestTools:
@@ -454,6 +469,7 @@ class TestTools:
     @pytest.fixture
     def tools(self):
         from envs.finqa_env.server.tools import FinQATools
+
         return FinQATools(DATA_PATH)
 
     def test_get_available_companies(self, tools):
@@ -473,7 +489,7 @@ class TestTools:
     def test_get_table_info(self, tools):
         result = tools.get_table_info(
             "alphabet",
-            "us_gaap_ScheduleOfIncomeBeforeIncomeTaxDomesticAndForeignTableTextBlock"
+            "us_gaap_ScheduleOfIncomeBeforeIncomeTaxDomesticAndForeignTableTextBlock",
         )
         assert "Error" not in result
         assert "column_dtypes" in result
@@ -488,12 +504,19 @@ class TestEnvironment:
 
     @pytest.fixture
     def env(self):
-        from envs.finqa_env.models import FinQAAction, FinQAObservation, FinQAState, AVAILABLE_TOOLS
+        from envs.finqa_env.models import (
+            FinQAAction,
+            FinQAObservation,
+            FinQAState,
+            AVAILABLE_TOOLS,
+        )
         from envs.finqa_env.server.finqa_environment import FinQAEnvironment
+
         return FinQAEnvironment(data_path=DATA_PATH, max_steps=10)
 
     def test_reset(self, env):
         from envs.finqa_env.models import FinQAObservation
+
         obs = env.reset()
         assert isinstance(obs, FinQAObservation)
         assert obs.question != ""
@@ -504,10 +527,10 @@ class TestEnvironment:
 
     def test_step_get_descriptions(self, env):
         from envs.finqa_env.models import FinQAAction
+
         obs = env.reset()
         action = FinQAAction(
-            tool_name="get_descriptions",
-            tool_args={"company_name": obs.company}
+            tool_name="get_descriptions", tool_args={"company_name": obs.company}
         )
         obs = env.step(action)
         assert obs.step_count == 1
@@ -516,11 +539,9 @@ class TestEnvironment:
 
     def test_step_submit_answer(self, env):
         from envs.finqa_env.models import FinQAAction
+
         env.reset()
-        action = FinQAAction(
-            tool_name="submit_answer",
-            tool_args={"answer": "6.118"}
-        )
+        action = FinQAAction(tool_name="submit_answer", tool_args={"answer": "6.118"})
         obs = env.step(action)
         assert obs.done is True
         assert obs.reward is not None
@@ -528,11 +549,11 @@ class TestEnvironment:
 
     def test_max_steps_termination(self, env):
         from envs.finqa_env.models import FinQAAction
+
         env.reset()
         for _ in range(10):
             action = FinQAAction(
-                tool_name="get_descriptions",
-                tool_args={"company_name": "test"}
+                tool_name="get_descriptions", tool_args={"company_name": "test"}
             )
             obs = env.step(action)
             if obs.done:
@@ -543,6 +564,7 @@ class TestEnvironment:
 
     def test_state_property(self, env):
         from envs.finqa_env.models import FinQAState
+
         env.reset()
         state = env.state
         assert isinstance(state, FinQAState)
@@ -552,4 +574,3 @@ class TestEnvironment:
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
-
