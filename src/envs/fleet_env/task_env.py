@@ -205,6 +205,15 @@ class FleetTaskEnv:
                 self._tools_cache = []
                 self._tools_fetched = True
 
+        # For computer_use, filter to only the 'computer' tool
+        if self.modality == "computer_use" and self._tools_cache:
+            computer_tools = [
+                t for t in self._tools_cache
+                if t.get("name") == "computer" or t.get("function", {}).get("name") == "computer"
+            ]
+            if computer_tools:
+                self._tools_cache = computer_tools
+
         # Build observation with cached tools
         obs = {
             "prompt": self.prompt,
