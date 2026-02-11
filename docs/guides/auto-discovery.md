@@ -10,6 +10,7 @@ The auto-discovery system provides two main classes:
 - **`AutoAction`**: Automatically loads action classes for environments
 
 Both classes work with:
+
 - **Local packages**: Installed via `pip install openenv-<env-name>`
 - **HuggingFace Hub**: Environments hosted on HuggingFace Spaces
 
@@ -389,6 +390,7 @@ python -c "from openenv import AutoEnv; AutoEnv.list_environments()"
 ```
 
 Each environment package includes:
+
 - Client classes (e.g., `CodingEnv`)
 - Action/Observation models (e.g., `CodeAction`, `CodeObservation`)
 - Server Docker image

@@ -7,6 +7,7 @@ We welcome contributions from the community! OpenEnv is an open-source project a
 ### 🐛 Report Bugs
 
 Found a bug? Please [open an issue](https://github.com/meta-pytorch/OpenEnv/issues/new) with:
+
 - A clear description of the problem
 - Steps to reproduce
 - Expected vs actual behavior
@@ -15,6 +16,7 @@ Found a bug? Please [open an issue](https://github.com/meta-pytorch/OpenEnv/issu
 ### 💡 Suggest Features
 
 Have an idea? Open a [feature request](https://github.com/meta-pytorch/OpenEnv/issues/new) describing:
+
 - The problem you're trying to solve
 - Your proposed solution
 - Any alternatives you've considered
@@ -26,6 +28,7 @@ One of the best ways to contribute is to add a new environment! See the [Buildin
 ### 📝 Improve Documentation
 
 Documentation improvements are always welcome:
+
 - Fix typos or unclear explanations
 - Add examples
 - Write tutorials
