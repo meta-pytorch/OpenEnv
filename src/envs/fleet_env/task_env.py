@@ -194,7 +194,8 @@ class FleetTaskEnv:
                 logger.warning(f"Fleet env reset failed, continuing with empty observation: {e}")
 
         # Fetch tools lazily on first reset (avoids asyncio.run in __init__)
-        if self.modality == "tool_use" and self._tools and not self._tools_fetched:
+        # Note: Fetch tools for ALL modalities (tool_use and computer_use both need tools)
+        if self._tools and not self._tools_fetched:
             try:
                 tools_result = await self._tools.list_tools()
                 self._tools_cache = tools_result.tools
