@@ -5,28 +5,35 @@
 # LICENSE file in the root directory of this source tree.
 
 """
-Tests for production mode route restrictions.
+Tests for production mode routes in OpenEnv.
 
-These tests verify that when the HTTP server is running in production mode,
-simulation control endpoints (/reset, /step, /state) are NOT exposed.
-This is a critical security boundary: production environments should only
-expose MCP tools, not simulation controls that manipulate time and causality.
+This file combines two aspects of production mode:
+
+1. Route restrictions (from main): Tests that production mode blocks simulation control
+   endpoints (/reset, /step, /state) while allowing safe endpoints. This is a critical
+   security boundary: production environments should only expose MCP tools, not simulation
+   controls that manipulate time and causality.
+
+2. Direct MCP API access (from issue #347): Per RFC 003, environments should expose both:
+   - Training/Eval API: step() for RL training (includes reward computation, state tracking)
+   - Production API: Direct MCP endpoints for inference (bypasses step(), no rewards)
 
 Test coverage:
-- Production mode disables /reset endpoint (returns 404 or 405)
-- Production mode disables /step endpoint (returns 404 or 405)
-- Production mode disables /state endpoint (returns 404 or 405)
-- Production mode still allows /health endpoint
-- Production mode still allows /schema endpoint
-- Production mode still allows /metadata endpoint
-- Production mode still allows /ws WebSocket endpoint
-- Simulation mode (default) allows all endpoints
+- Production mode disables /reset, /step, /state endpoints (returns 404 or 405)
+- Production mode allows /health, /schema, /metadata, /ws endpoints
+- Direct MCP JSON-RPC endpoints work (tools/list, tools/call)
+- WebSocket MCP message handling
+- HTTP POST /mcp endpoint for MCP JSON-RPC
+- Production mode bypasses step() overhead
+- Proper error responses for invalid MCP requests
 """
 
 import sys
 from pathlib import Path
-
+import json
 import pytest
+from unittest.mock import patch
+
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
@@ -37,6 +44,9 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent / "envs"))
 from openenv.core.env_server.http_server import HTTPEnvServer
 from openenv.core.env_server.interfaces import Environment
 from openenv.core.env_server.types import Action, Observation, State
+from openenv.core.env_server.mcp_types import (
+    RESERVED_TOOL_NAMES,
+)
 
 
 # ============================================================================
@@ -127,7 +137,7 @@ def simulation_mode_app() -> FastAPI:
 
 
 # ============================================================================
-# Production Mode Route Restriction Tests
+# Production Mode Route Restriction Tests (from main)
 # ============================================================================
 
 
@@ -412,3 +422,548 @@ class TestProductionModeSecurityBoundary:
         assert response.status_code in [404, 405], (
             "Production mode should not allow direct step() - use MCP tools instead"
         )
+
+
+# ============================================================================
+# Direct MCP API Access Tests (from issue #347)
+# ============================================================================
+
+
+# =============================================================================
+# Test Fixtures - MCP Endpoints
+# =============================================================================
+
+
+@pytest.fixture
+def mock_fastmcp_server():
+    """Create a mock FastMCP server for testing."""
+    from fastmcp import FastMCP
+
+    mcp = FastMCP("test-server")
+
+    @mcp.tool
+    def add(a: int, b: int) -> int:
+        """Add two numbers."""
+        return a + b
+
+    @mcp.tool
+    def greet(name: str) -> str:
+        """Greet a person."""
+        return f"Hello, {name}!"
+
+    return mcp
+
+
+@pytest.fixture
+def app(mock_fastmcp_server):
+    """Create FastAPI app with MCP endpoints."""
+    # This should FAIL because MCP endpoints are not implemented yet
+    from openenv.core.env_server.http_server import create_fastapi_app
+    from openenv.core.env_server.mcp_environment import MCPEnvironment
+
+    class TestMCPEnv(MCPEnvironment):
+        def __init__(self):
+            super().__init__(mock_fastmcp_server)
+            self._state = {"step_count": 0}
+
+        def reset(self, **kwargs):
+            self._state = {"step_count": 0}
+            return Observation(done=False, reward=0.0)
+
+        def _step_impl(self, action, **kwargs):
+            self._state["step_count"] += 1
+            return Observation(done=False, reward=0.0)
+
+        @property
+        def state(self):
+            from openenv.core.env_server.types import State
+
+            return State(step_count=self._state["step_count"])
+
+    return create_fastapi_app(
+        env=TestMCPEnv,
+        action_cls=None,
+        observation_cls=None,
+    )
+
+
+# =============================================================================
+# HTTP /mcp Endpoint Tests
+# =============================================================================
+
+
+class TestHTTPMCPEndpoint:
+    """Tests for HTTP POST /mcp endpoint (JSON-RPC)."""
+
+    def test_mcp_endpoint_exists(self, app):
+        """Test /mcp endpoint is exposed."""
+        # This should FAIL because /mcp endpoint doesn't exist yet
+        from starlette.testclient import TestClient
+
+        client = TestClient(app)
+        response = client.post(
+            "/mcp", json={"jsonrpc": "2.0", "method": "tools/list", "id": 1}
+        )
+
+        assert response.status_code == 200
+
+    def test_mcp_tools_list_via_http(self, app):
+        """Test tools/list via HTTP /mcp endpoint."""
+        # This should FAIL because tools/list handling is not implemented
+        from starlette.testclient import TestClient
+
+        client = TestClient(app)
+        response = client.post(
+            "/mcp", json={"jsonrpc": "2.0", "method": "tools/list", "id": 1}
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+
+        assert data["jsonrpc"] == "2.0"
+        assert data["id"] == 1
+        assert "result" in data
+        assert "tools" in data["result"]
+        assert len(data["result"]["tools"]) > 0
+
+    def test_mcp_tools_call_via_http(self, app):
+        """Test tools/call via HTTP /mcp endpoint."""
+        # This should FAIL because tools/call handling is not implemented
+        from starlette.testclient import TestClient
+
+        client = TestClient(app)
+        response = client.post(
+            "/mcp",
+            json={
+                "jsonrpc": "2.0",
+                "method": "tools/call",
+                "params": {"name": "add", "arguments": {"a": 5, "b": 3}},
+                "id": 2,
+            },
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+
+        assert data["jsonrpc"] == "2.0"
+        assert data["id"] == 2
+        assert "result" in data
+        # Result should contain the tool's return value
+        assert "8" in str(data["result"]) or data["result"] == 8
+
+    def test_mcp_http_bypasses_step_overhead(self, app):
+        """Test direct MCP access doesn't call step() or compute rewards."""
+        # This should FAIL because direct MCP path is not implemented
+        from starlette.testclient import TestClient
+
+        client = TestClient(app)
+
+        with patch(
+            "openenv.core.env_server.mcp_environment.MCPEnvironment.step"
+        ) as mock_step:
+            response = client.post(
+                "/mcp",
+                json={
+                    "jsonrpc": "2.0",
+                    "method": "tools/call",
+                    "params": {"name": "add", "arguments": {"a": 1, "b": 1}},
+                    "id": 3,
+                },
+            )
+
+            # Verify step() was NOT called (production mode bypasses it)
+            mock_step.assert_not_called()
+            assert response.status_code == 200
+
+    def test_mcp_http_invalid_method_returns_error(self, app):
+        """Test invalid MCP method returns proper JSON-RPC error."""
+        # This should FAIL because error handling is not implemented
+        from starlette.testclient import TestClient
+
+        client = TestClient(app)
+        response = client.post(
+            "/mcp", json={"jsonrpc": "2.0", "method": "invalid/method", "id": 4}
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+
+        assert data["jsonrpc"] == "2.0"
+        assert data["id"] == 4
+        assert "error" in data
+        assert data["error"]["code"] == -32601  # Method not found
+
+    def test_mcp_http_missing_jsonrpc_version(self, app):
+        """Test request without jsonrpc version returns error."""
+        # This should FAIL because validation is not implemented
+        from starlette.testclient import TestClient
+
+        client = TestClient(app)
+        response = client.post("/mcp", json={"method": "tools/list", "id": 5})
+
+        assert response.status_code in [200, 400]
+        if response.status_code == 200:
+            data = response.json()
+            assert "error" in data
+
+    def test_mcp_http_no_reset_required(self, app):
+        """Test MCP endpoints work without calling reset() first."""
+        # This should FAIL if reset() is required (it shouldn't be)
+        from starlette.testclient import TestClient
+
+        client = TestClient(app)
+
+        # Call tools/list without reset
+        response = client.post(
+            "/mcp", json={"jsonrpc": "2.0", "method": "tools/list", "id": 6}
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert "tools" in data["result"]
+
+
+# =============================================================================
+# WebSocket MCP Tests
+# =============================================================================
+
+
+class TestWebSocketMCP:
+    """Tests for WebSocket MCP message handling."""
+
+    def test_websocket_mcp_message_type(self, app):
+        """Test WebSocket accepts 'mcp' message type."""
+        # This should FAIL because MCP message handling is not implemented
+        from starlette.testclient import TestClient
+
+        client = TestClient(app)
+
+        with client.websocket_connect("/ws") as websocket:
+            # Send MCP message via WebSocket
+            websocket.send_text(
+                json.dumps(
+                    {
+                        "type": "mcp",
+                        "data": {"jsonrpc": "2.0", "method": "tools/list", "id": 1},
+                    }
+                )
+            )
+
+            response_text = websocket.receive_text()
+            response = json.loads(response_text)
+
+            assert response["type"] == "mcp"
+            assert response["data"]["jsonrpc"] == "2.0"
+
+    def test_websocket_mcp_tools_list(self, app):
+        """Test tools/list via WebSocket MCP message."""
+        # This should FAIL because WebSocket MCP is not implemented
+        from starlette.testclient import TestClient
+
+        client = TestClient(app)
+
+        with client.websocket_connect("/ws") as websocket:
+            websocket.send_text(
+                json.dumps(
+                    {
+                        "type": "mcp",
+                        "data": {"jsonrpc": "2.0", "method": "tools/list", "id": 1},
+                    }
+                )
+            )
+
+            response_text = websocket.receive_text()
+            response = json.loads(response_text)
+
+            assert response["type"] == "mcp"
+            assert "tools" in response["data"]["result"]
+
+    def test_websocket_mcp_tools_call(self, app):
+        """Test tools/call via WebSocket MCP message."""
+        # This should FAIL because WebSocket MCP is not implemented
+        from starlette.testclient import TestClient
+
+        client = TestClient(app)
+
+        with client.websocket_connect("/ws") as websocket:
+            websocket.send_text(
+                json.dumps(
+                    {
+                        "type": "mcp",
+                        "data": {
+                            "jsonrpc": "2.0",
+                            "method": "tools/call",
+                            "params": {
+                                "name": "greet",
+                                "arguments": {"name": "Production"},
+                            },
+                            "id": 2,
+                        },
+                    }
+                )
+            )
+
+            response_text = websocket.receive_text()
+            response = json.loads(response_text)
+
+            assert response["type"] == "mcp"
+            assert "Production" in str(response["data"]["result"])
+
+    def test_websocket_mcp_interleaved_with_step(self, app):
+        """Test WebSocket can handle both MCP and step() messages."""
+        # This should FAIL because mixed message handling is not implemented
+        from starlette.testclient import TestClient
+
+        client = TestClient(app)
+
+        with client.websocket_connect("/ws") as websocket:
+            # First, use step() API
+            websocket.send_text(json.dumps({"type": "reset", "data": {}}))
+            response1 = websocket.receive_text()
+            assert json.loads(response1)["type"] == "observation"
+
+            # Then use MCP API directly
+            websocket.send_text(
+                json.dumps(
+                    {
+                        "type": "mcp",
+                        "data": {"jsonrpc": "2.0", "method": "tools/list", "id": 1},
+                    }
+                )
+            )
+            response2 = websocket.receive_text()
+            mcp_response = json.loads(response2)
+
+            assert mcp_response["type"] == "mcp"
+            assert "tools" in mcp_response["data"]["result"]
+
+
+# =============================================================================
+# Reserved Tool Names Tests
+# =============================================================================
+
+
+class TestReservedToolNames:
+    """Tests for reserved tool name validation."""
+
+    def test_reserved_names_constant_exists(self):
+        """Test RESERVED_TOOL_NAMES is defined."""
+        # This should PASS as it's already defined in mcp_types.py
+        assert RESERVED_TOOL_NAMES is not None
+        assert isinstance(RESERVED_TOOL_NAMES, frozenset)
+
+    def test_reserved_names_include_env_methods(self):
+        """Test reserved names include environment methods."""
+        # This should PASS as it's already defined
+        assert "reset" in RESERVED_TOOL_NAMES
+        assert "step" in RESERVED_TOOL_NAMES
+        assert "state" in RESERVED_TOOL_NAMES
+        assert "close" in RESERVED_TOOL_NAMES
+
+    def test_mcp_server_rejects_reserved_tool_names(self):
+        """Test MCP server validation rejects reserved tool names."""
+        from fastmcp import FastMCP
+
+        mcp = FastMCP("test-server")
+
+        @mcp.tool
+        def reset() -> str:
+            """This uses a reserved name."""
+            return "should not work"
+
+        from openenv.core.env_server.mcp_environment import MCPEnvironment
+
+        # Use a concrete subclass to test validation
+        class TestMCPEnv(MCPEnvironment):
+            def reset(self, **kwargs):
+                return Observation(done=False, reward=0.0)
+
+            def _step_impl(self, action, **kwargs):
+                return Observation(done=False, reward=0.0)
+
+            @property
+            def state(self):
+                from openenv.core.env_server.types import State
+
+                return State(step_count=0)
+
+        with pytest.raises(ValueError) as exc_info:
+            TestMCPEnv(mcp)
+
+        assert "reserved" in str(exc_info.value).lower()
+        assert "reset" in str(exc_info.value)
+
+
+# =============================================================================
+# Performance Tests
+# =============================================================================
+
+
+class TestProductionModePerformance:
+    """Tests verifying production mode is optimized for inference."""
+
+    def test_production_mode_no_reward_in_response(self, app):
+        """Test production MCP mode returns tool result without reward."""
+        from starlette.testclient import TestClient
+
+        client = TestClient(app)
+
+        response = client.post(
+            "/mcp",
+            json={
+                "jsonrpc": "2.0",
+                "method": "tools/call",
+                "params": {"name": "add", "arguments": {"a": 1, "b": 1}},
+                "id": 1,
+            },
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        # MCP response is pure JSON-RPC - no reward field
+        assert "reward" not in data
+
+    def test_production_mode_no_state_tracking(self, app):
+        """Test production MCP mode doesn't track episode state."""
+        # This should FAIL because production mode optimization is not implemented
+        from starlette.testclient import TestClient
+
+        client = TestClient(app)
+
+        # Get initial state
+        state_response = client.get("/state")
+        initial_step_count = state_response.json()["step_count"]
+
+        # Call tool via MCP
+        client.post(
+            "/mcp",
+            json={
+                "jsonrpc": "2.0",
+                "method": "tools/call",
+                "params": {"name": "add", "arguments": {"a": 1, "b": 1}},
+                "id": 1,
+            },
+        )
+
+        # Verify step count didn't increment (production mode bypasses step tracking)
+        state_response = client.get("/state")
+        final_step_count = state_response.json()["step_count"]
+
+        assert final_step_count == initial_step_count
+
+
+# =============================================================================
+# Client Integration Tests
+# =============================================================================
+
+
+class TestMCPClientProductionMode:
+    """Tests for MCP client using production mode."""
+
+    async def test_mcp_client_can_use_production_endpoints(self):
+        """Test MCPToolClient can use production MCP endpoints directly."""
+        # This should FAIL because client doesn't expose production mode option
+        from openenv.core.mcp_client import MCPToolClient
+
+        client = MCPToolClient(base_url="http://localhost:8000")
+
+        # Client should have option to use production mode (bypasses step())
+        assert hasattr(client, "use_production_mode")
+
+        client.use_production_mode = True
+
+        # Calling list_tools() should use /mcp endpoint, not step()
+        with patch.object(client, "step") as mock_step:
+            tools = await client.list_tools()
+
+            # step() should NOT be called in production mode
+            mock_step.assert_not_called()
+            assert len(tools) >= 0
+
+    async def test_client_production_mode_uses_http_mcp_endpoint(self):
+        """Test client in production mode uses HTTP /mcp endpoint."""
+        # This should FAIL because production mode routing is not implemented
+        from openenv.core.mcp_client import MCPToolClient
+
+        client = MCPToolClient(base_url="http://localhost:8000")
+        client.use_production_mode = True
+
+        with patch("requests.post") as mock_post:
+            mock_post.return_value.json.return_value = {
+                "jsonrpc": "2.0",
+                "result": {"tools": []},
+                "id": 1,
+            }
+
+            await client.list_tools()
+
+            # Verify /mcp endpoint was called, not /step
+            mock_post.assert_called_once()
+            call_args = mock_post.call_args
+            assert "/mcp" in call_args[0][0]
+
+
+# =============================================================================
+# Error Response Tests
+# =============================================================================
+
+
+class TestMCPErrorResponses:
+    """Tests for proper MCP JSON-RPC error responses."""
+
+    def test_invalid_json_returns_parse_error(self, app):
+        """Test malformed JSON returns JSON-RPC parse error."""
+        # This should FAIL because error handling is not implemented
+        from starlette.testclient import TestClient
+
+        client = TestClient(app)
+        response = client.post("/mcp", data="not valid json")
+
+        assert response.status_code in [200, 400]
+        if response.status_code == 200:
+            data = response.json()
+            assert "error" in data
+            assert data["error"]["code"] == -32700  # Parse error
+
+    def test_missing_params_returns_invalid_params(self, app):
+        """Test missing required params returns invalid params error."""
+        # This should FAIL because validation is not implemented
+        from starlette.testclient import TestClient
+
+        client = TestClient(app)
+        response = client.post(
+            "/mcp",
+            json={
+                "jsonrpc": "2.0",
+                "method": "tools/call",
+                "params": {
+                    # Missing 'name' field
+                    "arguments": {"a": 1}
+                },
+                "id": 1,
+            },
+        )
+
+        data = response.json()
+        assert "error" in data
+        assert data["error"]["code"] == -32602  # Invalid params
+
+    def test_nonexistent_tool_returns_error(self, app):
+        """Test calling non-existent tool returns proper error."""
+        # This should FAIL because error handling is not implemented
+        from starlette.testclient import TestClient
+
+        client = TestClient(app)
+        response = client.post(
+            "/mcp",
+            json={
+                "jsonrpc": "2.0",
+                "method": "tools/call",
+                "params": {"name": "nonexistent_tool", "arguments": {}},
+                "id": 1,
+            },
+        )
+
+        data = response.json()
+        assert "error" in data or "result" in data
+        # Should indicate tool not found

@@ -39,17 +39,6 @@ if [ "$BRANCH" = "main" ] || [ "$BRANCH" = "master" ]; then
 fi
 echo "On branch: $BRANCH"
 
-# === Worktree Check (SOFT WARNING) ===
-echo ""
-echo "=== Worktree Check ==="
-TOPLEVEL=$(git rev-parse --show-toplevel 2>/dev/null)
-if [ -f "$TOPLEVEL/.git" ]; then
-    echo "Working in worktree: $TOPLEVEL"
-else
-    echo "NOTE: Not in a worktree (working in main clone)"
-    echo "  Consider using worktrees for feature development"
-fi
-
 # === Format Check ===
 echo ""
 echo "=== Format Check ==="
@@ -279,7 +268,7 @@ echo ""
 echo "Git hooks installed successfully!"
 echo ""
 echo "Hooks installed:"
-echo "  - pre-commit: branch check, worktree warning, format, lint, check-debug"
+echo "  - pre-commit: branch check, format, lint, check-debug"
 echo "  - commit-msg: issue reference reminder (soft warning)"
 echo "  - pre-push: format, lint, tests, check-debug, invariant checks, conflict detection"
 echo "  - post-merge: worktree cleanup reminder"

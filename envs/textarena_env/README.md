@@ -65,7 +65,8 @@ That's it! The `TextArenaEnv.from_docker_image()` method handles:
 Before using the environment, you need to build the Docker image:
 
 ```bash
-# From project root
+# From the textarena_env directory
+cd envs/textarena_env
 docker build -t textarena-env:latest -f server/Dockerfile .
 ```
 

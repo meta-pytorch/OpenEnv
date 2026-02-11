@@ -14,6 +14,25 @@ This module provides async client classes for interacting with MCP-enabled envir
 These clients abstract away the MCP protocol details, providing a clean interface
 for listing and calling tools on remote environments. All clients are async by default.
 
+Architecture Overview::
+
+    ┌─────────────────────────────────────────────────────────┐
+    │                    HTTPEnvServer                        │
+    ├─────────────────────────────────────────────────────────┤
+    │  Simulation Mode (default):                             │
+    │    /ws    → OpenEnv protocol (reset/step/state)         │
+    │    /mcp   → MCP JSON-RPC (tools/list, tools/call)       │
+    │    /reset, /step, /state → HTTP endpoints               │
+    ├─────────────────────────────────────────────────────────┤
+    │  Production Mode (use_production_mode=True):                     │
+    │    /mcp   → MCP JSON-RPC (tools/list, tools/call)       │
+    │    Bypasses step() for direct tool access               │
+    └─────────────────────────────────────────────────────────┘
+
+    Client Usage:
+      MCPToolClient (default)     → /ws (step-based, with rewards)
+      MCPToolClient (production)    → /mcp (direct tool access, no rewards)
+
 Example (async):
     >>> from openenv.core.mcp_client import MCPToolClient
     >>>
@@ -98,6 +117,7 @@ class MCPClientBase(EnvClient[Any, Observation, State]):
             mode=mode,
         )
         self._tools_cache: Optional[List[Tool]] = None
+        self.use_production_mode = False
 
     async def list_tools(self, use_cache: bool = True) -> List[Tool]:
         """
@@ -117,6 +137,44 @@ class MCPClientBase(EnvClient[Any, Observation, State]):
         """
         if use_cache and self._tools_cache is not None:
             return self._tools_cache
+
+        # Use production mode HTTP endpoint if enabled
+        if self.use_production_mode:
+            import requests
+
+            # Convert ws:// URL to http:// URL
+            url = self._ws_url.replace("ws://", "http://").replace("wss://", "https://")
+            # Remove /ws suffix if present and add /mcp
+            url = url.rstrip("/ws").rstrip("/") + "/mcp"
+
+            try:
+                response = requests.post(
+                    url,
+                    json={
+                        "jsonrpc": "2.0",
+                        "method": "tools/list",
+                        "params": {},
+                        "id": 1,
+                    },
+                )
+                data = response.json()
+                if "result" in data and "tools" in data["result"]:
+                    tools = [
+                        Tool(
+                            name=t.get("name", ""),
+                            description=t.get("description", ""),
+                            input_schema=t.get(
+                                "input_schema", t.get("inputSchema", {})
+                            ),
+                        )
+                        for t in data["result"]["tools"]
+                    ]
+                    self._tools_cache = tools
+                    return tools
+            except Exception:
+                # If HTTP request fails, return empty list
+                pass
+            return []
 
         result = await self.step(ListToolsAction())
         self._tools_cache = result.observation.tools

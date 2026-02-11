@@ -175,7 +175,7 @@ From the repository root:
 docker build -t openenv-base:latest -f src/openenv/core/containers/images/Dockerfile .
 
 # Build snake environment image
-docker build -t snake-env:latest -f src/envs/snake_env/server/Dockerfile .
+docker build -t snake-env:latest -f envs/snake_env/server/Dockerfile .
 ```
 
 The Dockerfile uses `pip install` with `requirements.txt` for maximum compatibility.
