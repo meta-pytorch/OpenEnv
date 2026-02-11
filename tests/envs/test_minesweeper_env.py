@@ -38,7 +38,7 @@ class TestMinesweeperEnv(unittest.TestCase):
     def setUpClass(cls):
         """Start the server once for all tests."""
         cls.server_process = subprocess.Popen(
-            ["python", "-m", "envs.minesweeper_env.server.app"],
+            [sys.executable, "-m", "envs.minesweeper_env.server.app"],
             stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
@@ -67,15 +67,21 @@ class TestMinesweeperEnv(unittest.TestCase):
                 if stream and not stream.closed:
                     stream.close()
 
+    def setUp(self):
+        """Create a fresh client for each test."""
+        self.client = MinesweeperEnv(base_url="http://127.0.0.1:8000")
+
+    def tearDown(self):
+        """Close the client after each test to free the session slot."""
+        self.client.close()
+
     def test_minesweeper_env_client(self):
         """Test Minesweeper environment client initialization."""
-        client = MinesweeperEnv(base_url="http://127.0.0.1:8000")
-        assert isinstance(client, MinesweeperEnv)
+        assert isinstance(self.client, MinesweeperEnv)
 
     def test_minesweeper_initial_state(self):
         """Test the initial state after reset."""
-        client = MinesweeperEnv(base_url="http://127.0.0.1:8000")
-        result = client.reset()
+        result = self.client.reset()
         observation = result.observation
 
         # Check observation type and attributes
@@ -108,12 +114,11 @@ class TestMinesweeperEnv(unittest.TestCase):
 
     def test_reveal_action(self):
         """Test revealing a cell."""
-        client = MinesweeperEnv(base_url="http://127.0.0.1:8000")
-        client.reset()
+        self.client.reset()
 
         # Try revealing a cell
         action = MinesweeperAction(row=0, col=0, action_type="reveal")
-        result = client.step(action)
+        result = self.client.step(action)
         observation = result.observation
 
         assert isinstance(observation, MinesweeperObservation)
@@ -121,12 +126,11 @@ class TestMinesweeperEnv(unittest.TestCase):
 
     def test_flag_action(self):
         """Test placing a flag."""
-        client = MinesweeperEnv(base_url="http://127.0.0.1:8000")
-        client.reset()
+        self.client.reset()
 
         # Place a flag
         action = MinesweeperAction(row=1, col=1, action_type="flag")
-        result = client.step(action)
+        result = self.client.step(action)
         observation = result.observation
 
         assert isinstance(observation, MinesweeperObservation)
@@ -135,75 +139,71 @@ class TestMinesweeperEnv(unittest.TestCase):
 
     def test_toggle_flag(self):
         """Test toggling a flag on and off."""
-        client = MinesweeperEnv(base_url="http://127.0.0.1:8000")
-        client.reset()
+        self.client.reset()
 
         # Place a flag
         action = MinesweeperAction(row=2, col=2, action_type="flag")
-        result = client.step(action)
+        result = self.client.step(action)
         observation = result.observation
         assert observation.flags_placed == 1
 
         # Remove the flag
         action = MinesweeperAction(row=2, col=2, action_type="flag")
-        result = client.step(action)
+        result = self.client.step(action)
         observation = result.observation
         assert observation.flags_placed == 0, "Flag should be removed"
 
     def test_invalid_position(self):
         """Test action with invalid position."""
-        client = MinesweeperEnv(base_url="http://127.0.0.1:8000")
-        client.reset()
+        self.client.reset()
 
         # Try invalid row
         action = MinesweeperAction(row=10, col=0, action_type="reveal")
-        result = client.step(action)
+        result = self.client.step(action)
         observation = result.observation
 
         assert observation.reward < 0, "Should receive negative reward for invalid action"
 
         # Try invalid column
         action = MinesweeperAction(row=0, col=10, action_type="reveal")
-        result = client.step(action)
+        result = self.client.step(action)
         observation = result.observation
 
         assert observation.reward < 0, "Should receive negative reward for invalid action"
 
     def test_reveal_already_revealed(self):
         """Test revealing an already revealed cell."""
-        client = MinesweeperEnv(base_url="http://127.0.0.1:8000")
-        client.reset()
+        self.client.reset()
 
         # Reveal a cell - try multiple cells to ensure one gets revealed
         # (some cells might cascade reveal if they have 0 adjacent mines)
         action = MinesweeperAction(row=2, col=2, action_type="reveal")
-        result = client.step(action)
+        result = self.client.step(action)
         first_reward = result.observation.reward
 
         # Make sure the cell was actually revealed (could be revealed by cascade)
         # If it wasn't revealed successfully, try another cell
         if result.observation.board[2][2] == -1:
             action = MinesweeperAction(row=1, col=1, action_type="reveal")
-            result = client.step(action)
+            result = self.client.step(action)
             test_row, test_col = 1, 1
         else:
             test_row, test_col = 2, 2
 
         # Try revealing the same cell again
         action = MinesweeperAction(row=test_row, col=test_col, action_type="reveal")
-        result = client.step(action)
+        result = self.client.step(action)
         second_reward = result.observation.reward
 
         assert second_reward < 0, f"Should receive penalty for revealing already revealed cell, got {second_reward}"
 
     def test_game_status_ongoing(self):
         """Test that game status remains ONGOING during normal play."""
-        client = MinesweeperEnv(base_url="http://127.0.0.1:8000")
-        client.reset()
+        self.client.reset()
 
         # Make a few safe moves
         action = MinesweeperAction(row=0, col=0, action_type="reveal")
-        result = client.step(action)
+        result = self.client.step(action)
 
         # Game should still be ongoing if we didn't hit a mine or win
         # Handle both int and enum types for game_status
@@ -213,12 +213,11 @@ class TestMinesweeperEnv(unittest.TestCase):
 
     def test_board_cell_values(self):
         """Test that board cells contain valid values."""
-        client = MinesweeperEnv(base_url="http://127.0.0.1:8000")
-        client.reset()
+        self.client.reset()
 
         # Reveal a cell
         action = MinesweeperAction(row=2, col=2, action_type="reveal")
-        result = client.step(action)
+        result = self.client.step(action)
         observation = result.observation
 
         # Check that revealed cells have valid values (0-8 or '*')
@@ -233,8 +232,7 @@ class TestMinesweeperEnv(unittest.TestCase):
 
     def test_metadata_in_observation(self):
         """Test that observations contain metadata."""
-        client = MinesweeperEnv(base_url="http://127.0.0.1:8000")
-        result = client.reset()
+        result = self.client.reset()
         observation = result.observation
 
         assert hasattr(observation, "metadata"), "Observation should have metadata"
@@ -242,8 +240,7 @@ class TestMinesweeperEnv(unittest.TestCase):
 
     def test_multiple_steps(self):
         """Test taking multiple steps in the environment."""
-        client = MinesweeperEnv(base_url="http://127.0.0.1:8000")
-        client.reset()
+        self.client.reset()
 
         # Take several actions
         actions = [
@@ -253,20 +250,18 @@ class TestMinesweeperEnv(unittest.TestCase):
         ]
 
         for action in actions:
-            result = client.step(action)
+            result = self.client.step(action)
             assert isinstance(result.observation, MinesweeperObservation)
 
     def test_reset_clears_state(self):
         """Test that reset properly clears the game state."""
-        client = MinesweeperEnv(base_url="http://127.0.0.1:8000")
-
         # First game
-        client.reset()
+        self.client.reset()
         action = MinesweeperAction(row=0, col=0, action_type="flag")
-        client.step(action)
+        self.client.step(action)
 
         # Reset and check state is cleared
-        result = client.reset()
+        result = self.client.reset()
         observation = result.observation
 
         assert observation.flags_placed == 0, "Flags should be cleared after reset"
