@@ -259,9 +259,8 @@ class AtariEnvironment(Environment):
                 # Encode to base64
                 img_str = base64.b64encode(buffered.getvalue()).decode("utf-8")
                 obs.screen_image = f"data:image/png;base64,{img_str}"
-            except Exception as e:
-                # Fallback if image generation fails
-                # Fallback if image generation fails - logged at server level
+            except Exception:
+                # Silently skip image generation if it fails
                 pass
         
         return obs
