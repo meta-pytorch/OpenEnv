@@ -19,7 +19,7 @@ tags:
 
 Embodied evaluation environment for testing LLM decision-making in simulated scenarios with **temporal flow** and **irreversible consequences**.
 
-Inspired by [sinatras/carla-env](https://github.com/SinatrasC/carla-env), this implementation provides:
+**Built on OpenEnv framework** with scenarios and navigation agents adapted from [sinatras/carla-env](https://github.com/SinatrasC/carla-env). This implementation provides:
 - Stateful, time-stepped interaction where actions have real consequences
 - Scenario-based testing (trolley problems, navigation, custom scenarios)
 - Support for both **real CARLA 0.10.0 simulation** (GPU, UE5.5) and **mock mode** (CPU-only)
@@ -489,6 +489,16 @@ Try the environment without installation:
 - **Blog Post**: [Carla-Env: Giving Models Access to World Simulation](https://blog.sinatras.dev/Carla-Env)
 - **CARLA Simulator**: [carla.org](https://carla.org/)
 - **CARLA 0.10.0 Release**: [CARLA 0.10.0 with UE5.5](https://carla.org/2024/12/19/release-0.10.0/)
+
+## Acknowledgments
+
+This implementation adapts scenarios and navigation agents from [sinatras/carla-env](https://github.com/SinatrasC/carla-env):
+- Trolley micro-benchmark scenarios
+- Action-bias scenarios
+- CARLA navigation agents (BasicAgent, BehaviorAgent)
+- Scenario architecture and reward systems
+
+We've adapted these components to work with the OpenEnv framework (HTTP/WebSocket API, Pydantic models) while preserving the core CARLA logic and evaluation methodology. See the original [blog post](https://blog.sinatras.dev/Carla-Env) for the design philosophy behind these scenarios.
 
 ## Citation
 

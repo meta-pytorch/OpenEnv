@@ -29,6 +29,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     python3.11-dev \
     python3.11-distutils \
     python3-pip \
+    # Python build dependencies (for cffi, cryptography, etc.)
+    build-essential \
+    libffi-dev \
+    libssl-dev \
     # CARLA dependencies
     wget \
     curl \
@@ -37,9 +41,14 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libomp5 \
     libpng16-16 \
     libvulkan1 \
-    # For offscreen rendering
+    # For offscreen rendering (OpenGL)
     xvfb \
     libsdl2-2.0-0 \
+    libgl1-mesa-glx \
+    libgl1-mesa-dri \
+    mesa-utils \
+    # XDG utilities (required by CARLA for user directories)
+    xdg-user-dirs \
     && rm -rf /var/lib/apt/lists/*
 
 # Set Python 3.11 as default
@@ -53,21 +62,23 @@ WORKDIR /opt
 
 # Download and extract CARLA 0.10.0 (UE5.5, released Dec 2024)
 # Official release: https://github.com/carla-simulator/carla/releases/tag/0.10.0
+# Extracts to: Carla-0.10.0-Linux-Shipping/
 RUN wget -q https://tiny.carla.org/carla-0-10-0-linux-tar -O /tmp/CARLA_0.10.0.tar.gz \
     && mkdir -p /opt/carla_temp \
     && tar -xzf /tmp/CARLA_0.10.0.tar.gz -C /opt/carla_temp \
     && rm /tmp/CARLA_0.10.0.tar.gz \
-    # Handle both flat and nested extraction structures
-    && if [ -f /opt/carla_temp/CarlaUE4.sh ]; then \
-         mv /opt/carla_temp /opt/carla; \
-       else \
-         mv /opt/carla_temp/* /opt/carla || mv /opt/carla_temp/CARLA_* /opt/carla; \
-         rmdir /opt/carla_temp; \
-       fi \
-    && chmod +x /opt/carla/CarlaUE4.sh
+    # Move the extracted directory to /opt/carla
+    && mv /opt/carla_temp/Carla-0.10.0-Linux-Shipping /opt/carla \
+    && rm -rf /opt/carla_temp \
+    # List contents to see what executables are available
+    && echo "CARLA directory contents:" && ls -la /opt/carla/ \
+    # Find and make executable any .sh files
+    && find /opt/carla -name "*.sh" -type f -exec chmod +x {} \;
 
 # Create symbolic link for CARLA
-RUN ln -s /opt/carla/CarlaUE4.sh /usr/local/bin/CarlaUE4
+# In CARLA 0.10.0 (UE5), the executable is CarlaUnreal.sh
+RUN ln -s /opt/carla/CarlaUnreal.sh /usr/local/bin/CarlaUE4 \
+    && chmod +x /opt/carla/CarlaUnreal.sh
 
 # Set CARLA environment variables
 ENV CARLA_ROOT=/opt/carla
@@ -75,8 +86,9 @@ ENV PYTHONPATH="${CARLA_ROOT}/PythonAPI/carla:${PYTHONPATH}"
 
 WORKDIR /app
 
-# Upgrade pip
-RUN pip install --upgrade pip
+# Upgrade pip and install cffi explicitly (fixes _cffi_backend error)
+RUN pip install --upgrade pip \
+    && pip install --no-cache-dir cffi cryptography
 
 # Install OpenEnv core from GitHub
 RUN pip install --no-cache-dir git+https://github.com/meta-pytorch/OpenEnv.git
@@ -93,6 +105,14 @@ COPY . /app/carla_env/
 
 # Set Python path
 ENV PYTHONPATH=/app:${PYTHONPATH}
+
+# Create non-root user for CARLA (CARLA 0.10.0 refuses to run as root for security)
+RUN useradd -m -u 1000 -s /bin/bash carla \
+    && chown -R carla:carla /opt/carla /app \
+    # Create XDG_RUNTIME_DIR for user carla (required by CARLA)\
+    && mkdir -p /run/user/1000 \
+    && chown carla:carla /run/user/1000 \
+    && chmod 0700 /run/user/1000
 
 # Environment variables for REAL mode
 ENV CARLA_MODE=real
@@ -111,20 +131,82 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
 EXPOSE 8000
 EXPOSE 2000
 
-# Startup script
+# Startup script (runs CARLA as non-root user)
 RUN echo '#!/bin/bash\n\
 set -e\n\
 echo "🚗 Starting CARLA Server 0.10.0 (UE5.5) in offscreen mode..."\n\
-cd /opt/carla\n\
-./CarlaUE4.sh -RenderOffScreen -quality-level=Low -carla-rpc-port=2000 -fps=20 &\n\
-CARLA_PID=$!\n\
 \n\
-echo "⏳ Waiting for CARLA server to be ready (30 seconds)..."\n\
-sleep 30\n\
+# Create log directory with proper permissions for carla user\n\
+mkdir -p /tmp/carla_logs\n\
+chown carla:carla /tmp/carla_logs\n\
+\n\
+# Pre-flight checks\n\
+echo "🔍 Pre-flight checks:"\n\
+echo "  - CARLA directory: $(ls -ld /opt/carla)"\n\
+echo "  - CarlaUnreal.sh: $(ls -l /opt/carla/CarlaUnreal.sh 2>&1)"\n\
+echo "  - User carla: $(id carla)"\n\
+echo "  - GPU check:"\n\
+nvidia-smi 2>&1 | head -5 || echo "    ⚠️  nvidia-smi not available"\n\
+\n\
+# Test if CARLA executable can run at all\n\
+echo ""\n\
+echo "🧪 Testing CARLA executable..."\n\
+su - carla -c "export XDG_RUNTIME_DIR=/run/user/1000 && cd /opt/carla && ./CarlaUnreal.sh --help > /tmp/carla_logs/test.log 2>&1" || {\n\
+    echo "⚠️  CARLA help command failed, checking error:"\n\
+    cat /tmp/carla_logs/test.log 2>&1 || echo "No test log"\n\
+}\n\
+\n\
+# Run CARLA as carla user (CARLA refuses to run as root)\n\
+echo ""\n\
+echo "🚀 Launching CARLA server..."\n\
+su - carla -c "export XDG_RUNTIME_DIR=/run/user/1000 && cd /opt/carla && ./CarlaUnreal.sh -RenderOffScreen -opengl -quality-level=Low -carla-rpc-port=2000 -fps=20 > /tmp/carla_logs/carla.log 2>&1" &\n\
+CARLA_PID=$!\n\
+echo "✓ CARLA started (PID: $CARLA_PID)"\n\
+\n\
+echo "⏳ Waiting for CARLA server to initialize..."\n\
+# Check every 10 seconds for 90 seconds total\n\
+for i in {1..9}; do\n\
+    sleep 10\n\
+    if ! kill -0 $CARLA_PID 2>/dev/null; then\n\
+        echo "❌ CARLA process died after ${i}0 seconds"\n\
+        echo ""\n\
+        echo "📋 CARLA log contents:"\n\
+        cat /tmp/carla_logs/carla.log 2>&1 || echo "No log file found"\n\
+        exit 1\n\
+    fi\n\
+    echo "  ⏱️  ${i}0s - CARLA still running, log size: $(wc -l < /tmp/carla_logs/carla.log 2>/dev/null || echo 0) lines"\n\
+done\n\
+\n\
+# Final check\n\
+if ! kill -0 $CARLA_PID 2>/dev/null; then\n\
+    echo "❌ CARLA process died during startup"\n\
+    echo ""\n\
+    echo "📋 CARLA log contents:"\n\
+    cat /tmp/carla_logs/carla.log 2>&1 || echo "No log file found"\n\
+    exit 1\n\
+fi\n\
+echo "✓ CARLA process is running (PID: $CARLA_PID)"\n\
 \n\
 echo "🔌 Testing CARLA connection..."\n\
-python3 -c "import carla; client = carla.Client('\''localhost'\'', 2000); client.set_timeout(10.0); print('\''✅ CARLA server is ready!'\'')" || {\n\
+python3 -c "\n\
+import carla\n\
+import sys\n\
+try:\n\
+    client = carla.Client('\''localhost'\'', 2000)\n\
+    client.set_timeout(10.0)\n\
+    world = client.get_world()\n\
+    print(f'\''✅ CARLA server is ready! World: {world.get_map().name}'\'')\n\
+except Exception as e:\n\
+    print(f'\''❌ CARLA connection failed: {e}'\'')\n\
+    sys.exit(1)\n\
+" || {\n\
     echo "❌ CARLA server failed to start"\n\
+    echo ""\n\
+    echo "📋 CARLA log contents:"\n\
+    cat /tmp/carla_logs/carla.log 2>&1 || echo "No CARLA log found"\n\
+    echo ""\n\
+    echo "📋 Test log contents:"\n\
+    cat /tmp/carla_logs/test.log 2>&1 || echo "No test log found"\n\
     kill $CARLA_PID 2>/dev/null || true\n\
     exit 1\n\
 }\n\

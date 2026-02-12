@@ -241,6 +241,21 @@ class CarlaEnvironment(Environment):
         # Initial tick
         self.world.tick()
 
+        # If scenario is a sinatras adapter, call setup_carla()
+        from .scenario_adapter import SinatrasScenarioAdapter
+        if isinstance(self.scenario, SinatrasScenarioAdapter):
+            # Create runtime object that sinatras scenarios expect
+            class CarlaRuntime:
+                def __init__(self, world, vehicle, client):
+                    self.world = self
+                    self.world_obj = world
+                    self.ego_vehicle = vehicle
+                    self.client = client
+                    self.map = world.get_map()
+
+            runtime = CarlaRuntime(self.world, self.vehicle, self.client)
+            self.scenario.setup_carla(runtime)
+
     def _reset_mock_mode(self, setup: Dict[str, Any]) -> None:
         """Reset in mock simulation mode."""
         # Initialize mock state
