@@ -1,1 +1,0 @@
-<ix:nonnumeric contextref="c-1" continued-fact="false" continued-main-fact="true" continuedat="f-1350-1" enabled-fact="true" escape="true" hover-fact="false" id="fact-identifier-2758" inside-table="false" ix="f-1350" name="us-gaap:ScheduleOfAssumptionsUsedTableTextBlock" selected-fact="false">Other significant assumptions for the awards are as follows:</ix:nonnumeric>
