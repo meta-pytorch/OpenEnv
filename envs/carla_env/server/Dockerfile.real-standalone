@@ -41,9 +41,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libomp5 \
     libpng16-16 \
     libvulkan1 \
-    # For offscreen rendering
+    # For offscreen rendering (OpenGL)
     xvfb \
     libsdl2-2.0-0 \
+    libgl1-mesa-glx \
+    libgl1-mesa-dri \
+    mesa-utils \
     # XDG utilities (required by CARLA for user directories)
     xdg-user-dirs \
     && rm -rf /var/lib/apt/lists/*
@@ -156,7 +159,7 @@ su - carla -c "export XDG_RUNTIME_DIR=/run/user/1000 && cd /opt/carla && ./Carla
 # Run CARLA as carla user (CARLA refuses to run as root)\n\
 echo ""\n\
 echo "🚀 Launching CARLA server..."\n\
-su - carla -c "export XDG_RUNTIME_DIR=/run/user/1000 && cd /opt/carla && ./CarlaUnreal.sh -nullrhi -carla-rpc-port=2000 -fps=20 > /tmp/carla_logs/carla.log 2>&1" &\n\
+su - carla -c "export XDG_RUNTIME_DIR=/run/user/1000 && cd /opt/carla && ./CarlaUnreal.sh -RenderOffScreen -opengl -quality-level=Low -carla-rpc-port=2000 -fps=20 > /tmp/carla_logs/carla.log 2>&1" &\n\
 CARLA_PID=$!\n\
 echo "✓ CARLA started (PID: $CARLA_PID)"\n\
 \n\

@@ -181,47 +181,130 @@ print(f"Total reward: {env.state().total_reward:.2f}")
 
 ## Deployment Modes
 
-This environment provides **three Dockerfiles** for different use cases:
+This environment provides **three Dockerfiles** for different deployment strategies, each optimized for specific use cases:
 
 ### Mock Mode (`server/Dockerfile`)
-- **Use case**: Development, testing, CI/CD, HuggingFace Spaces (free tier)
-- **Requirements**: CPU only (no GPU needed)
-- **Physics**: Simplified kinematics simulation
-- **CARLA**: Not required (pure Python simulation)
+
+**Purpose**: Fast development, testing, CI/CD, and free HuggingFace Spaces deployment
+
+**Technical Specifications**:
+- **Compute**: CPU only (no GPU required)
+- **Physics**: Python-based kinematics simulation
+- **CARLA**: Not required (standalone pure-Python implementation)
 - **Image size**: ~2GB
 - **Startup time**: <10 seconds
-- **Speed**: Fast (~20 FPS)
-- **Cost**: Free on HuggingFace CPU tier
-- **Deploy**: `openenv push --repo-id your-username/carla-env`
+- **Response time**: Fast (~50ms per step)
+- **Memory**: ~512MB RAM
+
+**Use Cases**:
+- Development and debugging
+- CI/CD testing pipelines
+- Free HuggingFace Spaces tier
+- Quick prototyping of scenarios
+- LLM agent development (text-only observations are identical to real mode)
+
+**Why Use This**:
+- Zero cost for hosting
+- Instant startup
+- No GPU dependencies
+- Perfect for text-only LLM evaluation
+
+**Deploy**: `openenv push --repo-id your-username/carla-env`
+
+---
 
 ### Real Mode - Client Only (`server/Dockerfile.real`)
-- **Use case**: Connect to external CARLA server (local or remote)
-- **Requirements**: CPU (GPU only needed on CARLA server)
-- **CARLA**: External server required at `CARLA_HOST:CARLA_PORT`
+
+**Purpose**: Lightweight client connecting to external CARLA server
+
+**Technical Specifications**:
+- **Client compute**: CPU only (minimal resources)
+- **Server compute**: GPU required (on CARLA server side)
+- **CARLA**: External server at `CARLA_HOST:CARLA_PORT`
 - **Python package**: `carla-ue5-api==0.10.0` (MIT license)
 - **Image size**: ~2GB
-- **Startup time**: <10 seconds (instant if CARLA already running)
-- **Cost**: Free for the client container (CARLA server costs depend on hosting)
-- **Best for**: Separating compute and simulation, using Prime Sandboxes
+- **Startup time**: <10 seconds (if CARLA server already running)
+- **Memory**: ~1GB RAM
+
+**Use Cases**:
+- Separating LLM orchestration from simulation compute
+- Using Prime Intellect sandboxes (client in sandbox, CARLA on dedicated GPU)
+- Multiple clients connecting to one CARLA server
+- Cost optimization (one expensive GPU server, many cheap CPU clients)
+
+**Why Use This**:
+- Separates concerns (training vs simulation)
+- Scalable (multiple clients to one server)
+- Client container is cheap (CPU-only)
+- Flexible deployment (client anywhere, server anywhere)
+
+**Requirements**:
+- External CARLA 0.10.0 server must be running
+- Network connectivity to CARLA server (port 2000)
+- Set `CARLA_HOST` and `CARLA_PORT` environment variables
+
+---
 
 ### Real Mode - Standalone (`server/Dockerfile.real-standalone`)
-- **Use case**: Complete self-contained CARLA deployment
-- **Requirements**: **GPU required** (T4 minimum, A10G recommended)
-- **CARLA**: Full CARLA 0.10.0 with Unreal Engine 5.5 included
+
+**Purpose**: Complete self-contained CARLA deployment (all-in-one)
+
+**Technical Specifications**:
+- **Compute**: **GPU required** (NVIDIA)
+- **CARLA**: Full CARLA 0.10.0 + Unreal Engine 5.5 included
+- **Rendering**: RenderOffScreen with OpenGL (offscreen rendering, no display)
 - **Executable**: `CarlaUnreal.sh` (UE5, not CarlaUE4.sh)
 - **Image size**: ~15GB
-- **Build time**: 30-60 minutes (downloads ~10GB of CARLA)
+- **Build time**: 30-60 minutes (downloads ~10GB CARLA archive)
 - **Startup time**: 60-90 seconds (CARLA server initialization)
-- **GPU Memory**:
-  - T4 (16GB VRAM): Minimum, may be tight
-  - A10G (24GB VRAM): Recommended for stability
-- **Cost on HuggingFace**:
-  - T4: ~$0.60/hour (~$432/month 24/7)
-  - A10G: ~$1.10/hour (~$792/month 24/7)
-- **Security**: Runs CARLA as non-root user (required by CARLA 0.10.0)
-- **Best for**: Complete turnkey solution, no external dependencies
+- **Memory**: ~8-12GB RAM
 
-All modes expose the same API and scenarios - choose based on your fidelity, cost, and deployment requirements.
+**GPU Requirements**:
+- **Minimum**: NVIDIA T4 (16GB VRAM)
+  - Works but can be tight on memory
+  - May experience occasional OOM on complex scenes
+- **Recommended**: NVIDIA A10G (24GB VRAM)
+  - Stable and performant
+  - Headroom for future camera sensors
+
+**Cost on HuggingFace Spaces**:
+- T4 GPU: ~$0.60/hour (~$432/month if running 24/7)
+- A10G GPU: ~$1.10/hour (~$792/month if running 24/7)
+- **Note**: Only pay when Space is running (can pause when not in use)
+
+**Use Cases**:
+- Production deployments requiring full physics fidelity
+- Turnkey solution (no external dependencies)
+- HuggingFace Spaces with GPU hardware
+- Research requiring exact CARLA behavior
+
+**Why Use This**:
+- Zero external dependencies (everything in one container)
+- Identical physics to desktop CARLA
+- Easy deployment (single `docker run` or HF Space)
+- Future-ready for camera sensors (rendering available but not exposed)
+
+**Security**: Runs CARLA as non-root user (required by CARLA 0.10.0)
+
+---
+
+### Comparison Table
+
+| Feature | Mock Mode | Real Client | Real Standalone |
+|---------|-----------|-------------|-----------------|
+| **Hardware** | CPU | CPU (client) + GPU (server) | GPU |
+| **CARLA** | None (Python sim) | External | Included |
+| **Cost** | Free | Low (client) + High (server) | High |
+| **Startup** | <10s | <10s (if server up) | 60-90s |
+| **Fidelity** | Approximate | Full | Full |
+| **Dependencies** | None | CARLA server | None |
+| **Best For** | Dev, testing, free hosting | Distributed systems | Production, turnkey |
+
+**Decision Guide**:
+- **Starting out?** → Mock mode (free, instant)
+- **Need real physics?** → Standalone (easiest setup)
+- **High scale?** → Client mode (one GPU server, many CPU clients)
+- **Research?** → Standalone (exact CARLA behavior)
 
 ## Configuration
 
@@ -288,10 +371,77 @@ This implementation includes several compatibility fixes for CARLA 0.10.0:
 CARLA 0.10.0 requires XDG user directories. The standalone Dockerfile installs `xdg-user-dirs` and configures `XDG_RUNTIME_DIR=/run/user/1000`.
 
 #### Rendering Mode
-Uses `-nullrhi` (null render hardware interface) for text-only mode:
-- No GPU rendering (lighter, more stable)
+
+The standalone deployment uses **RenderOffScreen** mode for flexibility and future multimodal support.
+
+**Current Configuration** (default):
+```bash
+./CarlaUnreal.sh -RenderOffScreen -opengl -quality-level=Low -carla-rpc-port=2000 -fps=20
+```
+
+**Why RenderOffScreen**:
+- ✅ Renders frames offscreen (no display needed)
+- ✅ Text-only observations by default (frames not exposed to models)
+- ✅ Future-ready for camera sensors (~50 lines to add RGB/depth cameras)
+- ✅ Uses OpenGL (more stable in containers than Vulkan)
+- ✅ Moderate GPU usage (quality set to Low)
+- ✅ Flexible for multimodal research
+
+**Alternative: nullrhi Mode**
+
+For maximum efficiency with text-only scenarios, you can use `-nullrhi` (null render hardware interface):
+
+```bash
+./CarlaUnreal.sh -nullrhi -carla-rpc-port=2000 -fps=20
+```
+
+**nullrhi Benefits**:
+- Lighter GPU/CPU usage (no rendering at all)
+- Faster startup (~10-20% improvement)
 - Physics simulation still runs correctly
-- Future: Can switch to `-RenderOffScreen -opengl` for camera support
+- Used by [PrimeIntellect/sinatras](https://github.com/SinatrasC/carla-env) implementation
+
+**Comparison**:
+
+| Feature | RenderOffScreen (current) | nullrhi (alternative) |
+|---------|---------------------------|----------------------|
+| **Rendering** | Yes (offscreen) | None |
+| **GPU Usage** | Moderate | Minimal |
+| **Startup Time** | 60-90s | 50-70s |
+| **Text Observations** | ✅ Yes | ✅ Yes |
+| **Camera Support** | ✅ Ready | ❌ Requires rebuild |
+| **Stability** | ✅ Stable | ✅ Very stable |
+| **Use Case** | Multimodal future | Text-only forever |
+
+**How to Switch to nullrhi**:
+
+If you only need text-only scenarios and want maximum efficiency:
+
+1. Edit `server/Dockerfile.real-standalone` line ~47-49, remove OpenGL dependencies:
+   ```dockerfile
+   # Remove these lines:
+   libgl1-mesa-glx \
+   libgl1-mesa-dri \
+   mesa-utils \
+   ```
+
+2. Edit `server/Dockerfile.real-standalone` line ~162, change CARLA command:
+   ```bash
+   # Replace:
+   ./CarlaUnreal.sh -RenderOffScreen -opengl -quality-level=Low -carla-rpc-port=2000 -fps=20
+
+   # With:
+   ./CarlaUnreal.sh -nullrhi -carla-rpc-port=2000 -fps=20
+   ```
+
+3. Rebuild and deploy:
+   ```bash
+   docker build -t carla-env-standalone:latest -f server/Dockerfile.real-standalone .
+   # Or push to HuggingFace:
+   openenv push --repo-id your-username/carla-env-real
+   ```
+
+**Recommendation**: Keep RenderOffScreen unless GPU costs are critical. The flexibility for future camera sensors is worth the modest overhead.
 
 #### World Management
 Uses `get_world()` instead of `load_world()`:
