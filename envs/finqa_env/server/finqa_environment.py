@@ -10,19 +10,23 @@ import logging
 import os
 import random
 import uuid
-from typing import List, Dict, Any
+from typing import Any, Dict, List, Optional
 
 import pandas as pd
+from fastmcp import FastMCP
 
-from openenv.core.env_server import Environment
-from ..models import FinQAAction, FinQAObservation, FinQAState, AVAILABLE_TOOLS
+from openenv.core.env_server.mcp_environment import MCPEnvironment
+from openenv.core.env_server.mcp_types import CallToolAction
+from openenv.core.env_server.types import Action, Observation
+
+from ..models import FinQAState, AVAILABLE_TOOLS
+from .rewards import compute_reward
 from .tools import FinQATools
-from .rewards import compute_reward, extract_boxed_answer
 
 logger = logging.getLogger(__name__)
 
 
-class FinQAEnvironment(Environment):
+class FinQAEnvironment(MCPEnvironment):
     """
     Financial QA environment for RL training.
 
@@ -44,7 +48,8 @@ class FinQAEnvironment(Environment):
         max_steps: int = 50,
         task: str = "finqa",
     ):
-        super().__init__()
+        # Create MCP server and define tools inline
+        mcp = FastMCP("finqa_env")
 
         self.data_path = data_path
         self.max_steps = max_steps
@@ -55,7 +60,70 @@ class FinQAEnvironment(Environment):
         self.questions = self._load_questions()
         logger.info(f"Loaded {len(self.questions)} questions for task '{task}'")
 
-        self.tools = FinQATools(data_path)
+        self._finqa_tools = FinQATools(data_path)
+
+        # Register tools with FastMCP
+        @mcp.tool
+        def get_descriptions(company_name: str) -> str:
+            """
+            Get a list of available table names for a company.
+
+            Args:
+                company_name: The name of the company
+
+            Returns:
+                JSON list of table names
+            """
+            return self._finqa_tools.get_descriptions(company_name)
+
+        @mcp.tool
+        def get_table_info(company_name: str, table_name: str) -> str:
+            """
+            Get table metadata: description, columns, types, unique values.
+
+            Args:
+                company_name: The name of the company
+                table_name: The name of the table
+
+            Returns:
+                JSON string with table metadata
+            """
+            return self._finqa_tools.get_table_info(company_name, table_name)
+
+        @mcp.tool
+        def sql_query(company_name: str, table_name: str, query: str) -> str:
+            """
+            Execute a SQL query on a table. Select * not allowed.
+
+            Filters are required: WHERE, HAVING, IN, NOT IN, EXISTS, NOT EXISTS,
+            ANY, SOME, ALL, LIKE, NOT LIKE, BETWEEN, NOT BETWEEN, IS NULL,
+            IS NOT NULL, CASE, FILTER.
+
+            Args:
+                company_name: The name of the company
+                table_name: The name of the table
+                query: SQL query to execute (must include filters)
+
+            Returns:
+                JSON string with query results
+            """
+            return self._finqa_tools.sql_query(company_name, table_name, query)
+
+        @mcp.tool
+        def submit_answer(answer: str) -> str:
+            """
+            Submit a final answer for the question.
+
+            Args:
+                answer: The final answer to submit
+
+            Returns:
+                Confirmation message
+            """
+            return self._finqa_tools.submit_answer(answer)
+
+        # Pass the MCP server to the base class
+        super().__init__(mcp)
 
         # Shuffle dataset for sequential selection
         self._shuffled_questions = self.questions.copy()
@@ -91,7 +159,6 @@ class FinQAEnvironment(Environment):
     def _get_next_question(self) -> Dict[str, Any]:
         """Get the next question using sequential shuffle selection."""
         if self._question_index >= len(self._shuffled_questions):
-            # Reshuffle when exhausted
             random.shuffle(self._shuffled_questions)
             self._question_index = 0
 
@@ -99,7 +166,12 @@ class FinQAEnvironment(Environment):
         self._question_index += 1
         return question
 
-    def reset(self) -> FinQAObservation:
+    def reset(
+        self,
+        seed: Optional[int] = None,
+        episode_id: Optional[str] = None,
+        **kwargs: Any,
+    ) -> Observation:
         """
         Reset the environment for a new episode.
 
@@ -108,7 +180,7 @@ class FinQAEnvironment(Environment):
         """
         question = self._get_next_question()
         self._state = FinQAState(
-            episode_id=str(uuid.uuid4()),
+            episode_id=episode_id or str(uuid.uuid4()),
             step_count=0,
             current_question=question["user_query"],
             current_company=question["company"],
@@ -119,75 +191,85 @@ class FinQAEnvironment(Environment):
 
         logger.info(f"Reset episode {self._state.episode_id} with question: {question['question'][:200]}...")
 
-        return FinQAObservation(
-            question=question["user_query"],
-            company=question["company"],
-            tool_result="",
-            history=[],
-            step_count=0,
-            available_tools=AVAILABLE_TOOLS.copy(),
+        return Observation(
             done=False,
-            reward=None,
+            reward=0.0,
+            metadata={
+                "question": question["user_query"],
+                "company": question["company"],
+                "tool_result": "",
+                "history": [],
+                "step_count": 0,
+                "available_tools": AVAILABLE_TOOLS.copy(),
+            },
         )
 
-    def step(self, action: FinQAAction) -> FinQAObservation:
+    def _step_impl(
+        self,
+        action: Action,
+        timeout_s: Optional[float] = None,
+        **kwargs: Any,
+    ) -> Observation:
         """
-        Execute a tool call and return the result.
+        Handle non-MCP actions. Returns an error since this env is MCP-only.
+        """
+        return Observation(
+            done=False,
+            reward=0.0,
+            metadata={
+                "error": f"Unknown action type: {type(action).__name__}. "
+                "Use ListToolsAction or CallToolAction for MCP interactions."
+            },
+        )
 
-        Args:
-            action: The tool call to execute
+    def step(
+        self,
+        action: Action,
+        timeout_s: Optional[float] = None,
+        **kwargs: Any,
+    ) -> Observation:
+        """
+        Execute a step in the environment.
 
-        Returns:
-            Observation with tool result
+        Delegates to base class for MCP actions. Handles submit_answer
+        reward computation and max-step termination.
         """
         self._state.step_count += 1
 
-        if action.tool_name not in AVAILABLE_TOOLS:
-            tool_result = f"Error: Unknown tool '{action.tool_name}'. Available: {AVAILABLE_TOOLS}"
-            is_final = False
-        else:
-            tool_result, is_final = self.tools.execute_tool(
-                action.tool_name, action.tool_args
-            )
+        # Let the base class handle MCP actions
+        obs = super().step(action, timeout_s=timeout_s, **kwargs)
 
-        self._history.append({
-            "step": self._state.step_count,
-            "tool": action.tool_name,
-            "args": action.tool_args,
-            "result": tool_result,
-        })
-
-        done = False
-        reward = None
-
-        if is_final:
-            done = True
-            submitted_answer = action.tool_args.get("answer", "")
+        # Check if submit_answer was called
+        if isinstance(action, CallToolAction) and action.tool_name == "submit_answer":
+            submitted_answer = action.arguments.get("answer", "")
             reward = compute_reward(submitted_answer, self._state.ground_truth)
             logger.info(
                 f"Episode {self._state.episode_id} ended: "
                 f"submitted='{submitted_answer}', truth='{self._state.ground_truth}', reward={reward}"
             )
+            return Observation(
+                done=True,
+                reward=reward,
+                metadata={
+                    **obs.metadata,
+                    "ground_truth": self._state.ground_truth,
+                    "submitted_answer": submitted_answer,
+                },
+            )
 
-        elif self._state.step_count >= self.max_steps:
-            done = True
-            reward = 0.0
-            tool_result = f"Max steps ({self.max_steps}) reached without submitting answer. Episode terminated."
+        # Check for max steps
+        if self._state.step_count >= self.max_steps:
             logger.info(f"Episode {self._state.episode_id} terminated: max steps reached")
+            return Observation(
+                done=True,
+                reward=0.0,
+                metadata={
+                    **obs.metadata,
+                    "error": f"Max steps ({self.max_steps}) reached without submitting answer.",
+                },
+            )
 
-        return FinQAObservation(
-            question=self._state.current_question,
-            company=self._state.current_company,
-            tool_result=tool_result,
-            history=self._history.copy(),
-            step_count=self._state.step_count,
-            available_tools=AVAILABLE_TOOLS.copy(),
-            done=done,
-            reward=reward,
-            metadata={
-                "ground_truth": self._state.ground_truth if done else None,
-            },
-        )
+        return obs
 
     @property
     def state(self) -> FinQAState:

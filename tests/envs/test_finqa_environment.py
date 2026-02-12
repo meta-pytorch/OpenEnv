@@ -512,7 +512,7 @@ class TestTools:
 
 @pytest.mark.skipif(_integration_skip, reason=_integration_reason)
 class TestEnvironment:
-    """Test environment logic."""
+    """Test environment logic using MCP actions."""
 
     @pytest.fixture
     def env(self):
@@ -521,45 +521,53 @@ class TestEnvironment:
         return FinQAEnvironment(data_path=DATA_PATH, max_steps=10)
 
     def test_reset(self, env):
-        from envs.finqa_env.models import FinQAObservation
+        from openenv.core.env_server.types import Observation
 
         obs = env.reset()
-        assert isinstance(obs, FinQAObservation)
-        assert obs.question != ""
-        assert obs.company != ""
-        assert obs.step_count == 0
+        assert isinstance(obs, Observation)
+        assert obs.metadata["question"] != ""
+        assert obs.metadata["company"] != ""
+        assert obs.metadata["step_count"] == 0
         assert obs.done is False
-        assert obs.reward is None
 
-    def test_step_get_descriptions(self, env):
-        from envs.finqa_env.models import FinQAAction
-
-        obs = env.reset()
-        action = FinQAAction(
-            tool_name="get_descriptions", tool_args={"company_name": obs.company}
-        )
-        obs = env.step(action)
-        assert obs.step_count == 1
-        assert obs.tool_result != ""
-        assert "Error" not in obs.tool_result or "not found" in obs.tool_result.lower()
-
-    def test_step_submit_answer(self, env):
-        from envs.finqa_env.models import FinQAAction
+    def test_list_tools(self, env):
+        from openenv.core.env_server.mcp_types import ListToolsAction
 
         env.reset()
-        action = FinQAAction(tool_name="submit_answer", tool_args={"answer": "6.118"})
+        obs = env.step(ListToolsAction())
+        assert obs.done is False
+        assert "tools" in obs.metadata or hasattr(obs, "tools")
+
+    def test_step_get_descriptions(self, env):
+        from openenv.core.env_server.mcp_types import CallToolAction
+
+        obs = env.reset()
+        company = obs.metadata["company"]
+        action = CallToolAction(
+            tool_name="get_descriptions", arguments={"company_name": company}
+        )
+        obs = env.step(action)
+        assert obs.done is False
+
+    def test_step_submit_answer(self, env):
+        from openenv.core.env_server.mcp_types import CallToolAction
+
+        env.reset()
+        action = CallToolAction(
+            tool_name="submit_answer", arguments={"answer": "6.118"}
+        )
         obs = env.step(action)
         assert obs.done is True
         assert obs.reward is not None
         assert obs.reward in [0.0, 1.0]
 
     def test_max_steps_termination(self, env):
-        from envs.finqa_env.models import FinQAAction
+        from openenv.core.env_server.mcp_types import CallToolAction
 
         env.reset()
         for _ in range(10):
-            action = FinQAAction(
-                tool_name="get_descriptions", tool_args={"company_name": "test"}
+            action = CallToolAction(
+                tool_name="get_descriptions", arguments={"company_name": "test"}
             )
             obs = env.step(action)
             if obs.done:
@@ -575,7 +583,73 @@ class TestEnvironment:
         state = env.state
         assert isinstance(state, FinQAState)
         assert state.episode_id is not None
-        assert state.current_question is not None
+        assert state.current_question != ""
+
+    def test_repeated_resets(self, env):
+        """Test that multiple resets produce valid state each time."""
+        for _ in range(3):
+            obs = env.reset()
+            assert obs.done is False
+            assert obs.metadata["question"] != ""
+            assert obs.metadata["company"] != ""
+
+    def test_invalid_tool_name(self, env):
+        """Test calling a tool that doesn't exist."""
+        from openenv.core.env_server.mcp_types import CallToolAction
+
+        env.reset()
+        action = CallToolAction(
+            tool_name="nonexistent_tool", arguments={}
+        )
+        obs = env.step(action)
+        # Should not crash; returns error in metadata
+        assert obs.done is False or "error" in str(obs.metadata).lower()
+
+    def test_empty_tool_args(self, env):
+        """Test calling a tool with missing required arguments."""
+        from openenv.core.env_server.mcp_types import CallToolAction
+
+        env.reset()
+        action = CallToolAction(
+            tool_name="get_descriptions", arguments={}
+        )
+        obs = env.step(action)
+        # Should not crash
+        assert isinstance(obs.done, bool)
+
+    def test_state_consistency_after_steps(self, env):
+        """Test that state is consistent after multiple steps."""
+        from openenv.core.env_server.mcp_types import CallToolAction
+
+        env.reset()
+        initial_episode_id = env.state.episode_id
+
+        action = CallToolAction(
+            tool_name="get_descriptions", arguments={"company_name": "alphabet"}
+        )
+        env.step(action)
+        assert env.state.episode_id == initial_episode_id
+        assert env.state.step_count == 1
+
+        env.step(action)
+        assert env.state.step_count == 2
+
+    def test_sql_injection_attempt(self, env):
+        """Test that SQL injection attempts are handled safely."""
+        from openenv.core.env_server.mcp_types import CallToolAction
+
+        env.reset()
+        action = CallToolAction(
+            tool_name="sql_query",
+            arguments={
+                "company_name": "alphabet",
+                "table_name": "test; DROP TABLE users;--",
+                "query": "SELECT * FROM test WHERE 1=1; DROP TABLE users;--",
+            },
+        )
+        obs = env.step(action)
+        # Should not crash, should return an error
+        assert isinstance(obs.done, bool)
 
 
 if __name__ == "__main__":

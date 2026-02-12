@@ -18,16 +18,6 @@ from openenv.core.env_server import Action, Observation, State
 AVAILABLE_TOOLS = ["get_descriptions", "get_table_info", "sql_query", "submit_answer"]
 
 
-def get_tool_schemas():
-    """Get tool schemas, generating them on first call.
-
-    Uses lazy loading to avoid circular imports.
-    """
-    from .tool_schema import generate_tool_schemas
-    from .server.tools import FinQATools
-    return generate_tool_schemas(FinQATools, AVAILABLE_TOOLS)
-
-
 class FinQAAction(Action):
     """
     Action taken by the agent - a tool call.

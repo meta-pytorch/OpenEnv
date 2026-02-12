@@ -4,12 +4,6 @@
 FinQA is a financial question-answering benchmark that evaluates LLMs on their
 ability to answer complex financial questions using tool calls on SEC 10-K filing data.
 
-The agent must:
-1. Explore available tables for a company
-2. Query table metadata and execute SQL queries
-3. Perform calculations on extracted data
-4. Submit final answers to financial questions
-
 Prerequisites
 -------------
 1. Build the FinQA Docker image::
@@ -23,16 +17,11 @@ Prerequisites
 3. Run this script::
 
        python examples/finqa_inference.py
-
-To use a different provider, set API_BASE_URL and MODEL::
-
-       export API_BASE_URL=https://api.openai.com/v1
-       export MODEL=gpt-4o
-       export API_KEY=your_openai_key
 """
 
 from __future__ import annotations
 
+import asyncio
 import json
 import os
 import sys
@@ -43,8 +32,7 @@ from openai import OpenAI
 
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
-from envs.finqa_env import FinQAAction, FinQAEnv
-from envs.finqa_env.models import get_tool_schemas
+from envs.finqa_env import FinQAEnv
 
 # ---------------------------------------------------------------------------
 # Configuration
@@ -66,23 +54,40 @@ When submitting your final answer, provide ONLY the numerical value (e.g., '6.11
 """
 
 
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
+def _tools_to_openai_format(tools) -> List[dict]:
+    """Convert MCP tools to OpenAI function-calling format."""
+    openai_tools = []
+    for tool in tools:
+        properties = {}
+        required = []
+        if tool.inputSchema and "properties" in tool.inputSchema:
+            for name, schema in tool.inputSchema["properties"].items():
+                properties[name] = {
+                    "type": schema.get("type", "string"),
+                    "description": schema.get("description", ""),
+                }
+            required = tool.inputSchema.get("required", [])
 
-def make_initial_messages(company: str, question: str) -> List[Dict[str, Any]]:
-    """Create initial chat messages for a FinQA episode."""
-    return [
-        {"role": "system", "content": SYSTEM_PROMPT},
-        {"role": "user", "content": f"Company: {company}\nQuestion: {question}"},
-    ]
+        openai_tools.append({
+            "type": "function",
+            "function": {
+                "name": tool.name,
+                "description": tool.description or "",
+                "parameters": {
+                    "type": "object",
+                    "properties": properties,
+                    "required": required,
+                },
+            },
+        })
+    return openai_tools
 
 
 # ---------------------------------------------------------------------------
 # Gameplay
 # ---------------------------------------------------------------------------
 
-def play_finqa_episode(
+async def play_finqa_episode(
     env: FinQAEnv,
     client: OpenAI,
     tools: List[dict],
@@ -91,23 +96,27 @@ def play_finqa_episode(
     """Play a single FinQA episode."""
     tool_names = [t["function"]["name"] for t in tools]
 
-    result = env.reset()
-    obs = result.observation
+    obs = await env.reset()
+    question = obs.metadata.get("question", "")
+    company = obs.metadata.get("company", "")
 
     if VERBOSE:
         print(f"\n{'='*60}")
         print(f"Episode {episode_num}")
         print(f"{'='*60}")
-        print(f"Company: {obs.company}")
-        print(f"Question: {obs.question}")
+        print(f"Company: {company}")
+        print(f"Question: {question}")
 
-    # Maintain chat history for multi-turn conversation
-    chat_history = make_initial_messages(obs.company, obs.question)
-    tool_calls = []
+    chat_history = [
+        {"role": "system", "content": SYSTEM_PROMPT},
+        {"role": "user", "content": f"Company: {company}\nQuestion: {question}"},
+    ]
+    step_count = 0
 
-    while not result.done:
+    while not obs.done:
+        step_count += 1
         if VERBOSE:
-            print(f"\n--- Step {obs.step_count + 1} ---")
+            print(f"\n--- Step {step_count} ---")
 
         response = client.chat.completions.create(
             model=MODEL,
@@ -119,10 +128,7 @@ def play_finqa_episode(
 
         message = response.choices[0].message
 
-        # Handle case where model doesn't return a tool call
         if not message.tool_calls:
-            if VERBOSE:
-                print(f"No tool call returned, submitting text response")
             tool_name = "submit_answer"
             tool_args = {"answer": message.content or "unknown"}
             tool_call_id = "none"
@@ -140,8 +146,7 @@ def play_finqa_episode(
                 "type": "function",
                 "function": {
                     "name": tool_name,
-                    "arguments": json.dumps(tool_args) if tool_call_id == "none" else tool_call_obj.function.arguments  
-
+                    "arguments": json.dumps(tool_args) if tool_call_id == "none" else tool_call_obj.function.arguments
                 }
             }]
         })
@@ -149,59 +154,39 @@ def play_finqa_episode(
         if VERBOSE:
             print(f"Tool: {tool_name}({json.dumps(tool_args)})"[:100])
 
-        # End conversation if model uses invalid tool
         if tool_name not in tool_names:
-            if VERBOSE:
-                print(f"  Invalid tool '{tool_name}', submitting unknown")
             tool_name = "submit_answer"
             tool_args = {"answer": "unknown"}
 
-        action = FinQAAction(tool_name=tool_name, tool_args=tool_args)
-        result = env.step(action)
-        obs = result.observation
+        # Use call_tool instead of manual action construction
+        result_text = await env.call_tool(tool_name, **tool_args)
+        # Get the latest observation via step metadata
+        obs = env._last_observation if hasattr(env, '_last_observation') else obs
 
-        tool_calls.append({
-            "tool": tool_name,
-            "args": tool_args,
-            "result": obs.tool_result or "",
-        })
-
-        if not result.done:
+        if not obs.done:
             chat_history.append({
                 "role": "tool",
                 "tool_call_id": tool_call_id,
-                "content": obs.tool_result or "No result"
+                "content": str(result_text) or "No result"
             })
 
         if VERBOSE:
-            result_preview = (obs.tool_result or "")[:200]
+            result_preview = str(result_text)[:200]
             print(f"Result: {result_preview}...")
 
-    # Get ground truth from environment state
-    state = env.state()
-    reward = result.reward or 0.0
-
-    submitted_answer = None
-    for tc in reversed(tool_calls):
-        if tc.get("tool") == "submit_answer":
-            submitted_answer = tc.get("args", {}).get("answer")
-            break
+    reward = obs.reward or 0.0
 
     if VERBOSE:
         outcome = "CORRECT" if reward > 0 else "INCORRECT"
         print(f"\nResult: {outcome}")
-        print(f"  Submitted: {submitted_answer}")
-        print(f"  Ground truth: {state.ground_truth}")
         print(f"  Reward: {reward}")
 
     return {
         "episode": episode_num,
-        "company": obs.company,
-        "question": obs.question,
-        "submitted_answer": submitted_answer,
-        "ground_truth": state.ground_truth,
+        "company": company,
+        "question": question,
         "reward": reward,
-        "steps": obs.step_count,
+        "steps": step_count,
     }
 
 
@@ -209,26 +194,26 @@ def play_finqa_episode(
 # Entrypoint
 # ---------------------------------------------------------------------------
 
-def main() -> None:
+async def async_main() -> None:
     if not API_KEY:
         raise SystemExit("API_KEY (or HF_TOKEN) must be set to query the model.")
 
     client = OpenAI(base_url=API_BASE_URL, api_key=API_KEY)
 
-    env = FinQAEnv.from_docker_image("finqa-env:latest")
-    tools = get_tool_schemas()
+    async with FinQAEnv.from_docker_image("finqa-env:latest") as env:
+        # Discover tools via MCP and convert to OpenAI format
+        mcp_tools = await env.list_tools()
+        tools = _tools_to_openai_format(mcp_tools)
 
-    if VERBOSE:
-        tool_names = [t["function"]["name"] for t in tools]
-        print(f"API: {API_BASE_URL}")
-        print(f"Model: {MODEL}")
-        print(f"Tools: {tool_names}")
+        if VERBOSE:
+            tool_names = [t["function"]["name"] for t in tools]
+            print(f"API: {API_BASE_URL}")
+            print(f"Model: {MODEL}")
+            print(f"Tools: {tool_names}")
 
-    results = []
-
-    try:
+        results = []
         for episode_num in range(1, MAX_EPISODES + 1):
-            episode_result = play_finqa_episode(env, client, tools, episode_num)
+            episode_result = await play_finqa_episode(env, client, tools, episode_num)
             results.append(episode_result)
 
         # Summary
@@ -243,8 +228,9 @@ def main() -> None:
         print(f"Correct: {correct}/{len(results)} ({100*correct/len(results):.1f}%)")
         print(f"Average steps: {avg_steps:.1f}")
 
-    finally:
-        env.close()
+
+def main() -> None:
+    asyncio.run(async_main())
 
 
 if __name__ == "__main__":

@@ -142,7 +142,7 @@ class FinQAObservation(Observation):
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `FINQA_DATA_PATH` | `/app/envs/finqa_env/data` | Path to data directory |
+| `FINQA_DATA_PATH` | `/app/env/data` | Path to data directory |
 | `FINQA_MAX_STEPS` | `50` | Maximum tool calls per episode |
 | `FINQA_TASK` | `finqa` | Task name |
 

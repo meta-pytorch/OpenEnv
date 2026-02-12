@@ -30,18 +30,13 @@ mkdir -p "$OUTPUT_DIR"
 
 # Check if data already exists
 if [ -f "$OUTPUT_DIR/benchmark_questions/finqa.csv" ] && [ -d "$OUTPUT_DIR/input_companies" ]; then
-    echo "⚠️  Data already exists in $OUTPUT_DIR"
-    read -p "Do you want to re-download? (y/N): " -n 1 -r
-    echo
-    if [[ ! $REPLY =~ ^[Yy]$ ]]; then
-        echo "Skipping download."
-        exit 0
-    fi
+    echo "Data already exists in $OUTPUT_DIR, skipping download."
+    exit 0
 fi
 
 # Check for huggingface-cli
 if ! command -v huggingface-cli &> /dev/null; then
-    echo "❌ Error: huggingface-cli not found"
+    echo "Error: huggingface-cli not found"
     echo "Install it with: uv pip install huggingface_hub[cli]"
     exit 1
 fi
@@ -49,24 +44,24 @@ fi
 # Download from HuggingFace
 echo "Downloading from HuggingFace: $HF_REPO_OR_URL"
 if ! huggingface-cli download "$HF_REPO_OR_URL" --repo-type dataset --local-dir "$OUTPUT_DIR"; then
-    echo "❌ Error: Failed to download dataset"
+    echo "Error: Failed to download dataset"
     exit 1
 fi
 
 # Verify downloaded data
 if [ ! -f "$OUTPUT_DIR/benchmark_questions/finqa.csv" ]; then
-    echo "❌ Error: benchmark_questions/finqa.csv not found in downloaded data"
+    echo "Error: benchmark_questions/finqa.csv not found in downloaded data"
     exit 1
 fi
 
 if [ ! -d "$OUTPUT_DIR/input_companies" ]; then
-    echo "❌ Error: input_companies/ directory not found in downloaded data"
+    echo "Error: input_companies/ directory not found in downloaded data"
     exit 1
 fi
 
 echo ""
 echo "========================================"
-echo "✅ Download complete!"
+echo "Download complete!"
 echo "========================================"
 echo "Data location: $OUTPUT_DIR"
 echo ""
