@@ -226,6 +226,25 @@ The OpenEnv community has built a catalog of ready-to-run environments that cove
 
   <div class="environment-card">
     <div class="environment-card__body">
+      <span class="environment-card__tag">Maze</span>
+      <p class="environment-card__description">
+        A grid maze RL environment where the agent must navigate from a start cell to an exit while avoiding walls.
+      </p>
+    </div>
+    <div class="environment-card__links">
+      <a class="environment-card__icon" href="/OpenEnv/environments/maze/" aria-label="Maze docs">
+        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+          <path d="M6 3c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V9l-6-6H6zm8 1.5L18.5 9H14V4.5z" fill="currentColor"/>
+        </svg>
+      </a>
+      <a class="environment-card__icon environment-card__icon--hf" href="https://huggingface.co/spaces/Jiyaaaaaa/maze_env" target="_blank" rel="noreferrer noopener" aria-label="Maze on Hugging Face">
+        <img src="https://huggingface.co/front/assets/huggingface_logo-noborder.svg" alt="" aria-hidden="true" />
+      </a>
+    </div>
+  </div>
+
+  <div class="environment-card">
+    <div class="environment-card__body">
       <span class="environment-card__tag">Unity</span>
       <p class="environment-card__description">
         A wrapper for Unity environments to bring different nice graphical simulation environment from Unity that supports Ml-Agents-envs.
@@ -376,46 +395,41 @@ The OpenEnv community has built a catalog of ready-to-run environments that cove
   </div>
 
   <div class="environment-card">
-  <div class="environment-card__body">
-    <span class="environment-card__tag">kernrl</span>
-    <p class="environment-card__description">
-      GPU kernel optimization environment for training LLMs to write fast CUDA/Triton kernels with real hardware feedback.
-    </p>
+    <div class="environment-card__body">
+      <span class="environment-card__tag">kernrl</span>
+      <p class="environment-card__description">
+        GPU kernel optimization environment for training LLMs to write fast CUDA/Triton kernels with real hardware feedback.
+      </p>
+    </div>
+    <div class="environment-card__links">
+      <a class="environment-card__icon" href="/OpenEnv/environments/kernrl/" aria-label="kernrl docs">
+        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+          <path d="M6 3c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V9l-6-6H6zm8 1.5L18.5 9H14V4.5z" fill="currentColor"/>
+        </svg>
+      </a>
+      <a class="environment-card__icon environment-card__icon--hf" href="https://huggingface.co/spaces/Infatoshi/kernrl" target="_blank" rel="noreferrer noopener" aria-label="kernrl on Hugging Face">
+        <img src="https://huggingface.co/front/assets/huggingface_logo-noborder.svg" alt="" aria-hidden="true" />
+      </a>
+    </div>
   </div>
-  <div class="environment-card__links">
-    <a class="environment-card__icon" href="/OpenEnv/environments/kernrl/" aria-label="kernrl docs">
-      <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-        <path d="M6 3c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V9l-6-6H6zm8 1.5L18.5 9H14V4.5z" fill="currentColor"/>
-      </svg>
-    </a>
-    <a class="environment-card__icon environment-card__icon--hf" href="https://huggingface.co/spaces/Infatoshi/kernrl" target="_blank" rel="noreferrer noopener" aria-label="kernrl on Hugging Face">
-      <img src="https://huggingface.co/front/assets/huggingface_logo-noborder.svg" alt="" aria-hidden="true" />
-    </a>
+  <div class="environment-card">
+    <div class="environment-card__body">
+      <span class="environment-card__tag">Grid World</span>
+      <p class="environment-card__description">
+        A simple 5x5 grid world environment for testing and learning the OpenEnv framework.
+      </p>
+    </div>
+    <div class="environment-card__links">
+      <a class="environment-card__icon" href="https://github.com/yuvrajpant56/OpenEnv/blob/feat/fresh-grid-world/envs/grid_world_env/README.md" target="_blank" rel="noreferrer noopener" aria-label="Grid World docs">
+        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+          <path d="M6 3c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V9l-6-6H6zm8 1.5L18.5 9H14V4.5z" fill="currentColor"/>
+        </svg>
+      </a>
+      <a class="environment-card__icon environment-card__icon--hf" href="https://huggingface.co/spaces/yuvrajpant56/grid_world_env" target="_blank" rel="noreferrer noopener" aria-label="Grid World on Hugging Face">
+        <img src="https://huggingface.co/front/assets/huggingface_logo_noborder.svg" alt="" aria-hidden="true" />
+      </a>
+    </div>
   </div>
-</div>
-
-</div>
-<div class="environment-card">
-  <div class="environment-card__body">
-    <span class="environment-card__tag">Grid World</span>
-    <p class="environment-card__description">
-      A simple 5x5 grid world environment for testing and learning the OpenEnv framework.
-    </p>
-  </div>
-  <div class="environment-card__links">
-    <a class="environment-card__icon" href="https://github.com/yuvrajpant56/OpenEnv/blob/feat/fresh-grid-world/envs/grid_world_env/README.md" target="_blank" rel="noreferrer noopener" aria-label="Grid World docs">
-      <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-        <path d="M6 3c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V9l-6-6H6zm8 1.5L18.5 9H14V4.5z" fill="currentColor"/>
-      </svg>
-    </a>
-    <a class="environment-card__icon environment-card__icon--hf" href="https://huggingface.co/spaces/yuvrajpant56/grid_world_env" target="_blank" rel="noreferrer noopener" aria-label="Grid World on Hugging Face">
-      <img src="https://huggingface.co/front/assets/huggingface_logo_noborder.svg" alt="" aria-hidden="true" />
-    </a>
-  </div>
-</div>
-
-
-<div class="environment-grid">
   <div class="environment-card">
     <div class="environment-card__body">
       <span class="environment-card__tag">RLVE Gym</span>
@@ -434,8 +448,47 @@ The OpenEnv community has built a catalog of ready-to-run environments that cove
       </a>
     </div>
   </div>
+
+  <div class="environment-card">
+    <div class="environment-card__body">
+      <span class="environment-card__tag">Calendar Gym</span>
+      <p class="environment-card__description">
+        This environment exposes a Calendar Gym tools through the OpenEnv reset/step/state interface. The server runs a FastAPI app that serves the OpenEnv endpoints.
+      </p>
+    </div>
+    <div class="environment-card__links">
+      <a class="environment-card__icon" href="https://huggingface.co/spaces/TuringEnterprises/calendar-gym/blob/main/README.md" target="_blank" rel="noreferrer noopener" aria-label="RLVE Gym docs">
+        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+          <path d="M6 3c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V9l-6-6H6zm8 1.5L18.5 9H14V4.5z" fill="currentColor"/>
+        </svg>
+      </a>
+      <a class="environment-card__icon environment-card__icon--hf" href="https://huggingface.co/spaces/TuringEnterprises/calendar-gym" target="_blank" rel="noreferrer noopener" aria-label="RLVE Gym on Hugging Face">
+        <img src="https://huggingface.co/front/assets/huggingface_logo-noborder.svg" alt="" aria-hidden="true" />
+      </a>
+    </div>
+  </div>
+
+  <div class="environment-card">
+    <div class="environment-card__body">
+      <span class="environment-card__tag">dm_control</span>
+      <p class="environment-card__description">
+        MuJoCo-based continuous control tasks from DeepMind's dm_control suite — cartpole, hopper, quadruped, walker, and more.
+      </p>
+    </div>
+    <div class="environment-card__links">
+      <a class="environment-card__icon" href="/OpenEnv/environments/dm-control/" aria-label="dm_control docs">
+        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+          <path d="M6 3c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V9l-6-6H6zm8 1.5L18.5 9H14V4.5z" fill="currentColor"/>
+        </svg>
+      </a>
+      <a class="environment-card__icon environment-card__icon--hf" href="https://huggingface.co/spaces/mreso/dm_control_env" target="_blank" rel="noreferrer noopener" aria-label="dm_control on Hugging Face">
+        <img src="https://huggingface.co/front/assets/huggingface_logo-noborder.svg" alt="" aria-hidden="true" />
+      </a>
+    </div>
+  </div>
+
+
+
 </div>
-
-
 
 > Want to publish your own environment? Head over to the [Build Your Own Environment](environment-builder.md) guide for a step-by-step walkthrough.

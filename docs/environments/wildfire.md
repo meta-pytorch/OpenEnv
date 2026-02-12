@@ -1,1 +1,1 @@
---8<-- "../../src/envs/wildfire_env/README.md"
+--8<-- "../../envs/wildfire_env/README.md"
