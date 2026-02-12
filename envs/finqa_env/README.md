@@ -30,7 +30,7 @@ docker build -t finqa-env:latest -f envs/finqa_env/server/Dockerfile .
 docker run -p 8000:8000 finqa-env:latest
 
 # To run evaluation script (example model gpt-5)
-API_BASE_URL=https://api.openai.com/v1 API_KEY=$OPENAI_API_KEY MODEL=gpt-5 python examples/finqa_inference.py 
+API_BASE_URL=https://api.openai.com/v1 API_KEY=$OPENAI_API_KEY MODEL=gpt-5 python examples/finqa_inference.py
 ```
 
 ### Local Development
@@ -46,60 +46,49 @@ cd envs/finqa_env
 
 ### Using the Client
 
+The client uses the MCP protocol and is async by default:
+
 ```python
-from envs.finqa_env import FinQAEnv, FinQAAction
+import asyncio
+from envs.finqa_env import FinQAEnv, CallToolAction
 
-# Connect to running server
-client = FinQAEnv(base_url="http://localhost:8000")
+async def main():
+    async with FinQAEnv(base_url="http://localhost:8000") as env:
+        # Reset to get a question
+        obs = await env.reset()
+        question = obs.metadata["question"]
+        company = obs.metadata["company"]
+        print(f"Question: {question}")
+        print(f"Company: {company}")
 
-# Or start from Docker image
-client = FinQAEnv.from_docker_image("finqa-env:latest")
+        # Discover available tools
+        tools = await env.list_tools()
+        print([t.name for t in tools])
 
-# Reset to get a question
-result = client.reset()
-print(f"Question: {result.observation.question}")
-print(f"Company: {result.observation.company}")
+        # Use tools via call_tool (convenience method)
+        result = await env.call_tool("get_descriptions", company_name=company)
+        print(f"Available tables: {result}")
 
-# Use tools to find the answer
-# Step 1: Get available tables
-result = client.step(FinQAAction(
-    tool_name="get_descriptions",
-    tool_args={"company_name": result.observation.company}
-))
-print(f"Available tables: {result.observation.tool_result}")
+        # Or use step() with CallToolAction for full observation access
+        step_result = await env.step(CallToolAction(
+            tool_name="sql_query",
+            arguments={
+                "company_name": "alphabet",
+                "table_name": "us_gaap_ScheduleOfIncomeBeforeIncomeTaxDomesticAndForeignTableTextBlock",
+                "query": "SELECT * FROM data WHERE year = '2022'"
+            }
+        ))
+        print(f"Done: {step_result.done}, Reward: {step_result.reward}")
 
-# Step 2: Get table info
-result = client.step(FinQAAction(
-    tool_name="get_table_info",
-    tool_args={
-        "company_name": "alphabet",
-        "table_name": "us_gaap_ScheduleOfIncomeBeforeIncomeTaxDomesticAndForeignTableTextBlock"
-    }
-))
+        # Submit answer
+        result = await env.call_tool("submit_answer", answer="6.118")
 
-# Step 3: Query the table
-result = client.step(FinQAAction(
-    tool_name="sql_query",
-    tool_args={
-        "company_name": "alphabet",
-        "table_name": "us_gaap_ScheduleOfIncomeBeforeIncomeTaxDomesticAndForeignTableTextBlock",
-        "query": "SELECT * FROM us_gaap_ScheduleOfIncomeBeforeIncomeTaxDomesticAndForeignTableTextBlock WHERE year = '2022'"
-    }
-))
-
-# Step 4: Submit answer
-result = client.step(FinQAAction(
-    tool_name="submit_answer",
-    tool_args={"answer": "6.118"}
-))
-
-print(f"Done: {result.done}")
-print(f"Reward: {result.reward}")  # 1.0 if correct
-
-client.close()
+asyncio.run(main())
 ```
 
 ## Available Tools
+
+Tools are auto-discovered via MCP. Use `await env.list_tools()` to see all available tools at runtime.
 
 | Tool | Description | Arguments |
 |------|-------------|-----------|
@@ -111,32 +100,6 @@ client.close()
 ### Tool Constraints
 
 - **sql_query**: Must include filters (`WHERE`, `HAVING`, etc.). `SELECT *` is not allowed.
-
-## Data Models
-
-### FinQAAction
-
-```python
-@dataclass
-class FinQAAction(Action):
-    tool_name: str  # One of: get_descriptions, get_table_info, sql_query, submit_answer
-    tool_args: Dict[str, Any]
-```
-
-### FinQAObservation
-
-```python
-@dataclass
-class FinQAObservation(Observation):
-    question: str           # The financial question
-    company: str            # Company name
-    tool_result: str        # Result of last tool call
-    history: List[Dict]     # Previous tool calls and results
-    step_count: int         # Current step number
-    available_tools: List[str]
-    done: bool              # Episode terminated?
-    reward: Optional[float] # Reward (only when done=True)
-```
 
 ## Environment Variables
 
@@ -174,17 +137,15 @@ curl -X POST http://localhost:8000/reset
 ### TRL (GRPO)
 
 ```python
+import asyncio
 from trl import GRPOTrainer
-from envs.finqa_env import FinQAEnv, FinQAAction
+from envs.finqa_env import FinQAEnv
 
-def rollout_func(prompts, trainer):
-    env = FinQAEnv(base_url="http://localhost:8000")
-    result = env.reset()
-
-    # Your agent logic here
-    # ...
-
-    return {"reward": result.reward, "completion": completion}
+async def rollout_func(prompts, trainer):
+    async with FinQAEnv(base_url="http://localhost:8000") as env:
+        obs = await env.reset()
+        # Your agent logic here using await env.call_tool(...)
+        return {"reward": obs.reward, "completion": completion}
 
 trainer = GRPOTrainer(
     model=model,
@@ -197,9 +158,10 @@ trainer = GRPOTrainer(
 
 ```
 finqa_env/
-├── __init__.py           # Exports FinQAAction, FinQAObservation, FinQAEnv
-├── models.py             # Data models
-├── client.py             # HTTP client
+├── __init__.py           # Exports FinQAEnv, CallToolAction, ListToolsAction
+├── models.py             # FinQAState and tool name constants
+├── client.py             # MCP client (subclasses MCPToolClient)
+├── pyproject.toml        # Dependencies
 ├── README.md             # This file
 ├── data/                 # Benchmark data (run download_data.sh)
 │   ├── benchmark_questions/
@@ -207,14 +169,12 @@ finqa_env/
 │   └── input_companies/
 │       └── [company folders]
 ├── download_data.sh      # Downloads data from HuggingFace
-├── tool_schema.py        # Auto-generates OpenAI tool schemas
 └── server/
     ├── __init__.py
-    ├── finqa_environment.py  # Core environment logic
+    ├── finqa_environment.py  # MCPEnvironment subclass with @mcp.tool decorators
     ├── tools.py              # Tool implementations
     ├── rewards.py            # Reward computation
     ├── app.py                # FastAPI server
-    ├── requirements.txt
     └── Dockerfile
 ```
 

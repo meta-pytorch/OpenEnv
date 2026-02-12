@@ -16,8 +16,9 @@ Example:
 """
 
 from .client import FinQAEnv
+from .models import FinQAState
 
 # Re-export MCP types for convenience
 from openenv.core.env_server.mcp_types import CallToolAction, ListToolsAction
 
-__all__ = ["FinQAEnv", "CallToolAction", "ListToolsAction"]
+__all__ = ["FinQAEnv", "FinQAState", "CallToolAction", "ListToolsAction"]
