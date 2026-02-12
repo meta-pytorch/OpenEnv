@@ -70,7 +70,9 @@ class FleetTaskEnv:
         self.request_timeout_s = request_timeout_s
 
         if not self.api_key:
-            raise ValueError("Fleet API key required (pass api_key or set FLEET_API_KEY)")
+            raise ValueError(
+                "Fleet API key required (pass api_key or set FLEET_API_KEY)"
+            )
 
         self._step_count = 0
         self._done = False
@@ -82,7 +84,7 @@ class FleetTaskEnv:
         # image (e.g., famazon:mcp0.0.7 instead of famazon:0.0.7). The mcp images have:
         # - scrot installed for screenshots
         # - MCP server with 'computer' tool for mouse/keyboard control
-        image_type = 'mcp' if self.modality == 'computer_use' else None
+        image_type = "mcp" if self.modality == "computer_use" else None
         self._orch, self._tools = FleetEnvClient.from_fleet(
             api_key=self.api_key,
             env_key=env_spec,
@@ -158,6 +160,7 @@ class FleetTaskEnv:
                 - step: Current step number (0)
         """
         import asyncio
+
         return asyncio.run(self.reset_async(seed=seed))
 
     async def reset_async(self, seed: Optional[int] = None) -> Dict[str, Any]:
@@ -189,9 +192,13 @@ class FleetTaskEnv:
         if self._orch:
             try:
                 reset_result = self._orch.reset()
-                reset_metadata = reset_result.observation.metadata if reset_result else {}
+                reset_metadata = (
+                    reset_result.observation.metadata if reset_result else {}
+                )
             except Exception as e:
-                logger.warning(f"Fleet env reset failed, continuing with empty observation: {e}")
+                logger.warning(
+                    f"Fleet env reset failed, continuing with empty observation: {e}"
+                )
 
         # Fetch tools lazily on first reset (avoids asyncio.run in __init__)
         # Note: Fetch tools for ALL modalities (tool_use and computer_use both need tools)
@@ -206,13 +213,27 @@ class FleetTaskEnv:
                 self._tools_fetched = True
 
         # For computer_use, filter to only the 'computer' tool
+        # IMPORTANT: Always apply filter for computer_use modality to prevent
+        # the model from using API tools instead of mouse/keyboard control
         if self.modality == "computer_use" and self._tools_cache:
             computer_tools = [
-                t for t in self._tools_cache
-                if t.get("name") == "computer" or t.get("function", {}).get("name") == "computer"
+                t
+                for t in self._tools_cache
+                if t.get("name") == "computer"
+                or t.get("function", {}).get("name") == "computer"
             ]
             if computer_tools:
                 self._tools_cache = computer_tools
+            else:
+                # No computer tool found - this is a configuration error
+                # The MCP image should expose the 'computer' tool for computer_use tasks
+                logger.warning(
+                    f"Task {self.task_key}: computer_use modality but no 'computer' tool found. "
+                    f"Available tools: {[t.get('name') or t.get('function', {}).get('name') for t in self._tools_cache]}. "
+                    f"Check MCP image configuration."
+                )
+                # Clear tools to prevent model from using API tools
+                self._tools_cache = []
 
         # Build observation with cached tools
         obs = {
@@ -243,9 +264,12 @@ class FleetTaskEnv:
             Tuple of (observation, reward, done, info)
         """
         import asyncio
+
         return asyncio.run(self.step_async(action))
 
-    async def step_async(self, action: Dict[str, Any]) -> Tuple[Dict[str, Any], float, bool, Dict]:
+    async def step_async(
+        self, action: Dict[str, Any]
+    ) -> Tuple[Dict[str, Any], float, bool, Dict]:
         """Execute a step in the environment.
 
         Args:
@@ -288,9 +312,7 @@ class FleetTaskEnv:
         # Determine if done
         self._done = agent_done or max_steps_reached
         info["done_reason"] = (
-            "agent_done" if agent_done else
-            "max_steps" if max_steps_reached else
-            None
+            "agent_done" if agent_done else "max_steps" if max_steps_reached else None
         )
 
         # Calculate reward (only on episode completion)
@@ -366,7 +388,9 @@ class FleetTaskEnv:
                 # Verifier failed (exception or explicit failure)
                 score = 0.0
 
-            logger.info(f"Task {self.task_key}: verifier returned success={response.success}, result={response.result}, score={score}")
+            logger.info(
+                f"Task {self.task_key}: verifier returned success={response.success}, result={response.result}, score={score}"
+            )
             return score
 
         except ImportError as e:

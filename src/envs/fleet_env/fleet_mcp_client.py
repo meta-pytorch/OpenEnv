@@ -37,7 +37,9 @@ class FleetMCPClient:
             url=self.url,
             headers={"Authorization": f"Bearer {self.api_key}"},
         ) as streams:
-            async with ClientSession(read_stream=streams[0], write_stream=streams[1]) as session:
+            async with ClientSession(
+                read_stream=streams[0], write_stream=streams[1]
+            ) as session:
                 await session.initialize()
                 return (await session.list_tools()).tools
 
@@ -46,7 +48,9 @@ class FleetMCPClient:
             url=self.url,
             headers={"Authorization": f"Bearer {self.api_key}"},
         ) as streams:
-            async with ClientSession(read_stream=streams[0], write_stream=streams[1]) as session:
+            async with ClientSession(
+                read_stream=streams[0], write_stream=streams[1]
+            ) as session:
                 await session.initialize()
                 result = await session.call_tool(name, arguments)
                 return self._extract_tool_result(result)
@@ -55,7 +59,15 @@ class FleetMCPClient:
         """Extract readable content from CallToolResult.
 
         MCP's call_tool returns a CallToolResult with content list.
-        This extracts the text content for use in agent observations.
+        This extracts text and image content for use in agent observations.
+
+        For VL (vision-language) models, ImageContent is converted to OpenAI-compatible
+        format: {"type": "image_url", "image_url": {"url": "data:image/png;base64,..."}}
+
+        Returns:
+            - str: For single text result
+            - dict: For JSON-parseable text or error
+            - list: For multiple text items OR any content with images (multimodal)
         """
         import json
 
@@ -70,9 +82,29 @@ class FleetMCPClient:
         # Extract content from CallToolResult
         if hasattr(result, "content") and result.content:
             texts = []
+            images = []
+
             for content in result.content:
+                # Handle TextContent
                 if hasattr(content, "text"):
                     texts.append(content.text)
+                # Handle ImageContent (MCP format: data, mimeType)
+                elif hasattr(content, "data") and hasattr(content, "mimeType"):
+                    # Convert to OpenAI-compatible image_url format
+                    mime_type = content.mimeType or "image/png"
+                    base64_data = content.data
+                    data_url = f"data:{mime_type};base64,{base64_data}"
+                    images.append({"type": "image_url", "image_url": {"url": data_url}})
+
+            # If there are images, return multimodal format (for VL models)
+            if images:
+                contents = []
+                for text in texts:
+                    contents.append({"type": "text", "text": text})
+                contents.extend(images)
+                return contents
+
+            # Text-only: preserve backward compatibility
             if len(texts) == 1:
                 # Single text result - try to parse as JSON
                 try:
@@ -94,5 +126,3 @@ class FleetMCPClient:
         if not tools_list:
             return False
         return any(t.name == name for t in tools_list)
-
-

@@ -22,7 +22,9 @@ class _FakeSession:
 
     def post(self, url, json=None, headers=None, timeout=None):
         self.calls.append(("POST", url, json))
-        return _FakeResp({"observation": {"metadata": {}}, "reward": 0.0, "done": False})
+        return _FakeResp(
+            {"observation": {"metadata": {}}, "reward": 0.0, "done": False}
+        )
 
     def get(self, url, headers=None, timeout=None):
         self.calls.append(("GET", url, None))
@@ -102,7 +104,9 @@ def test_fleet_env_step_rejects_tool_actions():
 
     orch, _tools = FleetEnvClient.from_fleet(api_key="k", env_key="e")
     with pytest.raises(TypeError):
-        orch.step(CallToolAction(tool_name="computer", parameters={"action": "screenshot"}))
+        orch.step(
+            CallToolAction(tool_name="computer", parameters={"action": "screenshot"})
+        )
 
 
 @pytest.mark.anyio
@@ -135,9 +139,14 @@ async def test_agent_tools_list_and_call_routes(monkeypatch):
 
     monkeypatch.setattr("envs.fleet_env.mcp_tools.FleetMCPClient", _FakeMCPClient)
 
-    tools = FleetMCPTools(api_key="k", mcp_urls=("https://x/api/v1/mcp", "https://x/mcp"))
+    tools = FleetMCPTools(
+        api_key="k", mcp_urls=("https://x/api/v1/mcp", "https://x/mcp")
+    )
     listed = await tools.list_tools()
-    assert sorted([t["function"]["name"] for t in listed.tools]) == ["computer", "search_issues"]
+    assert sorted([t["function"]["name"] for t in listed.tools]) == [
+        "computer",
+        "search_issues",
+    ]
 
     res = await tools.call_tool("computer", {"action": "screenshot"})
     assert res["url"].endswith("api/v1/mcp")
@@ -254,6 +263,83 @@ class TestFleetMCPClientExtractToolResult:
         result = client._extract_tool_result(_Result())
         assert result == "EmptyResult()"
 
+    def test_extract_image_content(self):
+        """Should extract ImageContent as OpenAI-compatible format."""
+        from envs.fleet_env.fleet_mcp_client import FleetMCPClient
+
+        client = FleetMCPClient(url="http://test", api_key="test")
+
+        # Mock MCP ImageContent
+        class _ImageContent:
+            type = "image"
+            data = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=="
+            mimeType = "image/png"
+
+        class _Result:
+            content = [_ImageContent()]
+            isError = False
+            structuredContent = None
+
+        result = client._extract_tool_result(_Result())
+
+        # Should return list with single image_url item
+        assert isinstance(result, list)
+        assert len(result) == 1
+        assert result[0]["type"] == "image_url"
+        assert "image_url" in result[0]
+        assert result[0]["image_url"]["url"].startswith("data:image/png;base64,")
+
+    def test_extract_mixed_text_and_image_content(self):
+        """Should extract mixed text and image content."""
+        from envs.fleet_env.fleet_mcp_client import FleetMCPClient
+
+        client = FleetMCPClient(url="http://test", api_key="test")
+
+        class _TextContent:
+            type = "text"
+            text = "Screenshot captured"
+
+        class _ImageContent:
+            type = "image"
+            data = "base64imagedata"
+            mimeType = "image/jpeg"
+
+        class _Result:
+            content = [_TextContent(), _ImageContent()]
+            isError = False
+            structuredContent = None
+
+        result = client._extract_tool_result(_Result())
+
+        # Should return list with both items
+        assert isinstance(result, list)
+        assert len(result) == 2
+        assert result[0]["type"] == "text"
+        assert result[0]["text"] == "Screenshot captured"
+        assert result[1]["type"] == "image_url"
+        assert result[1]["image_url"]["url"] == "data:image/jpeg;base64,base64imagedata"
+
+    def test_extract_image_default_mimetype(self):
+        """Should default to image/png when mimeType is missing."""
+        from envs.fleet_env.fleet_mcp_client import FleetMCPClient
+
+        client = FleetMCPClient(url="http://test", api_key="test")
+
+        class _ImageContent:
+            type = "image"
+            data = "somebase64data"
+            mimeType = None  # Missing mimeType
+
+        class _Result:
+            content = [_ImageContent()]
+            isError = False
+            structuredContent = None
+
+        result = client._extract_tool_result(_Result())
+
+        assert isinstance(result, list)
+        assert result[0]["image_url"]["url"].startswith("data:image/png;base64,")
+
 
 class TestFleetTaskEnvInitFetchesTools:
     """Tests for FleetTaskEnv fetching tools during __init__()."""
@@ -267,16 +353,14 @@ class TestFleetTaskEnvInitFetchesTools:
 
         # Create a proper coroutine for list_tools
         async def mock_list_tools():
-            return MagicMock(
-                tools=[{"type": "function", "function": {"name": "bash"}}]
-            )
+            return MagicMock(tools=[{"type": "function", "function": {"name": "bash"}}])
 
         mock_tools.list_tools = mock_list_tools
 
         # Monkeypatch BEFORE importing/creating FleetTaskEnv
         monkeypatch.setattr(
             "envs.fleet_env.task_env.FleetEnvClient.from_fleet",
-            lambda **kwargs: (mock_orch, mock_tools)
+            lambda **kwargs: (mock_orch, mock_tools),
         )
 
         from envs.fleet_env.task_env import FleetTaskEnv
@@ -316,7 +400,7 @@ class TestFleetTaskEnvInitFetchesTools:
 
         monkeypatch.setattr(
             "envs.fleet_env.task_env.FleetEnvClient.from_fleet",
-            lambda **kwargs: (mock_orch, mock_tools)
+            lambda **kwargs: (mock_orch, mock_tools),
         )
 
         from envs.fleet_env.task_env import FleetTaskEnv
@@ -357,7 +441,7 @@ class TestFleetTaskEnvInitFetchesTools:
 
         monkeypatch.setattr(
             "envs.fleet_env.task_env.FleetEnvClient.from_fleet",
-            lambda **kwargs: (mock_orch, mock_tools)
+            lambda **kwargs: (mock_orch, mock_tools),
         )
 
         from envs.fleet_env.task_env import FleetTaskEnv
@@ -377,5 +461,3 @@ class TestFleetTaskEnvInitFetchesTools:
         assert "tools" in obs
         assert len(obs["tools"]) == 1
         assert obs["tools"][0]["function"]["name"] == "computer"
-
-
