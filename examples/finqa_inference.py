@@ -32,7 +32,7 @@ from openai import OpenAI
 
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
-from envs.finqa_env import FinQAEnv
+from envs.finqa_env import CallToolAction, FinQAEnv
 
 # ---------------------------------------------------------------------------
 # Configuration
@@ -68,24 +68,27 @@ def _tools_to_openai_format(tools) -> List[dict]:
                 }
             required = tool.inputSchema.get("required", [])
 
-        openai_tools.append({
-            "type": "function",
-            "function": {
-                "name": tool.name,
-                "description": tool.description or "",
-                "parameters": {
-                    "type": "object",
-                    "properties": properties,
-                    "required": required,
+        openai_tools.append(
+            {
+                "type": "function",
+                "function": {
+                    "name": tool.name,
+                    "description": tool.description or "",
+                    "parameters": {
+                        "type": "object",
+                        "properties": properties,
+                        "required": required,
+                    },
                 },
-            },
-        })
+            }
+        )
     return openai_tools
 
 
 # ---------------------------------------------------------------------------
 # Gameplay
 # ---------------------------------------------------------------------------
+
 
 async def play_finqa_episode(
     env: FinQAEnv,
@@ -101,9 +104,9 @@ async def play_finqa_episode(
     company = obs.metadata.get("company", "")
 
     if VERBOSE:
-        print(f"\n{'='*60}")
+        print(f"\n{'=' * 60}")
         print(f"Episode {episode_num}")
-        print(f"{'='*60}")
+        print(f"{'=' * 60}")
         print(f"Company: {company}")
         print(f"Question: {question}")
 
@@ -138,18 +141,24 @@ async def play_finqa_episode(
             tool_args = json.loads(tool_call_obj.function.arguments)
             tool_call_id = tool_call_obj.id
 
-        chat_history.append({
-            "role": "assistant",
-            "content": None,
-            "tool_calls": [{
-                "id": tool_call_id,
-                "type": "function",
-                "function": {
-                    "name": tool_name,
-                    "arguments": json.dumps(tool_args) if tool_call_id == "none" else tool_call_obj.function.arguments
-                }
-            }]
-        })
+        chat_history.append(
+            {
+                "role": "assistant",
+                "content": None,
+                "tool_calls": [
+                    {
+                        "id": tool_call_id,
+                        "type": "function",
+                        "function": {
+                            "name": tool_name,
+                            "arguments": json.dumps(tool_args)
+                            if tool_call_id == "none"
+                            else tool_call_obj.function.arguments,
+                        },
+                    }
+                ],
+            }
+        )
 
         if VERBOSE:
             print(f"Tool: {tool_name}({json.dumps(tool_args)})"[:100])
@@ -158,17 +167,20 @@ async def play_finqa_episode(
             tool_name = "submit_answer"
             tool_args = {"answer": "unknown"}
 
-        # Use call_tool instead of manual action construction
-        result_text = await env.call_tool(tool_name, **tool_args)
-        # Get the latest observation via step metadata
-        obs = env._last_observation if hasattr(env, '_last_observation') else obs
+        # Use step() with CallToolAction to get the full observation (done, reward)
+        action = CallToolAction(tool_name=tool_name, arguments=tool_args)
+        step_result = await env.step(action)
+        obs = step_result.observation
+        result_text = obs.result if hasattr(obs, "result") else str(obs.metadata)
 
         if not obs.done:
-            chat_history.append({
-                "role": "tool",
-                "tool_call_id": tool_call_id,
-                "content": str(result_text) or "No result"
-            })
+            chat_history.append(
+                {
+                    "role": "tool",
+                    "tool_call_id": tool_call_id,
+                    "content": str(result_text) or "No result",
+                }
+            )
 
         if VERBOSE:
             result_preview = str(result_text)[:200]
@@ -194,6 +206,7 @@ async def play_finqa_episode(
 # Entrypoint
 # ---------------------------------------------------------------------------
 
+
 async def async_main() -> None:
     if not API_KEY:
         raise SystemExit("API_KEY (or HF_TOKEN) must be set to query the model.")
@@ -217,15 +230,17 @@ async def async_main() -> None:
             results.append(episode_result)
 
         # Summary
-        print(f"\n{'='*60}")
+        print(f"\n{'=' * 60}")
         print("SUMMARY")
-        print(f"{'='*60}")
+        print(f"{'=' * 60}")
 
         correct = sum(1 for r in results if r["reward"] > 0)
         avg_steps = sum(r["steps"] for r in results) / len(results)
 
         print(f"Episodes: {len(results)}")
-        print(f"Correct: {correct}/{len(results)} ({100*correct/len(results):.1f}%)")
+        print(
+            f"Correct: {correct}/{len(results)} ({100 * correct / len(results):.1f}%)"
+        )
         print(f"Average steps: {avg_steps:.1f}")
 
 
