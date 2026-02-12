@@ -247,6 +247,22 @@ class FleetTaskEnv:
         if self._tools_cache:
             obs["tools"] = self._tools_cache
 
+        # For computer_use, take initial screenshot so VL model can see the screen
+        # This is critical for VL models - without visual input they're blind
+        if self.modality == "computer_use" and self._tools:
+            try:
+                screenshot_result = await self._tools.call_tool(
+                    "computer", {"action": "screenshot"}
+                )
+                # screenshot_result is in OpenAI-compatible format:
+                # [{"type": "text", "text": "..."}, {"type": "image_url", "image_url": {"url": "data:..."}}]
+                obs["initial_screenshot"] = screenshot_result
+                logger.info(f"Task {self.task_key}: captured initial screenshot")
+            except Exception as e:
+                logger.warning(
+                    f"Task {self.task_key}: failed to capture initial screenshot: {e}"
+                )
+
         return obs
 
     def step(self, action: Dict[str, Any]) -> Tuple[Dict[str, Any], float, bool, Dict]:
