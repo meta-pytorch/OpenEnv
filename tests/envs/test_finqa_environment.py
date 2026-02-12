@@ -598,9 +598,7 @@ class TestEnvironment:
         from openenv.core.env_server.mcp_types import CallToolAction
 
         env.reset()
-        action = CallToolAction(
-            tool_name="nonexistent_tool", arguments={}
-        )
+        action = CallToolAction(tool_name="nonexistent_tool", arguments={})
         obs = env.step(action)
         # Should not crash; returns error in metadata
         assert obs.done is False or "error" in str(obs.metadata).lower()
@@ -610,9 +608,7 @@ class TestEnvironment:
         from openenv.core.env_server.mcp_types import CallToolAction
 
         env.reset()
-        action = CallToolAction(
-            tool_name="get_descriptions", arguments={}
-        )
+        action = CallToolAction(tool_name="get_descriptions", arguments={})
         obs = env.step(action)
         # Should not crash
         assert isinstance(obs.done, bool)
