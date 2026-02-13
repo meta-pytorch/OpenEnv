@@ -150,7 +150,7 @@ async def test_action_bias_scenarios():
 async def test_navigation_actions():
     """Test 5: Navigation actions still work."""
     print("\n" + "=" * 70)
-    print("Test 5: Navigation Actions (Day 4)")
+    print("Test 5: Navigation Actions")
     print("=" * 70)
 
     env = CarlaEnv(base_url=BASE_URL)

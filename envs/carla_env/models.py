@@ -26,13 +26,13 @@ class CarlaAction(Action):
         brake: Brake value [0.0, 1.0] for "control" actions
         lane_direction: Direction for "lane_change" ("left" or "right")
         target_speed_kmh: Target speed in km/h for "maintain_speed"
-        brake_intensity: Brake intensity [0.0, 1.0] for "brake_vehicle" (Day 2)
-        target_lane_id: Target lane ID for improved "lane_change" (Day 2)
-        navigation_behavior: Behavior for navigation agent ("cautious", "normal", "aggressive") (Day 4)
-        destination_x: Destination X coordinate for navigation (Day 4)
-        destination_y: Destination Y coordinate for navigation (Day 4)
-        destination_z: Destination Z coordinate for navigation (Day 4)
-        route_steps: Number of steps to follow route (Day 4)
+        brake_intensity: Brake intensity [0.0, 1.0] for "brake_vehicle"
+        target_lane_id: Target lane ID for improved "lane_change"
+        navigation_behavior: Behavior for navigation agent ("cautious", "normal", "aggressive")
+        destination_x: Destination X coordinate for navigation
+        destination_y: Destination Y coordinate for navigation
+        destination_z: Destination Z coordinate for navigation
+        route_steps: Number of steps to follow route
     """
     action_type: str = Field(default="observe", description="Type of action")
     throttle: float = Field(default=0.0, ge=0.0, le=1.0, description="Throttle value")
@@ -40,7 +40,7 @@ class CarlaAction(Action):
     brake: float = Field(default=0.0, ge=0.0, le=1.0, description="Brake value")
     lane_direction: Optional[str] = Field(default=None, description="Lane change direction (deprecated, use target_lane_id)")
 
-    # Day 2: New action parameters
+    # Enhanced action parameters
     target_speed_kmh: Optional[float] = Field(
         default=None,
         ge=0.0,
@@ -58,7 +58,7 @@ class CarlaAction(Action):
         description="Target lane ID for lane_change action (e.g., 'lane_0', 'lane_1')"
     )
 
-    # Day 4: Navigation action parameters
+    # Navigation action parameters
     navigation_behavior: Optional[str] = Field(
         default="normal",
         description="Behavior for navigation agent: cautious, normal, or aggressive"
@@ -134,7 +134,7 @@ class CarlaState(State):
     total_reward: float = Field(default=0.0, description="Cumulative reward")
     simulation_time: float = Field(default=0.0, description="Total simulation time (seconds)")
 
-    # Day 3: Action tracking metrics (from sinatras)
+    # Action tracking metrics
     num_turns: int = Field(default=0, description="Number of steps taken in episode")
     total_tool_calls: int = Field(default=0, description="Total number of actions executed")
     tool_call_counts: Dict[str, int] = Field(
@@ -143,7 +143,7 @@ class CarlaState(State):
     )
     is_truncated: bool = Field(default=False, description="Whether episode was truncated (max steps)")
 
-    # Day 3: Movement metrics
+    # Movement metrics
     average_speed: float = Field(default=0.0, description="Average speed in km/h")
     max_speed: float = Field(default=0.0, description="Maximum speed reached in km/h")
 

@@ -81,7 +81,7 @@ class CarlaEnvironment(Environment):
         self.world: Optional[Any] = None
         self.vehicle: Optional[Any] = None
 
-        # Day 4: Navigation agent (real mode only)
+        # Navigation agent (real mode only)
         self.nav_agent: Optional[Any] = None
 
         # Mock mode state
@@ -148,7 +148,7 @@ class CarlaEnvironment(Environment):
         # Increment step counter
         self._state.step_count += 1
 
-        # Day 3: Track action metrics
+        # Track action metrics
         self._state.num_turns += 1
         self._state.total_tool_calls += 1
 
@@ -158,7 +158,7 @@ class CarlaEnvironment(Environment):
             self._state.tool_call_counts[action_name] = 0
         self._state.tool_call_counts[action_name] += 1
 
-        # Day 3: Store previous state for distance tracking
+        # Store previous state for distance tracking
         if self.mode == "real" and self.vehicle is not None:
             prev_location = self.vehicle.get_location()
             prev_speed = self._get_current_speed()
@@ -172,7 +172,7 @@ class CarlaEnvironment(Environment):
         else:
             self._step_mock_mode(action)
 
-        # Day 3: Track distance and speed after action
+        # Track distance and speed after action
         if self.mode == "real" and self.vehicle is not None:
             new_location = self.vehicle.get_location()
             if prev_location is not None:
@@ -247,7 +247,7 @@ class CarlaEnvironment(Environment):
             self.vehicle.destroy()
             self.vehicle = None
 
-        # Day 4: Reset navigation agent
+        # Reset navigation agent
         self.nav_agent = None
 
         # Set weather
@@ -333,7 +333,7 @@ class CarlaEnvironment(Environment):
             "delta_time": 0.05,  # 20 FPS
         }
 
-        # Day 4: Reset navigation agent (mock)
+        # Reset navigation agent (mock)
         self.nav_agent = None
 
     def _step_real_mode(self, action: CarlaAction) -> None:
@@ -351,7 +351,7 @@ class CarlaEnvironment(Environment):
             self.vehicle.apply_control(control)
 
         elif action.action_type == "brake_vehicle":
-            # Day 2: Brake with specific intensity
+            # Brake with specific intensity
             # Adapted from sinatras/carla-env tools/vehicle.py:brake_vehicle()
             intensity = action.brake_intensity if action.brake_intensity is not None else 1.0
             intensity = max(0.0, min(1.0, float(intensity)))  # Clamp [0.0, 1.0]
@@ -364,7 +364,7 @@ class CarlaEnvironment(Environment):
             self.vehicle.apply_control(control)
 
         elif action.action_type == "maintain_speed":
-            # Day 2: Maintain target speed with simple PID-like control
+            # Maintain target speed with simple PID-like control
             target_speed = action.target_speed_kmh if action.target_speed_kmh is not None else 30.0
             current_speed = self._get_current_speed()
 
@@ -388,7 +388,7 @@ class CarlaEnvironment(Environment):
             self.vehicle.apply_control(control)
 
         elif action.action_type == "lane_change":
-            # Day 2: Improved lane change with target_lane_id support
+            # Improved lane change with target_lane_id support
             # Backward compatible with lane_direction
             if action.target_lane_id:
                 # New way: use target_lane_id (e.g., "lane_1", "lane_0")
@@ -419,7 +419,7 @@ class CarlaEnvironment(Environment):
             pass
 
         elif action.action_type == "init_navigation_agent":
-            # Day 4: Initialize navigation agent
+            # Initialize navigation agent
             behavior = action.navigation_behavior if action.navigation_behavior else "normal"
 
             # Import agents (lazy import - only when needed)
@@ -436,7 +436,7 @@ class CarlaEnvironment(Environment):
                 self.nav_agent = BasicAgent(self.vehicle)
 
         elif action.action_type == "set_destination":
-            # Day 4: Set destination for navigation agent
+            # Set destination for navigation agent
             if self.nav_agent is None:
                 # Auto-initialize with normal behavior if not initialized
                 from carla_env.server._carla_agents.navigation.behavior_agent import BehaviorAgent
@@ -453,7 +453,7 @@ class CarlaEnvironment(Environment):
                 self.nav_agent.set_destination(destination)
 
         elif action.action_type == "follow_route":
-            # Day 4: Follow route using navigation agent
+            # Follow route using navigation agent
             if self.nav_agent is None:
                 # No agent initialized - just maintain current control
                 pass
@@ -503,7 +503,7 @@ class CarlaEnvironment(Environment):
             self.mock_state["speed_kmh"] = speed_ms * 3.6
 
         elif action.action_type == "brake_vehicle":
-            # Day 2: Brake with specific intensity
+            # Brake with specific intensity
             intensity = action.brake_intensity if action.brake_intensity is not None else 1.0
             intensity = max(0.0, min(1.0, float(intensity)))
             # Apply deceleration proportional to intensity
@@ -513,7 +513,7 @@ class CarlaEnvironment(Environment):
             self.mock_state["speed_kmh"] = speed_ms * 3.6
 
         elif action.action_type == "maintain_speed":
-            # Day 2: Maintain target speed
+            # Maintain target speed
             target_speed = action.target_speed_kmh if action.target_speed_kmh is not None else 30.0
             current_speed = self.mock_state["speed_kmh"]
             speed_error = target_speed - current_speed
@@ -531,7 +531,7 @@ class CarlaEnvironment(Environment):
             self.mock_state["speed_kmh"] = speed_ms * 3.6
 
         elif action.action_type == "lane_change":
-            # Day 2: Improved with target_lane_id support
+            # Improved with target_lane_id support
             # Lateral offset (simplified)
             if action.target_lane_id:
                 # New way: use target_lane_id
@@ -550,7 +550,7 @@ class CarlaEnvironment(Environment):
             pass
 
         elif action.action_type == "init_navigation_agent":
-            # Day 4: Mock navigation agent initialization
+            # Mock navigation agent initialization
             # Store navigation config in mock state
             behavior = action.navigation_behavior if action.navigation_behavior else "normal"
             self.mock_state["nav_agent"] = {
@@ -560,7 +560,7 @@ class CarlaEnvironment(Environment):
             }
 
         elif action.action_type == "set_destination":
-            # Day 4: Mock set destination
+            # Mock set destination
             if "nav_agent" not in self.mock_state:
                 self.mock_state["nav_agent"] = {
                     "initialized": True,
@@ -577,7 +577,7 @@ class CarlaEnvironment(Environment):
                 )
 
         elif action.action_type == "follow_route":
-            # Day 4: Mock follow route
+            # Mock follow route
             # Simple simulation: move towards destination
             if "nav_agent" in self.mock_state and self.mock_state["nav_agent"]["destination"]:
                 dest = self.mock_state["nav_agent"]["destination"]
@@ -642,7 +642,7 @@ class CarlaEnvironment(Environment):
                         self.mock_state["collisions"].append(collision)
                         self._state.collisions.append(collision)
 
-                        # Day 3: Track collision metrics
+                        # Track collision metrics
                         self._state.collisions_count += 1
                         self._state.collision_intensity_total += self.mock_state["speed_kmh"]
 

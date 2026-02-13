@@ -160,7 +160,7 @@ High-speed variants where braking **cannot** prevent collision:
 
 ### Available Actions
 
-#### Day 1: Basic Actions
+#### Basic Actions
 
 ```python
 # Observe (no action, just get observation)
@@ -181,7 +181,7 @@ CarlaAction(
 )
 ```
 
-#### Day 2: Enhanced Actions
+#### Enhanced Actions
 
 ```python
 # Brake with specific intensity (0.0 to 1.0)
@@ -203,7 +203,7 @@ CarlaAction(
 )
 ```
 
-#### Day 4: Navigation Actions
+#### Navigation Actions
 
 ```python
 # Initialize navigation agent with behavior profile
@@ -288,7 +288,7 @@ The `examples/` directory contains complete demonstrations of all functionality:
 ### Navigation
 
 **[carla_navigation_example.py](../../examples/carla_navigation_example.py)**
-- Complete navigation workflow (Day 4)
+- Complete navigation workflow
 - Initialize navigation agent with behavior profiles
 - Set destination and follow autonomous route
 - Track progress to goal with distance calculations
@@ -296,7 +296,7 @@ The `examples/` directory contains complete demonstrations of all functionality:
 ### Advanced Actions
 
 **[carla_advanced_actions_example.py](../../examples/carla_advanced_actions_example.py)**
-- Comprehensive demo of all Day 1-4 actions in 4 scenarios:
+- Comprehensive demo of all actions in 4 scenarios:
   - Demo 1: Basic actions (control, emergency_stop, lane_change, observe)
   - Demo 2: Enhanced actions (brake_vehicle, maintain_speed)
   - Demo 3: Navigation actions (init_agent, set_destination, follow_route)

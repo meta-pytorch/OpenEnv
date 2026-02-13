@@ -91,12 +91,12 @@ world.tick()
 
 ### Integration with CarlaEnvironment
 
-Agents will be integrated in Day 4 via navigation actions:
+Agents are integrated via navigation actions:
 - `init_navigation_agent(behavior)`
 - `set_destination(x, y, z)`
 - `follow_route(num_steps)`
 
-Example (Day 4):
+Example:
 ```python
 # Initialize agent
 env.step(CarlaAction(
@@ -216,7 +216,7 @@ ModuleNotFoundError: No module named 'carla'
 
 This is expected and normal.
 
-## Next Steps (Day 4)
+## Integration
 
 1. Implement navigation actions in CarlaEnvironment
 2. Add agent state management (store agent instance)
