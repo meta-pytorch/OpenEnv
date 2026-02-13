@@ -254,21 +254,6 @@ class FleetTaskEnv:
                 screenshot_result = await self._tools.call_tool(
                     "computer", {"action": "screenshot"}
                 )
-                # Debug: log actual screenshot result format
-                result_type = type(screenshot_result).__name__
-                result_len = (
-                    len(screenshot_result) if isinstance(screenshot_result, list) else 0
-                )
-                has_image_url = False
-                if isinstance(screenshot_result, list):
-                    has_image_url = any(
-                        isinstance(item, dict) and item.get("type") == "image_url"
-                        for item in screenshot_result
-                    )
-                logger.info(
-                    f"Task {self.task_key}: screenshot_result type={result_type}, "
-                    f"len={result_len}, has_image_url={has_image_url}"
-                )
                 # screenshot_result is in OpenAI-compatible format:
                 # [{"type": "text", "text": "..."}, {"type": "image_url", "image_url": {"url": "data:..."}}]
                 obs["initial_screenshot"] = screenshot_result
