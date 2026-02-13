@@ -349,11 +349,45 @@ python carla_navigation_example.py
 
 ## Deployment Modes
 
-This environment provides **three Dockerfiles** for different deployment strategies:
+This environment supports **two runtime modes** (Mock and Real) with **multiple deployment options**:
 
-### Production: Real Mode with CARLA (`server/Dockerfile`)
+### 1. Mock Mode (No Docker Needed)
 
-**Current default deployment configuration** - Complete self-contained CARLA deployment.
+**Simulated physics for development and testing** - No CARLA or GPU required.
+
+**Technical Specifications**:
+- **Compute**: CPU only (minimal resources)
+- **CARLA**: None (Python simulation)
+- **Mode**: `CARLA_MODE=mock` (default)
+- **Startup time**: <5 seconds
+- **Memory**: ~500MB RAM
+- **Cost**: Free
+
+**Use Cases**:
+- Local development and debugging
+- CI/CD testing
+- Free hosting (CPU-only spaces)
+- Quick prototyping
+
+**Run Locally**:
+```bash
+# Install dependencies
+uv sync --project envs/carla_env
+
+# Start server (mock mode by default)
+uv run --project envs/carla_env python -m carla_env.server.app
+```
+
+**Deploy to HuggingFace** (CPU Space):
+```bash
+CARLA_MODE=mock openenv push envs/carla_env --repo-id username/carla-env-mock
+```
+
+---
+
+### 2. Real Mode - Standalone (`server/Dockerfile`)
+
+**Production deployment** - Complete self-contained CARLA deployment with GPU.
 
 **Technical Specifications**:
 - **Compute**: **GPU required** (NVIDIA T4 minimum, A10G recommended)
@@ -376,18 +410,19 @@ This environment provides **three Dockerfiles** for different deployment strateg
 - Accurate CARLA physics
 - Ready for HuggingFace GPU Spaces (T4/A10G)
 
-**Deploy**:
+**Deploy to HuggingFace** (GPU Space):
 ```bash
-openenv push --repo-id your-username/carla-env
-```
+# Deploys server/Dockerfile by default
+openenv push envs/carla_env --repo-id username/carla-env
 
-**Note**: This Dockerfile is a **copy** of `server/Dockerfile.real-standalone` configured for production use.
+# Then configure GPU T4/A10G in Space settings
+```
 
 ---
 
-### Alternative: Client Only (`server/Dockerfile.real`)
+### 3. Real Mode - Client Only (`server/Dockerfile.real`)
 
-**Template** for lightweight client connecting to external CARLA server.
+**Lightweight client** connecting to external CARLA server.
 
 **Technical Specifications**:
 - **Client compute**: CPU only (minimal resources)
@@ -408,54 +443,24 @@ openenv push --repo-id your-username/carla-env
 - Network connectivity to CARLA server (port 2000)
 - Set `CARLA_HOST` and `CARLA_PORT` environment variables
 
-**To Use**:
+**Deploy**:
 ```yaml
-# In openenv.yaml
+# In openenv.yaml, specify alternative Dockerfile
 dockerfile: server/Dockerfile.real
+
+# Then deploy
+openenv push envs/carla_env --repo-id username/carla-env-client
 ```
+
+**Note**: You must have a CARLA 0.10.0 server running externally and set `CARLA_HOST` and `CARLA_PORT` environment variables in the Space settings.
 
 ---
 
-### Reference: Standalone Template (`server/Dockerfile.real-standalone`)
+### Reference: `server/Dockerfile.real-standalone`
 
-**Template** - Original standalone configuration (backup/reference).
+This is a **backup copy** of `server/Dockerfile` maintained for reference. It contains the same standalone configuration with CARLA included.
 
-**Technical Specifications**:
-- **Compute**: **GPU required** (NVIDIA)
-- **CARLA**: Full CARLA 0.10.0 + Unreal Engine 5.5 included
-- **Rendering**: RenderOffScreen with OpenGL (offscreen rendering, no display)
-- **Executable**: `CarlaUnreal.sh` (UE5, not CarlaUE4.sh)
-- **Image size**: ~15GB
-- **Build time**: 30-60 minutes (downloads ~10GB CARLA archive)
-- **Startup time**: 60-90 seconds (CARLA server initialization)
-- **Memory**: ~8-12GB RAM
-
-**GPU Requirements**:
-- **Minimum**: NVIDIA T4 (16GB VRAM)
-  - Works but can be tight on memory
-  - May experience occasional OOM on complex scenes
-- **Recommended**: NVIDIA A10G (24GB VRAM)
-  - Stable and performant
-  - Headroom for future camera sensors
-
-**Cost on HuggingFace Spaces**:
-- T4 GPU: ~$0.60/hour (~$432/month if running 24/7)
-- A10G GPU: ~$1.10/hour (~$792/month if running 24/7)
-- **Note**: Only pay when Space is running (can pause when not in use)
-
-**Use Cases**:
-- Production deployments requiring full physics fidelity
-- Turnkey solution (no external dependencies)
-- HuggingFace Spaces with GPU hardware
-- Research requiring exact CARLA behavior
-
-**Why Use This**:
-- Zero external dependencies (everything in one container)
-- Identical physics to desktop CARLA
-- Easy deployment (single `docker run` or HF Space)
-- Future-ready for camera sensors (rendering available but not exposed)
-
-**Security**: Runs CARLA as non-root user (required by CARLA 0.10.0)
+**Usage**: Not needed for normal deployments. `server/Dockerfile` is the active production file.
 
 ---
 
@@ -488,7 +493,7 @@ Environment variables (can be overridden):
 
 ## Features
 
-✅ **Three Deployment Modes**: Mock (free, CPU), Client (lightweight), or Standalone (full CARLA)
+✅ **Two Runtime Modes**: Mock (simulated, CPU-only) or Real (CARLA physics, GPU)
 
 ✅ **HumanAgent Web Interface**: Interactive testing without code
 
@@ -640,13 +645,14 @@ Environment auto-resets if `step()` is called before `reset()`:
 #### Map Names
 Uses HD-optimized map names (e.g., `Town10HD_Opt` instead of `Town10`)
 
-## Live Demos
+## Live Demo
 
 Try the environment without installation:
 
-- **Mock Mode** (Free, CPU): [sergiopaniego/carla-env](https://huggingface.co/spaces/sergiopaniego/carla-env)
-  - Instant startup, no GPU needed
+- **Real Mode with CARLA** (GPU T4): [sergiopaniego/carla-env](https://huggingface.co/spaces/sergiopaniego/carla-env)
+  - Full CARLA 0.10.0 physics simulation
   - HumanAgent interface available at `/web`
+  - Text-only observations (no camera)
 
 - **Real Mode** (GPU, Standalone): [sergiopaniego/carla-env-real](https://huggingface.co/spaces/sergiopaniego/carla-env-real)
   - Full CARLA 0.10.0 with UE5.5
@@ -673,7 +679,16 @@ We've adapted these components to work with the OpenEnv framework (HTTP/WebSocke
 
 ## Citation
 
+If you use this environment, please cite both the original carla-env and this OpenEnv implementation:
+
 ```bibtex
+@misc{carla-env,
+  author = {Sinatras},
+  title  = {carla-env: Giving Models Access to World Simulation},
+  year   = {2025},
+  url    = {https://github.com/SinatrasC/carla-env}
+}
+
 @software{openenv_carla,
   title = {CARLA Environment for OpenEnv},
   author = {OpenEnv Contributors},
