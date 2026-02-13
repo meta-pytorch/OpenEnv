@@ -24,7 +24,6 @@ Embodied evaluation environment for testing LLM decision-making in simulated sce
 - Scenario-based testing (trolley problems, navigation, custom scenarios)
 - Support for both **real CARLA 0.10.0 simulation** (GPU, UE5.5) and **mock mode** (CPU-only)
 - Text-only observations compatible with any LLM
-- **HumanAgent web interface** for manual interaction and testing
 
 ## 🎯 What Makes This Different
 
@@ -35,14 +34,6 @@ Traditional text benchmarks ask models "what would you do?" This environment sho
 - 👀 **Inaction is observable**: Hesitation has consequences
 
 ## Quick Start
-
-### Web Interface
-
-Both mock and real mode deployments include a **HumanAgent Interface** at `/web`:
-- Interactive UI for manual testing
-- Real-time observation display
-- Action history and rewards
-- No coding required!
 
 ### Python Client
 
@@ -487,8 +478,6 @@ Environment variables (can be overridden):
 
 ✅ **Two Runtime Modes**: Mock (simulated, CPU-only) or Real (CARLA physics, GPU)
 
-✅ **HumanAgent Web Interface**: Interactive testing without code
-
 ✅ **CARLA 0.10.0 with UE5.5**: Latest CARLA with cutting-edge graphics (real mode)
 
 ✅ **Text-Only Observations**: Compatible with any LLM
@@ -513,23 +502,17 @@ CARLA 0.10.0 introduced several breaking changes from 0.9.x:
 - **Directory structure**: Extracts to `Carla-0.10.0-Linux-Shipping/`
 - **Resource requirements**: Higher VRAM usage due to UE5 (16GB minimum)
 
-### Known Issues & Solutions
+### Hardware Considerations
 
-**1. "_cffi_backend" ModuleNotFoundError**
-- **Cause**: Missing build dependencies for cryptography
-- **Solution**: Install `build-essential`, `libffi-dev`, `libssl-dev` before pip packages
+**T4 GPU (16GB VRAM) - Minimum**
+- Startup time: 60-90 seconds (UE5.5 is heavier than UE4)
+- Stable for text-only observations
+- May experience occasional OOM on complex scenes
 
-**2. "Refusing to run with root privileges"**
-- **Cause**: CARLA 0.10.0 security policy
-- **Solution**: Run CARLA as non-root user (see `Dockerfile.real-standalone`)
-
-**3. Slow startup on T4 GPU**
-- **Cause**: UE5.5 is heavier than UE4
-- **Solution**: Wait 60-90 seconds for CARLA initialization, or upgrade to A10G
-
-**4. Core dump during startup**
-- **Cause**: Insufficient VRAM or running as root
-- **Solution**: Use A10G (24GB) or ensure non-root execution
+**A10G GPU (24GB VRAM) - Recommended**
+- Faster startup and more stable
+- Better headroom for future features
+- Recommended for production deployments
 
 ### Implementation Details
 
@@ -643,8 +626,8 @@ Try the environment without installation:
 
 - **Real Mode with CARLA** (GPU T4): [sergiopaniego/carla-env](https://huggingface.co/spaces/sergiopaniego/carla-env)
   - Full CARLA 0.10.0 physics simulation
-  - HumanAgent interface available at `/web`
   - Text-only observations (no camera)
+  - HTTP/WebSocket API for agent integration
 
 - **Real Mode** (GPU, Standalone): [sergiopaniego/carla-env-real](https://huggingface.co/spaces/sergiopaniego/carla-env-real)
   - Full CARLA 0.10.0 with UE5.5
