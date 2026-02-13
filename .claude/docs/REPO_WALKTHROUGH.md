@@ -48,8 +48,9 @@ src/
 │   │   │
 │   │   ├── containers/           # Container lifecycle management
 │   │   │   ├── runtime/              # Provider implementations
-│   │   │   │   ├── local_docker.py       # LocalDockerProvider
-│   │   │   │   └── uv_provider.py        # UVProvider (for local dev)
+│   │   │   │   ├── providers.py           # ContainerProvider/RuntimeProvider ABCs + LocalDockerProvider
+│   │   │   │   ├── daytona_provider.py    # DaytonaProvider (Daytona cloud sandboxes)
+│   │   │   │   └── uv_provider.py         # UVProvider (for local dev)
 │   │   │   └── images/               # Base Docker images
 │   │   │       └── Dockerfile            # openenv-base image
 │   │   │
