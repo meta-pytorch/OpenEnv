@@ -349,41 +349,45 @@ python carla_navigation_example.py
 
 ## Deployment Modes
 
-This environment provides **three Dockerfiles** for different deployment strategies, each optimized for specific use cases:
+This environment provides **three Dockerfiles** for different deployment strategies:
 
-### Mock Mode (`server/Dockerfile`)
+### Production: Real Mode with CARLA (`server/Dockerfile`)
 
-**Purpose**: Fast development, testing, CI/CD, and free HuggingFace Spaces deployment
+**Current default deployment configuration** - Complete self-contained CARLA deployment.
 
 **Technical Specifications**:
-- **Compute**: CPU only (no GPU required)
-- **Physics**: Python-based kinematics simulation
-- **CARLA**: Not required (standalone pure-Python implementation)
-- **Image size**: ~2GB
-- **Startup time**: <10 seconds
-- **Response time**: Fast (~50ms per step)
-- **Memory**: ~512MB RAM
+- **Compute**: **GPU required** (NVIDIA T4 minimum, A10G recommended)
+- **CARLA**: Full CARLA 0.10.0 + Unreal Engine 5.5 included
+- **Rendering**: RenderOffScreen with OpenGL (offscreen rendering, no display)
+- **Mode**: Real CARLA simulation with physics
+- **Image size**: ~15GB
+- **Build time**: 30-60 minutes (downloads ~10GB CARLA archive)
+- **Startup time**: 60-90 seconds (CARLA server initialization)
+- **Memory**: ~8-12GB RAM
 
 **Use Cases**:
-- Development and debugging
-- CI/CD testing pipelines
-- Free HuggingFace Spaces tier
-- Quick prototyping of scenarios
-- LLM agent development (text-only observations are identical to real mode)
+- Production deployment on HuggingFace Spaces
+- Realistic physics simulation
+- Text-only observations (no camera by default)
+- Trolley problem scenarios with accurate vehicle dynamics
 
 **Why Use This**:
-- Zero cost for hosting
-- Instant startup
-- No GPU dependencies
-- Perfect for text-only LLM evaluation
+- All-in-one solution (no external dependencies)
+- Accurate CARLA physics
+- Ready for HuggingFace GPU Spaces (T4/A10G)
 
-**Deploy**: `openenv push --repo-id your-username/carla-env`
+**Deploy**:
+```bash
+openenv push --repo-id your-username/carla-env
+```
+
+**Note**: This Dockerfile is a **copy** of `server/Dockerfile.real-standalone` configured for production use.
 
 ---
 
-### Real Mode - Client Only (`server/Dockerfile.real`)
+### Alternative: Client Only (`server/Dockerfile.real`)
 
-**Purpose**: Lightweight client connecting to external CARLA server
+**Template** for lightweight client connecting to external CARLA server.
 
 **Technical Specifications**:
 - **Client compute**: CPU only (minimal resources)
@@ -396,26 +400,25 @@ This environment provides **three Dockerfiles** for different deployment strateg
 
 **Use Cases**:
 - Separating LLM orchestration from simulation compute
-- Using Prime Intellect sandboxes (client in sandbox, CARLA on dedicated GPU)
 - Multiple clients connecting to one CARLA server
 - Cost optimization (one expensive GPU server, many cheap CPU clients)
-
-**Why Use This**:
-- Separates concerns (training vs simulation)
-- Scalable (multiple clients to one server)
-- Client container is cheap (CPU-only)
-- Flexible deployment (client anywhere, server anywhere)
 
 **Requirements**:
 - External CARLA 0.10.0 server must be running
 - Network connectivity to CARLA server (port 2000)
 - Set `CARLA_HOST` and `CARLA_PORT` environment variables
 
+**To Use**:
+```yaml
+# In openenv.yaml
+dockerfile: server/Dockerfile.real
+```
+
 ---
 
-### Real Mode - Standalone (`server/Dockerfile.real-standalone`)
+### Reference: Standalone Template (`server/Dockerfile.real-standalone`)
 
-**Purpose**: Complete self-contained CARLA deployment (all-in-one)
+**Template** - Original standalone configuration (backup/reference).
 
 **Technical Specifications**:
 - **Compute**: **GPU required** (NVIDIA)
