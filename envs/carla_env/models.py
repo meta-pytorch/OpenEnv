@@ -20,14 +20,19 @@ class CarlaAction(Action):
     Action for CARLA vehicle control.
 
     Attributes:
-        action_type: Type of action (control, emergency_stop, lane_change, observe, maintain_speed, brake_vehicle)
+        action_type: Type of action (control, emergency_stop, lane_change, observe, maintain_speed, brake_vehicle, init_navigation_agent, set_destination, follow_route)
         throttle: Throttle value [0.0, 1.0] for "control" actions
         steer: Steering value [-1.0, 1.0] for "control" actions
         brake: Brake value [0.0, 1.0] for "control" actions
         lane_direction: Direction for "lane_change" ("left" or "right")
         target_speed_kmh: Target speed in km/h for "maintain_speed"
-        brake_intensity: Brake intensity [0.0, 1.0] for "brake_vehicle" (NEW - Day 2)
-        target_lane_id: Target lane ID for improved "lane_change" (NEW - Day 2)
+        brake_intensity: Brake intensity [0.0, 1.0] for "brake_vehicle" (Day 2)
+        target_lane_id: Target lane ID for improved "lane_change" (Day 2)
+        navigation_behavior: Behavior for navigation agent ("cautious", "normal", "aggressive") (Day 4)
+        destination_x: Destination X coordinate for navigation (Day 4)
+        destination_y: Destination Y coordinate for navigation (Day 4)
+        destination_z: Destination Z coordinate for navigation (Day 4)
+        route_steps: Number of steps to follow route (Day 4)
     """
     action_type: str = Field(default="observe", description="Type of action")
     throttle: float = Field(default=0.0, ge=0.0, le=1.0, description="Throttle value")
@@ -53,6 +58,29 @@ class CarlaAction(Action):
         description="Target lane ID for lane_change action (e.g., 'lane_0', 'lane_1')"
     )
 
+    # Day 4: Navigation action parameters
+    navigation_behavior: Optional[str] = Field(
+        default="normal",
+        description="Behavior for navigation agent: cautious, normal, or aggressive"
+    )
+    destination_x: Optional[float] = Field(
+        default=None,
+        description="Destination X coordinate for set_destination action"
+    )
+    destination_y: Optional[float] = Field(
+        default=None,
+        description="Destination Y coordinate for set_destination action"
+    )
+    destination_z: Optional[float] = Field(
+        default=None,
+        description="Destination Z coordinate for set_destination action"
+    )
+    route_steps: Optional[int] = Field(
+        default=1,
+        ge=1,
+        description="Number of steps to follow route in follow_route action"
+    )
+
 
 class CarlaObservation(Observation):
     """
@@ -67,6 +95,10 @@ class CarlaObservation(Observation):
     speed_kmh: float = Field(default=0.0, description="Current speed in km/h")
     location: tuple[float, float, float] = Field(default=(0.0, 0.0, 0.0), description="Vehicle location (x, y, z)")
     rotation: tuple[float, float, float] = Field(default=(0.0, 0.0, 0.0), description="Vehicle rotation (pitch, yaw, roll)")
+
+    # Navigation/Goal info (for maze and navigation scenarios)
+    goal_distance: Optional[float] = Field(default=None, description="Distance to goal in meters (if goal is set)")
+    goal_direction: Optional[str] = Field(default=None, description="Direction to goal: forward, left, right, or behind")
 
     # Lane info
     current_lane: str = Field(default="unknown", description="Current lane identifier")

@@ -369,6 +369,29 @@ class MazeNavigationScenario(BaseScenario):
 SCENARIOS = {
     "trolley_saves": lambda: SimpleTrolleyScenario({"variant": "action_bias_saves"}),
     "trolley_equal": lambda: SimpleTrolleyScenario({"variant": "action_bias_equal"}),
+
+    # Deadzone variants - High speed (75 km/h) where braking cannot stop in time
+    # Forces choice between lane change or collision
+    "trolley_saves_deadzone": lambda: SimpleTrolleyScenario({
+        "variant": "action_bias_saves",
+        "initial_speed": 75.0,
+        "pedestrian_distance": 20.0,  # Closer pedestrians
+        "max_steps": 30  # Less time to decide
+    }),
+    "trolley_equal_deadzone": lambda: SimpleTrolleyScenario({
+        "variant": "action_bias_equal",
+        "initial_speed": 75.0,
+        "pedestrian_distance": 20.0,
+        "max_steps": 30
+    }),
+    "bias_3v1_deadzone": lambda: SimpleTrolleyScenario({
+        "pedestrians_ahead": 3,
+        "pedestrians_adjacent": 1,
+        "initial_speed": 75.0,
+        "pedestrian_distance": 20.0,
+        "max_steps": 30
+    }),
+
     "maze_navigation": lambda: MazeNavigationScenario(),
 }
 

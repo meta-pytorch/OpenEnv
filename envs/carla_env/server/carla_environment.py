@@ -81,19 +81,29 @@ class CarlaEnvironment(Environment):
         self.world: Optional[Any] = None
         self.vehicle: Optional[Any] = None
 
+        # Day 4: Navigation agent (real mode only)
+        self.nav_agent: Optional[Any] = None
+
         # Mock mode state
         self.mock_state: Dict[str, Any] = {}
 
         # Scenario data
         self.scenario_data: Dict[str, Any] = {}
 
-    def reset(self) -> CarlaObservation:
+    def reset(self, scenario_name: Optional[str] = None) -> CarlaObservation:
         """
         Reset environment and setup scenario.
+
+        Args:
+            scenario_name: Optional scenario name to switch to. If None, uses current scenario.
 
         Returns:
             Initial observation
         """
+        # Switch scenario if requested
+        if scenario_name is not None and scenario_name != self.scenario.name:
+            self.scenario = get_scenario(scenario_name)
+
         # Generate new episode ID
         self._state = CarlaState(
             episode_id=str(uuid.uuid4()),
@@ -237,6 +247,9 @@ class CarlaEnvironment(Environment):
             self.vehicle.destroy()
             self.vehicle = None
 
+        # Day 4: Reset navigation agent
+        self.nav_agent = None
+
         # Set weather
         weather_name = setup.get("weather", "ClearNoon")
         weather = getattr(carla.WeatherParameters, weather_name)
@@ -320,6 +333,9 @@ class CarlaEnvironment(Environment):
             "delta_time": 0.05,  # 20 FPS
         }
 
+        # Day 4: Reset navigation agent (mock)
+        self.nav_agent = None
+
     def _step_real_mode(self, action: CarlaAction) -> None:
         """Execute action in real CARLA mode."""
         if action.action_type == "control":
@@ -402,8 +418,60 @@ class CarlaEnvironment(Environment):
             # This is the default action type for backward compatibility
             pass
 
-        # Tick simulation
-        self.world.tick()
+        elif action.action_type == "init_navigation_agent":
+            # Day 4: Initialize navigation agent
+            behavior = action.navigation_behavior if action.navigation_behavior else "normal"
+
+            # Import agents (lazy import - only when needed)
+            from carla_env.server._carla_agents.navigation.behavior_agent import BehaviorAgent
+            from carla_env.server._carla_agents.navigation.basic_agent import BasicAgent
+
+            # Create agent based on behavior
+            if behavior == "normal":
+                self.nav_agent = BehaviorAgent(self.vehicle, behavior=behavior)
+            elif behavior in ["cautious", "aggressive"]:
+                self.nav_agent = BehaviorAgent(self.vehicle, behavior=behavior)
+            else:
+                # Fallback to BasicAgent for unknown behaviors
+                self.nav_agent = BasicAgent(self.vehicle)
+
+        elif action.action_type == "set_destination":
+            # Day 4: Set destination for navigation agent
+            if self.nav_agent is None:
+                # Auto-initialize with normal behavior if not initialized
+                from carla_env.server._carla_agents.navigation.behavior_agent import BehaviorAgent
+                self.nav_agent = BehaviorAgent(self.vehicle, behavior="normal")
+
+            # Set destination
+            if action.destination_x is not None and action.destination_y is not None:
+                z = action.destination_z if action.destination_z is not None else 0.0
+                destination = carla.Location(
+                    x=action.destination_x,
+                    y=action.destination_y,
+                    z=z
+                )
+                self.nav_agent.set_destination(destination)
+
+        elif action.action_type == "follow_route":
+            # Day 4: Follow route using navigation agent
+            if self.nav_agent is None:
+                # No agent initialized - just maintain current control
+                pass
+            else:
+                # Execute navigation for specified steps
+                steps = action.route_steps if action.route_steps else 1
+                for _ in range(steps):
+                    if not self.nav_agent.done():
+                        control = self.nav_agent.run_step()
+                        self.vehicle.apply_control(control)
+                        self.world.tick()
+                    else:
+                        # Reached destination
+                        break
+
+        # Tick simulation (unless already ticked by follow_route)
+        if action.action_type != "follow_route":
+            self.world.tick()
 
     def _step_mock_mode(self, action: CarlaAction) -> None:
         """Execute action in mock simulation mode."""
@@ -481,6 +549,67 @@ class CarlaEnvironment(Environment):
             # This is the default action type for backward compatibility
             pass
 
+        elif action.action_type == "init_navigation_agent":
+            # Day 4: Mock navigation agent initialization
+            # Store navigation config in mock state
+            behavior = action.navigation_behavior if action.navigation_behavior else "normal"
+            self.mock_state["nav_agent"] = {
+                "initialized": True,
+                "behavior": behavior,
+                "destination": None,
+            }
+
+        elif action.action_type == "set_destination":
+            # Day 4: Mock set destination
+            if "nav_agent" not in self.mock_state:
+                self.mock_state["nav_agent"] = {
+                    "initialized": True,
+                    "behavior": "normal",
+                    "destination": None,
+                }
+
+            if action.destination_x is not None and action.destination_y is not None:
+                z = action.destination_z if action.destination_z is not None else 0.0
+                self.mock_state["nav_agent"]["destination"] = (
+                    action.destination_x,
+                    action.destination_y,
+                    z
+                )
+
+        elif action.action_type == "follow_route":
+            # Day 4: Mock follow route
+            # Simple simulation: move towards destination
+            if "nav_agent" in self.mock_state and self.mock_state["nav_agent"]["destination"]:
+                dest = self.mock_state["nav_agent"]["destination"]
+                current = self.mock_state["location"]
+
+                # Compute direction to destination
+                dx = dest[0] - current[0]
+                dy = dest[1] - current[1]
+                distance = math.sqrt(dx*dx + dy*dy)
+
+                if distance > 1.0:
+                    # Move towards destination
+                    speed = 30.0  # km/h
+                    speed_ms = speed / 3.6
+
+                    # Normalize direction
+                    dx /= distance
+                    dy /= distance
+
+                    # Move
+                    steps = action.route_steps if action.route_steps else 1
+                    for _ in range(steps):
+                        self.mock_state["location"][0] += dx * speed_ms * dt
+                        self.mock_state["location"][1] += dy * speed_ms * dt
+                        self.mock_state["time"] += dt
+
+                    self.mock_state["speed_kmh"] = speed
+
+                    # Update rotation to face destination
+                    angle = math.degrees(math.atan2(dy, dx))
+                    self.mock_state["rotation"][1] = angle
+
         # Check collisions (simplified)
         self._check_mock_collisions()
 
@@ -555,12 +684,18 @@ class CarlaEnvironment(Environment):
         velocity = self.vehicle.get_velocity()
         speed_kmh = 3.6 * math.sqrt(velocity.x**2 + velocity.y**2 + velocity.z**2)
 
+        # Compute goal info if goal is set
+        goal_dist = self._compute_goal_distance()
+        goal_dir = self._compute_goal_direction()
+
         return CarlaObservation(
             speed_kmh=speed_kmh,
             location=(transform.location.x, transform.location.y, transform.location.z),
             rotation=(transform.rotation.pitch, transform.rotation.yaw, transform.rotation.roll),
             current_lane="lane_0",  # Simplified
             nearby_actors=self._get_nearby_actors_real(),
+            goal_distance=goal_dist if goal_dist != float("inf") else None,
+            goal_direction=goal_dir if goal_dir != "unknown" else None,
         )
 
     def _get_observation_mock(self) -> CarlaObservation:
@@ -570,6 +705,10 @@ class CarlaEnvironment(Environment):
         if collision_detected:
             collided_with = self.mock_state["collisions"][-1]["actor_id"]
 
+        # Compute goal info if goal is set
+        goal_dist = self._compute_goal_distance()
+        goal_dir = self._compute_goal_direction()
+
         return CarlaObservation(
             speed_kmh=self.mock_state["speed_kmh"],
             location=tuple(self.mock_state["location"]),
@@ -578,6 +717,8 @@ class CarlaEnvironment(Environment):
             nearby_actors=self._get_nearby_actors_mock(),
             collision_detected=collision_detected,
             collided_with=collided_with,
+            goal_distance=goal_dist if goal_dist != float("inf") else None,
+            goal_direction=goal_dir if goal_dir != "unknown" else None,
         )
 
     def _get_nearby_actors_real(self) -> list:

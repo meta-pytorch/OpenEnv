@@ -134,60 +134,28 @@ EXPOSE 2000
 # Startup script (runs CARLA as non-root user)
 RUN echo '#!/bin/bash\n\
 set -e\n\
-echo "🚗 Starting CARLA Server 0.10.0 (UE5.5) in offscreen mode..."\n\
+echo "🚗 Starting CARLA Server 0.10.0 (UE5.5)..."\n\
 \n\
-# Create log directory with proper permissions for carla user\n\
+# Create log directory\n\
 mkdir -p /tmp/carla_logs\n\
 chown carla:carla /tmp/carla_logs\n\
 \n\
-# Pre-flight checks\n\
-echo "🔍 Pre-flight checks:"\n\
-echo "  - CARLA directory: $(ls -ld /opt/carla)"\n\
-echo "  - CarlaUnreal.sh: $(ls -l /opt/carla/CarlaUnreal.sh 2>&1)"\n\
-echo "  - User carla: $(id carla)"\n\
-echo "  - GPU check:"\n\
-nvidia-smi 2>&1 | head -5 || echo "    ⚠️  nvidia-smi not available"\n\
-\n\
-# Test if CARLA executable can run at all\n\
-echo ""\n\
-echo "🧪 Testing CARLA executable..."\n\
-su - carla -c "export XDG_RUNTIME_DIR=/run/user/1000 && cd /opt/carla && ./CarlaUnreal.sh --help > /tmp/carla_logs/test.log 2>&1" || {\n\
-    echo "⚠️  CARLA help command failed, checking error:"\n\
-    cat /tmp/carla_logs/test.log 2>&1 || echo "No test log"\n\
-}\n\
-\n\
-# Run CARLA as carla user (CARLA refuses to run as root)\n\
-echo ""\n\
-echo "🚀 Launching CARLA server..."\n\
+# Launch CARLA server\n\
 su - carla -c "export XDG_RUNTIME_DIR=/run/user/1000 && cd /opt/carla && ./CarlaUnreal.sh -RenderOffScreen -opengl -quality-level=Low -carla-rpc-port=2000 -fps=20 > /tmp/carla_logs/carla.log 2>&1" &\n\
 CARLA_PID=$!\n\
-echo "✓ CARLA started (PID: $CARLA_PID)"\n\
 \n\
-echo "⏳ Waiting for CARLA server to initialize..."\n\
-# Check every 10 seconds for 90 seconds total\n\
+# Wait for CARLA to initialize (90 seconds)\n\
+echo "⏳ Waiting for CARLA to initialize..."\n\
 for i in {1..9}; do\n\
     sleep 10\n\
     if ! kill -0 $CARLA_PID 2>/dev/null; then\n\
-        echo "❌ CARLA process died after ${i}0 seconds"\n\
-        echo ""\n\
-        echo "📋 CARLA log contents:"\n\
-        cat /tmp/carla_logs/carla.log 2>&1 || echo "No log file found"\n\
+        echo "❌ CARLA process died during startup"\n\
+        cat /tmp/carla_logs/carla.log 2>&1 || echo "No log available"\n\
         exit 1\n\
     fi\n\
-    echo "  ⏱️  ${i}0s - CARLA still running, log size: $(wc -l < /tmp/carla_logs/carla.log 2>/dev/null || echo 0) lines"\n\
 done\n\
 \n\
-# Final check\n\
-if ! kill -0 $CARLA_PID 2>/dev/null; then\n\
-    echo "❌ CARLA process died during startup"\n\
-    echo ""\n\
-    echo "📋 CARLA log contents:"\n\
-    cat /tmp/carla_logs/carla.log 2>&1 || echo "No log file found"\n\
-    exit 1\n\
-fi\n\
-echo "✓ CARLA process is running (PID: $CARLA_PID)"\n\
-\n\
-echo "🔌 Testing CARLA connection..."\n\
+# Verify CARLA is responsive\n\
 python3 -c "\n\
 import carla\n\
 import sys\n\
@@ -195,23 +163,19 @@ try:\n\
     client = carla.Client('\''localhost'\'', 2000)\n\
     client.set_timeout(10.0)\n\
     world = client.get_world()\n\
-    print(f'\''✅ CARLA server is ready! World: {world.get_map().name}'\'')\n\
+    print(f'\''✅ CARLA ready: {world.get_map().name}'\'')\n\
 except Exception as e:\n\
     print(f'\''❌ CARLA connection failed: {e}'\'')\n\
     sys.exit(1)\n\
 " || {\n\
     echo "❌ CARLA server failed to start"\n\
-    echo ""\n\
-    echo "📋 CARLA log contents:"\n\
-    cat /tmp/carla_logs/carla.log 2>&1 || echo "No CARLA log found"\n\
-    echo ""\n\
-    echo "📋 Test log contents:"\n\
-    cat /tmp/carla_logs/test.log 2>&1 || echo "No test log found"\n\
+    cat /tmp/carla_logs/carla.log 2>&1 | tail -50\n\
     kill $CARLA_PID 2>/dev/null || true\n\
     exit 1\n\
 }\n\
 \n\
-echo "🚀 Starting OpenEnv FastAPI server..."\n\
+# Start OpenEnv FastAPI server\n\
+echo "🚀 Starting OpenEnv server..."\n\
 cd /app\n\
 uvicorn carla_env.server.app:app --host 0.0.0.0 --port 8000\n\
 ' > /start.sh && chmod +x /start.sh
