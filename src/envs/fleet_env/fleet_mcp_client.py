@@ -108,7 +108,12 @@ class FleetMCPClient:
             if len(texts) == 1:
                 # Single text result - try to parse as JSON
                 try:
-                    return json.loads(texts[0])
+                    parsed = json.loads(texts[0])
+                    # Handle Fleet MCP's base64_image format - convert to OpenAI format
+                    if isinstance(parsed, dict) and "base64_image" in parsed:
+                        data_url = parsed["base64_image"]
+                        return [{"type": "image_url", "image_url": {"url": data_url}}]
+                    return parsed
                 except json.JSONDecodeError:
                     return texts[0]
             elif texts:
