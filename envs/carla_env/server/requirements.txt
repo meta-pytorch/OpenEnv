@@ -4,7 +4,7 @@ uvicorn>=0.24.0
 pydantic>=2.0.0
 websockets>=12.0
 
-# Day 4: Navigation agents dependencies
+# Navigation agents dependencies
 numpy>=1.24.0
 shapely>=2.0.0
 networkx>=3.0

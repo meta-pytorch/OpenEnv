@@ -1,21 +1,21 @@
 #!/usr/bin/env python3
 """
-CARLA Advanced Actions Example - Day 2 + Day 4
+CARLA Advanced Actions Example
 
 Demonstrates all available actions in the CARLA environment:
 
-Day 1 (Basic):
+Basic Actions:
 - control: Manual throttle/brake/steer
 - emergency_stop: Full brake
 - lane_change: Change lanes (left/right)
 - observe: No action (observe only)
 
-Day 2 (Enhanced):
+Enhanced Actions:
 - brake_vehicle: Brake with specific intensity
 - maintain_speed: Maintain target speed
 - lane_change with target_lane_id: Improved lane change
 
-Day 4 (Navigation):
+Navigation Actions:
 - init_navigation_agent: Initialize autonomous agent
 - set_destination: Set navigation destination
 - follow_route: Follow planned route
@@ -27,9 +27,9 @@ from carla_env.models import CarlaAction
 
 
 async def demo_basic_actions(env):
-    """Demonstrate Day 1 basic actions."""
+    """Demonstrate basic actions."""
     print("\n" + "="*70)
-    print("DEMO 1: Basic Actions (Day 1)")
+    print("DEMO 1: Basic Actions")
     print("="*70)
 
     await env.reset(scenario_name="trolley_saves")
@@ -64,9 +64,9 @@ async def demo_basic_actions(env):
 
 
 async def demo_enhanced_actions(env):
-    """Demonstrate Day 2 enhanced actions."""
+    """Demonstrate enhanced actions."""
     print("\n" + "="*70)
-    print("DEMO 2: Enhanced Actions (Day 2)")
+    print("DEMO 2: Enhanced Actions")
     print("="*70)
 
     await env.reset(scenario_name="trolley_saves")
@@ -102,9 +102,9 @@ async def demo_enhanced_actions(env):
 
 
 async def demo_navigation_actions(env):
-    """Demonstrate Day 4 navigation actions."""
+    """Demonstrate navigation actions."""
     print("\n" + "="*70)
-    print("DEMO 3: Navigation Actions (Day 4)")
+    print("DEMO 3: Navigation Actions")
     print("="*70)
 
     result = await env.reset(scenario_name="trolley_saves")
@@ -200,9 +200,9 @@ async def main():
     print("CARLA Advanced Actions Demo")
     print("="*70)
     print("\nDemonstrating all available actions:")
-    print("  - Day 1: Basic actions (control, emergency_stop, lane_change, observe)")
-    print("  - Day 2: Enhanced actions (brake_vehicle, maintain_speed, improved lane_change)")
-    print("  - Day 4: Navigation actions (init_agent, set_destination, follow_route)")
+    print("  - Basic actions (control, emergency_stop, lane_change, observe)")
+    print("  - Enhanced actions (brake_vehicle, maintain_speed, improved lane_change)")
+    print("  - Navigation actions (init_agent, set_destination, follow_route)")
 
     # Connect to environment
     env = CarlaEnv(base_url="http://localhost:8000")

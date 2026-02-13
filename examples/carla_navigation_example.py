@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-CARLA Navigation Example - Day 4
+CARLA Navigation Example
 
 Demonstrates how to use the navigation actions:
 - init_navigation_agent: Initialize a navigation agent with behavior
