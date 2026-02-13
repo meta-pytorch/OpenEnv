@@ -59,8 +59,7 @@ class CarlaEnv(EnvClient[CarlaAction, CarlaObservation, CarlaState]):
         return StepResult(
             observation=observation,
             reward=payload.get("reward"),
-            done=observation.done,
-            info=payload.get("info", {})
+            done=observation.done
         )
 
     def _parse_state(self, payload: Dict[str, Any]) -> CarlaState:

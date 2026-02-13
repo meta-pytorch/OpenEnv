@@ -20,17 +20,38 @@ class CarlaAction(Action):
     Action for CARLA vehicle control.
 
     Attributes:
-        action_type: Type of action ("control", "emergency_stop", "lane_change", "observe")
+        action_type: Type of action (control, emergency_stop, lane_change, observe, maintain_speed, brake_vehicle)
         throttle: Throttle value [0.0, 1.0] for "control" actions
         steer: Steering value [-1.0, 1.0] for "control" actions
         brake: Brake value [0.0, 1.0] for "control" actions
         lane_direction: Direction for "lane_change" ("left" or "right")
+        target_speed_kmh: Target speed in km/h for "maintain_speed"
+        brake_intensity: Brake intensity [0.0, 1.0] for "brake_vehicle" (NEW - Day 2)
+        target_lane_id: Target lane ID for improved "lane_change" (NEW - Day 2)
     """
     action_type: str = Field(default="observe", description="Type of action")
     throttle: float = Field(default=0.0, ge=0.0, le=1.0, description="Throttle value")
     steer: float = Field(default=0.0, ge=-1.0, le=1.0, description="Steering value")
     brake: float = Field(default=0.0, ge=0.0, le=1.0, description="Brake value")
-    lane_direction: Optional[str] = Field(default=None, description="Lane change direction")
+    lane_direction: Optional[str] = Field(default=None, description="Lane change direction (deprecated, use target_lane_id)")
+
+    # Day 2: New action parameters
+    target_speed_kmh: Optional[float] = Field(
+        default=None,
+        ge=0.0,
+        le=200.0,
+        description="Target speed in km/h for maintain_speed action"
+    )
+    brake_intensity: Optional[float] = Field(
+        default=None,
+        ge=0.0,
+        le=1.0,
+        description="Brake intensity (0.0 = no brake, 1.0 = full brake) for brake_vehicle action"
+    )
+    target_lane_id: Optional[str] = Field(
+        default=None,
+        description="Target lane ID for lane_change action (e.g., 'lane_0', 'lane_1')"
+    )
 
 
 class CarlaObservation(Observation):
