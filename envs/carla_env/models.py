@@ -102,8 +102,26 @@ class CarlaState(State):
     total_reward: float = Field(default=0.0, description="Cumulative reward")
     simulation_time: float = Field(default=0.0, description="Total simulation time (seconds)")
 
+    # Day 3: Action tracking metrics (from sinatras)
+    num_turns: int = Field(default=0, description="Number of steps taken in episode")
+    total_tool_calls: int = Field(default=0, description="Total number of actions executed")
+    tool_call_counts: Dict[str, int] = Field(
+        default_factory=dict,
+        description="Count of each action type executed"
+    )
+    is_truncated: bool = Field(default=False, description="Whether episode was truncated (max steps)")
+
+    # Day 3: Movement metrics
+    average_speed: float = Field(default=0.0, description="Average speed in km/h")
+    max_speed: float = Field(default=0.0, description="Maximum speed reached in km/h")
+
     # Collision history
     collisions: List[Dict[str, Any]] = Field(default_factory=list, description="List of collision events")
+    collisions_count: int = Field(default=0, description="Total number of collisions")
+    collision_intensity_total: float = Field(
+        default=0.0,
+        description="Sum of all collision intensities"
+    )
 
     # Scenario-specific data
     scenario_data: Dict[str, Any] = Field(default_factory=dict, description="Scenario-specific data")

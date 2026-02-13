@@ -138,11 +138,57 @@ class CarlaEnvironment(Environment):
         # Increment step counter
         self._state.step_count += 1
 
+        # Day 3: Track action metrics
+        self._state.num_turns += 1
+        self._state.total_tool_calls += 1
+
+        # Track action type count
+        action_name = action.action_type
+        if action_name not in self._state.tool_call_counts:
+            self._state.tool_call_counts[action_name] = 0
+        self._state.tool_call_counts[action_name] += 1
+
+        # Day 3: Store previous state for distance tracking
+        if self.mode == "real" and self.vehicle is not None:
+            prev_location = self.vehicle.get_location()
+            prev_speed = self._get_current_speed()
+        else:
+            prev_location = None
+            prev_speed = self.mock_state.get("speed_kmh", 0.0) if hasattr(self, "mock_state") else 0.0
+
         # Execute action
         if self.mode == "real":
             self._step_real_mode(action)
         else:
             self._step_mock_mode(action)
+
+        # Day 3: Track distance and speed after action
+        if self.mode == "real" and self.vehicle is not None:
+            new_location = self.vehicle.get_location()
+            if prev_location is not None:
+                distance = prev_location.distance(new_location)
+                self._state.total_distance += distance
+
+            # Track speed
+            current_speed = self._get_current_speed()
+            self._state.max_speed = max(self._state.max_speed, current_speed)
+
+            # Update average speed (running average)
+            if self._state.num_turns > 0:
+                self._state.average_speed = (
+                    (self._state.average_speed * (self._state.num_turns - 1) + current_speed)
+                    / self._state.num_turns
+                )
+        else:
+            # Mock mode tracking
+            current_speed = self.mock_state.get("speed_kmh", 0.0) if hasattr(self, "mock_state") else 0.0
+            self._state.max_speed = max(self._state.max_speed, current_speed)
+
+            if self._state.num_turns > 0:
+                self._state.average_speed = (
+                    (self._state.average_speed * (self._state.num_turns - 1) + current_speed)
+                    / self._state.num_turns
+                )
 
         # Get observation
         obs = self._get_observation()
@@ -288,11 +334,73 @@ class CarlaEnvironment(Environment):
             control = carla.VehicleControl(brake=1.0, throttle=0.0)
             self.vehicle.apply_control(control)
 
+        elif action.action_type == "brake_vehicle":
+            # Day 2: Brake with specific intensity
+            # Adapted from sinatras/carla-env tools/vehicle.py:brake_vehicle()
+            intensity = action.brake_intensity if action.brake_intensity is not None else 1.0
+            intensity = max(0.0, min(1.0, float(intensity)))  # Clamp [0.0, 1.0]
+            control = carla.VehicleControl(
+                throttle=0.0,
+                steer=0.0,
+                brake=intensity,
+                hand_brake=False
+            )
+            self.vehicle.apply_control(control)
+
+        elif action.action_type == "maintain_speed":
+            # Day 2: Maintain target speed with simple PID-like control
+            target_speed = action.target_speed_kmh if action.target_speed_kmh is not None else 30.0
+            current_speed = self._get_current_speed()
+
+            # Simple proportional control
+            speed_error = target_speed - current_speed
+            if speed_error > 2.0:  # Need to accelerate
+                throttle = min(0.5, speed_error * 0.05)
+                brake_val = 0.0
+            elif speed_error < -2.0:  # Need to brake
+                throttle = 0.0
+                brake_val = min(0.5, abs(speed_error) * 0.05)
+            else:  # Close enough, coast
+                throttle = 0.1
+                brake_val = 0.0
+
+            control = carla.VehicleControl(
+                throttle=throttle,
+                steer=0.0,
+                brake=brake_val
+            )
+            self.vehicle.apply_control(control)
+
         elif action.action_type == "lane_change":
-            # Simplified lane change: apply lateral steering
-            steer = -0.5 if action.lane_direction == "left" else 0.5
+            # Day 2: Improved lane change with target_lane_id support
+            # Backward compatible with lane_direction
+            if action.target_lane_id:
+                # New way: use target_lane_id (e.g., "lane_1", "lane_0")
+                # For now, simple implementation: steer based on lane number
+                current_lane = self.current_lane if hasattr(self, 'current_lane') else "lane_0"
+                target_lane = action.target_lane_id
+
+                # Extract lane numbers (assuming format "lane_N")
+                try:
+                    current_num = int(current_lane.split('_')[1]) if '_' in current_lane else 0
+                    target_num = int(target_lane.split('_')[1]) if '_' in target_lane else 0
+                    lane_diff = target_num - current_num
+
+                    # Steer proportional to lane difference
+                    steer = -0.3 if lane_diff < 0 else 0.3 if lane_diff > 0 else 0.0
+                except (IndexError, ValueError):
+                    steer = 0.0
+            else:
+                # Old way: use lane_direction for backward compatibility
+                steer = -0.5 if action.lane_direction == "left" else 0.5
+
             control = carla.VehicleControl(throttle=0.3, steer=steer)
             self.vehicle.apply_control(control)
+
+        elif action.action_type == "observe":
+            # No-op: just observe without changing control
+            # This is the default action type for backward compatibility
+            pass
 
         # Tick simulation
         self.world.tick()
@@ -326,12 +434,52 @@ class CarlaEnvironment(Environment):
             speed_ms = max(0.0, speed_ms - 8.0 * dt)
             self.mock_state["speed_kmh"] = speed_ms * 3.6
 
+        elif action.action_type == "brake_vehicle":
+            # Day 2: Brake with specific intensity
+            intensity = action.brake_intensity if action.brake_intensity is not None else 1.0
+            intensity = max(0.0, min(1.0, float(intensity)))
+            # Apply deceleration proportional to intensity
+            decel = intensity * 8.0  # m/s^2
+            speed_ms = self.mock_state["speed_kmh"] / 3.6
+            speed_ms = max(0.0, speed_ms - decel * dt)
+            self.mock_state["speed_kmh"] = speed_ms * 3.6
+
+        elif action.action_type == "maintain_speed":
+            # Day 2: Maintain target speed
+            target_speed = action.target_speed_kmh if action.target_speed_kmh is not None else 30.0
+            current_speed = self.mock_state["speed_kmh"]
+            speed_error = target_speed - current_speed
+
+            # Simple proportional control
+            if speed_error > 2.0:
+                accel = min(3.0, speed_error * 0.5)
+            elif speed_error < -2.0:
+                accel = max(-8.0, speed_error * 0.5)
+            else:
+                accel = 0.0
+
+            speed_ms = self.mock_state["speed_kmh"] / 3.6
+            speed_ms = max(0.0, speed_ms + accel * dt)
+            self.mock_state["speed_kmh"] = speed_ms * 3.6
+
         elif action.action_type == "lane_change":
+            # Day 2: Improved with target_lane_id support
             # Lateral offset (simplified)
-            offset = -3.5 if action.lane_direction == "left" else 3.5
+            if action.target_lane_id:
+                # New way: use target_lane_id
+                offset = -3.5 if "0" in action.target_lane_id else 3.5
+            else:
+                # Old way: backward compatible
+                offset = -3.5 if action.lane_direction == "left" else 3.5
+
             yaw_rad = math.radians(self.mock_state["rotation"][1])
             self.mock_state["location"][0] += offset * math.sin(yaw_rad)
             self.mock_state["location"][1] += offset * math.cos(yaw_rad)
+
+        elif action.action_type == "observe":
+            # No-op: just observe without changing state
+            # This is the default action type for backward compatibility
+            pass
 
         # Check collisions (simplified)
         self._check_mock_collisions()
@@ -365,6 +513,10 @@ class CarlaEnvironment(Environment):
                         self.mock_state["collisions"].append(collision)
                         self._state.collisions.append(collision)
 
+                        # Day 3: Track collision metrics
+                        self._state.collisions_count += 1
+                        self._state.collision_intensity_total += self.mock_state["speed_kmh"]
+
     def _get_observation(self) -> CarlaObservation:
         """Generate observation from current state."""
         # Get state dict for scenario
@@ -390,6 +542,12 @@ class CarlaEnvironment(Environment):
         obs.done_reason = done_reason
 
         return obs
+
+    def _get_current_speed(self) -> float:
+        """Get current speed in km/h."""
+        velocity = self.vehicle.get_velocity()
+        speed_ms = math.sqrt(velocity.x**2 + velocity.y**2 + velocity.z**2)
+        return speed_ms * 3.6  # Convert m/s to km/h
 
     def _get_observation_real(self) -> CarlaObservation:
         """Get observation from real CARLA."""
