@@ -34,6 +34,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy environment files first (for better caching)
+# Build context should be envs/browsergym_env/ (not server/ or repo root)
 COPY . .
 
 # Make start script executable
