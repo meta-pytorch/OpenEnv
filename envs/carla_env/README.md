@@ -634,6 +634,18 @@ Try the environment without installation:
   - Requires GPU hardware (configure in Settings)
   - ~60 second startup time after GPU activation
 
+## Limitations & Future Work
+
+### Current Limitations / Future Enhancements
+
+- Only text-based observations currently exposed to agents
+- RGB camera sensors not implemented
+- 32 scenarios implemented (trolley problems, deadzone, maze, action bias)
+- Single-threaded simulation (one scenario at a time)
+- Multi-agent scenarios not implemented
+- Batch evaluation requires multiple deployments
+
+
 ## Resources
 
 - **OpenEnv Framework**: [github.com/meta-pytorch/OpenEnv](https://github.com/meta-pytorch/OpenEnv)
