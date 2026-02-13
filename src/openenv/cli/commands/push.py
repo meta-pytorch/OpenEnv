@@ -9,10 +9,12 @@
 from __future__ import annotations
 
 import shutil
+import sys
 import tempfile
+from fnmatch import fnmatch
 from pathlib import Path
 from typing import Annotated
-import sys
+
 import typer
 import yaml
 from huggingface_hub import HfApi, login, whoami
@@ -20,6 +22,130 @@ from huggingface_hub import HfApi, login, whoami
 from .._cli_utils import console, validate_env_structure
 
 app = typer.Typer(help="Push an OpenEnv environment to Hugging Face Spaces")
+
+
+DEFAULT_PUSH_IGNORE_PATTERNS = [".*", "__pycache__", "*.pyc"]
+
+
+def _path_matches_pattern(relative_path: Path, pattern: str) -> bool:
+    """Return True if a relative path matches an exclude pattern."""
+    normalized_pattern = pattern.strip()
+    if normalized_pattern.startswith("!"):
+        return False
+
+    while normalized_pattern.startswith("./"):
+        normalized_pattern = normalized_pattern[2:]
+
+    if normalized_pattern.startswith("/"):
+        normalized_pattern = normalized_pattern[1:]
+
+    if not normalized_pattern:
+        return False
+
+    posix_path = relative_path.as_posix()
+    pattern_candidates = [normalized_pattern]
+    if normalized_pattern.startswith("**/"):
+        # Gitignore-style "**/" can also match directly at the root.
+        pattern_candidates.append(normalized_pattern[3:])
+
+    # Support directory patterns such as "artifacts/" and "**/outputs/".
+    if normalized_pattern.endswith("/"):
+        dir_pattern_candidates: list[str] = []
+        for candidate in pattern_candidates:
+            base = candidate.rstrip("/")
+            if not base:
+                continue
+            dir_pattern_candidates.extend([base, f"{base}/*"])
+
+        return any(
+            fnmatch(posix_path, candidate) for candidate in dir_pattern_candidates
+        )
+
+    # Match both full relative path and basename for convenience.
+    return any(
+        fnmatch(posix_path, candidate) for candidate in pattern_candidates
+    ) or any(fnmatch(relative_path.name, candidate) for candidate in pattern_candidates)
+
+
+def _should_exclude_path(relative_path: Path, ignore_patterns: list[str]) -> bool:
+    """Return True when the path should be excluded from staging/upload."""
+    return any(
+        _path_matches_pattern(relative_path, pattern) for pattern in ignore_patterns
+    )
+
+
+def _read_ignore_file(ignore_path: Path) -> tuple[list[str], int]:
+    """Read ignore patterns from a file and return (patterns, ignored_negations)."""
+    patterns: list[str] = []
+    ignored_negations = 0
+
+    for line in ignore_path.read_text().splitlines():
+        stripped = line.strip()
+        if not stripped or stripped.startswith("#"):
+            continue
+        if stripped.startswith("!"):
+            ignored_negations += 1
+            continue
+        patterns.append(stripped)
+
+    return patterns, ignored_negations
+
+
+def _load_ignore_patterns(env_dir: Path, exclude_file: str | None) -> list[str]:
+    """Load ignore patterns from defaults and an optional ignore file."""
+    patterns = list(DEFAULT_PUSH_IGNORE_PATTERNS)
+    ignored_negations = 0
+
+    def _merge_ignore_file(ignore_path: Path, *, source_label: str) -> None:
+        nonlocal ignored_negations
+        file_patterns, skipped_negations = _read_ignore_file(ignore_path)
+        patterns.extend(file_patterns)
+        ignored_negations += skipped_negations
+        console.print(
+            f"[bold green]✓[/bold green] Loaded {len(file_patterns)} ignore patterns from {source_label}: {ignore_path}"
+        )
+
+    # Optional source: explicit exclude file from CLI.
+    if exclude_file:
+        ignore_path = Path(exclude_file)
+        if not ignore_path.is_absolute():
+            ignore_path = env_dir / ignore_path
+        ignore_path = ignore_path.resolve()
+
+        if not ignore_path.exists() or not ignore_path.is_file():
+            raise typer.BadParameter(
+                f"Exclude file not found or not a file: {ignore_path}"
+            )
+
+        _merge_ignore_file(ignore_path, source_label="--exclude")
+
+    # Keep stable order while removing duplicates.
+    patterns = list(dict.fromkeys(patterns))
+
+    if ignored_negations > 0:
+        console.print(
+            f"[bold yellow]⚠[/bold yellow] Skipped {ignored_negations} negated ignore patterns ('!') because negation is not supported for push excludes"
+        )
+
+    return patterns
+
+
+def _copytree_ignore_factory(env_dir: Path, ignore_patterns: list[str]):
+    """Build a shutil.copytree ignore callback from path-based patterns."""
+
+    def _ignore(path: str, names: list[str]) -> set[str]:
+        current_dir = Path(path)
+        ignored: set[str] = set()
+
+        for name in names:
+            candidate = current_dir / name
+            relative_path = candidate.relative_to(env_dir)
+            if _should_exclude_path(relative_path, ignore_patterns):
+                ignored.add(name)
+
+        return ignored
+
+    return _ignore
 
 
 def _validate_openenv_directory(directory: Path) -> tuple[str, dict]:
@@ -124,6 +250,7 @@ def _prepare_staging_directory(
     env_dir: Path,
     env_name: str,
     staging_dir: Path,
+    ignore_patterns: list[str],
     base_image: str | None = None,
     enable_interface: bool = True,
 ) -> None:
@@ -139,14 +266,15 @@ def _prepare_staging_directory(
     staging_dir.mkdir(parents=True, exist_ok=True)
 
     # Copy all files from env directory
+    copy_ignore = _copytree_ignore_factory(env_dir, ignore_patterns)
     for item in env_dir.iterdir():
-        # Skip hidden files and common ignore patterns
-        if item.name.startswith(".") or item.name in ["__pycache__", ".git"]:
+        relative_path = item.relative_to(env_dir)
+        if _should_exclude_path(relative_path, ignore_patterns):
             continue
 
         dest = staging_dir / item.name
         if item.is_dir():
-            shutil.copytree(item, dest, dirs_exist_ok=True)
+            shutil.copytree(item, dest, dirs_exist_ok=True, ignore=copy_ignore)
         else:
             shutil.copy2(item, dest)
 
@@ -298,6 +426,7 @@ def _upload_to_hf_space(
     repo_id: str,
     staging_dir: Path,
     api: HfApi,
+    ignore_patterns: list[str],
     private: bool = False,
 ) -> None:
     """Upload files to Hugging Face Space."""
@@ -308,7 +437,7 @@ def _upload_to_hf_space(
             folder_path=str(staging_dir),
             repo_id=repo_id,
             repo_type="space",
-            ignore_patterns=[".git", "__pycache__", "*.pyc"],
+            ignore_patterns=ignore_patterns,
         )
         console.print("[bold green]✓[/bold green] Upload completed successfully")
         console.print(
@@ -371,6 +500,14 @@ def push(
             help="Deploy the space as private",
         ),
     ] = False,
+    exclude: Annotated[
+        str | None,
+        typer.Option(
+            "--exclude",
+            "-e",
+            help="Optional additional ignore file with newline-separated glob patterns to exclude from Hugging Face uploads",
+        ),
+    ] = None,
 ) -> None:
     """
     Push an OpenEnv environment to Hugging Face Spaces or a custom Docker registry.
@@ -498,6 +635,8 @@ def push(
         console.print(f"[bold]Image:[/bold] {tag}")
         return
 
+    ignore_patterns = _load_ignore_patterns(env_dir, exclude)
+
     # Ensure authentication for HuggingFace
     username = _ensure_hf_authenticated()
 
@@ -527,6 +666,7 @@ def push(
             env_dir,
             env_name,
             staging_dir,
+            ignore_patterns=ignore_patterns,
             base_image=base_image,
             enable_interface=enable_interface,
         )
@@ -535,7 +675,13 @@ def push(
         _create_hf_space(repo_id, api, private=private)
 
         # Upload files
-        _upload_to_hf_space(repo_id, staging_dir, api, private=private)
+        _upload_to_hf_space(
+            repo_id,
+            staging_dir,
+            api,
+            ignore_patterns=ignore_patterns,
+            private=private,
+        )
 
         console.print("\n[bold green]✓ Deployment complete![/bold green]")
         console.print(f"Visit your space at: https://huggingface.co/spaces/{repo_id}")

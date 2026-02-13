@@ -97,6 +97,8 @@ jobs:
           - name: openapp-env
             dockerfile: server/Dockerfile
             context: envs/openapp_env
+          - name: maze-env
+            dockerfile: envs/maze_env/server/Dockerfile
 
     steps:
       - name: Checkout code

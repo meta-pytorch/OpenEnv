@@ -50,6 +50,10 @@ all = [
     "openenv-core[core]",
     "openenv-core[cli]",
 ]
+daytona = [
+    "daytona>=0.136.0",
+    "pyyaml>=6.0",
+]
 
 [project.scripts]
 openenv = "openenv.cli.__main__:main"
