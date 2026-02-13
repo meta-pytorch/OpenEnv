@@ -58,6 +58,7 @@ class AtariObservation(Observation):
     lives: int = 0
     episode_frame_number: int = 0
     frame_number: int = 0
+    screen_image: Optional[str] = None  # Base64 encoded PNG image for visualization
 
 
 class AtariState(State):

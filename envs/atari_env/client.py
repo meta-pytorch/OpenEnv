@@ -90,6 +90,7 @@ class AtariEnv(EnvClient[AtariAction, AtariObservation, AtariState]):
             done=payload.get("done", False),
             reward=payload.get("reward"),
             metadata=obs_data.get("metadata", {}),
+            screen_image=obs_data.get("screen_image"),
         )
 
         return StepResult(

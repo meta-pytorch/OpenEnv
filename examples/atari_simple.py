@@ -28,17 +28,33 @@ from atari_env import AtariEnv, AtariAction
 # import envs
 # print(envs.__path__)
 
-def main():
+async def main():
     """Run a simple Atari episode."""
+    import argparse
+    
+    parser = argparse.ArgumentParser(description="Run Atari Example")
+    parser.add_argument("--debug", action="store_true", help="Run in debug mode (local server)")
+    args = parser.parse_args()
+    
     # Connect to the Atari environment server
-    print("Connecting to Atari environment...")
-    env = AtariEnv.from_docker_image("ghcr.io/meta-pytorch/openenv-atari-env:latest")
+    print(f"Connecting to Atari environment...")
+    
+    # Simple check for debug flag
+    if args.debug:
+        print("Running in DEBUG mode (connecting to http://127.0.0.1:8001)")
+        env = AtariEnv(base_url="http://127.0.0.1:8001")
+    else:
+        print("Running in STANDARD mode (using Docker image)")
+        env = await AtariEnv.from_docker_image("ghcr.io/meta-pytorch/openenv-atari-env:latest")
     
    
     try:
+        # Connect to the environment
+        await env.connect()
+        
         # Reset the environment
         print("\nResetting environment...")
-        result = env.reset()
+        result = await env.reset()
         print(f"Screen shape: {result.observation.screen_shape}")
 
     
@@ -57,7 +73,7 @@ def main():
             action_id = int(action_id)
             
             # Take action
-            result = env.step(AtariAction(action_id=action_id))
+            result = await env.step(AtariAction(action_id=action_id))
 
             episode_reward += result.reward or 0
             steps += 1
@@ -76,7 +92,7 @@ def main():
         print(f"\nTotal episode reward: {episode_reward:.2f}")
 
         # Get environment state
-        state = env.state()
+        state = await env.state()
         print(f"\nEnvironment state:")
         print(f"  Game: {state.game_name}")
         print(f"  Episode: {state.episode_id}")
@@ -86,9 +102,10 @@ def main():
     finally:
         # Cleanup
         print("\nClosing environment...")
-        env.close()
+        await env.close()
         print("Done!")
 
 
 if __name__ == "__main__":
-    main()
+    import asyncio
+    asyncio.run(main())
