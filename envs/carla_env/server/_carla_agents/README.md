@@ -205,7 +205,7 @@ route = planner.trace_route(start_location, end_location)
 Agents can only be tested with a running CARLA server:
 
 ```bash
-# In production (HuggingFace with GPU + CARLA)
+# In production (HF with GPU + CARLA)
 PYTHONPATH=src:envs uv run python test_day3_agents.py
 ```
 

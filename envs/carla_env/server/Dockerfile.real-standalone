@@ -5,9 +5,9 @@
 #   - GPU: NVIDIA T4 (minimum) or A10G (recommended)
 #   - RAM: 16GB+
 #   - Disk: ~15GB
-#   - HuggingFace Space Hardware: GPU T4 or better
+#   - HF Space Hardware: GPU T4 or better
 #
-# Cost on HuggingFace Spaces:
+# Cost on HF Spaces:
 #   - T4 GPU: ~$0.60/hour (~$432/month if running 24/7)
 #   - A10G GPU: ~$1.10/hour (~$792/month if running 24/7)
 #

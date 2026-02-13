@@ -327,7 +327,7 @@ All examples connect to `http://localhost:8000` by default. Start the server fir
 # Mock mode (no CARLA needed)
 docker run -p 8000:8000 openenv/carla-env:latest
 
-# Or use HuggingFace Space
+# Or use HF Space
 # Change base_url in examples to: https://sergiopaniego-carla-env.hf.space
 ```
 
@@ -369,7 +369,7 @@ uv sync --project envs/carla_env
 uv run --project envs/carla_env python -m carla_env.server.app
 ```
 
-**Deploy to HuggingFace** (CPU Space):
+**Deploy to HF** (CPU Space):
 ```bash
 CARLA_MODE=mock openenv push envs/carla_env --repo-id username/carla-env-mock
 ```
@@ -391,7 +391,7 @@ CARLA_MODE=mock openenv push envs/carla_env --repo-id username/carla-env-mock
 - **Memory**: ~8-12GB RAM
 
 **Use Cases**:
-- Production deployment on HuggingFace Spaces
+- Production deployment on HF Spaces
 - Realistic physics simulation
 - Text-only observations (no camera by default)
 - Trolley problem scenarios with accurate vehicle dynamics
@@ -399,9 +399,9 @@ CARLA_MODE=mock openenv push envs/carla_env --repo-id username/carla-env-mock
 **Why Use This**:
 - All-in-one solution (no external dependencies)
 - Accurate CARLA physics
-- Ready for HuggingFace GPU Spaces (T4/A10G)
+- Ready for HF GPU Spaces (T4/A10G)
 
-**Deploy to HuggingFace** (GPU Space):
+**Deploy to HF** (GPU Space):
 ```bash
 # Uses server/Dockerfile (standalone with CARLA included)
 openenv push envs/carla_env --repo-id username/carla-env
@@ -588,7 +588,7 @@ If you only need text-only scenarios and want maximum efficiency:
 3. Rebuild and deploy:
    ```bash
    docker build -t carla-env-standalone:latest -f server/Dockerfile.real-standalone .
-   # Or push to HuggingFace:
+   # Or push to HF:
    openenv push --repo-id your-username/carla-env-real
    ```
 

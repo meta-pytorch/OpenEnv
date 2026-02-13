@@ -32,7 +32,7 @@ Need CARLA physics?
 
 *If CARLA server already running
 
-### Cost Estimates (HuggingFace Spaces)
+### Cost Estimates (HF Spaces)
 
 | Mode | Hardware | Cost/Hour | Cost/Month (24/7) |
 |------|----------|-----------|-------------------|
@@ -149,7 +149,7 @@ CARLA_SCENARIO=trolley_saves
 docker build -t carla-env:latest -f server/Dockerfile .
 docker run -p 8000:8000 carla-env:latest
 
-# HuggingFace Spaces (free tier)
+# HF Spaces (free tier)
 openenv push --repo-id your-username/carla-env
 ```
 
@@ -163,7 +163,7 @@ docker run -p 8000:8000 \
   -e CARLA_PORT=2000 \
   carla-env-client:latest
 
-# HuggingFace Spaces (free CPU tier)
+# HF Spaces (free CPU tier)
 # Note: Set CARLA_HOST in Space settings to point to your CARLA server
 openenv push --repo-id your-username/carla-env-client
 ```
@@ -175,7 +175,7 @@ openenv push --repo-id your-username/carla-env-client
 docker build -t carla-env-standalone:latest -f server/Dockerfile.real-standalone .
 docker run --gpus all -p 8000:8000 carla-env-standalone:latest
 
-# HuggingFace Spaces (GPU tier)
+# HF Spaces (GPU tier)
 # Note: Enable GPU hardware in Space settings (T4 or A10G)
 openenv push --repo-id your-username/carla-env-real
 ```
@@ -186,7 +186,7 @@ openenv push --repo-id your-username/carla-env-real
 
 **Pros**:
 - Cheaper ($0.60/hour)
-- Available on HuggingFace Spaces
+- Available on HF Spaces
 - Works for text-only scenarios
 
 **Cons**:
