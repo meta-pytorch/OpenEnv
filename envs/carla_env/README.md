@@ -349,9 +349,9 @@ python carla_navigation_example.py
 
 ## Deployment Modes
 
-This environment supports **two runtime modes** (Mock and Real) with **multiple deployment options**:
+This environment supports **two main deployment modes** for different use cases:
 
-### 1. Mock Mode (No Docker Needed)
+### 1. Mock Mode - Development & Testing
 
 **Simulated physics for development and testing** - No CARLA or GPU required.
 
@@ -385,9 +385,9 @@ CARLA_MODE=mock openenv push envs/carla_env --repo-id username/carla-env-mock
 
 ---
 
-### 2. Real Mode - Standalone (`server/Dockerfile`)
+### 2. Real Mode - Production Deployment
 
-**Production deployment** - Complete self-contained CARLA deployment with GPU.
+**Complete self-contained CARLA deployment** with GPU for production use.
 
 **Technical Specifications**:
 - **Compute**: **GPU required** (NVIDIA T4 minimum, A10G recommended)
@@ -412,75 +412,67 @@ CARLA_MODE=mock openenv push envs/carla_env --repo-id username/carla-env-mock
 
 **Deploy to HuggingFace** (GPU Space):
 ```bash
-# Deploys server/Dockerfile by default
+# Uses server/Dockerfile (standalone with CARLA included)
 openenv push envs/carla_env --repo-id username/carla-env
 
 # Then configure GPU T4/A10G in Space settings
 ```
 
+**Dockerfile**: `server/Dockerfile` (standalone configuration with CARLA 0.10.0 included)
+
 ---
 
-### 3. Real Mode - Client Only (`server/Dockerfile.real`)
+### Comparison
 
-**Lightweight client** connecting to external CARLA server.
+| Feature | Mock Mode | Real Mode |
+|---------|-----------|-----------|
+| **Hardware** | CPU | GPU (T4/A10G) |
+| **CARLA** | None (Python sim) | Included (CARLA 0.10.0) |
+| **Cost** | Free | ~$0.60-$1.10/hour |
+| **Startup** | <5s | 60-90s |
+| **Fidelity** | Approximate | Full physics |
+| **Dependencies** | None | None |
+| **Best For** | Development, testing, CI/CD | Production, research |
 
-**Technical Specifications**:
-- **Client compute**: CPU only (minimal resources)
-- **Server compute**: GPU required (on CARLA server side)
-- **CARLA**: External server at `CARLA_HOST:CARLA_PORT`
-- **Python package**: `carla-ue5-api==0.10.0` (MIT license)
-- **Image size**: ~2GB
-- **Startup time**: <10 seconds (if CARLA server already running)
-- **Memory**: ~1GB RAM
+**Decision Guide**:
+- **Starting out or prototyping?** → Use **Mock Mode** (free, instant, no GPU)
+- **Need accurate physics for research/production?** → Use **Real Mode** (CARLA included)
 
-**Use Cases**:
+---
+
+### Advanced: Client-Server Architecture
+
+For **multi-user scenarios** or **cost optimization at scale**, you can deploy a lightweight client that connects to an external CARLA server.
+
+**Architecture**:
+```
+Multiple CPU Clients (HF Spaces)  →  Single GPU Server (CARLA)
+Cost: $0.03/hour each            →  Cost: $1.10/hour shared
+```
+
+**When to use**:
+- Multiple researchers sharing one CARLA server
+- Batch evaluation of many policies in parallel
 - Separating LLM orchestration from simulation compute
-- Multiple clients connecting to one CARLA server
-- Cost optimization (one expensive GPU server, many cheap CPU clients)
+- Cost optimization (3+ concurrent users)
 
 **Requirements**:
-- External CARLA 0.10.0 server must be running
+- External CARLA 0.10.0 server running on GPU
 - Network connectivity to CARLA server (port 2000)
 - Set `CARLA_HOST` and `CARLA_PORT` environment variables
 
-**Deploy**:
+**Deploy Client**:
 ```yaml
-# In openenv.yaml, specify alternative Dockerfile
+# In openenv.yaml
 dockerfile: server/Dockerfile.real
 
-# Then deploy
-openenv push envs/carla_env --repo-id username/carla-env-client
+# Set environment variables in Space settings:
+# CARLA_MODE=real
+# CARLA_HOST=your-carla-server.example.com
+# CARLA_PORT=2000
 ```
 
-**Note**: You must have a CARLA 0.10.0 server running externally and set `CARLA_HOST` and `CARLA_PORT` environment variables in the Space settings.
-
----
-
-### Reference: `server/Dockerfile.real-standalone`
-
-This is a **backup copy** of `server/Dockerfile` maintained for reference. It contains the same standalone configuration with CARLA included.
-
-**Usage**: Not needed for normal deployments. `server/Dockerfile` is the active production file.
-
----
-
-### Comparison Table
-
-| Feature | Mock Mode | Real Client | Real Standalone |
-|---------|-----------|-------------|-----------------|
-| **Hardware** | CPU | CPU (client) + GPU (server) | GPU |
-| **CARLA** | None (Python sim) | External | Included |
-| **Cost** | Free | Low (client) + High (server) | High |
-| **Startup** | <10s | <10s (if server up) | 60-90s |
-| **Fidelity** | Approximate | Full | Full |
-| **Dependencies** | None | CARLA server | None |
-| **Best For** | Dev, testing, free hosting | Distributed systems | Production, turnkey |
-
-**Decision Guide**:
-- **Starting out?** → Mock mode (free, instant)
-- **Need real physics?** → Standalone (easiest setup)
-- **High scale?** → Client mode (one GPU server, many CPU clients)
-- **Research?** → Standalone (exact CARLA behavior)
+**Note**: Most users should use **Mock Mode** (development) or **Real Mode** (production). Client mode is for advanced distributed deployments.
 
 ## Configuration
 
