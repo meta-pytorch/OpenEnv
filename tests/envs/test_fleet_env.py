@@ -340,6 +340,55 @@ class TestFleetMCPClientExtractToolResult:
         assert isinstance(result, list)
         assert result[0]["image_url"]["url"].startswith("data:image/png;base64,")
 
+    def test_extract_base64_image_json_format(self):
+        """Should convert Fleet MCP's base64_image JSON format to OpenAI format."""
+        from envs.fleet_env.fleet_mcp_client import FleetMCPClient
+
+        client = FleetMCPClient(url="http://test", api_key="test")
+
+        # Fleet MCP returns screenshot as JSON text with base64_image key
+        class _TextContent:
+            type = "text"
+            text = '{"base64_image": "data:image/jpeg;base64,/9j/4AAQSkZJRg..."}'
+
+        class _Result:
+            content = [_TextContent()]
+            isError = False
+            structuredContent = None
+
+        result = client._extract_tool_result(_Result())
+
+        # Should be converted to OpenAI-compatible format
+        assert isinstance(result, list)
+        assert len(result) == 1
+        assert result[0]["type"] == "image_url"
+        assert (
+            result[0]["image_url"]["url"] == "data:image/jpeg;base64,/9j/4AAQSkZJRg..."
+        )
+
+    def test_extract_base64_image_preserves_other_json(self):
+        """Should preserve normal JSON responses that don't have base64_image."""
+        from envs.fleet_env.fleet_mcp_client import FleetMCPClient
+
+        client = FleetMCPClient(url="http://test", api_key="test")
+
+        # Normal JSON response without base64_image
+        class _TextContent:
+            type = "text"
+            text = '{"status": "success", "data": [1, 2, 3]}'
+
+        class _Result:
+            content = [_TextContent()]
+            isError = False
+            structuredContent = None
+
+        result = client._extract_tool_result(_Result())
+
+        # Should return parsed dict as-is
+        assert isinstance(result, dict)
+        assert result["status"] == "success"
+        assert result["data"] == [1, 2, 3]
+
 
 class TestFleetTaskEnvInitFetchesTools:
     """Tests for FleetTaskEnv fetching tools during __init__()."""
