@@ -60,6 +60,7 @@ class FleetTaskEnv:
         ttl_seconds: int = 600,
         max_steps: int = 50,
         request_timeout_s: float = 60.0,
+        reset_timeout_s: float = 10.0,
     ):
         import asyncio
 
@@ -68,6 +69,7 @@ class FleetTaskEnv:
         self.ttl_seconds = ttl_seconds
         self.max_steps = max_steps
         self.request_timeout_s = request_timeout_s
+        self.reset_timeout_s = reset_timeout_s
 
         if not self.api_key:
             raise ValueError(
@@ -187,17 +189,22 @@ class FleetTaskEnv:
         self._step_count = 0
         self._done = False
 
-        # Reset the environment
+        # Reset the environment (use short timeout to avoid blocking on broken manager APIs)
         reset_metadata = {}
         if self._orch:
             try:
-                reset_result = self._orch.reset()
-                reset_metadata = (
-                    reset_result.observation.metadata if reset_result else {}
-                )
+                saved_timeout = self._orch._timeout
+                self._orch._timeout = self.reset_timeout_s
+                try:
+                    reset_result = self._orch.reset()
+                    reset_metadata = (
+                        reset_result.observation.metadata if reset_result else {}
+                    )
+                finally:
+                    self._orch._timeout = saved_timeout
             except Exception as e:
                 logger.warning(
-                    f"Fleet env reset failed, continuing with empty observation: {e}"
+                    f"Fleet env reset failed (timeout={self.reset_timeout_s}s), continuing with empty observation: {e}"
                 )
 
         # Fetch tools lazily on first reset (avoids asyncio.run in __init__)
