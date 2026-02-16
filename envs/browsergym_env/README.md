@@ -284,8 +284,9 @@ docker build -t openenv-base:latest -f src/openenv/core/containers/images/Docker
 ### Build the BrowserGym Environment
 
 ```bash
-# From the OpenEnv repository root
-docker build -t browsergym-env:latest -f envs/browsergym_env/server/Dockerfile .
+# From the browsergym_env directory
+cd envs/browsergym_env
+docker build -t browsergym-env:latest -f server/Dockerfile .
 ```
 
 ### Run the Server

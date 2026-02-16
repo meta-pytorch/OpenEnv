@@ -27,6 +27,8 @@ dependencies = [
     "websockets>=15.0.1",
     # MCP support
     "fastmcp>=2.0.0",
+    # Web UI dependencies
+    "gradio>=4.0.0",
 ]
 
 [project.optional-dependencies]
@@ -49,6 +51,10 @@ cli = [
 all = [
     "openenv-core[core]",
     "openenv-core[cli]",
+]
+daytona = [
+    "daytona>=0.136.0",
+    "pyyaml>=6.0",
 ]
 
 [project.scripts]
