@@ -55,6 +55,14 @@ Training Code                    Docker Container
 
 **Key benefits:** Type-safe communication, container isolation, language-agnostic API, and parallel execution support.
 
+## Core API
+
+OpenEnv environments follow the Gymnasium API:
+
+- **reset()**: Initialize/reset the environment, returns initial observation
+- **step(action)**: Execute an action, returns observation, reward, and done flag
+- **state()**: Get current state without stepping (optional, rarely needed)
+
 ## Using Environments
 
 ### Echo Environment
@@ -65,9 +73,11 @@ The simplest environment for testing and learning ([space](https://huggingface.c
 from echo_env import EchoAction, EchoEnv
 
 async with EchoEnv(base_url="https://openenv-echo-env.hf.space") as client:
+    # Reset environment and get initial observation
     result = await client.reset()
 
     for msg in ["Test 1", "Test 2", "Test 3"]:
+        # Execute action and get observation, reward, done
         result = await client.step(EchoAction(message=msg))
         print(f"Sent: {msg}")
         print(f"  → Echoed: {result.observation.echoed_message}")
