@@ -81,6 +81,7 @@ class SyncEnvClient(Generic[ActT, ObsT, StateT]):
         self._loop: asyncio.AbstractEventLoop | None = None
         self._loop_thread: threading.Thread | None = None
         self._loop_ready = threading.Event()
+        self._loop_init_lock = threading.Lock()
 
     def _run_loop_forever(self) -> None:
         """Run a dedicated event loop for this sync client."""
@@ -100,17 +101,26 @@ class SyncEnvClient(Generic[ActT, ObsT, StateT]):
         ):
             return self._loop
 
-        self._loop_ready.clear()
-        self._loop_thread = threading.Thread(
-            target=self._run_loop_forever,
-            name="openenv-sync-client-loop",
-            daemon=True,
-        )
-        self._loop_thread.start()
-        if not self._loop_ready.wait(timeout=5):
-            raise RuntimeError("Timed out starting sync client event loop")
-        assert self._loop is not None
-        return self._loop
+        # Protect loop initialization when multiple threads race on first use.
+        with self._loop_init_lock:
+            if (
+                self._loop is not None
+                and self._loop_thread
+                and self._loop_thread.is_alive()
+            ):
+                return self._loop
+
+            self._loop_ready.clear()
+            self._loop_thread = threading.Thread(
+                target=self._run_loop_forever,
+                name="openenv-sync-client-loop",
+                daemon=True,
+            )
+            self._loop_thread.start()
+            if not self._loop_ready.wait(timeout=5):
+                raise RuntimeError("Timed out starting sync client event loop")
+            assert self._loop is not None
+            return self._loop
 
     def _run(self, coro: Any) -> Any:
         """Run coroutine on dedicated loop and block for result."""
