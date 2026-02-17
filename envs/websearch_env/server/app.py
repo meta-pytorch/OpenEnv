@@ -32,16 +32,23 @@ except Exception as e:  # pragma: no cover
 from .web_search_environment import WebSearchEnvironment
 from models import WebSearchAction, WebSearchObservation
 
-# Create the environment instance
-env = WebSearchEnvironment()
-
-# Create the app with web interface and README integration
-app = create_app(
-    env,
-    WebSearchAction,
-    WebSearchObservation,
-    env_name="websearch_env",
-)
+# Create the app with web interface and README integration.
+# Newer OpenEnv server APIs expect an environment factory/class, while
+# older versions accepted an instance.
+try:
+    app = create_app(
+        WebSearchEnvironment,
+        WebSearchAction,
+        WebSearchObservation,
+        env_name="websearch_env",
+    )
+except TypeError:
+    app = create_app(
+        WebSearchEnvironment(),
+        WebSearchAction,
+        WebSearchObservation,
+        env_name="websearch_env",
+    )
 
 
 def main(host: str = "0.0.0.0", port: int = 8000):

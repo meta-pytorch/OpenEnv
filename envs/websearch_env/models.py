@@ -18,7 +18,7 @@ from pydantic import Field
 try:
     from openenv.core.env_server.types import Action, Observation
 except ImportError:
-    from openenv.core.env_server.types import Action, Observation
+    from openenv_core.env_server.types import Action, Observation
 
 
 class WebSearchAction(Action):

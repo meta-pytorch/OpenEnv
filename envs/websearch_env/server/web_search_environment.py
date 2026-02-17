@@ -22,9 +22,9 @@ try:
     from openenv.core.env_server.types import State
     from ..models import WebSearchAction, WebSearchObservation
 except ImportError:
-    # Standalone imports (when environment is standalone with openenv from pip)
-    from openenv.core.env_server.interfaces import Environment
-    from openenv.core.env_server.types import State
+    # Standalone imports (when environment is standalone with openenv-core from pip)
+    from openenv_core.env_server.interfaces import Environment
+    from openenv_core.env_server.types import State
     from models import WebSearchAction, WebSearchObservation
 from .web_search_tool import WebSearchTool
 

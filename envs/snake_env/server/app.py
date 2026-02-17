@@ -33,11 +33,13 @@ except ImportError:
     from models import SnakeAction, SnakeObservation
     from server.snake_environment import SnakeEnvironment
 
-# Create the environment instance
-env = SnakeEnvironment()
-
-# Create the app with web interface and README integration
-app = create_app(env, SnakeAction, SnakeObservation, env_name="snake_env")
+# Create the app with web interface and README integration.
+# Newer OpenEnv server APIs expect an environment factory/class, while
+# older versions accepted an instance.
+try:
+    app = create_app(SnakeEnvironment, SnakeAction, SnakeObservation, env_name="snake_env")
+except TypeError:
+    app = create_app(SnakeEnvironment(), SnakeAction, SnakeObservation, env_name="snake_env")
 
 
 def main():

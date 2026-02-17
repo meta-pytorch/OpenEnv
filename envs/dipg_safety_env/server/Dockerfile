@@ -26,6 +26,9 @@ COPY envs/dipg_safety_env/ /app/envs/dipg_safety_env/
 # Expose the port the server will run on
 EXPOSE 8000
 
+# DIPG image omits Gradio to keep the runtime minimal.
+ENV ENABLE_WEB_INTERFACE=false
+
 # Add a robust health check
 HEALTHCHECK --interval=60s --timeout=10s --start-period=180s --retries=3 \
     CMD curl -f http://localhost:8000/health || exit 1

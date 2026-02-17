@@ -13,7 +13,7 @@ This module provides an optimized Git environment for scenarios where:
 import uuid
 
 from openenv.core.env_server import Action, Environment, Observation
-from openenv.core.tools import GitServerClient
+from openenv.core.tools.git_server_client import GitServerClient
 
 from ..models import GitAction, GitObservation, GitState
 

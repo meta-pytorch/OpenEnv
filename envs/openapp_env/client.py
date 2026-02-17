@@ -15,13 +15,13 @@ from typing import Any, Dict
 
 # Support both in-repo and standalone imports
 try:
-    # In-repo imports (when running from OpenEnv repository)
-    from openenv.core.client_types import StepResult
-    from openenv.core.env_server.types import State
-    from openenv.core.env_client import EnvClient
+    # Prefer openenv_core to avoid heavy optional deps from openenv package init.
+    from openenv_core.client_types import StepResult
+    from openenv_core.env_server.types import State
+    from openenv_core.env_client import EnvClient
     from .models import OpenAppAction, OpenAppObservation
 except ImportError:
-    # Standalone imports (when environment is standalone with openenv-core from pip)
+    # Fallback for in-repo layouts that only expose openenv.*
     from openenv.core.client_types import StepResult
     from openenv.core.env_server.types import State
     from openenv.core.env_client import EnvClient
