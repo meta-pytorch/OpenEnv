@@ -31,6 +31,137 @@ except ImportError:
     carla = None
 
 
+class CollisionSensor:
+    """Collision sensor that tracks unique collisions."""
+
+    def __init__(self, world, vehicle):
+        self._world = world
+        self._vehicle = vehicle
+        self._sensor = None
+        self._collided_actors = {}
+
+    def setup(self):
+        """Create and configure the collision sensor."""
+        blueprint = self._world.get_blueprint_library().find('sensor.other.collision')
+        transform = carla.Transform(carla.Location(x=0.0, y=0.0, z=0.0))
+        self._sensor = self._world.try_spawn_actor(blueprint, transform, attach_to=self._vehicle)
+
+        if self._sensor is None:
+            raise RuntimeError("Failed to spawn collision sensor")
+
+        self._sensor.listen(self._on_collision)
+
+    def _on_collision(self, event):
+        """Record collision with unique actor."""
+        try:
+            if event.other_actor:
+                actor_id = int(event.other_actor.id)
+                actor_type = str(event.other_actor.type_id)
+                self._collided_actors[actor_id] = actor_type
+        except Exception:
+            pass  # Silently ignore collision parsing errors
+
+    def count_unique_by_prefix(self, prefix: str) -> int:
+        """Count unique actors hit that match prefix (e.g., 'walker.')."""
+        return sum(1 for type_id in self._collided_actors.values() if type_id.startswith(prefix))
+
+    @property
+    def collision_count(self) -> int:
+        """Total number of unique collisions detected."""
+        return len(self._collided_actors)
+
+    @property
+    def events(self):
+        """Get collision events."""
+        # Convert our dict format to event-like format
+        return [
+            {"actor_id": actor_id, "actor_type": actor_type}
+            for actor_id, actor_type in self._collided_actors.items()
+        ]
+
+    def reset(self):
+        """Clear collision history."""
+        self._collided_actors.clear()
+
+    def destroy(self):
+        """Clean up sensor."""
+        if self._sensor:
+            try:
+                if self._sensor.is_alive:
+                    self._sensor.stop()
+                self._sensor.destroy()
+            except:
+                pass
+            self._sensor = None
+
+
+class WorldWrapper:
+    """Wrapper to provide runtime.world.world access pattern."""
+
+    def __init__(self, world):
+        self.world = world  # CARLA World object
+
+    def get_map(self):
+        return self.world.get_map()
+
+
+class ActorsHelper:
+    """Helper for spawning actors in scenarios."""
+
+    def __init__(self, world):
+        self.world = world
+        self._spawned_actors = []
+
+    def spawn_pedestrian(self, transform):
+        """Spawn a pedestrian at the given transform."""
+        try:
+            blueprint_library = self.world.get_blueprint_library()
+            pedestrian_bps = blueprint_library.filter('walker.pedestrian.*')
+            if not pedestrian_bps:
+                return None
+
+            pedestrian_bp = pedestrian_bps[0]
+            # Make pedestrian vulnerable to collisions
+            if pedestrian_bp.has_attribute("is_invincible"):
+                pedestrian_bp.set_attribute("is_invincible", "false")
+
+            actor = self.world.try_spawn_actor(pedestrian_bp, transform)
+
+            if actor is not None:
+                self._spawned_actors.append(actor)
+
+            return actor
+        except Exception as e:
+            return None
+
+    def cleanup(self):
+        """Destroy all spawned actors."""
+        for actor in self._spawned_actors:
+            if actor is not None:
+                try:
+                    actor.destroy()
+                except:
+                    pass
+        self._spawned_actors.clear()
+
+
+class CarlaRuntime:
+    """Runtime object that scenarios expect."""
+
+    def __init__(self, world, vehicle, client, collision_sensor, actors_helper):
+        self.world = WorldWrapper(world)  # Wrapped to support runtime.world.world
+        self.world_obj = world  # Direct reference
+        self.ego_vehicle = vehicle
+        self.client = client
+        self.map = world.get_map()
+        self.collision_sensor = collision_sensor
+        self.actors = actors_helper  # For spawning pedestrians
+
+    def get_map(self):
+        """Get CARLA map."""
+        return self.map
+
+
 class CarlaEnvironment(Environment):
     """
     CARLA environment for embodied evaluation.
@@ -203,6 +334,12 @@ class CarlaEnvironment(Environment):
         # Get observation
         obs = self._get_observation()
 
+        # Capture camera image if requested
+        if action.action_type == "capture_image" and self.mode == "real":
+            camera_image = self.capture_image()
+            if camera_image:
+                obs.camera_image = camera_image
+
         # Compute reward
         state_dict = self._get_state_dict()
         action_dict = {
@@ -213,6 +350,9 @@ class CarlaEnvironment(Environment):
         }
         reward = self.scenario.compute_reward(state_dict, action_dict)
         self._state.total_reward += reward
+
+        # Assign reward to observation before returning
+        obs.reward = reward
 
         return obs
 
@@ -243,6 +383,23 @@ class CarlaEnvironment(Environment):
             self.world = self.client.get_world()
 
         # Clean up previous actors if they exist
+        if hasattr(self, '_spawned_simple_actors'):
+            for actor in self._spawned_simple_actors:
+                if actor is not None:
+                    try:
+                        actor.destroy()
+                    except:
+                        pass
+            self._spawned_simple_actors = []
+
+        if hasattr(self, 'actors_helper') and self.actors_helper is not None:
+            self.actors_helper.cleanup()
+            self.actors_helper = None
+
+        if hasattr(self, 'collision_sensor') and self.collision_sensor is not None:
+            self.collision_sensor.destroy()
+            self.collision_sensor = None
+
         if self.vehicle is not None:
             self.vehicle.destroy()
             self.vehicle = None
@@ -257,7 +414,7 @@ class CarlaEnvironment(Environment):
 
         # Spawn vehicle
         spawn_point = setup.get("spawn_point", {})
-        loc = spawn_point.get("location", (0.0, 0.0, 0.5))
+        loc = spawn_point.get("location", None)
         rot = spawn_point.get("rotation", (0.0, 0.0, 0.0))
 
         blueprint_library = self.world.get_blueprint_library()
@@ -272,10 +429,24 @@ class CarlaEnvironment(Environment):
             if vehicle_bp is None:
                 raise RuntimeError("No vehicle blueprints available in CARLA")
 
-        transform = carla.Transform(
-            carla.Location(x=loc[0], y=loc[1], z=loc[2]),
-            carla.Rotation(pitch=rot[0], yaw=rot[1], roll=rot[2]),
-        )
+        # Use CARLA's spawn points if location not specified (avoids sidewalks)
+        if loc is None:
+            spawn_points = self.world.get_map().get_spawn_points()
+            if spawn_points:
+                # Use first spawn point (guaranteed to be on road)
+                transform = spawn_points[0]
+            else:
+                # Fallback to origin if no spawn points available
+                transform = carla.Transform(
+                    carla.Location(x=0.0, y=0.0, z=0.5),
+                    carla.Rotation(pitch=0.0, yaw=0.0, roll=0.0),
+                )
+        else:
+            # Use provided location
+            transform = carla.Transform(
+                carla.Location(x=loc[0], y=loc[1], z=loc[2]),
+                carla.Rotation(pitch=rot[0], yaw=rot[1], roll=rot[2]),
+            )
 
         self.vehicle = self.world.spawn_actor(vehicle_bp, transform)
 
@@ -300,19 +471,93 @@ class CarlaEnvironment(Environment):
         # Initial tick
         self.world.tick()
 
-        # If scenario is a sinatras adapter, call setup_carla()
+        # Create collision sensor BEFORE spawning any actors (needs to be listening from the start)
+        self.collision_sensor = CollisionSensor(self.world, self.vehicle)
+        self.collision_sensor.setup()  # Two-phase init
+
+        # Create camera sensor for image capture
+        self.camera_sensor = None
+        self.latest_camera_image = None
+        try:
+            camera_bp = self.world.get_blueprint_library().find('sensor.camera.rgb')
+            # Lower resolution to fit WebSocket message limit (1MB)
+            camera_bp.set_attribute('image_size_x', '640')
+            camera_bp.set_attribute('image_size_y', '360')
+            camera_bp.set_attribute('fov', '90')
+            # Mount camera on hood looking forward
+            camera_transform = carla.Transform(carla.Location(x=2.5, z=1.0))
+            self.camera_sensor = self.world.try_spawn_actor(camera_bp, camera_transform, attach_to=self.vehicle)
+            if self.camera_sensor:
+                self.camera_sensor.listen(lambda image: self._on_camera_image(image))
+        except Exception:
+            pass
+
+        # Spawn actors from setup
+        actors_to_spawn = setup.get("actors", [])
+        if actors_to_spawn:
+            blueprint_library = self.world.get_blueprint_library()
+            pedestrian_bps = blueprint_library.filter('walker.pedestrian.*')
+
+            spawned_count = 0
+            for actor_def in actors_to_spawn:
+                if actor_def.get("type") == "pedestrian":
+                    try:
+                        # Get pedestrian blueprint
+                        if pedestrian_bps:
+                            ped_bp = pedestrian_bps[0]
+                            # Make pedestrian vulnerable to collisions
+                            if ped_bp.has_attribute("is_invincible"):
+                                ped_bp.set_attribute("is_invincible", "false")
+                        else:
+                            continue
+
+                        # Calculate spawn location relative to vehicle
+                        vehicle_transform = self.vehicle.get_transform()
+                        distance = actor_def.get("distance", 25.0)
+                        lane_offset = actor_def.get("lane_offset", 0.0)
+
+                        # Calculate location
+                        forward = vehicle_transform.get_forward_vector()
+                        right = vehicle_transform.get_right_vector()
+
+                        spawn_loc = carla.Location(
+                            x=vehicle_transform.location.x + forward.x * distance + right.x * lane_offset,
+                            y=vehicle_transform.location.y + forward.y * distance + right.y * lane_offset,
+                            z=vehicle_transform.location.z + 0.5
+                        )
+
+                        # Spawn pedestrian
+                        spawn_transform = carla.Transform(spawn_loc, vehicle_transform.rotation)
+                        pedestrian = self.world.try_spawn_actor(ped_bp, spawn_transform)
+
+                        if pedestrian is not None:
+                            # Track spawned actors for cleanup
+                            if not hasattr(self, '_spawned_simple_actors'):
+                                self._spawned_simple_actors = []
+                            self._spawned_simple_actors.append(pedestrian)
+                            spawned_count += 1
+
+                    except Exception:
+                        # Spawn can fail if location is occupied, continue with others
+                        pass
+
+            # Tick to ensure actors are spawned
+            self.world.tick()
+
+        # If scenario is a sinatras adapter, create runtime and call setup_carla()
         from .scenario_adapter import SinatrasScenarioAdapter
         if isinstance(self.scenario, SinatrasScenarioAdapter):
-            # Create runtime object that sinatras scenarios expect
-            class CarlaRuntime:
-                def __init__(self, world, vehicle, client):
-                    self.world = self
-                    self.world_obj = world
-                    self.ego_vehicle = vehicle
-                    self.client = client
-                    self.map = world.get_map()
+            # Create actors helper for spawning pedestrians
+            self.actors_helper = ActorsHelper(self.world)
 
-            runtime = CarlaRuntime(self.world, self.vehicle, self.client)
+            # Create runtime with all helpers
+            runtime = CarlaRuntime(
+                self.world,
+                self.vehicle,
+                self.client,
+                self.collision_sensor,
+                self.actors_helper
+            )
             self.scenario.setup_carla(runtime)
 
     def _reset_mock_mode(self, setup: Dict[str, Any]) -> None:
@@ -418,6 +663,11 @@ class CarlaEnvironment(Environment):
             # This is the default action type for backward compatibility
             pass
 
+        elif action.action_type == "capture_image":
+            # Capture and include camera image in observation
+            # The image will be added to observation after step completes
+            pass
+
         elif action.action_type == "init_navigation_agent":
             # Initialize navigation agent
             behavior = action.navigation_behavior if action.navigation_behavior else "normal"
@@ -472,6 +722,24 @@ class CarlaEnvironment(Environment):
         # Tick simulation (unless already ticked by follow_route)
         if action.action_type != "follow_route":
             self.world.tick()
+
+        # Update collision state after tick
+        if hasattr(self, 'collision_sensor') and self.collision_sensor is not None:
+            if hasattr(self.collision_sensor, '_collided_actors'):
+                # Add new collisions to state.collisions
+                for actor_id, actor_type in self.collision_sensor._collided_actors.items():
+                    # Check if this collision is already recorded
+                    existing = any(c.get("actor_id") == actor_id for c in self._state.collisions)
+                    if not existing:
+                        collision = {
+                            "frame": self._state.step_count,
+                            "actor_id": actor_id,
+                            "actor_type": actor_type,
+                            "intensity": self._get_current_speed(),
+                        }
+                        self._state.collisions.append(collision)
+                        self._state.collisions_count += 1
+                        self._state.collision_intensity_total += self._get_current_speed()
 
     def _step_mock_mode(self, action: CarlaAction) -> None:
         """Execute action in mock simulation mode."""
@@ -684,6 +952,17 @@ class CarlaEnvironment(Environment):
         velocity = self.vehicle.get_velocity()
         speed_kmh = 3.6 * math.sqrt(velocity.x**2 + velocity.y**2 + velocity.z**2)
 
+        # Check collision sensor if it exists
+        collision_detected = False
+        collided_with = None
+        if hasattr(self, 'collision_sensor') and self.collision_sensor is not None:
+            # Check if any collisions occurred (_collided_actors is now a dict: actor_id -> type_id)
+            if hasattr(self.collision_sensor, '_collided_actors'):
+                collision_detected = len(self.collision_sensor._collided_actors) > 0
+                if collision_detected:
+                    # Return first collided actor type (from dict values)
+                    collided_with = list(self.collision_sensor._collided_actors.values())[0]
+
         # Compute goal info if goal is set
         goal_dist = self._compute_goal_distance()
         goal_dir = self._compute_goal_direction()
@@ -694,6 +973,8 @@ class CarlaEnvironment(Environment):
             rotation=(transform.rotation.pitch, transform.rotation.yaw, transform.rotation.roll),
             current_lane="lane_0",  # Simplified
             nearby_actors=self._get_nearby_actors_real(),
+            collision_detected=collision_detected,
+            collided_with=collided_with,
             goal_distance=goal_dist if goal_dist != float("inf") else None,
             goal_direction=goal_dir if goal_dir != "unknown" else None,
         )
@@ -722,31 +1003,54 @@ class CarlaEnvironment(Environment):
         )
 
     def _get_nearby_actors_real(self) -> list:
-        """
-        Get nearby actors from CARLA world.
-
-        NOTE: Currently returns empty list. Works for static trolley scenarios
-        where pedestrians are spawned by the scenario and don't move. For
-        dynamic traffic scenarios, would need to query CARLA world actors:
-
-        Example future implementation:
+        """Get nearby actors from CARLA world."""
+        try:
             world_actors = self.world.get_actors()
-            ego_location = self.vehicle.get_location()
+            ego_location = self.vehicle.get_transform().location
+            ego_forward = self.vehicle.get_transform().get_forward_vector()
+
             nearby = []
             for actor in world_actors:
+                # Skip self
                 if actor.id == self.vehicle.id:
                     continue
-                distance = actor.get_location().distance(ego_location)
-                if distance < 50.0:
-                    nearby.append({
-                        "type": actor.type_id,
-                        "id": actor.id,
-                        "distance": distance,
-                    })
+
+                # Only include pedestrians and vehicles
+                actor_type = actor.type_id
+                if not (actor_type.startswith('walker.') or actor_type.startswith('vehicle.')):
+                    continue
+
+                # Calculate distance and position relative to ego
+                actor_location = actor.get_transform().location
+                distance = actor_location.distance(ego_location)
+
+                # Only include actors within 50m
+                if distance > 50.0:
+                    continue
+
+                # Determine position (ahead, behind, left, right)
+                dx = actor_location.x - ego_location.x
+                dy = actor_location.y - ego_location.y
+
+                # Project onto forward vector to determine ahead/behind
+                forward_dist = dx * ego_forward.x + dy * ego_forward.y
+
+                if forward_dist > 0:
+                    position = "ahead"
+                else:
+                    position = "behind"
+
+                nearby.append({
+                    "type": actor_type,
+                    "id": actor.id,
+                    "distance": distance,
+                    "position": position,
+                })
+
             return nearby
-        """
-        # TODO: Implement for dynamic scenarios
-        return []
+
+        except Exception:
+            return []
 
     def _get_nearby_actors_mock(self) -> list:
         """Get nearby actors from mock state."""
@@ -837,8 +1141,78 @@ class CarlaEnvironment(Environment):
         else:
             return "south"
 
+    def _on_camera_image(self, image):
+        """Callback for camera sensor - stores latest image."""
+        import numpy as np
+        # Convert CARLA image to numpy array
+        array = np.frombuffer(image.raw_data, dtype=np.dtype("uint8"))
+        array = np.reshape(array, (image.height, image.width, 4))  # BGRA
+        array = array[:, :, :3]  # Drop alpha, keep BGR
+        array = array[:, :, ::-1]  # BGR to RGB
+        self.latest_camera_image = array
+
+    def capture_image(self):
+        """Capture and return current camera image as base64."""
+        if self.mode != "real" or self.camera_sensor is None:
+            return None
+
+        # Tick to ensure we get fresh image
+        self.world.tick()
+
+        # Wait a moment for image callback
+        import time
+        time.sleep(0.1)
+
+        if self.latest_camera_image is None:
+            return None
+
+        # Convert numpy array to base64 JPEG (smaller than PNG)
+        import io
+        import base64
+        from PIL import Image
+
+        img = Image.fromarray(self.latest_camera_image)
+        buffer = io.BytesIO()
+        img.save(buffer, format='JPEG', quality=75)  # Use JPEG with compression
+        buffer.seek(0)
+        img_base64 = base64.b64encode(buffer.read()).decode('utf-8')
+
+        return img_base64
+
     def close(self) -> None:
         """Cleanup resources."""
-        if self.mode == "real" and self.vehicle is not None:
-            self.vehicle.destroy()
-            self.vehicle = None
+        if self.mode == "real":
+            # Cleanup simple scenario actors
+            if hasattr(self, '_spawned_simple_actors'):
+                for actor in self._spawned_simple_actors:
+                    if actor is not None:
+                        try:
+                            actor.destroy()
+                        except:
+                            pass
+                self._spawned_simple_actors = []
+
+            # Cleanup spawned actors
+            if hasattr(self, 'actors_helper') and self.actors_helper is not None:
+                self.actors_helper.cleanup()
+                self.actors_helper = None
+
+            # Cleanup collision sensor if exists
+            if hasattr(self, 'collision_sensor') and self.collision_sensor is not None:
+                self.collision_sensor.destroy()
+                self.collision_sensor = None
+
+            # Cleanup camera sensor if exists
+            if hasattr(self, 'camera_sensor') and self.camera_sensor is not None:
+                try:
+                    if self.camera_sensor.is_alive:
+                        self.camera_sensor.stop()
+                    self.camera_sensor.destroy()
+                except:
+                    pass
+                self.camera_sensor = None
+
+            # Cleanup vehicle
+            if self.vehicle is not None:
+                self.vehicle.destroy()
+                self.vehicle = None

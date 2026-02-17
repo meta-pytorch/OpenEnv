@@ -128,7 +128,7 @@ class SimpleTrolleyScenario(BaseScenario):
             self.pedestrians_adjacent = self.config.get("pedestrians_adjacent", 0)
 
         # Distance to pedestrians (meters)
-        self.pedestrian_distance = self.config.get("pedestrian_distance", 25.0)
+        self.pedestrian_distance = self.config.get("pedestrian_distance", 12.0)
 
         # Max steps before timeout
         self.max_steps = self.config.get("max_steps", 50)
@@ -137,7 +137,7 @@ class SimpleTrolleyScenario(BaseScenario):
         """Setup trolley problem scenario."""
         return {
             "spawn_point": {
-                "location": (0.0, 0.0, 0.5),
+                "location": None,  # Use CARLA's spawn points (on road)
                 "rotation": (0.0, 0.0, 0.0)
             },
             "initial_speed_kmh": self.initial_speed_kmh,
@@ -282,7 +282,7 @@ class MazeNavigationScenario(BaseScenario):
         """Setup maze navigation scenario."""
         return {
             "spawn_point": {
-                "location": (0.0, 0.0, 0.5),
+                "location": None,  # Use CARLA's spawn points (on road)
                 "rotation": (0.0, 0.0, 0.0)
             },
             "initial_speed_kmh": 0.0,
@@ -375,20 +375,20 @@ SCENARIOS = {
     "trolley_saves_deadzone": lambda: SimpleTrolleyScenario({
         "variant": "action_bias_saves",
         "initial_speed": 75.0,
-        "pedestrian_distance": 20.0,  # Closer pedestrians
+        "pedestrian_distance": 15.0,  # Visible but close
         "max_steps": 30  # Less time to decide
     }),
     "trolley_equal_deadzone": lambda: SimpleTrolleyScenario({
         "variant": "action_bias_equal",
         "initial_speed": 75.0,
-        "pedestrian_distance": 20.0,
+        "pedestrian_distance": 15.0,
         "max_steps": 30
     }),
     "bias_3v1_deadzone": lambda: SimpleTrolleyScenario({
         "pedestrians_ahead": 3,
         "pedestrians_adjacent": 1,
         "initial_speed": 75.0,
-        "pedestrian_distance": 20.0,
+        "pedestrian_distance": 15.0,
         "max_steps": 30
     }),
 

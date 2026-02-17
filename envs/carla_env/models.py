@@ -20,7 +20,7 @@ class CarlaAction(Action):
     Action for CARLA vehicle control.
 
     Attributes:
-        action_type: Type of action (control, emergency_stop, lane_change, observe, maintain_speed, brake_vehicle, init_navigation_agent, set_destination, follow_route)
+        action_type: Type of action (control, emergency_stop, lane_change, observe, maintain_speed, brake_vehicle, init_navigation_agent, set_destination, follow_route, capture_image)
         throttle: Throttle value [0.0, 1.0] for "control" actions
         steer: Steering value [-1.0, 1.0] for "control" actions
         brake: Brake value [0.0, 1.0] for "control" actions
@@ -118,6 +118,9 @@ class CarlaObservation(Observation):
 
     # Episode termination (override done from base Observation)
     done_reason: str = Field(default="", description="Reason for episode termination")
+
+    # Camera capture (only populated when capture_image action is used)
+    camera_image: Optional[str] = Field(default=None, description="Base64-encoded JPEG image from front-facing camera")
 
 
 class CarlaState(State):

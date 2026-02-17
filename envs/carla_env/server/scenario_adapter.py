@@ -76,7 +76,7 @@ class SinatrasScenarioAdapter(OpenEnvBaseScenario):
         # Return setup dict for CarlaEnvironment
         return {
             "spawn_point": {
-                "location": (0.0, 0.0, 0.5),
+                "location": None,  # Use CARLA's spawn points (on road)
                 "rotation": (0.0, 0.0, 0.0)
             },
             "initial_speed_kmh": getattr(config, 'initial_speed_kmh', 40.0),
