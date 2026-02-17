@@ -18,6 +18,7 @@ MCP server configuration via mcpServers entries in the config file.
 
 import asyncio
 import json
+import os
 import time
 from pathlib import Path
 from typing import Any, AsyncIterator, Dict, List, Optional
@@ -51,8 +52,6 @@ class OpenClawAdapter(HarnessAdapter):
         """Start the OpenClaw process."""
         env = dict(self.config.env_vars)
         if self.config.api_key_env_var:
-            import os
-
             key = os.environ.get(self.config.api_key_env_var, "")
             if key:
                 env[self.config.api_key_env_var] = key
