@@ -50,11 +50,16 @@ class OpenClawAdapter(HarnessAdapter):
 
     async def start(self, working_directory: str) -> None:
         """Start the OpenClaw process."""
-        env = dict(self.config.env_vars)
-        if self.config.api_key_env_var:
-            key = os.environ.get(self.config.api_key_env_var, "")
-            if key:
-                env[self.config.api_key_env_var] = key
+        # Start with parent env so PATH, PYTHONPATH, etc. are preserved,
+        # then layer on configured and API key env vars.
+        env: Optional[Dict[str, str]] = None
+        if self.config.env_vars or self.config.api_key_env_var:
+            env = dict(os.environ)
+            env.update(self.config.env_vars)
+            if self.config.api_key_env_var:
+                key = os.environ.get(self.config.api_key_env_var, "")
+                if key:
+                    env[self.config.api_key_env_var] = key
 
         cmd = list(self.config.command)
         if self.config.model:
@@ -66,7 +71,7 @@ class OpenClawAdapter(HarnessAdapter):
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
             cwd=working_directory,
-            env=env if env else None,
+            env=env,
         )
 
     async def stop(self) -> None:

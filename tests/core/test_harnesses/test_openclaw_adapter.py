@@ -6,6 +6,7 @@
 
 """Tests for OpenClawAdapter (RFC 005)."""
 
+import asyncio
 import json
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -109,6 +110,27 @@ class TestOpenClawAdapterInjectTools:
         assert data["otherSetting"] is True
 
     @pytest.mark.asyncio
+    async def test_inject_handles_corrupted_config(self, adapter, tmp_path):
+        """Corrupted existing config is overwritten gracefully."""
+        config_path = tmp_path / ".openclaw" / "openclaw.json"
+        config_path.parent.mkdir(parents=True)
+        config_path.write_text("not valid json{{{")
+
+        adapter.config = adapter.config.model_copy(
+            update={"mcp_config_path": str(config_path)}
+        )
+
+        class FakeTool:
+            name = "my_tool"
+
+        await adapter.inject_tools([FakeTool()])
+
+        # Should have written a valid config despite corrupted original
+        data = json.loads(config_path.read_text())
+        assert "mcpServers" in data
+        assert "openenv" in data["mcpServers"]
+
+    @pytest.mark.asyncio
     async def test_inject_no_tools_skips_file(self, adapter, tmp_path):
         adapter.config = adapter.config.model_copy(
             update={
@@ -138,6 +160,50 @@ class TestOpenClawAdapterLifecycle:
             assert call_args[0][0] == "openclaw"
             assert "--model" in call_args[0]
             assert "claude-sonnet-4-20250514" in call_args[0]
+            # Verify subprocess pipes are set up
+            assert call_args[1]["stdin"] == asyncio.subprocess.PIPE
+            assert call_args[1]["stdout"] == asyncio.subprocess.PIPE
+            assert call_args[1]["stderr"] == asyncio.subprocess.PIPE
+            assert call_args[1]["cwd"] == "/workspace"
+
+    @pytest.mark.asyncio
+    async def test_start_inherits_parent_env_when_env_vars_set(self, adapter):
+        """Env vars should merge with parent env, not replace it."""
+        adapter.config = adapter.config.model_copy(
+            update={"env_vars": {"CUSTOM_VAR": "custom_value"}}
+        )
+        mock_process = AsyncMock()
+        mock_process.returncode = None
+
+        with patch(
+            "asyncio.create_subprocess_exec", return_value=mock_process
+        ) as mock_exec:
+            await adapter.start("/workspace")
+
+            call_args = mock_exec.call_args
+            env = call_args[1]["env"]
+            # Should have parent env vars (e.g. PATH) plus custom vars
+            assert "PATH" in env
+            assert env["CUSTOM_VAR"] == "custom_value"
+
+    @pytest.mark.asyncio
+    async def test_start_passes_none_env_when_no_overrides(self):
+        """When no env_vars or api_key, pass None to inherit parent env."""
+        config = HarnessConfig(
+            name="openclaw",
+            command=["openclaw", "run"],
+        )
+        adapter = OpenClawAdapter(config=config)
+        mock_process = AsyncMock()
+        mock_process.returncode = None
+
+        with patch(
+            "asyncio.create_subprocess_exec", return_value=mock_process
+        ) as mock_exec:
+            await adapter.start("/workspace")
+
+            call_args = mock_exec.call_args
+            assert call_args[1]["env"] is None
 
     @pytest.mark.asyncio
     async def test_stop_terminates_process(self, adapter):
@@ -150,6 +216,22 @@ class TestOpenClawAdapterLifecycle:
         await adapter.stop()
 
         mock_process.terminate.assert_called_once()
+        assert adapter._process is None
+
+    @pytest.mark.asyncio
+    async def test_stop_kills_on_timeout(self, adapter):
+        """If terminate doesn't work within timeout, kill is called."""
+        mock_process = AsyncMock()
+        mock_process.returncode = None
+        mock_process.terminate = MagicMock()
+        mock_process.wait = AsyncMock(side_effect=asyncio.TimeoutError)
+        mock_process.kill = MagicMock()
+
+        adapter._process = mock_process
+        await adapter.stop()
+
+        mock_process.terminate.assert_called_once()
+        mock_process.kill.assert_called_once()
         assert adapter._process is None
 
     @pytest.mark.asyncio
@@ -258,6 +340,29 @@ class TestOpenClawAdapterSendMessage:
     async def test_send_message_raises_when_not_running(self, adapter):
         with pytest.raises(RuntimeError, match="not running"):
             await adapter.send_message("test")
+
+    @pytest.mark.asyncio
+    async def test_send_message_timeout(self, adapter):
+        """Timeout during readline returns error response."""
+        mock_stdin = AsyncMock()
+        mock_stdin.write = MagicMock()
+        mock_stdin.drain = AsyncMock()
+
+        mock_stdout = AsyncMock()
+        mock_stdout.readline = AsyncMock(side_effect=asyncio.TimeoutError)
+
+        mock_process = MagicMock()
+        mock_process.stdin = mock_stdin
+        mock_process.stdout = mock_stdout
+        mock_process.returncode = None
+        adapter._process = mock_process
+
+        resp = await adapter.send_message("slow task")
+
+        assert "timeout" in resp.response.lower()
+        assert resp.done is True
+        error_events = [e for e in resp.events if e.type == HarnessEventType.ERROR]
+        assert len(error_events) == 1
 
 
 class TestOpenClawAdapterStreaming:
