@@ -9,9 +9,16 @@
 from __future__ import annotations
 
 from importlib import import_module
+from typing import TYPE_CHECKING
 
 from . import env_server
 from .env_server import *  # noqa: F403
+
+if TYPE_CHECKING:
+    from .env_client import EnvClient
+    from .generic_client import GenericAction, GenericEnvClient
+    from .mcp_client import MCPClientBase, MCPToolClient
+    from .sync_client import SyncEnvClient
 
 __all__ = [
     "EnvClient",
