@@ -158,6 +158,13 @@ class ChessEnvironment(Environment):
         # Feed to rubric for trajectory accumulation
         self._apply_rubric(action, obs)
 
+        # Note: obs.reward is kept from _calculate_reward_and_done() rather than
+        # overridden by the rubric. The rubric here is a TrajectoryRubric that
+        # returns 0.0 until done then the final score — the inline reward logic
+        # already provides the correct per-step reward including penalties for
+        # invalid/illegal moves. The rubric's value is in compute_step_rewards()
+        # for training infrastructure, not in replacing obs.reward.
+
         return obs
 
     def _make_observation(self, reward: float = 0.0, done: bool = False):

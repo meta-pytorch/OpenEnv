@@ -187,13 +187,18 @@ class TestRubricScoring:
     def test_draw_score(self):
         """ChessWinLossRubric returns 0.0 on stalemate."""
         env = ChessEnvironment(opponent=None, agent_color="white", gamma=0.99)
-        # Stalemate position: black king on a8, white king on a6, white queen on b6
-        # Black to move but no legal moves and not in check = stalemate
-        fen = "k7/8/KQ6/8/8/8/8/8 b - - 0 1"
+        # Set up a position where white can force stalemate in one move.
+        # White queen moves to b6, creating stalemate for black king on a8.
+        fen = "k7/8/K7/8/8/8/8/1Q6 w - - 0 1"
         env.reset(fen=fen)
 
-        _, done = env._calculate_reward_and_done()
-        assert done is True
+        obs = env.step(ChessAction(move="b1b6"))
+        assert obs.done is True
+        assert obs.reward == 0.0
+
+        score = env.rubric.score_trajectory(env.rubric.trajectory)
+        assert score == 0.0
+        assert env.rubric.compute_step_rewards() == pytest.approx([0.0])
 
 
 class TestMultipleEpisodes:
