@@ -13,6 +13,7 @@ that handles harness-specific startup, tool injection, and communication.
 from abc import ABC, abstractmethod
 from typing import AsyncIterator, List
 
+from openenv.core.env_server.mcp_types import Tool
 from openenv.core.harnesses.types import HarnessConfig, HarnessEvent, HarnessResponse
 
 
@@ -45,7 +46,7 @@ class HarnessAdapter(ABC):
         ...
 
     @abstractmethod
-    async def inject_tools(self, tools: List) -> None:
+    async def inject_tools(self, tools: List[Tool]) -> None:
         """Inject MCP tool definitions into the harness configuration.
 
         Called BEFORE start() so the harness discovers the tools at startup.

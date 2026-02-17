@@ -115,10 +115,10 @@ class HarnessConfig(BaseModel):
 
     # Timeouts
     startup_timeout_s: float = Field(
-        default=30.0, description="Max seconds to wait for harness startup"
+        default=30.0, gt=0, description="Max seconds to wait for harness startup"
     )
     session_timeout_s: float = Field(
-        default=600.0, description="Max seconds for a single session/episode"
+        default=600.0, gt=0, description="Max seconds for a single session/episode"
     )
 
     # LLM configuration
