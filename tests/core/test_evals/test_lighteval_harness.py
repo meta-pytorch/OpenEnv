@@ -136,8 +136,16 @@ class TestLightEvalHarnessRun:
         call_kwargs = mock_cls.call_args[1]
         assert call_kwargs["tasks"] == "gsm8k|5"
 
-    def test_evaluate_and_save_called(self):
+    def test_evaluate_called_but_save_skipped_by_default(self):
         _, _, mock_instance, _ = self._run_harness({"model_name": "gpt2"})
+        mock_instance.evaluate.assert_called_once()
+        mock_instance.save_and_push_results.assert_not_called()
+        mock_instance.get_results.assert_called_once()
+
+    def test_save_called_when_save_details_enabled(self):
+        _, _, mock_instance, _ = self._run_harness(
+            {"model_name": "gpt2"}, save_details=True
+        )
         mock_instance.evaluate.assert_called_once()
         mock_instance.save_and_push_results.assert_called_once()
         mock_instance.get_results.assert_called_once()

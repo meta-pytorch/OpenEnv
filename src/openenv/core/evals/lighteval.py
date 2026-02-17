@@ -123,7 +123,8 @@ class LightEvalHarness(EvalHarness):
             model_config=model_config,
         )
         pipeline.evaluate()
-        pipeline.save_and_push_results()
+        if self.save_details:
+            pipeline.save_and_push_results()
 
         # Extract scores from results
         scores = pipeline.get_results()
