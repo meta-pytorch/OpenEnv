@@ -533,6 +533,24 @@ Each harness session runs in isolation:
 
 This aligns with the existing "one env = one trajectory" invariant—no multiplexing.
 
+### Harness Security Boundary
+
+The "agent inside environment" pattern creates a new trust boundary that must be carefully enforced. The harness subprocess runs inside the container and must **not** have access to OpenEnv's orchestration API.
+
+**Network isolation**: The harness subprocess must not be able to reach the HTTP/WebSocket port that exposes `reset()`, `step()`, and `state()`. In Docker-based deployments, this is enforced by not exposing the orchestration port inside the container's network namespace—the orchestration API binds to the host network, while the harness runs inside the container. For non-Docker deployments, adapters should use process-level network restrictions (e.g., `unshare --net`) or firewall rules.
+
+**MCP tool scoping**: The MCP bridge that exposes environment tools to the harness must be carefully scoped. Only domain-specific tools should be injected. The following must **never** be exposed to the harness:
+- Orchestration controls (`reset`, `step`, `state`, `close` — already protected by `RESERVED_TOOL_NAMES`)
+- Reward computation tools or rubric internals
+- Session management or lifecycle controls
+
+**Reward boundary**: Rubrics evaluate the final observation returned by `step()`, not intermediate harness decisions. The harness must not be able to invoke reward-related functions. Concretely:
+- Environment MCP tools exposed to the harness are domain tools only (filesystem, database, APIs)
+- The rubric runs *after* the harness turn completes, outside the harness's control loop
+- If domain-specific validation is needed during the harness turn (e.g., "does the code compile?"), it should be exposed as a regular tool that returns a factual result, not a reward signal
+
+This preserves the invariant from RFC 001: **agents cannot reset**, and the principle from RFC 004: **rewards stay inside the environment boundary**, opaque to the agent.
+
 ### Simulation Mode: Multi-Turn Episodes
 
 In simulation mode, the training loop controls episode boundaries. Each `step()` is one conversational turn—the orchestrator sends a message, the harness responds.
@@ -575,6 +593,37 @@ for task in dataset:
 - It loses the natural conversational structure that harnesses are designed for
 - Many tasks require multi-turn interaction (e.g., "fix the bug" → "the tests fail" → "also fix the import")
 
+### Trajectory Semantics: Traditional vs Harness
+
+The harness model changes what "trajectory" and "step" mean. This table clarifies the mapping:
+
+| Concept | Traditional Environment | Harness Environment |
+|---------|------------------------|---------------------|
+| **One `step()`** | One atomic action (e.g., one tool call) | One conversational turn (may involve many LLM calls and tool invocations internally) |
+| **Episode** | `reset()` to `done=True` | `reset()` (fresh harness process) to `done=True` (task complete) |
+| **Trajectory** | Sequence of `(Action, Observation)` pairs | Sequence of `HarnessEvent` objects across all turns |
+| **Step count** | Number of actions taken | Number of conversational turns |
+| **Observation** | Result of one tool call | Harness's response after completing its internal ReAct loop |
+
+**Implications for rubric authors**: When writing rubrics for harness environments, `forward(action, observation)` receives the full turn's response in `observation.metadata["response"]` and the internal events in `observation.metadata["turn_events"]`. The rubric can score based on the response quality, the tools used, or any combination. The `env.trajectory` property provides the full event history across all turns.
+
+**Implications for training loops**: A training loop that counts "steps" is counting conversational turns, not individual tool invocations. If per-tool-call granularity is needed for analysis, iterate over `turn_events` in each observation's metadata.
+
+**Implications for logging/monitoring**: Metrics like "steps per episode" mean "turns per episode" for harness environments. For "tool calls per episode", aggregate `TOOL_CALL` events from the trajectory.
+
+### Temporal Semantics: The Time Problem
+
+RFC 001 identifies the duality between simulation time (paused, controlled) and real time (continuous, uncontrolled). Harnesses introduce a wrinkle: each `step()` call triggers real-world computation (LLM inference, tool execution) that takes wall-clock time, even in simulation mode.
+
+**Resolution**: Harness turns execute in **wall-clock time**, but from the simulation's perspective, time only advances when `step()` returns. This is consistent with how traditional environments handle I/O-bound operations (e.g., a coding environment that runs `pytest` takes real wall-clock time, but simulation time advances atomically on completion).
+
+Concretely:
+- `step()` is **synchronous from the training loop's perspective**: the loop calls `step()`, blocks until the harness completes its turn, and receives the observation. No simulation events occur while the harness is working.
+- **Delays between turns are transparent to the harness**: if the training loop pauses for an hour between `step()` calls, the harness simply receives the next message when `step()` is called. There is no concept of "idle time" within the harness's conversation.
+- **Timeouts are wall-clock**: `session_timeout_s` in `HarnessConfig` bounds the real time a single turn can take. This prevents runaway harness sessions from blocking the training loop indefinitely.
+
+In production mode, time is always real—the harness runs continuously and responds to client messages as they arrive. This matches RFC 001's production time model exactly.
+
 ### Production Mode: Getting Out of the Way
 
 In production mode, the harness is the primary interface:
@@ -615,6 +664,8 @@ class HTTPEnvServer:
 ```
 
 The existing `/mcp` endpoint continues to work for environments without harnesses. The new `/harness` endpoint is only registered when a `HarnessEnvironment` is detected. The WebSocket streams `HarnessEvent` objects as they happen, matching how harnesses naturally stream output to a terminal.
+
+**Architectural note**: The `/harness` endpoint introduces a third interface pattern alongside MCP (agent tools) and HTTP (orchestration). RFC 001 defines two interfaces with two purposes; the `/harness` endpoint is a specialization of the production MCP interface for the case where the agent lives *inside* the environment. This is not a general-purpose agent-hosting pattern—it is specifically for environments that wrap an external harness process. Non-harness environments continue to use the existing `/mcp` endpoint in production. If this pattern proves useful beyond harnesses (e.g., for other agent-in-the-loop architectures), it should be generalized in a dedicated RFC.
 
 ### Backward Compatibility
 
