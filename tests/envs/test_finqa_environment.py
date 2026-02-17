@@ -451,6 +451,41 @@ class TestPercentagePointsNotation:
         )
 
 
+class TestMultiValueYearKeyMatching:
+    """Test year-keyed order-independent matching and LaTeX whitespace handling."""
+
+    def test_year_key_order_independence(self):
+        """Year-labeled values match regardless of order; wrong values still fail."""
+        gt = r"\boxed{2022: 0.100, 2023: 0.500, 2024: 0.900}"
+        # Same order, reversed order, and unlabeled positional all work
+        assert compute_reward("2022: 0.100, 2023: 0.500, 2024: 0.900", gt) == 1.0
+        assert compute_reward("2024: 0.900, 2023: 0.500, 2022: 0.100", gt) == 1.0
+        assert compute_reward("0.100, 0.500, 0.900", gt) == 1.0
+        # Swapped values fail; wrong positional order fails
+        assert compute_reward("2024: 0.100, 2023: 0.500, 2022: 0.900", gt) == 0.0
+        assert compute_reward("0.900, 0.500, 0.100", gt) == 0.0
+        # Negative values with reversed order
+        gt_neg = r"\boxed{2024: -433275, 2023: -393364, 2022: -483361}"
+        assert compute_reward("2022: -483361, 2023: -393364, 2024: -433275", gt_neg) == 1.0
+
+    def test_year_range_keys_and_formats(self):
+        """Year-range keys (2022 to 2023) match with various arrow formats."""
+        gt = r"\boxed{2022 to 2023: -0.002, 2023 to 2024: 0.046}"
+        assert compute_reward("2022 to 2023: -0.002, 2023 to 2024: 0.046", gt) == 1.0
+        assert compute_reward("2023 to 2024: 0.046, 2022 to 2023: -0.002", gt) == 1.0
+        assert compute_reward("2022 -> 2023: -0.002, 2023 -> 2024: 0.046", gt) == 1.0
+        assert compute_reward("2022-2023: -0.002, 2023-2024: 0.046", gt) == 1.0
+
+    def test_latex_whitespace_in_multi_value(self):
+        r"""LaTeX whitespace (\  and \;) in multi-value answers parses correctly."""
+        assert compute_reward("1.107, 1.031, 0.926", r"\boxed{1.107,\ 1.031,\ 0.926}") == 1.0
+        assert compute_reward("8908, 7960, 6209", r"\boxed{8908,\ 7960,\ 6209}") == 1.0
+        assert compute_reward(
+            "2022: 0.933, 2023: 0.930, 2024: 0.931",
+            r"\boxed{2022:\ 0.933,\; 2023:\ 0.930,\; 2024:\ 0.931}",
+        ) == 1.0
+
+
 # ---------------------------------------------------------------------------
 # Integration tests (require downloaded data)
 # ---------------------------------------------------------------------------
