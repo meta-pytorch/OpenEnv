@@ -88,7 +88,11 @@ class SyncEnvClient(Generic[ActT, ObsT, StateT]):
 
     def _ensure_loop(self) -> asyncio.AbstractEventLoop:
         """Start background loop thread on first use."""
-        if self._loop is not None and self._loop_thread and self._loop_thread.is_alive():
+        if (
+            self._loop is not None
+            and self._loop_thread
+            and self._loop_thread.is_alive()
+        ):
             return self._loop
 
         self._loop_ready.clear()
