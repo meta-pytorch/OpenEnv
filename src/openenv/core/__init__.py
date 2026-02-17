@@ -13,6 +13,7 @@ from .env_client import EnvClient
 from .sync_client import SyncEnvClient
 from .generic_client import GenericEnvClient, GenericAction
 from .mcp_client import MCPClientBase, MCPToolClient
+from .llm_client import LLMClient, OpenAIClient
 
 __all__ = [
     "EnvClient",
@@ -21,4 +22,6 @@ __all__ = [
     "GenericAction",
     "MCPClientBase",
     "MCPToolClient",
+    "LLMClient",
+    "OpenAIClient",
 ] + env_server.__all__  # type: ignore
