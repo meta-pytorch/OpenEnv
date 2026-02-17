@@ -56,6 +56,9 @@ daytona = [
     "daytona>=0.136.0",
     "pyyaml>=6.0",
 ]
+lighteval = [
+    "lighteval[accelerate]>=0.13.0",
+]
 
 [project.scripts]
 openenv = "openenv.cli.__main__:main"
