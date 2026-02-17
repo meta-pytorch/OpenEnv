@@ -87,7 +87,7 @@ class OpenAIClient(LLMClient):
 
         self._client = AsyncOpenAI(
             base_url=f"{self.base_url}/v1",
-            api_key=api_key or "not-needed",
+            api_key=api_key if api_key is not None else "not-needed",
         )
 
     async def complete(self, prompt: str, **kwargs) -> str:

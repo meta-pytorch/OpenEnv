@@ -88,7 +88,9 @@ class LLMJudge(Rubric):
         if match is None:
             return self.default_score
         try:
-            score = float(match.group(1))
+            # Use first capture group if present, otherwise full match
+            text = match.group(1) if match.lastindex else match.group(0)
+            score = float(text)
         except (ValueError, IndexError):
             return self.default_score
         if self.normalize:
