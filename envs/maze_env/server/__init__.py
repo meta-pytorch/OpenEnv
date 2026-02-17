@@ -4,8 +4,8 @@
 # This source code is licensed under the BSD-style license found in the
 # LICENSE file in the root directory of this source tree.
 
-"""OpenEnv CLI commands."""
+"""Maze Env environment server components."""
 
-from . import build, fork, init, push, serve, validate
+from .maze_env_environment import MazeEnvironment
 
-__all__ = ["build", "fork", "init", "push", "serve", "validate"]
+__all__ = ["MazeEnvironment"]
