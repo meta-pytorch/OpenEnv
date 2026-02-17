@@ -53,8 +53,15 @@ def setup_api() -> HfApi:
         SystemExit: If authentication fails
     """
     hf_token = os.environ.get("HF_TOKEN")
+    if not hf_token:
+        logger.error("HF_TOKEN environment variable is required")
+        logger.error(
+            "Set HF_TOKEN before running this script."
+        )
+        sys.exit(1)
+
     logger.info("Authenticating with Hugging Face...")
-    api = HfApi(token=hf_token) if hf_token else HfApi()
+    api = HfApi(token=hf_token)
 
     try:
         whoami = api.whoami()
@@ -69,7 +76,9 @@ def setup_api() -> HfApi:
     return api
 
 
-def get_collection_spaces(api: HfApi, collection_slug: str) -> Set[str]:
+def get_collection_spaces(
+    api: HfApi, collection_slug: str = DEFAULT_COLLECTION_SLUG
+) -> Set[str]:
     """
     Retrieve the list of spaces currently in a collection.
 
@@ -126,7 +135,15 @@ def find_collection_by_title(
         logger.error(f"Failed to list collections for '{namespace}': {e}")
         return None
 
-    for collection in collections:
+    try:
+        iterator = iter(collections)
+    except TypeError:
+        logger.warning(
+            "list_collections returned non-iterable response; ignoring for compatibility"
+        )
+        return None
+
+    for collection in iterator:
         if getattr(collection, "title", None) == title:
             return collection.slug
     return None
@@ -179,7 +196,9 @@ def resolve_collection_slug(
         sys.exit(1)
 
 
-def discover_openenv_spaces(api: HfApi, tag_filter: str) -> List[str]:
+def discover_openenv_spaces(
+    api: HfApi, tag_filter: str = DEFAULT_TAG_FILTER
+) -> List[str]:
     """
     Search for all Docker Spaces tagged with 'openenv'.
 
@@ -242,20 +261,20 @@ def dedupe_preserve_order(values: Iterable[str]) -> List[str]:
 
 def add_spaces_to_collection(
     api: HfApi,
-    collection_slug: str,
     space_ids: List[str],
-    version: str,
-    dry_run: bool = False
+    dry_run: bool = False,
+    collection_slug: str = DEFAULT_COLLECTION_SLUG,
+    version: str = DEFAULT_VERSION,
 ) -> int:
     """
     Add new spaces to a collection.
 
     Args:
         api: Authenticated HfApi client
-        collection_slug: Collection slug to update
         space_ids: List of space IDs to add
-        version: OpenEnv version label for collection notes
         dry_run: If True, only simulate the addition without making changes
+        collection_slug: Collection slug to update
+        version: OpenEnv version label for collection notes
 
     Returns:
         Number of spaces added (or would be added in dry-run mode)
@@ -263,7 +282,7 @@ def add_spaces_to_collection(
     if not space_ids:
         logger.info("No new spaces to add")
         return 0
-    
+
     added_count = 0
     failed_count = 0
     note = f"OpenEnv release {version}"
@@ -294,10 +313,10 @@ def add_spaces_to_collection(
             except Exception as e:
                 logger.error(f"Unexpected error adding {space_id}: {e}")
                 failed_count += 1
-    
+
     if failed_count > 0:
         logger.warning(f"Failed to add {failed_count} spaces")
-    
+
     return added_count
 
 
@@ -445,11 +464,11 @@ Environment Variables:
 
     # Step 6: Add new spaces to collection
     added_count = add_spaces_to_collection(
-        api=api,
-        collection_slug=collection_slug,
-        space_ids=new_spaces,
-        version=args.version,
+        api,
+        new_spaces,
         dry_run=args.dry_run,
+        collection_slug=collection_slug,
+        version=args.version,
     )
 
     # Final summary
