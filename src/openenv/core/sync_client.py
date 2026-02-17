@@ -82,6 +82,7 @@ class SyncEnvClient(Generic[ActT, ObsT, StateT]):
         self._loop_thread: threading.Thread | None = None
         self._loop_ready = threading.Event()
         self._loop_init_lock = threading.Lock()
+        self._async_wrapper_cache: Dict[str, Any] = {}
 
     def _run_loop_forever(self) -> None:
         """Run a dedicated event loop for this sync client."""
@@ -235,10 +236,15 @@ class SyncEnvClient(Generic[ActT, ObsT, StateT]):
         attr = getattr(self._async, name)
 
         if inspect.iscoroutinefunction(attr):
+            cached = self._async_wrapper_cache.get(name)
+            if cached is not None:
+                return cached
 
             def sync_wrapper(*args: Any, **kwargs: Any) -> Any:
-                return self._run(attr(*args, **kwargs))
+                method = getattr(self._async, name)
+                return self._run(method(*args, **kwargs))
 
+            self._async_wrapper_cache[name] = sync_wrapper
             return sync_wrapper
 
         return attr
