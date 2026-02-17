@@ -158,10 +158,15 @@ class HarnessEnvironment(Environment):
         try:
             from fastmcp import Client
 
-            client = Client(self._mcp_server)
-            run_async_safely(client.__aenter__())
-            result = run_async_safely(client.list_tools())
-            run_async_safely(client.__aexit__(None, None, None))
-            return result
-        except Exception:
+            async def _list_tools():
+                async with Client(self._mcp_server) as client:
+                    return await client.list_tools()
+
+            return run_async_safely(_list_tools())
+        except Exception as e:
+            import logging
+
+            logging.getLogger(__name__).warning(
+                "Failed to extract MCP tool definitions: %s", e
+            )
             return []
