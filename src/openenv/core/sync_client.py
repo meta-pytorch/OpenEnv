@@ -48,8 +48,13 @@ class SyncEnvClient(Generic[ActT, ObsT, StateT]):
     making it easier to use in synchronous code or to stop async from
     "infecting" the entire call stack.
 
-    The wrapper uses `run_async_safely()` to execute async operations,
-    which handles both sync and async calling contexts correctly.
+    The wrapper executes async operations on a dedicated background event loop
+    so connection state remains bound to a single loop.
+
+    Cleanup note:
+        For guaranteed resource cleanup, use `with SyncEnvClient(...)` or call
+        `close()` explicitly. `__del__` is best-effort only and may not run
+        reliably (for example, during interpreter shutdown).
 
     Example:
         >>> # From an async client
@@ -200,7 +205,12 @@ class SyncEnvClient(Generic[ActT, ObsT, StateT]):
         self.close()
 
     def __del__(self) -> None:
-        """Best-effort cleanup for background loop thread."""
+        """
+        Best-effort cleanup for background loop thread.
+
+        Do not rely on this for deterministic cleanup; prefer context-manager
+        usage or an explicit `close()` call.
+        """
         try:
             self._stop_loop()
         except Exception:
