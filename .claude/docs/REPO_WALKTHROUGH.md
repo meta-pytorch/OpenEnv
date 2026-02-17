@@ -101,6 +101,7 @@ envs/
 ├── sumo_rl_env/              # Traffic simulation (SUMO)
 ├── connect4_env/             # Connect Four game
 ├── dipg_safety_env/          # Safety-focused environment
+├── reasoning_gym_env/        # Reasoning problems and puzzles
 └── websearch_env/            # Web search environment
 ```
 

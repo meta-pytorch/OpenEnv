@@ -15,7 +15,7 @@ import sys
 
 import typer
 
-from openenv.cli.commands import build, init, push, serve, validate
+from openenv.cli.commands import build, fork, init, push, serve, validate
 
 # Create the main CLI app
 app = typer.Typer(
@@ -39,6 +39,10 @@ app.command(
 app.command(name="serve", help="Serve environments locally (TODO: Phase 4)")(
     serve.serve
 )
+app.command(
+    name="fork",
+    help="Fork (duplicate) a Hugging Face Space to your account",
+)(fork.fork)
 
 
 # Entry point for setuptools

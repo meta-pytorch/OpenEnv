@@ -345,10 +345,54 @@ def test_push_uses_directory_argument(tmp_path: Path) -> None:
         assert mock_api.upload_folder.called
 
 
+def test_push_accepts_dockerfile_at_env_root(tmp_path: Path) -> None:
+    """Test that push works when Dockerfile is at environment root instead of server/."""
+    _create_test_openenv_env(tmp_path)
+    # Move Dockerfile from server/ to env root
+    root_dockerfile = tmp_path / "Dockerfile"
+    (tmp_path / "server" / "Dockerfile").rename(root_dockerfile)
+
+    staged_files: list[list[str]] = []
+
+    def _capture_staging(*, folder_path: str, **_: object) -> None:
+        staging = Path(folder_path)
+        staged_files.append(
+            sorted(
+                str(p.relative_to(staging)) for p in staging.rglob("*") if p.is_file()
+            )
+        )
+
+    with (
+        patch("openenv.cli.commands.push.whoami") as mock_whoami,
+        patch("openenv.cli.commands.push.login") as mock_login,
+        patch("openenv.cli.commands.push.HfApi") as mock_hf_api_class,
+    ):
+        mock_whoami.return_value = {"name": "testuser"}
+        mock_login.return_value = None
+        mock_api = MagicMock()
+        mock_api.upload_folder.side_effect = _capture_staging
+        mock_hf_api_class.return_value = mock_api
+
+        old_cwd = os.getcwd()
+        try:
+            os.chdir(str(tmp_path))
+            result = runner.invoke(app, ["push"])
+        finally:
+            os.chdir(old_cwd)
+
+        assert result.exit_code == 0, result.output
+        assert mock_api.upload_folder.called
+
+        # Verify the staging directory has Dockerfile at root, not inside server/
+        files = staged_files[0]
+        assert "Dockerfile" in files
+        assert "server/Dockerfile" not in files
+
+
 def test_push_handles_missing_dockerfile(tmp_path: Path) -> None:
     """Test that push fails when Dockerfile is missing (required for deployment)."""
     _create_test_openenv_env(tmp_path)
-    # Remove Dockerfile
+    # Remove Dockerfile (no root Dockerfile either)
     (tmp_path / "server" / "Dockerfile").unlink()
 
     old_cwd = os.getcwd()
@@ -654,3 +698,157 @@ def test_push_handles_base_image_not_found_in_dockerfile(tmp_path: Path) -> None
 
         # Should still work (adds FROM at beginning)
         assert mock_api.upload_folder.called
+
+
+def test_push_excludes_files_from_ignore_file(tmp_path: Path) -> None:
+    """Test that push excludes files using patterns loaded via --exclude."""
+    _create_test_openenv_env(tmp_path)
+
+    # Create files/folders to verify exclusion behavior.
+    (tmp_path / "excluded_dir").mkdir()
+    (tmp_path / "excluded_dir" / "secret.txt").write_text("do not upload")
+    (tmp_path / "weights.bin").write_text("binary payload")
+    (tmp_path / "keep.txt").write_text("keep me")
+
+    ignore_file = tmp_path / ".openenvignore"
+    ignore_file.write_text(
+        """
+# comments and empty lines are ignored
+excluded_dir/
+*.bin
+"""
+    )
+
+    with (
+        patch("openenv.cli.commands.push.whoami") as mock_whoami,
+        patch("openenv.cli.commands.push.login") as mock_login,
+        patch("openenv.cli.commands.push.HfApi") as mock_hf_api_class,
+    ):
+        mock_whoami.return_value = {"name": "testuser"}
+        mock_login.return_value = None  # Prevent actual login prompt
+        mock_api = MagicMock()
+        mock_hf_api_class.return_value = mock_api
+
+        def _assert_upload_payload(*_unused_args, **kwargs):
+            ignore_patterns = kwargs["ignore_patterns"]
+            assert "excluded_dir/" in ignore_patterns
+            assert "*.bin" in ignore_patterns
+            assert ".*" in ignore_patterns
+
+            staged = Path(kwargs["folder_path"])
+            assert not (staged / "excluded_dir").exists()
+            assert not (staged / "weights.bin").exists()
+            assert (staged / "keep.txt").exists()
+
+        mock_api.upload_folder.side_effect = _assert_upload_payload
+
+        old_cwd = os.getcwd()
+        try:
+            os.chdir(str(tmp_path))
+            result = runner.invoke(
+                app,
+                ["push", "--exclude", ".openenvignore"],
+            )
+        finally:
+            os.chdir(old_cwd)
+
+        assert result.exit_code == 0
+        assert mock_api.upload_folder.called
+
+
+def test_push_does_not_use_gitignore_as_default_excludes(tmp_path: Path) -> None:
+    """Test that .gitignore patterns are not used by default."""
+    _create_test_openenv_env(tmp_path)
+    (tmp_path / ".gitignore").write_text("excluded_from_gitignore/\n")
+    (tmp_path / "excluded_from_gitignore").mkdir()
+    (tmp_path / "excluded_from_gitignore" / "secret.txt").write_text("upload me")
+    (tmp_path / "keep.txt").write_text("keep me")
+
+    with (
+        patch("openenv.cli.commands.push.whoami") as mock_whoami,
+        patch("openenv.cli.commands.push.login") as mock_login,
+        patch("openenv.cli.commands.push.HfApi") as mock_hf_api_class,
+    ):
+        mock_whoami.return_value = {"name": "testuser"}
+        mock_login.return_value = None  # Prevent actual login prompt
+        mock_api = MagicMock()
+        mock_hf_api_class.return_value = mock_api
+
+        def _assert_upload_payload(*_unused_args, **kwargs):
+            ignore_patterns = kwargs["ignore_patterns"]
+            assert "excluded_from_gitignore/" not in ignore_patterns
+
+            staged = Path(kwargs["folder_path"])
+            assert (staged / "excluded_from_gitignore").exists()
+            assert (staged / "keep.txt").exists()
+
+        mock_api.upload_folder.side_effect = _assert_upload_payload
+
+        old_cwd = os.getcwd()
+        try:
+            os.chdir(str(tmp_path))
+            result = runner.invoke(app, ["push"])
+        finally:
+            os.chdir(old_cwd)
+
+        assert result.exit_code == 0
+        assert mock_api.upload_folder.called
+
+
+def test_push_fails_when_exclude_file_missing(tmp_path: Path) -> None:
+    """Test that push fails if --exclude points to a missing file."""
+    _create_test_openenv_env(tmp_path)
+
+    with (
+        patch("openenv.cli.commands.push.whoami") as mock_whoami,
+        patch("openenv.cli.commands.push.login") as mock_login,
+        patch("openenv.cli.commands.push.HfApi") as mock_hf_api_class,
+    ):
+        mock_whoami.return_value = {"name": "testuser"}
+        mock_login.return_value = None  # Prevent actual login prompt
+        mock_api = MagicMock()
+        mock_hf_api_class.return_value = mock_api
+
+        old_cwd = os.getcwd()
+        try:
+            os.chdir(str(tmp_path))
+            result = runner.invoke(
+                app,
+                ["push", "--exclude", "missing.ignore"],
+            )
+        finally:
+            os.chdir(old_cwd)
+
+        assert result.exit_code != 0
+        assert "exclude file" in result.output.lower()
+
+
+def test_push_create_pr_sets_upload_flag_and_skips_create_repo(tmp_path: Path) -> None:
+    """Test that --create-pr uploads with PR mode and skips repo creation."""
+    _create_test_openenv_env(tmp_path)
+
+    with (
+        patch("openenv.cli.commands.push.whoami") as mock_whoami,
+        patch("openenv.cli.commands.push.login") as mock_login,
+        patch("openenv.cli.commands.push.HfApi") as mock_hf_api_class,
+    ):
+        mock_whoami.return_value = {"name": "testuser"}
+        mock_login.return_value = None
+        mock_api = MagicMock()
+        mock_hf_api_class.return_value = mock_api
+
+        old_cwd = os.getcwd()
+        try:
+            os.chdir(str(tmp_path))
+            result = runner.invoke(
+                app, ["push", "--repo-id", "my-org/my-env", "--create-pr"]
+            )
+        finally:
+            os.chdir(old_cwd)
+
+        assert result.exit_code == 0
+        mock_api.upload_folder.assert_called_once()
+        call_kwargs = mock_api.upload_folder.call_args[1]
+        assert call_kwargs.get("create_pr") is True
+        # When create_pr we do not create the repo (target repo must exist)
+        mock_api.create_repo.assert_not_called()
