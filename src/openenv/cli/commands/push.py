@@ -283,20 +283,19 @@ def _prepare_staging_directory(
         else:
             shutil.copy2(item, dest)
 
-    # Ensure Dockerfile is at repository root (required by Hugging Face)
+    # Dockerfile must be at repo root for Hugging Face. Prefer root if present
+    # (it was copied there); otherwise move server/Dockerfile to root.
     dockerfile_server_path = staging_dir / "server" / "Dockerfile"
     dockerfile_root_path = staging_dir / "Dockerfile"
     dockerfile_path: Path | None = None
 
-    if dockerfile_server_path.exists():
-        if dockerfile_root_path.exists():
-            dockerfile_root_path.unlink()
+    if dockerfile_root_path.exists():
+        dockerfile_path = dockerfile_root_path
+    elif dockerfile_server_path.exists():
         dockerfile_server_path.rename(dockerfile_root_path)
         console.print(
             "[bold cyan]Moved Dockerfile to repository root for deployment[/bold cyan]"
         )
-        dockerfile_path = dockerfile_root_path
-    elif dockerfile_root_path.exists():
         dockerfile_path = dockerfile_root_path
 
     # Modify Dockerfile to optionally enable web interface and update base image
@@ -357,7 +356,7 @@ def _prepare_staging_directory(
             )
     else:
         console.print(
-            "[bold yellow]⚠[/bold yellow] No Dockerfile found at server/Dockerfile"
+            "[bold yellow]⚠[/bold yellow] No Dockerfile at server/ or repo root"
         )
 
     # Ensure README has proper HF frontmatter (only if interface enabled)
