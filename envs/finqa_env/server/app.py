@@ -8,7 +8,11 @@ Environment Variables:
     FINQA_TASK: Task name (default: finqa)
 """
 
+import json
 import os
+from typing import Any, Dict
+
+from pydantic import field_validator
 
 from openenv.core.env_server.http_server import create_app
 from openenv.core.env_server.mcp_types import CallToolAction, CallToolObservation
@@ -28,8 +32,17 @@ def _env_factory():
     )
 
 
-# Pass the class (factory) instead of instance for WebSocket session support
-# Use MCP types for action/observation since this is a pure MCP environment
+class FinQACallToolAction(CallToolAction):
+    """CallToolAction that accepts JSON strings for arguments (web UI sends strings)."""
+
+    @field_validator("arguments", mode="before")
+    @classmethod
+    def parse_arguments(cls, v: Any) -> Dict[str, Any]:
+        if isinstance(v, str):
+            return json.loads(v)
+        return v
+
+
 app = create_app(
-    _env_factory, CallToolAction, CallToolObservation, env_name="finqa_env"
+    _env_factory, FinQACallToolAction, CallToolObservation, env_name="finqa_env"
 )

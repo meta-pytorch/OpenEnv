@@ -70,13 +70,12 @@ ENV FINQA_DATA_PATH="/app/env/data"
 ENV FINQA_MAX_STEPS="50"
 ENV FINQA_TASK="finqa"
 
-# Download data from HuggingFace at build time (requires network)
-RUN pip install --no-cache-dir huggingface_hub[cli] && \
-    bash /app/env/download_data.sh snorkelai/finqa-data /app/env/data
+# Download data from HuggingFace at build time using Python API
+RUN python -c "from huggingface_hub import snapshot_download; snapshot_download('snorkelai/finqa-data', repo_type='dataset', local_dir='/app/env/data')"
 
 # Health check using Python (more portable than curl/wget)
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
     CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')" || exit 1
 
-# Run the FastAPI server
-CMD ["sh", "-c", "cd /app/env && uvicorn server.app:app --host 0.0.0.0 --port 8000"]
+# Run the FastAPI server using the installed package
+CMD ["uvicorn", "finqa_env.server.app:app", "--host", "0.0.0.0", "--port", "8000"]

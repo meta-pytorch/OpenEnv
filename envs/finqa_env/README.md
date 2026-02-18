@@ -1,3 +1,18 @@
+---
+title: FinQA Environment Server
+emoji: 🔊
+colorFrom: blue
+colorTo: gray
+sdk: docker
+pinned: false
+app_port: 8000
+base_path: /web
+datasets:
+  - snorkelai/finqa-data
+tags:
+  - openenv
+---
+
 # FinQA Environment
 
 A financial question-answering environment for RL training. Evaluates LLMs on their ability to answer complex financial questions using tool calls on SEC 10-K filing data.
