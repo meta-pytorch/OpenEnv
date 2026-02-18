@@ -21,6 +21,7 @@ from openenv.core.rubrics.trajectory import (
     TrajectoryRubric,
     ExponentialDiscountingTrajectoryRubric,
 )
+from openenv.core.rubrics.llm_judge import LLMJudge
 
 __all__ = [
     # Base
@@ -34,4 +35,6 @@ __all__ = [
     # Trajectory
     "TrajectoryRubric",
     "ExponentialDiscountingTrajectoryRubric",
+    # LLM Judge
+    "LLMJudge",
 ]
