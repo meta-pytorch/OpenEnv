@@ -118,6 +118,11 @@ class FleetTaskEnv:
         """Get the task modality."""
         return self.task.get("task_modality", "tool_use")
 
+    @property
+    def env_key(self) -> str:
+        """Get the environment key (e.g., 'github', 'amazon')."""
+        return self.task.get("env_key", "unknown")
+
     def _build_env_spec(self) -> str:
         """Build env_key:version spec for Fleet.make()."""
         env_key = self.task.get("env_key")
@@ -204,7 +209,7 @@ class FleetTaskEnv:
                     self._orch._timeout = saved_timeout
             except Exception as e:
                 logger.warning(
-                    f"Fleet env reset failed (timeout={self.reset_timeout_s}s), continuing with empty observation: {e}"
+                    f"[env={self.env_key}] Fleet env reset failed (timeout={self.reset_timeout_s}s), continuing with empty observation: {e}"
                 )
 
         # Fetch tools lazily on first reset (avoids asyncio.run in __init__)
@@ -215,9 +220,22 @@ class FleetTaskEnv:
                 self._tools_cache = tools_result.tools
                 self._tools_fetched = True
             except Exception as e:
-                logger.warning(f"Failed to fetch tools: {e}")
+                logger.warning(f"[env={self.env_key}] Failed to fetch tools: {e}")
                 self._tools_cache = []
                 self._tools_fetched = True
+
+        # Filter tools based on modality:
+        # - computer_use: keep ONLY the 'computer' tool
+        # - tool_use: EXCLUDE the 'computer' tool (should only use API tools)
+        if self._tools_cache:
+            if self.modality == "tool_use":
+                # Exclude computer tool for tool_use tasks
+                self._tools_cache = [
+                    t
+                    for t in self._tools_cache
+                    if t.get("name") != "computer"
+                    and t.get("function", {}).get("name") != "computer"
+                ]
 
         # For computer_use, filter to only the 'computer' tool
         # IMPORTANT: Always apply filter for computer_use modality to prevent
@@ -235,7 +253,7 @@ class FleetTaskEnv:
                 # No computer tool found - this is a configuration error
                 # The MCP image should expose the 'computer' tool for computer_use tasks
                 logger.warning(
-                    f"Task {self.task_key}: computer_use modality but no 'computer' tool found. "
+                    f"[env={self.env_key}] Task {self.task_key}: computer_use modality but no 'computer' tool found. "
                     f"Available tools: {[t.get('name') or t.get('function', {}).get('name') for t in self._tools_cache]}. "
                     f"Check MCP image configuration."
                 )

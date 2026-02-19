@@ -111,13 +111,13 @@ class FleetEnvClient(HTTPEnvClient[Action, Observation]):
                 if attempt < max_retries - 1 and is_transient:
                     delay = retry_base_delay * (2**attempt)
                     _logger.warning(
-                        f"Fleet.make() failed (attempt {attempt + 1}/{max_retries}): {e}. "
+                        f"[env={env_key}] Fleet.make() failed (attempt {attempt + 1}/{max_retries}): {e}. "
                         f"Retrying in {delay:.1f}s..."
                     )
                     time.sleep(delay)
                 else:
                     _logger.error(
-                        f"Fleet.make() failed after {attempt + 1} attempt(s): {e}"
+                        f"[env={env_key}] Fleet.make() failed after {attempt + 1} attempt(s): {e}"
                     )
                     raise
 
