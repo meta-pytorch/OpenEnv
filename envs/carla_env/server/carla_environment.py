@@ -274,6 +274,16 @@ class CarlaEnvironment(Environment):
         if self.mode == "real" and (self.world is None or self.vehicle is None):
             self.reset()
 
+        # capture_image is a read-only operation: return the latest buffered
+        # camera frame without advancing the simulation or counting as a step.
+        if action.action_type == "capture_image":
+            obs = self._get_observation()
+            if self.mode == "real":
+                camera_image = self.capture_image()
+                if camera_image:
+                    obs.camera_image = camera_image
+            return obs
+
         # Increment step counter
         self._state.step_count += 1
 
@@ -331,12 +341,6 @@ class CarlaEnvironment(Environment):
 
         # Get observation
         obs = self._get_observation()
-
-        # Capture camera image if requested
-        if action.action_type == "capture_image" and self.mode == "real":
-            camera_image = self.capture_image()
-            if camera_image:
-                obs.camera_image = camera_image
 
         # Compute reward
         state_dict = self._get_state_dict()
@@ -694,8 +698,8 @@ class CarlaEnvironment(Environment):
         """Reset in mock simulation mode."""
         # Initialize mock state
         spawn_point = setup.get("spawn_point", {})
-        loc = spawn_point.get("location", (0.0, 0.0, 0.5))
-        rot = spawn_point.get("rotation", (0.0, 0.0, 0.0))
+        loc = spawn_point.get("location") or (0.0, 0.0, 0.5)
+        rot = spawn_point.get("rotation") or (0.0, 0.0, 0.0)
 
         self.mock_state = {
             "location": list(loc),
@@ -791,11 +795,6 @@ class CarlaEnvironment(Environment):
         elif action.action_type == "observe":
             # No-op: just observe without changing control
             # This is the default action type for backward compatibility
-            pass
-
-        elif action.action_type == "capture_image":
-            # Capture and include camera image in observation
-            # The image will be added to observation after step completes
             pass
 
         elif action.action_type == "init_navigation_agent":
@@ -1282,32 +1281,27 @@ class CarlaEnvironment(Environment):
         self.latest_camera_image = array
 
     def capture_image(self):
-        """Capture and return current camera image as base64."""
+        """Return the latest buffered camera image as base64.
+
+        Does not tick the world or advance the simulation — the camera
+        sensor callback continuously updates ``latest_camera_image`` on
+        every world tick, so this just encodes whatever was last captured.
+        """
         if self.mode != "real" or self.camera_sensor is None:
             return None
-
-        # Tick to ensure we get fresh image
-        self.world.tick()
-
-        # Wait a moment for image callback
-        import time
-        time.sleep(0.1)
 
         if self.latest_camera_image is None:
             return None
 
-        # Convert numpy array to base64 JPEG (smaller than PNG)
         import io
         import base64
         from PIL import Image
 
         img = Image.fromarray(self.latest_camera_image)
         buffer = io.BytesIO()
-        img.save(buffer, format='JPEG', quality=75)  # Use JPEG with compression
+        img.save(buffer, format='JPEG', quality=75)
         buffer.seek(0)
-        img_base64 = base64.b64encode(buffer.read()).decode('utf-8')
-
-        return img_base64
+        return base64.b64encode(buffer.read()).decode('utf-8')
 
     def close(self) -> None:
         """Cleanup resources."""
