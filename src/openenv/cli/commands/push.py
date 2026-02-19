@@ -139,7 +139,12 @@ def _copytree_ignore_factory(env_dir: Path, ignore_patterns: list[str]):
 
         for name in names:
             candidate = current_dir / name
-            relative_path = candidate.relative_to(env_dir)
+            try:
+                relative_path = candidate.relative_to(env_dir)
+            except ValueError:
+                # candidate is not under env_dir (e.g. symlink or
+                # copytree root differs from env_dir); skip filtering.
+                continue
             if _should_exclude_path(relative_path, ignore_patterns):
                 ignored.add(name)
 
@@ -278,20 +283,19 @@ def _prepare_staging_directory(
         else:
             shutil.copy2(item, dest)
 
-    # Ensure Dockerfile is at repository root (required by Hugging Face)
+    # Dockerfile must be at repo root for Hugging Face. Prefer root if present
+    # (it was copied there); otherwise move server/Dockerfile to root.
     dockerfile_server_path = staging_dir / "server" / "Dockerfile"
     dockerfile_root_path = staging_dir / "Dockerfile"
     dockerfile_path: Path | None = None
 
-    if dockerfile_server_path.exists():
-        if dockerfile_root_path.exists():
-            dockerfile_root_path.unlink()
+    if dockerfile_root_path.exists():
+        dockerfile_path = dockerfile_root_path
+    elif dockerfile_server_path.exists():
         dockerfile_server_path.rename(dockerfile_root_path)
         console.print(
             "[bold cyan]Moved Dockerfile to repository root for deployment[/bold cyan]"
         )
-        dockerfile_path = dockerfile_root_path
-    elif dockerfile_root_path.exists():
         dockerfile_path = dockerfile_root_path
 
     # Modify Dockerfile to optionally enable web interface and update base image
@@ -352,7 +356,7 @@ def _prepare_staging_directory(
             )
     else:
         console.print(
-            "[bold yellow]⚠[/bold yellow] No Dockerfile found at server/Dockerfile"
+            "[bold yellow]⚠[/bold yellow] No Dockerfile at server/ or repo root"
         )
 
     # Ensure README has proper HF frontmatter (only if interface enabled)
@@ -428,18 +432,32 @@ def _upload_to_hf_space(
     api: HfApi,
     ignore_patterns: list[str],
     private: bool = False,
+    create_pr: bool = False,
+    commit_message: str | None = None,
 ) -> None:
     """Upload files to Hugging Face Space."""
-    console.print(f"[bold cyan]Uploading files to {repo_id}...[/bold cyan]")
+    if create_pr:
+        console.print(
+            f"[bold cyan]Uploading files to {repo_id} (will open a Pull Request)...[/bold cyan]"
+        )
+    else:
+        console.print(f"[bold cyan]Uploading files to {repo_id}...[/bold cyan]")
+
+    upload_kwargs: dict = {
+        "folder_path": str(staging_dir),
+        "repo_id": repo_id,
+        "repo_type": "space",
+        "create_pr": create_pr,
+        "ignore_patterns": ignore_patterns,
+    }
+    if commit_message:
+        upload_kwargs["commit_message"] = commit_message
 
     try:
-        api.upload_folder(
-            folder_path=str(staging_dir),
-            repo_id=repo_id,
-            repo_type="space",
-            ignore_patterns=ignore_patterns,
-        )
+        result = api.upload_folder(**upload_kwargs)
         console.print("[bold green]✓[/bold green] Upload completed successfully")
+        if create_pr and result is not None and hasattr(result, "pr_url"):
+            console.print(f"[bold]Pull request:[/bold] {result.pr_url}")
         console.print(
             f"[bold]Space URL:[/bold] https://huggingface.co/spaces/{repo_id}"
         )
@@ -500,11 +518,17 @@ def push(
             help="Deploy the space as private",
         ),
     ] = False,
+    create_pr: Annotated[
+        bool,
+        typer.Option(
+            "--create-pr",
+            help="Create a Pull Request instead of pushing to the default branch",
+        ),
+    ] = False,
     exclude: Annotated[
         str | None,
         typer.Option(
             "--exclude",
-            "-e",
             help="Optional additional ignore file with newline-separated glob patterns to exclude from Hugging Face uploads",
         ),
     ] = None,
@@ -524,6 +548,10 @@ def push(
         # Push to HuggingFace Spaces from current directory (web interface enabled)
         $ cd my_env
         $ openenv push
+
+        # Push to HuggingFace repo and open a Pull Request
+        $ openenv push my-org/my-env --create-pr
+        $ openenv push --repo-id my-org/my-env --create-pr
 
         # Push to HuggingFace without web interface
         $ openenv push --no-interface
@@ -671,16 +699,19 @@ def push(
             enable_interface=enable_interface,
         )
 
-        # Create/verify space
-        _create_hf_space(repo_id, api, private=private)
+        # Create/verify space (no-op if exists; needed when pushing to own new repo)
+        if not create_pr:
+            _create_hf_space(repo_id, api, private=private)
+        # When create_pr we rely on upload_folder to create branch and PR
 
         # Upload files
         _upload_to_hf_space(
             repo_id,
             staging_dir,
             api,
-            ignore_patterns=ignore_patterns,
             private=private,
+            create_pr=create_pr,
+            ignore_patterns=ignore_patterns,
         )
 
         console.print("\n[bold green]✓ Deployment complete![/bold green]")

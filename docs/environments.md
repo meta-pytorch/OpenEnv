@@ -134,6 +134,25 @@ The OpenEnv community has built a catalog of ready-to-run environments that cove
 
   <div class="environment-card">
     <div class="environment-card__body">
+      <span class="environment-card__tag">FinQA</span>
+      <p class="environment-card__description">
+        Financial question-answering on SEC 10-K filings with SQL tools, fuzzy numerical matching, and binary reward for RL training.
+      </p>
+    </div>
+    <div class="environment-card__links">
+      <a class="environment-card__icon" href="/OpenEnv/environments/finqa/" aria-label="FinQA docs">
+        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+          <path d="M6 3c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V9l-6-6H6zm8 1.5L18.5 9H14V4.5z" fill="currentColor"/>
+        </svg>
+      </a>
+      <a class="environment-card__icon environment-card__icon--hf" href="https://huggingface.co/spaces/bhavishya2895/finqa-env" target="_blank" rel="noreferrer noopener" aria-label="FinQA on Hugging Face">
+        <img src="https://huggingface.co/front/assets/huggingface_logo-noborder.svg" alt="" aria-hidden="true" />
+      </a>
+    </div>
+  </div>
+
+  <div class="environment-card">
+    <div class="environment-card__body">
       <span class="environment-card__tag">TextArena</span>
       <p class="environment-card__description">
         Multi-task text arena for language-game competitions such as Wordle, reasoning puzzles, and program synthesis.
@@ -451,18 +470,37 @@ The OpenEnv community has built a catalog of ready-to-run environments that cove
 
   <div class="environment-card">
     <div class="environment-card__body">
+      <span class="environment-card__tag">Reasoning Gym</span>
+      <p class="environment-card__description">
+        Procedural dataset generators providing 100+ reasoning tasks across algebra, arithmetic, geometry, graph theory, logic, and games with adjustable complexity and algorithmic verification.
+      </p>
+    </div>
+    <div class="environment-card__links">
+      <a class="environment-card__icon" href="/OpenEnv/environments/reasoning_gym/" aria-label="Reasoning Gym docs">
+        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+          <path d="M6 3c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V9l-6-6H6zm8 1.5L18.5 9H14V4.5z" fill="currentColor"/>
+        </svg>
+      </a>
+      <a class="environment-card__icon environment-card__icon--hf" href="https://huggingface.co/spaces/zafstojano/reasoning_gym" target="_blank" rel="noreferrer noopener" aria-label="Reasoning Gym on Hugging Face">
+        <img src="https://huggingface.co/front/assets/huggingface_logo-noborder.svg" alt="" aria-hidden="true" />
+      </a>
+    </div>
+  </div>
+
+  <div class="environment-card">
+    <div class="environment-card__body">
       <span class="environment-card__tag">Calendar Gym</span>
       <p class="environment-card__description">
         This environment exposes a Calendar Gym tools through the OpenEnv reset/step/state interface. The server runs a FastAPI app that serves the OpenEnv endpoints.
       </p>
     </div>
     <div class="environment-card__links">
-      <a class="environment-card__icon" href="https://huggingface.co/spaces/TuringEnterprises/calendar-gym/blob/main/README.md" target="_blank" rel="noreferrer noopener" aria-label="RLVE Gym docs">
+      <a class="environment-card__icon" href="https://huggingface.co/spaces/TuringEnterprises/calendar-gym/blob/main/README.md" target="_blank" rel="noreferrer noopener" aria-label="Calendar Gym docs">
         <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
           <path d="M6 3c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V9l-6-6H6zm8 1.5L18.5 9H14V4.5z" fill="currentColor"/>
         </svg>
       </a>
-      <a class="environment-card__icon environment-card__icon--hf" href="https://huggingface.co/spaces/TuringEnterprises/calendar-gym" target="_blank" rel="noreferrer noopener" aria-label="RLVE Gym on Hugging Face">
+      <a class="environment-card__icon environment-card__icon--hf" href="https://huggingface.co/spaces/TuringEnterprises/calendar-gym" target="_blank" rel="noreferrer noopener" aria-label="Calendar Gym on Hugging Face">
         <img src="https://huggingface.co/front/assets/huggingface_logo-noborder.svg" alt="" aria-hidden="true" />
       </a>
     </div>
@@ -486,8 +524,6 @@ The OpenEnv community has built a catalog of ready-to-run environments that cove
       </a>
     </div>
   </div>
-
-
 
 </div>
 
