@@ -56,8 +56,8 @@ daytona = [
     "daytona>=0.136.0",
     "pyyaml>=6.0",
 ]
-lighteval = [
-    "lighteval[accelerate]>=0.13.0",
+inspect = [
+    "inspect-ai>=0.3.0",
 ]
 
 [project.scripts]
