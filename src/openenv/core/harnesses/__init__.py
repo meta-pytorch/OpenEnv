@@ -18,6 +18,7 @@ from openenv.core.harnesses.types import (
     HarnessAction,
 )
 from openenv.core.harnesses.adapter import HarnessAdapter
+from openenv.core.harnesses.environment import HarnessEnvironment
 from openenv.core.harnesses.tools import resolve_tool_conflicts
 
 __all__ = [
@@ -33,6 +34,8 @@ __all__ = [
     "HarnessAction",
     # Adapter ABC
     "HarnessAdapter",
+    # Environment
+    "HarnessEnvironment",
     # Utilities
     "resolve_tool_conflicts",
 ]
