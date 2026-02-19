@@ -219,6 +219,19 @@ class FleetTaskEnv:
                 self._tools_cache = []
                 self._tools_fetched = True
 
+        # Filter tools based on modality:
+        # - computer_use: keep ONLY the 'computer' tool
+        # - tool_use: EXCLUDE the 'computer' tool (should only use API tools)
+        if self._tools_cache:
+            if self.modality == "tool_use":
+                # Exclude computer tool for tool_use tasks
+                self._tools_cache = [
+                    t
+                    for t in self._tools_cache
+                    if t.get("name") != "computer"
+                    and t.get("function", {}).get("name") != "computer"
+                ]
+
         # For computer_use, filter to only the 'computer' tool
         # IMPORTANT: Always apply filter for computer_use modality to prevent
         # the model from using API tools instead of mouse/keyboard control

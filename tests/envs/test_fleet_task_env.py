@@ -450,13 +450,13 @@ class TestFleetTaskEnvComputerUseFiltering:
         assert "computer_use modality but no 'computer' tool found" in caplog.text
 
     @pytest.mark.anyio
-    async def test_tool_use_does_not_filter(self, mock_fleet_env_with_tools):
-        """Should NOT filter tools for tool_use modality."""
+    async def test_tool_use_excludes_computer_tool(self, mock_fleet_env_with_tools):
+        """Should EXCLUDE computer tool for tool_use modality."""
         from envs.fleet_env.task_env import FleetTaskEnv
 
         mock_orch, mock_tools = mock_fleet_env_with_tools
 
-        # Mock list_tools returning mixed tools
+        # Mock list_tools returning mixed tools (API tools + computer)
         async def mock_list_tools():
             return MagicMock(
                 tools=[
@@ -478,8 +478,12 @@ class TestFleetTaskEnvComputerUseFiltering:
         env = FleetTaskEnv(task_config, api_key="test")
         obs = await env.reset_async()
 
-        # Should have all 3 tools
-        assert len(env._tools_cache) == 3
+        # Should have only the 2 API tools (computer excluded)
+        assert len(env._tools_cache) == 2
+        tool_names = [t.get("name") for t in env._tools_cache]
+        assert "computer" not in tool_names
+        assert "search_issues" in tool_names
+        assert "create_ticket" in tool_names
 
     @pytest.mark.anyio
     async def test_computer_use_filters_function_format(
@@ -520,3 +524,43 @@ class TestFleetTaskEnvComputerUseFiltering:
         # Should only have computer tool
         assert len(env._tools_cache) == 1
         assert env._tools_cache[0]["function"]["name"] == "computer"
+
+    @pytest.mark.anyio
+    async def test_tool_use_excludes_computer_function_format(
+        self, mock_fleet_env_with_tools
+    ):
+        """Should exclude 'computer' tool from function format for tool_use."""
+        from envs.fleet_env.task_env import FleetTaskEnv
+
+        mock_orch, mock_tools = mock_fleet_env_with_tools
+
+        # Mock list_tools returning tools in OpenAI function format
+        async def mock_list_tools():
+            return MagicMock(
+                tools=[
+                    {
+                        "type": "function",
+                        "function": {"name": "computer", "description": "Control"},
+                    },
+                    {
+                        "type": "function",
+                        "function": {"name": "api_call", "description": "API"},
+                    },
+                ]
+            )
+
+        mock_tools.list_tools = mock_list_tools
+
+        task_config = {
+            "task_key": "test-task",
+            "prompt": "Call API",
+            "env_key": "test-env",
+            "task_modality": "tool_use",
+        }
+
+        env = FleetTaskEnv(task_config, api_key="test")
+        obs = await env.reset_async()
+
+        # Should only have api_call tool (computer excluded)
+        assert len(env._tools_cache) == 1
+        assert env._tools_cache[0]["function"]["name"] == "api_call"
