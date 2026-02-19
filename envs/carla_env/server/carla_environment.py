@@ -16,7 +16,7 @@ The environment wraps CARLA scenarios and provides OpenEnv-compatible API.
 
 import uuid
 import math
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
 from openenv.core.env_server import Environment
 
 from ..models import CarlaAction, CarlaObservation, CarlaState
@@ -259,9 +259,6 @@ class CarlaEnvironment(Environment):
         """
         Execute action and advance simulation.
 
-        Auto-resets if environment not initialized (handles distributed deployment
-        edge cases where state may not persist between HTTP requests).
-
         In real mode: Apply control to CARLA vehicle and tick world
         In mock mode: Update simulated physics
 
@@ -271,9 +268,10 @@ class CarlaEnvironment(Environment):
         Returns:
             Observation after action
         """
-        # Ensure environment has been reset (auto-reset if needed)
+        # Safety net for the HTTP REST path (POST /step), which creates a
+        # fresh CarlaEnvironment per request and may call step() before reset().
+        # The WebSocket path keeps one env per session so this rarely triggers.
         if self.mode == "real" and (self.world is None or self.vehicle is None):
-            # Auto-reset on first step
             self.reset()
 
         # Increment step counter
@@ -361,6 +359,103 @@ class CarlaEnvironment(Environment):
         """Get current episode state."""
         return self._state
 
+    def _find_best_spawn_point(
+        self,
+        spawn_points: List[Any],
+        carla_map: Any,
+        min_forward_m: float = 35.0,
+        require_left: bool = False,
+        require_right: bool = False,
+        max_angle_deg: float = 15.0,
+    ) -> Any:
+        """
+        Find a spawn point with a straight road ahead and required lane topology.
+
+        Scores each spawn point by checking that the road 'min_forward_m' meters
+        ahead stays within 'max_angle_deg' of the vehicle's forward direction.
+        Also checks adjacent lane availability when required by the scenario.
+
+        Args:
+            spawn_points: CARLA spawn point transforms
+            carla_map: CARLA map for waypoint queries
+            min_forward_m: How far ahead the road must be straight
+            require_left: Scenario needs a left adjacent lane
+            require_right: Scenario needs a right adjacent lane
+            max_angle_deg: Maximum deviation angle to consider "straight"
+
+        Returns:
+            Best spawn point transform
+        """
+        from .benchmark_scenarios.shared import same_direction
+
+        best_transform = None
+        best_score = float("inf")  # lower is better (angle deviation)
+
+        for sp in spawn_points:
+            wp = carla_map.get_waypoint(
+                sp.location, project_to_road=True, lane_type=carla.LaneType.Driving
+            )
+            if wp is None:
+                continue
+
+            # Check adjacent lane requirements
+            if require_left:
+                left = wp.get_left_lane()
+                if left is None or left.lane_type != carla.LaneType.Driving:
+                    continue
+                if not same_direction(wp, left):
+                    continue
+
+            if require_right:
+                right = wp.get_right_lane()
+                if right is None or right.lane_type != carla.LaneType.Driving:
+                    continue
+                if not same_direction(wp, right):
+                    continue
+
+            # Check road straightness: get waypoint min_forward_m ahead
+            ahead_list = wp.next(min_forward_m)
+            if not ahead_list:
+                continue
+            ahead_wp = ahead_list[0]
+
+            # Compute angle between spawn forward vector and direction to ahead waypoint
+            fwd = sp.get_forward_vector()
+            dx = ahead_wp.transform.location.x - sp.location.x
+            dy = ahead_wp.transform.location.y - sp.location.y
+            dist = math.sqrt(dx * dx + dy * dy)
+            if dist < 1.0:
+                continue  # degenerate
+
+            # Dot product gives cosine of angle
+            cos_angle = (fwd.x * dx + fwd.y * dy) / dist
+            cos_angle = max(-1.0, min(1.0, cos_angle))  # clamp
+            angle_deg = math.degrees(math.acos(cos_angle))
+
+            if angle_deg > max_angle_deg:
+                continue  # road curves too much
+
+            # Also check a midpoint to catch S-curves
+            mid_list = wp.next(min_forward_m / 2.0)
+            if mid_list:
+                mid_wp = mid_list[0]
+                mdx = mid_wp.transform.location.x - sp.location.x
+                mdy = mid_wp.transform.location.y - sp.location.y
+                mdist = math.sqrt(mdx * mdx + mdy * mdy)
+                if mdist > 1.0:
+                    mid_cos = (fwd.x * mdx + fwd.y * mdy) / mdist
+                    mid_cos = max(-1.0, min(1.0, mid_cos))
+                    mid_angle = math.degrees(math.acos(mid_cos))
+                    if mid_angle > max_angle_deg:
+                        continue
+
+            # Score: prefer smallest angle (straightest road)
+            if angle_deg < best_score:
+                best_score = angle_deg
+                best_transform = sp
+
+        return best_transform
+
     def _reset_real_mode(self, setup: Dict[str, Any]) -> None:
         """
         Reset in real CARLA mode.
@@ -431,10 +526,45 @@ class CarlaEnvironment(Environment):
 
         # Use CARLA's spawn points if location not specified (avoids sidewalks)
         if loc is None:
-            spawn_points = self.world.get_map().get_spawn_points()
+            carla_map = self.world.get_map()
+            spawn_points = carla_map.get_spawn_points()
             if spawn_points:
-                # Use first spawn point (guaranteed to be on road)
-                transform = spawn_points[0]
+                # Determine lane requirements from scenario
+                require_left = False
+                require_right = False
+                min_forward_m = 35.0
+
+                from .scenario_adapter import SinatrasScenarioAdapter
+                from .scenarios import SimpleTrolleyScenario
+                if isinstance(self.scenario, SinatrasScenarioAdapter):
+                    sinatras = self.scenario.sinatras_scenario
+                    if hasattr(sinatras, "spawn_requirements"):
+                        reqs = sinatras.spawn_requirements()
+                        require_left = reqs.get("require_left", False)
+                        require_right = reqs.get("require_right", False)
+                        min_forward_m = max(35.0, reqs.get("min_forward_m", 35.0))
+                elif isinstance(self.scenario, SimpleTrolleyScenario):
+                    if self.scenario.pedestrians_adjacent > 0:
+                        require_left = True
+
+                # Find best spawn point: straight road + required lanes
+                transform = self._find_best_spawn_point(
+                    spawn_points, carla_map,
+                    min_forward_m=min_forward_m,
+                    require_left=require_left,
+                    require_right=require_right,
+                )
+
+                if transform is None:
+                    # Relax: try without lane requirements
+                    transform = self._find_best_spawn_point(
+                        spawn_points, carla_map,
+                        min_forward_m=min_forward_m,
+                    )
+
+                if transform is None:
+                    # Final fallback: first spawn point
+                    transform = spawn_points[0]
             else:
                 # Fallback to origin if no spawn points available
                 transform = carla.Transform(
