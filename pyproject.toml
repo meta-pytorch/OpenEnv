@@ -48,7 +48,7 @@ cli = [
 ]
 docs = [
     "sphinx==7.2.6",
-    "pytorch-sphinx-theme2",
+    "pytorch-sphinx-theme2==0.4.4",
     "sphinxcontrib.katex==0.9.10",
     "docutils>=0.18.1,<0.21",
     "sphinx-design==0.6.1",
