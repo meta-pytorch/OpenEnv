@@ -131,3 +131,7 @@ log_outputs/*
 
 # FinQA data (downloaded via download_data.sh)
 envs/finqa_env/data/
+
+# Sphinx build output
+docs/_build/
+docs/source/_build/
