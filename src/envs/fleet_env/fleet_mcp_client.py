@@ -14,6 +14,7 @@ Design note:
   streamable HTTP transport within a single call.
 """
 
+from datetime import timedelta
 from typing import Any, Dict, List, Optional
 
 try:
@@ -36,6 +37,8 @@ class FleetMCPClient:
         async with streamablehttp_client(
             url=self.url,
             headers={"Authorization": f"Bearer {self.api_key}"},
+            timeout=timedelta(seconds=120),
+            sse_read_timeout=timedelta(seconds=300),
         ) as streams:
             async with ClientSession(
                 read_stream=streams[0], write_stream=streams[1]
@@ -47,6 +50,8 @@ class FleetMCPClient:
         async with streamablehttp_client(
             url=self.url,
             headers={"Authorization": f"Bearer {self.api_key}"},
+            timeout=timedelta(seconds=120),
+            sse_read_timeout=timedelta(seconds=300),
         ) as streams:
             async with ClientSession(
                 read_stream=streams[0], write_stream=streams[1]
