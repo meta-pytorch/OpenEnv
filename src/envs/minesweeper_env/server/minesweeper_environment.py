@@ -72,8 +72,11 @@ class MinesweeperEnvironment(Environment):
         self._mine_positions: Set[Tuple[int, int]] = set()
         self._revealed_cells: Set[Tuple[int, int]] = set()
         self._flags_placed: Set[Tuple[int, int]] = set()
-        self._mine_counts: List[List[int]] = []
+        self._mine_counts: List[List[int]] = [[0 for _ in range(width)] for _ in range(height)]
         self._game_status = GameStatus.ONGOING
+
+        # Auto-reset so the board is playable immediately
+        self.reset()
 
     def reset(self) -> MinesweeperObservation:
         """
