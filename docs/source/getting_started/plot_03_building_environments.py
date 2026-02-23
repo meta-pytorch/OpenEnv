@@ -1,6 +1,6 @@
 """
-Building & Sharing Environments
-===============================
+Building Environments
+=====================
 
 **Part 3 of 3** in the OpenEnv Getting Started Series
 

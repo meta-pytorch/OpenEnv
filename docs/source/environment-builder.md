@@ -1,4 +1,4 @@
-# Build An Environment
+# Packaging & Deploying
 
 This guide walks you through creating a custom environment using the `OpenEnv` framework and the `openenv` CLI.
 

@@ -12,7 +12,29 @@ import sys
 project = "OpenEnv"
 copyright = ""
 author = ""
-html_title = "OpenEnv"
+
+# -- Version configuration ---------------------------------------------------
+# RELEASE env var controls stable vs dev builds (set by `make html-stable`)
+RELEASE = os.environ.get("RELEASE", False)
+
+# Read version from pyproject.toml
+import tomli
+
+pyproject_path = os.path.join(os.path.dirname(__file__), "..", "..", "pyproject.toml")
+with open(pyproject_path, "rb") as f:
+    pyproject_data = tomli.load(f)
+openenv_version = pyproject_data["project"]["version"]
+
+if RELEASE:
+    version = ".".join(openenv_version.split(".")[:2])
+    release = version
+    html_title = f"OpenEnv {version} documentation"
+    switcher_version = version
+else:
+    version = f"main ({openenv_version})"
+    release = "main"
+    html_title = "OpenEnv"
+    switcher_version = "main"
 
 # -- Path setup --------------------------------------------------------------
 sys.path.insert(0, os.path.abspath("../../src"))
@@ -87,6 +109,15 @@ html_theme_options = {
     ],
     "use_edit_page_button": True,
     "navbar_center": "navbar-nav",
+    "switcher": {
+        "json_url": "_static/versions.json",
+        "version_match": switcher_version,
+    },
+    "check_switcher": False,
+    "navbar_align": "left",
+    "navbar_start": ["navbar-logo", "version-switcher"],
+    "navbar_center": ["navbar-nav"],
+    "navbar_end": ["theme-switcher", "navbar-icon-links"],
 }
 
 theme_variables = pytorch_sphinx_theme2.get_theme_variables()
