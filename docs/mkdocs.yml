@@ -108,9 +108,9 @@ nav:
 
   - Environments:
     - Overview: environments/index.md
-    - Games: environments/index.md#games--puzzles
+    - Games: environments/index.md#games-puzzles
     - Code Execution: environments/index.md#code-execution
-    - Web & Browser: environments/index.md#web--browser
+    - Web & Browser: environments/index.md#web-browser
     - Simulation: environments/index.md#simulation
     - Conversational: environments/index.md#conversational
 
