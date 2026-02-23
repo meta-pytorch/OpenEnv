@@ -217,7 +217,8 @@ CarlaAction(
 
 ```python
 # Capture front camera image (read-only, does not advance simulation)
-# Returns base64-encoded JPEG (640x360, 90 FOV) in obs.camera_image
+# Returns base64-encoded JPEG in obs.camera_image (default: 640x360, 90 FOV)
+# Resolution and quality configurable via scenario_config (see Camera Configuration)
 # Real mode only; returns None in mock mode
 CarlaAction(action_type="capture_image")
 ```
@@ -405,7 +406,7 @@ Environment variables:
 ## Features
 
 - **CARLA 0.10.0 with UE5.5**: Full physics simulation with Unreal Engine 5.5
-- **Text + Camera Observations**: Text descriptions compatible with any LLM, plus optional front-camera RGB images (640x360 JPEG) via `capture_image`
+- **Text + Camera Observations**: Text descriptions compatible with any LLM, plus optional front-camera RGB images via `capture_image` (resolution and JPEG quality [configurable at reset](#camera-configuration))
 - **Temporal Flow**: Time advances independently of model decisions
 - **Irreversible Actions**: Decisions have lasting consequences
 - **Measurable Inaction**: Doing nothing is itself observable data
@@ -460,7 +461,7 @@ The standalone deployment uses **RenderOffScreen** mode for flexibility and futu
 - Text observations by default; camera images available via `capture_image` action
 - Uses OpenGL (more stable in containers than Vulkan)
 - Moderate GPU usage (quality set to Low)
-- Supports the front-mounted RGB camera (640x360, 90 FOV)
+- Supports the front-mounted RGB camera (configurable resolution and FOV)
 
 **Alternative: nullrhi Mode**
 
@@ -528,6 +529,53 @@ Try the environment without installation:
   - Full CARLA 0.10.0 physics simulation
   - Text observations + optional camera images via `capture_image`
   - HTTP/WebSocket API for agent integration
+
+## Camera Configuration
+
+Camera resolution and JPEG quality are configurable at reset via `scenario_config`:
+
+```python
+# Default: 640x360, 90 FOV, JPEG quality 75
+result = env.reset(scenario_name="trolley_saves")
+
+# Override: 1280x720, wider FOV, higher quality
+result = env.reset(scenario_config={
+    "camera_width": 1280,
+    "camera_height": 720,
+    "camera_fov": 110,
+    "jpeg_quality": 90,
+})
+```
+
+All example scripts accept `--camera-width`, `--camera-height`, `--camera-fov`, and `--jpeg-quality` CLI flags.
+
+## Training Considerations
+
+### Single-Instance Simulation
+
+CARLA runs in **synchronous mode**: one world, one timeline, one episode at a time per server instance. This is fine for LLM evaluation/benchmarking (the LLM inference latency dominates), but has significant implications for RL training.
+
+### Why Parallel Environments Matter for RL
+
+Training algorithms like GRPO generate **G completions per prompt** and evaluate each one to compute rewards. Each evaluation requires a full episode rollout in CARLA (reset → N steps → reward). With a single CARLA instance, these G rollouts must run sequentially:
+
+```
+G=8 generations × ~30s per episode = ~4 min per training step
+1000 training steps ≈ 67 hours of rollout time
+```
+
+Additionally, CARLA does not support state save/restore — each `reset()` produces a similar but not identical initial state (NPC positions, timing). This introduces reward variance that is independent of the model's actions.
+
+### Approaches for Training at Scale
+
+| Approach | How it works | Trade-off |
+|---|---|---|
+| **Multiple CARLA instances** | G GPU servers, one per generation. Evaluate in parallel. | Fast but expensive: G GPUs just for environments + training GPU(s) |
+| **Sequential on 1 GPU** | Evaluate G generations one after another on a single CARLA instance | Cheap but very slow. Only viable for small experiments |
+| **Offline RL / reward model** | Collect episodes with the base model, train a reward model as proxy, use it for GRPO instead of live CARLA | Most practical for GPU-heavy simulators. Periodically re-evaluate in CARLA to prevent drift |
+| **Mock mode for prototyping** | Use mock mode (CPU, no physics) to debug the training pipeline before scaling to real CARLA | No real physics — useful for pipeline validation only |
+
+This is not a limitation of OpenEnv but an inherent property of any GPU-heavy simulator (CARLA, Unity, Unreal). Lightweight simulators like MuJoCo or Atari can run hundreds of instances on a single CPU, making parallel RL straightforward.
 
 ## Limitations & Future Work
 
