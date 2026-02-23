@@ -1,10 +1,10 @@
 # OpenEnv: Production RL Made Simple
 
-<div align="center">
+<div align="center" markdown>
 
 <img src="https://upload.wikimedia.org/wikipedia/commons/1/10/PyTorch_logo_icon.svg" width="200" alt="PyTorch">
 
-### *From "Hello World" to RL Training in 5 Minutes* ✨
+*From "Hello World" to RL Training in 5 Minutes* ✨
 
 ---
 
@@ -17,7 +17,7 @@ That's OpenEnv. Type-safe. Isolated. Production-ready. 🎯
 [![License](https://img.shields.io/badge/License-BSD%203--Clause-green.svg)](https://opensource.org/licenses/BSD-3-Clause)
 [![PyTorch](https://img.shields.io/badge/PyTorch-EE4C2C?logo=pytorch&logoColor=white)](https://pytorch.org/)
 
-Author: [Sanyam Bhutani](http://twitter.com/bhutanisanyam1/)
+**Author**: [Sanyam Bhutani](http://twitter.com/bhutanisanyam1/)
 
 </div>
 
@@ -47,48 +47,41 @@ Focus on experiments, use OpenEnvironments, and build agents that go beyond Cart
 
 ## 📋 What You'll Learn
 
-<table>
-<tr>
-<td width="50%">
+<div class="grid cards" markdown>
 
-**🎯 Part 1-2: The Fundamentals**
+-   **🎯 Part 1-2: The Fundamentals**
 
-- ⚡ RL in 60 seconds
-- 🤔 Why existing solutions fall short
-- 💡 The OpenEnv solution
+    ---
 
-</td>
-<td width="50%">
+    - ⚡ RL in 60 seconds
+    - 🤔 Why existing solutions fall short
+    - 💡 The OpenEnv solution
 
-**🏗️ Part 3-5: The Architecture**
+-   **🏗️ Part 3-5: The Architecture**
 
-- 🔧 How OpenEnv works
-- 🔍 Exploring real code
-- 🎮 OpenSpiel integration example
+    ---
 
-</td>
-</tr>
-<tr>
-<td width="50%">
+    - 🔧 How OpenEnv works
+    - 🔍 Exploring real code
+    - 🎮 OpenSpiel integration example
 
-**🎮 Part 6-8: Hands-On Demo**
+-   **🎮 Part 6-8: Hands-On Demo**
 
-- 🔌 Use existing OpenSpiel environment
-- 🤖 Test 4 different policies
-- 👀 Watch learning happen live
+    ---
 
-</td>
-<td width="50%">
+    - 🔌 Use existing OpenSpiel environment
+    - 🤖 Test 4 different policies
+    - 👀 Watch learning happen live
 
-**🔧 Part 9-10: Going Further**
+-   **🔧 Part 9-10: Going Further**
 
-- 🎮 Switch to other OpenSpiel games
-- ✨ Build your own integration
-- 🌐 Deploy to production
+    ---
 
-</td>
-</tr>
-</table>
+    - 🎮 Switch to other OpenSpiel games
+    - ✨ Build your own integration
+    - 🌐 Deploy to production
+
+</div>
 
 !!! tip "Pro Tip"
     This notebook is designed to run top-to-bottom in Google Colab with zero setup!
@@ -1143,56 +1136,53 @@ OpenEnv includes 3 complete examples:
 
 ### What You Learned
 
-<table>
-<tr>
-<td width="50%" style="vertical-align: top;">
+<div class="grid cards" markdown>
 
-### 📚 Concepts
+-   ### 📚 Concepts
 
-✅ **RL Fundamentals**
+    ---
 
-- The observe-act-reward loop
-- What makes good policies
-- Exploration vs exploitation
+    **RL Fundamentals**
 
-✅ **OpenEnv Architecture**
+    - The observe-act-reward loop
+    - What makes good policies
+    - Exploration vs exploitation
 
-- Client-server separation
-- Type-safe contracts
-- HTTP communication layer
+    **OpenEnv Architecture**
 
-✅ **Production Patterns**
+    - Client-server separation
+    - Type-safe contracts
+    - HTTP communication layer
 
-- Docker isolation
-- API design
-- Reproducible deployments
+    **Production Patterns**
 
-</td>
-<td width="50%" style="vertical-align: top;">
+    - Docker isolation
+    - API design
+    - Reproducible deployments
 
-### 🛠️ Skills
+-   ### 🛠️ Skills
 
-✅ **Using Environments**
+    ---
 
-- Import OpenEnv clients
-- Call reset/step/state
-- Work with typed observations
+    **Using Environments**
 
-✅ **Building Environments**
+    - Import OpenEnv clients
+    - Call reset/step/state
+    - Work with typed observations
 
-- Define type-safe models
-- Implement Environment class
-- Create HTTPEnvClient
+    **Building Environments**
 
-✅ **Testing & Debugging**
+    - Define type-safe models
+    - Implement Environment class
+    - Create HTTPEnvClient
 
-- Compare policies
-- Visualize episodes
-- Measure performance
+    **Testing & Debugging**
 
-</td>
-</tr>
-</table>
+    - Compare policies
+    - Visualize episodes
+    - Measure performance
+
+</div>
 
 ### OpenEnv vs Traditional RL
 
