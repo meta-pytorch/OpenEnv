@@ -8,6 +8,8 @@
 
 from __future__ import annotations
 
+import inspect
+import logging
 import os
 
 from openenv.core.env_server.http_server import create_app
@@ -16,10 +18,12 @@ try:
     # When running as installed package
     from textarena_env.models import TextArenaAction, TextArenaObservation
     from textarena_env.server.environment import TextArenaEnvironment
+    from textarena_env.server.gradio_ui import build_textarena_gradio_app
 except ImportError:
     # When running uvicorn directly from textarena_env/
     from models import TextArenaAction, TextArenaObservation
     from .environment import TextArenaEnvironment
+    from .gradio_ui import build_textarena_gradio_app
 
 
 def _parse_env_kwargs(prefix: str = "TEXTARENA_KW_") -> dict[str, str]:
@@ -55,13 +59,30 @@ def create_textarena_environment():
 
 
 # Create the FastAPI app
-# Pass the factory function instead of an instance for WebSocket session support
-app = create_app(
-    create_textarena_environment,
-    TextArenaAction,
-    TextArenaObservation,
-    env_name="textarena_env",
-)
+# Pass the factory function instead of an instance for WebSocket session support.
+# When ENABLE_WEB_INTERFACE=true and openenv-core supports it, the Gradio UI has
+# two tabs: Playground (default) and Custom (Wordle HTML block). See server/gradio_ui.py.
+_logger = logging.getLogger(__name__)
+_sig = inspect.signature(create_app)
+if "gradio_builder" in _sig.parameters:
+    app = create_app(
+        create_textarena_environment,
+        TextArenaAction,
+        TextArenaObservation,
+        env_name="textarena_env",
+        gradio_builder=build_textarena_gradio_app,
+    )
+else:
+    _logger.warning(
+        "Installed openenv-core does not support gradio_builder; "
+        "custom Gradio tab will not be available."
+    )
+    app = create_app(
+        create_textarena_environment,
+        TextArenaAction,
+        TextArenaObservation,
+        env_name="textarena_env",
+    )
 
 
 def main(host: str = "0.0.0.0", port: int = 8000):

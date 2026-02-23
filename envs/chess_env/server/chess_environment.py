@@ -22,6 +22,7 @@ from moonfish.psqt import board_evaluation
 from openenv.core.env_server import Environment
 
 from ..models import ChessAction, ChessObservation, ChessState
+from .rubrics import ChessWinLossRubric
 
 
 class ChessEnvironment(Environment):
@@ -51,7 +52,7 @@ class ChessEnvironment(Environment):
             agent_color: Which color the agent plays - "white", "black", or None (alternate each episode)
             gamma: Discount factor for temporal credit assignment (0-1)
         """
-        super().__init__()
+        super().__init__(rubric=ChessWinLossRubric(gamma=gamma))
         self._opponent = opponent
         self._opponent_depth = opponent_depth
         self._max_moves = max_moves
@@ -73,6 +74,8 @@ class ChessEnvironment(Environment):
         Returns:
             Initial observation of the board state.
         """
+        self._reset_rubric()
+
         if fen:
             self._board = chess.Board(fen)
         else:
@@ -150,7 +153,19 @@ class ChessEnvironment(Environment):
             self._make_opponent_move()
             reward, done = self._calculate_reward_and_done()
 
-        return self._make_observation(reward=reward, done=done)
+        obs = self._make_observation(reward=reward, done=done)
+
+        # Feed to rubric for trajectory accumulation
+        self._apply_rubric(action, obs)
+
+        # Note: obs.reward is kept from _calculate_reward_and_done() rather than
+        # overridden by the rubric. The rubric here is a TrajectoryRubric that
+        # returns 0.0 until done then the final score — the inline reward logic
+        # already provides the correct per-step reward including penalties for
+        # invalid/illegal moves. The rubric's value is in compute_step_rewards()
+        # for training infrastructure, not in replacing obs.reward.
+
+        return obs
 
     def _make_observation(self, reward: float = 0.0, done: bool = False):
         """Build observation from current board state."""

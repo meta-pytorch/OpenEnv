@@ -314,6 +314,8 @@ Key options:
 - `--interface/--no-interface`: toggle the optional web UI
 - `--base-image`: override the Dockerfile `FROM`
 - `--private`: mark the space as private
+- Hidden files/directories (`.*`) are excluded by default for Hugging Face uploads
+- `--exclude/-e`: optional additional ignore file (newline-separated glob patterns) merged on top of defaults
 
 The command validates your `openenv.yaml`, injects Hugging Face frontmatter when needed, and uploads the prepared bundle.
 

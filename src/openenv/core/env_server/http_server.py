@@ -303,19 +303,28 @@ class HTTPEnvServer:
             session_id = str(uuid.uuid4())
             current_time = time.time()
 
-            try:
-                env = self._env_factory()
-            except Exception as e:
-                factory_name = getattr(
-                    self._env_factory, "__name__", str(self._env_factory)
-                )
-                raise EnvironmentFactoryError(factory_name) from e
+            # Create executor and reserve slot so capacity is not exceeded while
+            # we create the env outside the lock (avoids blocking other sessions)
+            executor = ThreadPoolExecutor(max_workers=1)
+            self._session_executors[session_id] = executor
+            self._sessions[session_id] = None  # placeholder until env is ready
 
+        try:
+            # Create environment in the executor thread (outside lock)
+            loop = asyncio.get_event_loop()
+            env = await loop.run_in_executor(executor, self._env_factory)
+        except Exception as e:
+            async with self._session_lock:
+                executor.shutdown(wait=False)
+                self._session_executors.pop(session_id, None)
+                self._sessions.pop(session_id, None)
+            factory_name = getattr(
+                self._env_factory, "__name__", str(self._env_factory)
+            )
+            raise EnvironmentFactoryError(factory_name) from e
+
+        async with self._session_lock:
             self._sessions[session_id] = env
-
-            self._session_executors[session_id] = ThreadPoolExecutor(max_workers=1)
-
-            # Track session metadata
             self._session_info[session_id] = SessionInfo(
                 session_id=session_id,
                 created_at=current_time,
@@ -324,7 +333,7 @@ class HTTPEnvServer:
                 environment_type=type(env).__name__,
             )
 
-            return session_id, env
+        return session_id, env
 
     async def _destroy_session(self, session_id: str) -> None:
         """
@@ -334,15 +343,32 @@ class HTTPEnvServer:
             session_id: The session ID to destroy
         """
         async with self._session_lock:
-            if session_id in self._sessions:
-                env = self._sessions.pop(session_id)
-                env.close()
-
-            if session_id in self._session_executors:
-                executor = self._session_executors.pop(session_id)
-                executor.shutdown(wait=False)
-
+            env = self._sessions.pop(session_id, None)
+            executor = self._session_executors.pop(session_id, None)
             self._session_info.pop(session_id, None)
+
+        # Run close() in the same executor where the env was created
+        # This is required for thread-sensitive libraries like Playwright/greenlet
+        if env is not None:
+            if executor is not None:
+                try:
+                    loop = asyncio.get_event_loop()
+                    await loop.run_in_executor(executor, env.close)
+                except Exception:
+                    # If executor close fails, try direct close as fallback
+                    try:
+                        env.close()
+                    except Exception:
+                        pass  # Best effort cleanup
+            else:
+                try:
+                    env.close()
+                except Exception:
+                    pass  # Best effort cleanup
+
+        # Shutdown executor after close is done
+        if executor is not None:
+            executor.shutdown(wait=False)
 
     def _update_session_activity(
         self, session_id: str, increment_step: bool = False
@@ -1217,6 +1243,7 @@ def create_app(
     env_name: Optional[str] = None,
     max_concurrent_envs: Optional[int] = None,
     concurrency_config: Optional[ConcurrencyConfig] = None,
+    gradio_builder: Optional[Callable[..., Any]] = None,
 ) -> FastAPI:
     """
     Create a FastAPI application with or without web interface.
@@ -1233,6 +1260,10 @@ def create_app(
                              Mutually exclusive with concurrency_config.
         concurrency_config: Optional ConcurrencyConfig for advanced concurrency settings.
                             Mutually exclusive with max_concurrent_envs.
+        gradio_builder: Optional callable to build a custom Gradio UI at /web.
+            Signature: (web_manager, action_fields, metadata, is_chat_env, title,
+            quick_start_md) -> gr.Blocks. When None, the default Gradio app is used.
+            See docs/customizing-web-ui.md.
 
     Returns:
         FastAPI application instance with or without web interface and README integration
@@ -1246,7 +1277,7 @@ def create_app(
     )
 
     if enable_web:
-        # Import web interface only when needed
+        # Gradio-based web UI (gradio is a core dependency)
         from .web_interface import create_web_interface_app
 
         return create_web_interface_app(
@@ -1256,6 +1287,7 @@ def create_app(
             env_name,
             max_concurrent_envs,
             concurrency_config,
+            gradio_builder=gradio_builder,
         )
     else:
         # Use standard FastAPI app without web interface

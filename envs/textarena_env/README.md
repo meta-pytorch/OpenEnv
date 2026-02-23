@@ -70,6 +70,37 @@ cd envs/textarena_env
 docker build -t textarena-env:latest -f server/Dockerfile .
 ```
 
+## Testing the Gradio UI locally
+
+With the web interface enabled, the server serves a **Gradio UI** at `/web`. If your `openenv-core` supports `gradio_builder`, you get two tabs (see [Customizing the Web UI](https://meta-pytorch.org/OpenEnv/customizing-web-ui/)):
+
+- **Playground** – default OpenEnv UI (Reset, Step, Get state, Quick Start, README).
+- **Custom** – Wordle-style HTML block (see `server/gradio_ui.py`; uses [Gradio 6 `gr.HTML`](https://gradio.app/docs/gradio/html) to render the block).
+
+**Option A – From the OpenEnv repo root (recommended for the Custom tab)**
+
+Use the core that includes the tabbed interface and custom builder:
+
+```bash
+cd envs/textarena_env
+ENABLE_WEB_INTERFACE=true PYTHONPATH=../../src uv run uvicorn server.app:app --host 0.0.0.0 --port 8000
+```
+
+**Option B – From the environment directory only**
+
+```bash
+cd envs/textarena_env
+ENABLE_WEB_INTERFACE=true uv run server
+```
+
+Or:
+
+```bash
+ENABLE_WEB_INTERFACE=true uv run uvicorn server.app:app --host 0.0.0.0 --port 8000
+```
+
+Then open **http://localhost:8000/web**. Use the **Playground** tab to Reset and Step with guesses (e.g. `[crane]`, `[stone]`). If you ran with Option A, the **Custom** tab shows the Wordle-style demo block.
+
 ## Deploying to Hugging Face Spaces
 
 You can easily deploy your OpenEnv environment to Hugging Face Spaces using the `openenv push` command:
