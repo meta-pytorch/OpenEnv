@@ -106,31 +106,7 @@ nav:
     - OpenEnv in 15 Minutes: tutorials/openenv-tutorial.md
     - Wordle with GRPO: tutorials/wordle-grpo.md
 
-  - Environments:
-    - environments/index.md
-    - Games:
-      - Echo: environments/echo.md
-      - Snake: environments/snake.md
-      - Chess: environments/chess.md
-      - Atari: environments/atari.md
-      - OpenSpiel: environments/openspiel.md
-      - TextArena: environments/textarena.md
-    - Code Execution:
-      - Coding: environments/coding.md
-      - REPL: environments/repl.md
-      - Git: environments/git.md
-      - Terminal-Bench 2: environments/tbench2.md
-    - Web & Browser:
-      - BrowserGym: environments/browsergym.md
-      - OpenApp: environments/openapp.md
-      - Web Search: environments/websearch.md
-    - Simulation:
-      - Unity: environments/unity.md
-      - SUMO Traffic: environments/sumo.md
-      - FinRL: environments/finrl.md
-    - Conversational:
-      - Chat: environments/chat.md
-      - DIPG Safety: environments/dipg.md
+  - Environments: environments/index.md
 
   - API Reference:
     - reference/index.md
