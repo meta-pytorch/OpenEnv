@@ -72,6 +72,7 @@ from .mcp_types import (
     WSMCPMessage,
     WSMCPResponse,
 )
+from .mcp_environment import get_server_tools
 
 
 def _make_json_serializable(obj: Any) -> Any:
@@ -968,16 +969,15 @@ all schema information needed to interact with the environment.
                     elif hasattr(_env, "mcp_server") and _env.mcp_server:
                         # Use server directly
                         tools = []
-                        if hasattr(_env.mcp_server, "_tool_manager"):
-                            tool_manager = _env.mcp_server._tool_manager
-                            if hasattr(tool_manager, "_tools"):
-                                for tool_name, tool in tool_manager._tools.items():
-                                    tool_dict = {
-                                        "name": tool.name,
-                                        "description": tool.description or "",
-                                        "inputSchema": tool.parameters or {},
-                                    }
-                                    tools.append(tool_dict)
+                        for tool_name, tool in get_server_tools(
+                            _env.mcp_server
+                        ).items():
+                            tool_dict = {
+                                "name": tool.name,
+                                "description": tool.description or "",
+                                "inputSchema": tool.parameters or {},
+                            }
+                            tools.append(tool_dict)
                         return JsonRpcResponse.success(
                             result={"tools": tools},
                             request_id=request_id,
@@ -1006,13 +1006,11 @@ all schema information needed to interact with the environment.
                             result = await _env.mcp_client.call_tool(
                                 name=tool_name, arguments=arguments
                             )
-                    elif hasattr(_env, "mcp_server") and hasattr(
-                        _env.mcp_server, "_tool_manager"
-                    ):
+                    elif hasattr(_env, "mcp_server") and _env.mcp_server:
                         # Call tool directly on FastMCP server
-                        tool_manager = _env.mcp_server._tool_manager
-                        if tool_name in tool_manager._tools:
-                            tool = tool_manager._tools[tool_name]
+                        server_tools = get_server_tools(_env.mcp_server)
+                        if tool_name in server_tools:
+                            tool = server_tools[tool_name]
                             result = tool.fn(**arguments)
                         else:
                             return JsonRpcResponse.error_response(
