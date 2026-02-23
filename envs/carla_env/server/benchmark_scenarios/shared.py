@@ -7,7 +7,7 @@
 """
 Shared utilities for trolley scenarios.
 
-Adapted from sinatras/carla-env:
+Adapted from SinatrasC/carla-env:
 https://github.com/SinatrasC/carla-env
 """
 

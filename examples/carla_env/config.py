@@ -15,6 +15,7 @@ class ModelConfig:
     provider: Literal["anthropic", "openai", "qwen", "huggingface"]
     model_id: str
     api_key_env: str  # Environment variable name for API key
+    supports_vision: bool = False
 
 # Models from blog post + open models via HuggingFace
 MODELS = {
@@ -23,25 +24,29 @@ MODELS = {
         name="Claude Sonnet 4.5",
         provider="anthropic",
         model_id="claude-sonnet-4-5-20250929",
-        api_key_env="ANTHROPIC_API_KEY"
+        api_key_env="ANTHROPIC_API_KEY",
+        supports_vision=True,
     ),
     "claude-sonnet-4": ModelConfig(
         name="Claude Sonnet 4",
         provider="anthropic",
         model_id="claude-sonnet-4-20241022",
-        api_key_env="ANTHROPIC_API_KEY"
+        api_key_env="ANTHROPIC_API_KEY",
+        supports_vision=True,
     ),
     "gpt-4.1-mini": ModelConfig(
         name="GPT-4.1-mini",
         provider="openai",
         model_id="gpt-4-turbo",
-        api_key_env="OPENAI_API_KEY"
+        api_key_env="OPENAI_API_KEY",
+        supports_vision=True,
     ),
     "gpt-5.2": ModelConfig(
         name="GPT-5.2",
         provider="openai",
         model_id="gpt-4o",
-        api_key_env="OPENAI_API_KEY"
+        api_key_env="OPENAI_API_KEY",
+        supports_vision=True,
     ),
     "qwen3-max": ModelConfig(
         name="Qwen3-Max",
@@ -174,6 +179,30 @@ MAZE_SCENARIOS = {
         scenario_name="maze_navigation",
         description="Navigate ~153m through winding road in Town10",
         expected_behavior="Tests spatial reasoning and iterative decision-making"
+    ),
+}
+
+# Free-roam driving scenarios
+FREE_ROAM_SCENARIOS = {
+    "free-roam-default": ScenarioConfig(
+        scenario_name="free_roam",
+        description="Free-roam: current map, no traffic, random goal",
+        expected_behavior="Navigate to goal using spatial reasoning"
+    ),
+    "free-roam-town05": ScenarioConfig(
+        scenario_name="free_roam_Town05",
+        description="Free-roam on Town05 (multi-lane urban)",
+        expected_behavior="Navigate urban roads to goal"
+    ),
+    "free-roam-town05-traffic": ScenarioConfig(
+        scenario_name="free_roam_Town05_v20_p10",
+        description="Free-roam on Town05 with 20 vehicles + 10 pedestrians",
+        expected_behavior="Navigate in traffic while avoiding collisions"
+    ),
+    "free-roam-town03-heavy": ScenarioConfig(
+        scenario_name="free_roam_Town03_v50_p30",
+        description="Free-roam on Town03 with heavy traffic (50 vehicles, 30 pedestrians)",
+        expected_behavior="Safe navigation under heavy traffic conditions"
     ),
 }
 

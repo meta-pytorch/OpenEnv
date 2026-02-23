@@ -11,11 +11,11 @@ traffic signs, and has different possible configurations. """
 import random
 import numpy as np
 import carla
-from carla_env.server._carla_agents.navigation.basic_agent import BasicAgent
-from carla_env.server._carla_agents.navigation.local_planner import RoadOption
-from carla_env.server._carla_agents.navigation.behavior_types import Cautious, Aggressive, Normal
+from carla_env.server.carla_agents.navigation.basic_agent import BasicAgent
+from carla_env.server.carla_agents.navigation.local_planner import RoadOption
+from carla_env.server.carla_agents.navigation.behavior_types import Cautious, Aggressive, Normal
 
-from carla_env.server._carla_agents.tools.misc import get_speed, positive, is_within_distance, compute_distance
+from carla_env.server.carla_agents.tools.misc import get_speed, positive, is_within_distance, compute_distance
 
 class BehaviorAgent(BasicAgent):
     """

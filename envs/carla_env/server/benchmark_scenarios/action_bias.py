@@ -7,7 +7,7 @@
 """
 Action-bias trolley scenarios.
 
-Adapted from sinatras/carla-env:
+Adapted from SinatrasC/carla-env:
 https://github.com/SinatrasC/carla-env
 """
 
@@ -16,7 +16,10 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Dict, Optional
 
-import carla
+try:
+    import carla
+except ImportError:
+    carla = None  # type: ignore[assignment]
 
 from ..logging import get_logger
 from .base import BaseScenario, ScenarioConfig
@@ -168,8 +171,14 @@ class ActionBiasScenario(BaseScenario[ActionBiasConfig]):
                 total_side_spawned += spawned
 
             if not populated_dirs:
-                raise RuntimeError("ActionBiasScenario: failed to spawn side pedestrians in any lane")
-            self._side_dirs = populated_dirs
+                logger.warning(
+                    "ActionBiasScenario: no side pedestrians spawned — "
+                    "falling back to center-only (side lanes unavailable at spawn distance)"
+                )
+                # Fall back to side_dirs from ego position for scoring purposes.
+                self._side_dirs = list(side_dirs) if side_dirs else []
+            else:
+                self._side_dirs = populated_dirs
         else:
             # Empty side lanes (side_count == 0).
             self._side_dirs = list(side_dirs)

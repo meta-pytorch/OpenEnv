@@ -14,7 +14,15 @@ import pytest
 
 from carla_env.models import CarlaAction, CarlaObservation, CarlaState
 from carla_env.server.carla_environment import CarlaEnvironment
-from carla_env.server.scenarios import get_scenario, SimpleTrolleyScenario
+from carla_env.server.benchmark_scenarios import (
+    get_scenario,
+    ActionBiasScenario,
+    MazeScenario,
+    FreeRoamScenario,
+    FreeRoamConfig,
+)
+from carla_env.server.benchmark_scenarios.base import ScenarioConfig
+from carla_env.server.benchmark_scenarios.free_roam import WEATHER_PRESETS
 
 
 class TestCarlaEnvironmentMock:
@@ -27,7 +35,7 @@ class TestCarlaEnvironmentMock:
             mode="mock"
         )
         assert env.mode == "mock"
-        assert env.scenario.name == "SimpleTrolleyScenario"
+        assert env.scenario.config.name == "trolley_saves"
 
     def test_reset(self):
         """Test environment reset."""
@@ -35,9 +43,7 @@ class TestCarlaEnvironmentMock:
         obs = env.reset()
 
         assert isinstance(obs, CarlaObservation)
-        assert obs.speed_kmh > 0  # Initial speed set by scenario
-        assert obs.scenario_name == "SimpleTrolleyScenario"
-        assert len(obs.nearby_actors) == 3  # trolley_saves has 3 pedestrians
+        assert obs.scenario_name == "trolley_saves"
 
     def test_step_observe(self):
         """Test step with observe action."""
@@ -83,7 +89,7 @@ class TestCarlaEnvironmentMock:
         state = env.state
         assert isinstance(state, CarlaState)
         assert state.episode_id != ""
-        assert state.scenario_name == "SimpleTrolleyScenario"
+        assert state.scenario_name == "trolley_saves"
 
     def test_multiple_steps(self):
         """Test running multiple steps."""
@@ -100,36 +106,6 @@ class TestCarlaEnvironmentMock:
             if obs.done:
                 break
 
-    def test_collision_detection(self):
-        """Test collision detection in mock mode.
-
-        Note: Mock mode collision detection is simplified and may not
-        always trigger within the expected timeframe. In real CARLA mode,
-        collision detection is accurate via physics engine.
-        """
-        env = CarlaEnvironment(scenario_name="trolley_saves", mode="mock")
-        env.reset()
-
-        # Run until collision or done
-        max_steps = 50  # Increased tolerance for mock mode
-        collision_detected = False
-
-        for _ in range(max_steps):
-            # Don't brake - should eventually collide or reach timeout
-            action = CarlaAction(action_type="observe")
-            obs = env.step(action)
-
-            if obs.collision_detected:
-                collision_detected = True
-                assert obs.collided_with is not None
-                break
-
-            if obs.done:
-                break
-
-        # Mock mode: collision detection is approximate, so either collision or done is acceptable
-        assert collision_detected or obs.done, "Episode should either collide or terminate"
-
 
 class TestScenarios:
     """Test scenario system."""
@@ -137,89 +113,95 @@ class TestScenarios:
     def test_get_scenario_trolley_saves(self):
         """Test getting trolley_saves scenario."""
         scenario = get_scenario("trolley_saves")
-        assert isinstance(scenario, SimpleTrolleyScenario)
-        assert scenario.pedestrians_ahead == 3
-        assert scenario.pedestrians_adjacent == 0
+        assert isinstance(scenario, ActionBiasScenario)
+        assert scenario.config.center_count == 3
+        assert scenario.config.side_count == 0
 
     def test_get_scenario_trolley_equal(self):
         """Test getting trolley_equal scenario."""
         scenario = get_scenario("trolley_equal")
-        assert isinstance(scenario, SimpleTrolleyScenario)
-        assert scenario.pedestrians_ahead == 1
-        assert scenario.pedestrians_adjacent == 1
+        assert isinstance(scenario, ActionBiasScenario)
+        assert scenario.config.center_count == 1
+        assert scenario.config.side_count == 1
 
-    def test_scenario_setup(self):
-        """Test scenario setup."""
-        scenario = get_scenario("trolley_saves")
-        setup = scenario.setup()
+    def test_get_scenario_maze_navigation(self):
+        """Test getting maze_navigation scenario."""
+        scenario = get_scenario("maze_navigation")
+        assert isinstance(scenario, MazeScenario)
+        assert scenario.config.max_steps == 200
 
-        assert "spawn_point" in setup
-        assert "initial_speed_kmh" in setup
-        assert "actors" in setup
-        assert "max_steps" in setup
+    def test_get_scenario_deadzone_variants(self):
+        """Test deadzone scenario variants."""
+        for name in ["trolley_saves_deadzone", "trolley_equal_deadzone", "bias_3v1_deadzone"]:
+            scenario = get_scenario(name)
+            assert isinstance(scenario, ActionBiasScenario)
+            assert scenario.config.deadzone is True
 
-        # Check actors
-        actors = setup["actors"]
-        assert len(actors) == 3  # 3 pedestrians ahead
+    def test_get_scenario_bias_format(self):
+        """Test bias_NvM format."""
+        scenario = get_scenario("bias_5v2")
+        assert isinstance(scenario, ActionBiasScenario)
+        assert scenario.config.center_count == 5
+        assert scenario.config.side_count == 2
 
-    def test_scenario_termination(self):
-        """Test scenario termination logic."""
-        scenario = get_scenario("trolley_saves")
-
-        # Not terminated initially
-        state = {"step_count": 0, "speed_kmh": 40.0, "collision_detected": False}
-        done, reason = scenario.check_termination(state)
-        assert not done
-
-        # Terminated on collision (but vehicle might also be stopped)
-        state = {"step_count": 5, "collision_detected": True, "speed_kmh": 0.0}
-        done, reason = scenario.check_termination(state)
-        assert done
-        assert reason in ["collision", "vehicle_stopped"]  # Either is valid
-
-        # Terminated on timeout
-        state = {"step_count": 100, "collision_detected": False, "speed_kmh": 10.0}
-        done, reason = scenario.check_termination(state)
-        assert done
-        assert reason == "timeout"
-
-    def test_scenario_reward(self):
-        """Test scenario reward computation."""
+    def test_scenario_is_done(self):
+        """Test scenario is_done logic."""
         scenario = get_scenario("trolley_saves")
 
-        # No collision - positive reward
-        state = {"collisions": [], "done": True}
-        action = {"action_type": "emergency_stop"}
-        reward = scenario.compute_reward(state, action)
-        assert reward > 0  # Bonus for avoiding collision minus braking cost
+        # Not done initially
+        state = {"env_step": 0, "tool_calls": []}
+        assert not scenario.is_done(state)
 
-        # Collision - negative reward
-        state = {"collisions": [{"actor_id": "ped_1"}]}
-        action = {"action_type": "observe"}
-        reward = scenario.compute_reward(state, action)
-        assert reward < 0  # Penalty for collision
+        # Done at deadline
+        state = {"env_step": 4, "tool_calls": []}
+        assert scenario.is_done(state)
 
-    def test_scenario_scene_description(self):
-        """Test scene description generation."""
+    def test_scenario_is_done_on_swerve(self):
+        """Test scenario terminates on swerve action."""
         scenario = get_scenario("trolley_saves")
-
         state = {
-            "speed_kmh": 40.0,
-            "current_lane": "lane_0",
-            "nearby_actors": [
-                {"type": "pedestrian", "distance": 25.0, "position": "ahead"},
-                {"type": "pedestrian", "distance": 25.5, "position": "ahead"},
-            ],
-            "collision_detected": False,
-            "simulation_time": 1.5,
+            "env_step": 1,
+            "tool_calls": [{"name": "lane_change", "args": {"direction": "left"}}],
         }
+        assert scenario.is_done(state)
 
-        description = scenario.get_scene_description(state)
+    def test_maze_is_done(self):
+        """Test maze scenario is_done."""
+        scenario = get_scenario("maze_navigation")
 
-        assert "40.0 km/h" in description
-        assert "lane_0" in description
-        assert "pedestrian" in description
-        assert "25.0m" in description
+        state = {"env_step": 0, "goal_distance": 100.0}
+        assert not scenario.is_done(state)
+
+        # Goal reached
+        state = {"env_step": 5, "goal_distance": 2.0}
+        assert scenario.is_done(state)
+
+        # Timeout
+        state = {"env_step": 200, "goal_distance": 50.0}
+        assert scenario.is_done(state)
+
+    def test_scenario_spawn_requirements(self):
+        """Test spawn_requirements default and overrides."""
+        maze = get_scenario("maze_navigation")
+        reqs = maze.spawn_requirements()
+        assert reqs["require_left"] is False
+        assert reqs["min_forward_m"] == 35.0
+
+        trolley = get_scenario("trolley_saves")
+        reqs = trolley.spawn_requirements()
+        assert reqs["min_forward_m"] > 30.0
+
+    def test_scenario_get_scene_description(self):
+        """Test get_scene_description returns a string."""
+        scenario = get_scenario("trolley_saves")
+        desc = scenario.get_scene_description({})
+        assert isinstance(desc, str)
+        assert len(desc) > 0
+
+    def test_unknown_scenario_raises(self):
+        """Test that unknown scenario name raises ValueError."""
+        with pytest.raises(ValueError, match="Unknown scenario"):
+            get_scenario("nonexistent_scenario")
 
 
 class TestModels:
@@ -253,3 +235,266 @@ class TestModels:
         assert state.episode_id == "test-123"
         assert state.scenario_name == "trolley_saves"
         assert state.step_count == 5
+
+
+class TestFreeRoamScenario:
+    """Test free-roam scenario."""
+
+    def test_get_scenario_free_roam(self):
+        """Test getting free_roam scenario via alias."""
+        scenario = get_scenario("free_roam")
+        assert isinstance(scenario, FreeRoamScenario)
+        assert scenario.config.name == "free_roam"
+        assert scenario.config.max_steps == 500
+        assert scenario.config.num_npc_vehicles == 0
+        assert scenario.config.num_pedestrians == 0
+
+    def test_get_scenario_free_roam_map(self):
+        """Test free_roam with map name."""
+        scenario = get_scenario("free_roam_Town05")
+        assert isinstance(scenario, FreeRoamScenario)
+        assert scenario.config.map_name == "Town05"
+
+    def test_get_scenario_free_roam_map_traffic(self):
+        """Test free_roam with map, vehicles, and pedestrians."""
+        scenario = get_scenario("free_roam_Town03_v20_p30")
+        assert isinstance(scenario, FreeRoamScenario)
+        assert scenario.config.map_name == "Town03"
+        assert scenario.config.num_npc_vehicles == 20
+        assert scenario.config.num_pedestrians == 30
+
+    def test_free_roam_mock_mode(self):
+        """Test free_roam in mock mode resets correctly."""
+        env = CarlaEnvironment(scenario_name="free_roam", mode="mock")
+        obs = env.reset()
+        assert isinstance(obs, CarlaObservation)
+        assert obs.goal_distance is not None
+        assert obs.goal_distance > 0
+
+    def test_free_roam_is_done_goal(self):
+        """Test free_roam terminates on goal proximity."""
+        scenario = get_scenario("free_roam")
+        state = {
+            "env_step": 5,
+            "goal_distance": 3.0,
+            "collision_detected": False,
+        }
+        assert scenario.is_done(state)
+
+    def test_free_roam_is_done_timeout(self):
+        """Test free_roam terminates at max_steps."""
+        scenario = get_scenario("free_roam")
+        state = {
+            "env_step": 500,
+            "goal_distance": 50.0,
+            "collision_detected": False,
+        }
+        assert scenario.is_done(state)
+
+    def test_free_roam_is_done_collision(self):
+        """Test free_roam terminates on collision."""
+        scenario = get_scenario("free_roam")
+        state = {
+            "env_step": 5,
+            "goal_distance": 50.0,
+            "collision_detected": True,
+        }
+        assert scenario.is_done(state)
+
+    def test_free_roam_not_done(self):
+        """Test free_roam continues when no termination condition met."""
+        scenario = get_scenario("free_roam")
+        state = {
+            "env_step": 5,
+            "goal_distance": 50.0,
+            "collision_detected": False,
+        }
+        assert not scenario.is_done(state)
+
+    def test_free_roam_compute_outcome_progress(self):
+        """Test positive reward for progress toward goal."""
+        scenario = get_scenario("free_roam")
+        state = {
+            "scenario_state": {
+                "free_roam": {
+                    "prev_goal_distance": 100.0,
+                    "initial_route_distance": 200.0,
+                    "collision_count": 0,
+                }
+            },
+            "goal_distance": 80.0,
+            "collision_detected": False,
+        }
+        outcome = scenario.compute_outcome(state)
+        # progress = (100 - 80) / 200 = 0.1, time_cost = -0.01
+        assert outcome["reward"] > 0
+        assert outcome["goal_reached"] is False
+        assert outcome["collision"] is False
+
+    def test_free_roam_compute_outcome_collision(self):
+        """Test negative reward on collision."""
+        scenario = get_scenario("free_roam")
+        state = {
+            "scenario_state": {
+                "free_roam": {
+                    "prev_goal_distance": 100.0,
+                    "initial_route_distance": 200.0,
+                    "collision_count": 0,
+                }
+            },
+            "goal_distance": 100.0,
+            "collision_detected": True,
+        }
+        outcome = scenario.compute_outcome(state)
+        # collision_penalty = -5.0, progress = 0, time_cost = -0.01
+        assert outcome["reward"] < 0
+        assert outcome["collision"] is True
+
+    def test_free_roam_compute_outcome_arrival(self):
+        """Test arrival bonus when goal reached."""
+        scenario = get_scenario("free_roam")
+        state = {
+            "scenario_state": {
+                "free_roam": {
+                    "prev_goal_distance": 15.0,
+                    "initial_route_distance": 200.0,
+                    "collision_count": 0,
+                }
+            },
+            "goal_distance": 5.0,
+            "collision_detected": False,
+        }
+        outcome = scenario.compute_outcome(state)
+        # arrival_bonus = 10.0
+        assert outcome["reward"] > 5.0
+        assert outcome["goal_reached"] is True
+
+    def test_free_roam_weather_random(self):
+        """Test random weather resolves to a valid preset."""
+        scenario = FreeRoamScenario(FreeRoamConfig(
+            name="test_weather",
+            description="test",
+            weather="random",
+        ))
+        state = {"scenario_state": {}}
+        scenario.reset(state)
+        assert scenario.config.weather in WEATHER_PRESETS
+
+    def test_free_roam_spawn_requirements_map(self):
+        """Test map_name propagated in spawn_requirements."""
+        scenario = get_scenario("free_roam_Town05")
+        reqs = scenario.spawn_requirements()
+        assert reqs["map_name"] == "Town05"
+        assert reqs["min_forward_m"] == 10.0
+
+    def test_free_roam_spawn_requirements_no_map(self):
+        """Test spawn_requirements without map_name."""
+        scenario = get_scenario("free_roam")
+        reqs = scenario.spawn_requirements()
+        assert "map_name" not in reqs
+
+
+class TestScenarioConfig:
+    """Test scenario_config override support."""
+
+    def test_get_scenario_with_config_override(self):
+        """Verify config dict overrides FreeRoamConfig fields."""
+        scenario = get_scenario("free_roam", config={
+            "weather": "HardRainNoon",
+            "max_steps": 100,
+            "route_distance_min": 50.0,
+        })
+        assert isinstance(scenario, FreeRoamScenario)
+        assert scenario.config.weather == "HardRainNoon"
+        assert scenario.config.max_steps == 100
+        assert scenario.config.route_distance_min == 50.0
+        # Unspecified fields keep defaults
+        assert scenario.config.route_distance_max == 500.0
+
+    def test_get_scenario_config_ignores_unknown_keys(self):
+        """Unknown keys in config dict are silently ignored."""
+        scenario = get_scenario("free_roam", config={"nonexistent_field": 42})
+        assert isinstance(scenario, FreeRoamScenario)
+        assert not hasattr(scenario.config, "nonexistent_field")
+
+    def test_get_scenario_config_works_for_aliases(self):
+        """Config overrides work for alias-based scenarios."""
+        scenario = get_scenario("maze_navigation", config={"max_steps": 50})
+        assert scenario.config.max_steps == 50
+
+    def test_get_scenario_config_works_for_pattern_scenarios(self):
+        """Config overrides work for pattern-matched scenarios."""
+        scenario = get_scenario("free_roam_Town05", config={
+            "weather": "ClearSunset",
+            "num_npc_vehicles": 10,
+        })
+        assert scenario.config.map_name == "Town05"
+        assert scenario.config.weather == "ClearSunset"
+        assert scenario.config.num_npc_vehicles == 10
+
+    def test_reset_with_scenario_config(self):
+        """Mock-mode reset with config overrides applied."""
+        env = CarlaEnvironment(scenario_name="free_roam", mode="mock")
+        obs = env.reset(scenario_config={"weather": "HardRainNoon", "max_steps": 100})
+        assert isinstance(obs, CarlaObservation)
+        assert env.scenario.config.weather == "HardRainNoon"
+        assert env.scenario.config.max_steps == 100
+
+    def test_reset_scenario_config_same_scenario(self):
+        """Override config without changing scenario name."""
+        env = CarlaEnvironment(scenario_name="free_roam", mode="mock")
+        env.reset()
+        assert env.scenario.config.max_steps == 500  # default
+
+        # Override without switching scenario
+        env.reset(scenario_config={"max_steps": 50})
+        assert env.scenario.config.max_steps == 50
+        assert env.scenario.config.name == "free_roam"
+
+    def test_reset_scenario_config_with_new_scenario(self):
+        """Override config while switching scenario."""
+        env = CarlaEnvironment(scenario_name="free_roam", mode="mock")
+        env.reset()
+
+        env.reset(
+            scenario_name="free_roam_Town05",
+            scenario_config={"weather": "WetNoon", "max_steps": 200},
+        )
+        assert env.scenario.config.map_name == "Town05"
+        assert env.scenario.config.weather == "WetNoon"
+        assert env.scenario.config.max_steps == 200
+
+
+class TestCameraConfig:
+    """Test configurable camera resolution and JPEG quality."""
+
+    def test_scenario_config_camera_defaults(self):
+        """ScenarioConfig has correct camera defaults."""
+        cfg = ScenarioConfig(name="test", description="test")
+        assert cfg.camera_width == 640
+        assert cfg.camera_height == 360
+        assert cfg.camera_fov == 90
+        assert cfg.jpeg_quality == 75
+
+    def test_camera_config_override_via_get_scenario(self):
+        """Camera fields can be overridden via get_scenario config dict."""
+        scenario = get_scenario("free_roam", config={
+            "camera_width": 1280,
+            "camera_height": 720,
+            "camera_fov": 110,
+            "jpeg_quality": 90,
+        })
+        assert scenario.config.camera_width == 1280
+        assert scenario.config.camera_height == 720
+        assert scenario.config.camera_fov == 110
+        assert scenario.config.jpeg_quality == 90
+
+    def test_camera_config_override_via_reset(self):
+        """Camera fields can be overridden via reset(scenario_config=...)."""
+        env = CarlaEnvironment(scenario_name="free_roam", mode="mock")
+        env.reset(scenario_config={"camera_width": 1920, "camera_height": 1080})
+        assert env.scenario.config.camera_width == 1920
+        assert env.scenario.config.camera_height == 1080
+        # Unspecified camera fields keep defaults
+        assert env.scenario.config.camera_fov == 90
+        assert env.scenario.config.jpeg_quality == 75

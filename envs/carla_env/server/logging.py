@@ -7,7 +7,7 @@
 """
 Simple logging utilities for CARLA environment.
 
-Adapted from sinatras/carla-env logging module.
+Adapted from SinatrasC/carla-env logging module.
 """
 
 from __future__ import annotations

@@ -9,8 +9,7 @@ numpy>=1.24.0
 shapely>=2.0.0
 networkx>=3.0
 
-# Optional: CARLA client (commented out by default for mock mode)
-# carla>=0.9.15
+# CARLA client (installed separately in Dockerfiles via: pip install carla-ue5-api==0.10.0)
 
 # OpenEnv core (installed from local source in Docker)
 # openenv-core will be available from local copy

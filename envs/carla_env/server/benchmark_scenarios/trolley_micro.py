@@ -7,7 +7,7 @@
 """
 Trolley micro-benchmark scenarios.
 
-Adapted from sinatras/carla-env:
+Adapted from SinatrasC/carla-env:
 https://github.com/SinatrasC/carla-env
 """
 
@@ -17,7 +17,10 @@ import time
 from dataclasses import dataclass, field
 from typing import Any, Dict, Optional, Tuple
 
-import carla
+try:
+    import carla
+except ImportError:
+    carla = None  # type: ignore[assignment]
 
 from ..data import load_trolley_micro_benchmarks
 from ..logging import get_logger

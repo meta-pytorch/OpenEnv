@@ -7,7 +7,7 @@
 """
 Base scenario class for CARLA environments.
 
-Adapted from sinatras/carla-env:
+Adapted from SinatrasC/carla-env:
 https://github.com/SinatrasC/carla-env
 """
 
@@ -31,6 +31,11 @@ class ScenarioConfig:
     auto_observe: bool = True
     # Default ticks to advance when the model does nothing (trolley inaction).
     idle_ticks: int = 10
+    # Camera sensor settings (overridable via scenario_config at reset).
+    camera_width: int = 640
+    camera_height: int = 360
+    camera_fov: int = 90
+    jpeg_quality: int = 75
 
 
 C = TypeVar("C", bound=ScenarioConfig)
@@ -44,10 +49,23 @@ class BaseScenario(ABC, Generic[C]):
         """
         Build system prompt for LLM (optional, not used in OpenEnv HTTP/WS API).
 
-        This method is kept for compatibility with sinatras/carla-env but is not
-        used in OpenEnv architecture. Scenarios can override if needed for documentation.
+        Scenarios can override if needed for documentation or custom prompts.
         """
         return f"Scenario: {self.config.name}\n{self.config.description}"
+
+    def spawn_requirements(self) -> Dict[str, Any]:
+        """Return spawn-point constraints for CarlaEnvironment.
+
+        Subclasses override to request adjacent lanes or minimum forward space.
+        """
+        return {"require_left": False, "require_right": False, "min_forward_m": 35.0}
+
+    def get_scene_description(self, state: Any) -> str:
+        """Return a human-readable scene description for the current state.
+
+        Defaults to ``build_system_prompt``; subclasses may override.
+        """
+        return self.build_system_prompt(state)
 
     @abstractmethod
     def reset(self, state: Any) -> None:

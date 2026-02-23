@@ -13,8 +13,8 @@ import numpy as np
 import networkx as nx
 
 import carla
-from carla_env.server._carla_agents.navigation.local_planner import RoadOption
-from carla_env.server._carla_agents.tools.misc import vector
+from carla_env.server.carla_agents.navigation.local_planner import RoadOption
+from carla_env.server.carla_agents.tools.misc import vector
 
 class GlobalRoutePlanner(object):
     """

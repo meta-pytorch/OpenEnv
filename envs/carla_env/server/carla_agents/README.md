@@ -15,7 +15,7 @@ These agents provide autonomous navigation capabilities for CARLA vehicles:
 ## Source
 
 Adapted from: https://github.com/carla-simulator/carla (Python API)
-Used in: sinatras/carla-env for PrimeIntellect benchmarks
+Used in: [SinatrasC/carla-env](https://github.com/SinatrasC/carla-env) for PrimeIntellect benchmarks
 
 ## Requirements
 
@@ -33,7 +33,7 @@ These agents require:
 Simple point-to-point navigation:
 
 ```python
-from server._carla_agents.navigation.basic_agent import BasicAgent
+from server.carla_agents.navigation.basic_agent import BasicAgent
 
 # Initialize agent (requires CARLA vehicle)
 agent = BasicAgent(vehicle)
@@ -57,7 +57,7 @@ if agent.done():
 Advanced navigation with traffic behavior:
 
 ```python
-from server._carla_agents.navigation.behavior_agent import BehaviorAgent
+from server.carla_agents.navigation.behavior_agent import BehaviorAgent
 
 # Initialize with behavior
 agent = BehaviorAgent(
@@ -125,7 +125,7 @@ for _ in range(100):
 ## Architecture
 
 ```
-_carla_agents/
+carla_agents/
 ├── navigation/
 │   ├── basic_agent.py           # BasicAgent class
 │   ├── behavior_agent.py        # BehaviorAgent class
@@ -146,7 +146,7 @@ _carla_agents/
 PID controllers for smooth vehicle control:
 
 ```python
-from server._carla_agents.navigation.controller import VehiclePIDController
+from server.carla_agents.navigation.controller import VehiclePIDController
 
 # Create controller
 controller = VehiclePIDController(
@@ -168,7 +168,7 @@ control = controller.run_step(target_speed, target_waypoint)
 Follows a queue of waypoints:
 
 ```python
-from server._carla_agents.navigation.local_planner import LocalPlanner
+from server.carla_agents.navigation.local_planner import LocalPlanner
 
 planner = LocalPlanner(vehicle)
 
@@ -188,7 +188,7 @@ remaining = len(planner.waypoints_queue)
 Plans routes on CARLA road network:
 
 ```python
-from server._carla_agents.navigation.global_route_planner import GlobalRoutePlanner
+from server.carla_agents.navigation.global_route_planner import GlobalRoutePlanner
 
 planner = GlobalRoutePlanner(world.get_map(), sampling_resolution=2.0)
 

@@ -14,13 +14,42 @@ from typing import List, Dict, Any
 from anthropic import Anthropic
 from openai import OpenAI
 
+def build_vision_message(prompt: str, image_base64: str, provider: str) -> Dict[str, Any]:
+    """Build a user message with image + text, formatted for the provider.
+
+    Args:
+        prompt: Text prompt to include with the image.
+        image_base64: Base64-encoded JPEG image data.
+        provider: LLM provider ("anthropic", "openai", "qwen", "huggingface").
+
+    Returns:
+        Message dict with multimodal content array.
+    """
+    if provider == "anthropic":
+        return {
+            "role": "user",
+            "content": [
+                {"type": "image", "source": {"type": "base64", "media_type": "image/jpeg", "data": image_base64}},
+                {"type": "text", "text": prompt},
+            ],
+        }
+    else:  # openai, qwen, huggingface — all OpenAI-compatible
+        return {
+            "role": "user",
+            "content": [
+                {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{image_base64}"}},
+                {"type": "text", "text": prompt},
+            ],
+        }
+
+
 class LLMClient(ABC):
     """Base class for LLM clients."""
 
     @abstractmethod
     def chat(
         self,
-        messages: List[Dict[str, str]],
+        messages: List[Dict[str, Any]],
         tools: List[Dict[str, Any]],
         max_tokens: int = 2048
     ) -> Dict[str, Any]:

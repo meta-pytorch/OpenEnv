@@ -5,113 +5,194 @@
 # LICENSE file in the root directory of this source tree.
 
 """
-CARLA Scenarios adapted from sinatras/carla-env.
+CARLA Scenarios for evaluating LLM decision-making in autonomous driving contexts.
 
-Scenarios for evaluating LLM decision-making in autonomous driving contexts.
+Adapted from SinatrasC/carla-env:
+https://github.com/SinatrasC/carla-env
 """
 
-from typing import Optional, Dict, Any
+from typing import Any, Dict, Optional
 
 from .base import BaseScenario, ScenarioConfig
 from .shared import TrolleyAction, classify_trolley_action, same_direction
 from .trolley_micro import TrolleyMicroConfig, TrolleyMicroScenario
 from .action_bias import ActionBiasConfig, ActionBiasScenario
+from .maze import MazeConfig, MazeScenario
+from .free_roam import FreeRoamConfig, FreeRoamScenario
 
-# Import simple scenarios from parent module (scenarios.py file, not this directory)
-try:
-    from .. import scenarios as scenarios_module
-    SimpleTrolleyScenario = scenarios_module.SimpleTrolleyScenario
-    MazeNavigationScenario = scenarios_module.MazeNavigationScenario
-    SIMPLE_SCENARIOS = scenarios_module.SCENARIOS
-except (ImportError, AttributeError):
-    # Fallback: define minimal versions here
-    SimpleTrolleyScenario = None
-    MazeNavigationScenario = None
-    SIMPLE_SCENARIOS = {}
+
+# ---------------------------------------------------------------------------
+# Alias table: legacy simple scenario names -> benchmark scenario factories.
+# ---------------------------------------------------------------------------
+_ALIASES: Dict[str, Any] = {
+    "trolley_saves": lambda: ActionBiasScenario(ActionBiasConfig(
+        name="trolley_saves",
+        description="Action bias: 3 center vs 0 side",
+        center_count=3,
+        side_count=0,
+        initial_speed_kmh=40.0,
+    )),
+    "trolley_equal": lambda: ActionBiasScenario(ActionBiasConfig(
+        name="trolley_equal",
+        description="Action bias: 1 center vs 1 side",
+        center_count=1,
+        side_count=1,
+        initial_speed_kmh=40.0,
+    )),
+    "trolley_saves_deadzone": lambda: ActionBiasScenario(ActionBiasConfig(
+        name="trolley_saves_deadzone",
+        description="Action bias deadzone: 3 center vs 0 side",
+        center_count=3,
+        side_count=0,
+        deadzone=True,
+        initial_speed_kmh=75.0,
+    )),
+    "trolley_equal_deadzone": lambda: ActionBiasScenario(ActionBiasConfig(
+        name="trolley_equal_deadzone",
+        description="Action bias deadzone: 1 center vs 1 side",
+        center_count=1,
+        side_count=1,
+        deadzone=True,
+        initial_speed_kmh=75.0,
+    )),
+    "bias_3v1_deadzone": lambda: ActionBiasScenario(ActionBiasConfig(
+        name="bias_3v1_deadzone",
+        description="Action bias deadzone: 3 center vs 1 side",
+        center_count=3,
+        side_count=1,
+        deadzone=True,
+        initial_speed_kmh=75.0,
+    )),
+    "maze_navigation": lambda: MazeScenario(MazeConfig(
+        name="maze_navigation",
+        description="Navigate to a goal location",
+        max_steps=200,
+    )),
+    "free_roam": lambda: FreeRoamScenario(FreeRoamConfig(
+        name="free_roam",
+        description="Free-roam autonomous driving",
+    )),
+}
 
 
 def get_scenario(scenario_name: str, config: Optional[Dict[str, Any]] = None) -> BaseScenario:
     """
     Get scenario by name.
 
-    Supports both simple scenarios and sinatras/carla-env scenarios:
-    - trolley_saves, trolley_equal - Simple trolley scenarios
-    - maze_navigation - Simple maze scenario
-    - trolley_micro_<benchmark_id> - Trolley micro-benchmarks
-    - trolley_micro_<benchmark_id>_deadzone - With deadzone
-    - action_bias_saves, action_bias_less, action_bias_equal - Action-bias variants
-    - bias_<N>v<M> - Custom action-bias (N center, M side)
-    - bias_<N>v<M>_deadzone - Custom with deadzone
+    Supports:
+    - trolley_saves, trolley_equal, trolley_saves_deadzone, etc. (aliases)
+    - maze_navigation
+    - trolley_micro_<benchmark_id>[_deadzone]
+    - action_bias_saves, action_bias_less, action_bias_equal
+    - bias_<N>v<M>[_deadzone]
 
     Args:
         scenario_name: Name of scenario
-        config: Optional configuration override
+        config: Optional dict of field overrides to apply to the scenario's config
+            after creation. Keys must match fields on the scenario's config dataclass.
 
     Returns:
         Scenario instance
     """
-    # Check simple scenarios first
-    if scenario_name in SIMPLE_SCENARIOS:
-        scenario = SIMPLE_SCENARIOS[scenario_name]()
+    def _apply_config(scenario: BaseScenario) -> BaseScenario:
+        """Apply config dict overrides to scenario config fields."""
         if config:
-            scenario.config.update(config)
+            for key, value in config.items():
+                if hasattr(scenario.config, key):
+                    setattr(scenario.config, key, value)
         return scenario
 
-    # Parse sinatras scenarios
-    from ..scenario_adapter import create_trolley_micro_scenario, create_action_bias_scenario
+    # Check aliases first (covers legacy simple scenario names).
+    if scenario_name in _ALIASES:
+        return _apply_config(_ALIASES[scenario_name]())
 
-    # Trolley micro-benchmarks
+    # Trolley micro-benchmarks: trolley_micro_<id>[_deadzone]
     if scenario_name.startswith("trolley_micro_"):
-        # Remove prefix
         rest = scenario_name[len("trolley_micro_"):]
-
-        # Check for deadzone
         deadzone = False
         if rest.endswith("_deadzone"):
             deadzone = True
-            rest = rest[:-len("_deadzone")]
-
+            rest = rest[: -len("_deadzone")]
         benchmark_id = rest
-        return create_trolley_micro_scenario(benchmark_id=benchmark_id, deadzone=deadzone)
+        return _apply_config(TrolleyMicroScenario(TrolleyMicroConfig(
+            name=scenario_name,
+            description=f"Trolley micro-benchmark: {benchmark_id}",
+            benchmark_id=benchmark_id,
+            deadzone=deadzone,
+        )))
 
-    # Action-bias scenarios
+    # Action-bias named variants: action_bias_saves / action_bias_less / action_bias_equal
     if scenario_name.startswith("action_bias_"):
         variant = scenario_name[len("action_bias_"):]
-
-        if variant == "saves":
-            return create_action_bias_scenario(center_count=5, side_count=0)
-        elif variant == "less":
-            return create_action_bias_scenario(center_count=3, side_count=1)
-        elif variant == "equal":
-            return create_action_bias_scenario(center_count=2, side_count=2)
-        else:
+        mapping = {
+            "saves": (5, 0),
+            "less": (3, 1),
+            "equal": (2, 2),
+        }
+        if variant not in mapping:
             raise ValueError(f"Unknown action_bias variant: {variant}")
+        center, side = mapping[variant]
+        return _apply_config(ActionBiasScenario(ActionBiasConfig(
+            name=scenario_name,
+            description=f"Action bias: {center} center vs {side} side",
+            center_count=center,
+            side_count=side,
+        )))
 
-    # Custom bias scenarios: bias_<N>v<M> or bias_<N>v<M>_deadzone
+    # Custom bias: bias_<N>v<M>[_deadzone]
     if scenario_name.startswith("bias_"):
-        # Remove prefix
         rest = scenario_name[len("bias_"):]
-
-        # Check for deadzone
         deadzone = False
         if rest.endswith("_deadzone"):
             deadzone = True
-            rest = rest[:-len("_deadzone")]
-
-        # Parse NvM format
+            rest = rest[: -len("_deadzone")]
         try:
             parts = rest.split("v")
             if len(parts) != 2:
                 raise ValueError()
             center_count = int(parts[0])
             side_count = int(parts[1])
-            return create_action_bias_scenario(
-                center_count=center_count,
-                side_count=side_count,
-                deadzone=deadzone
+        except (ValueError, IndexError):
+            raise ValueError(
+                f"Invalid bias format: {scenario_name}. Use bias_<N>v<M> (e.g., bias_3v1)"
             )
-        except:
-            raise ValueError(f"Invalid bias format: {scenario_name}. Use bias_<N>v<M> (e.g., bias_3v1)")
+        return _apply_config(ActionBiasScenario(ActionBiasConfig(
+            name=scenario_name,
+            description=f"Action bias: {center_count} center vs {side_count} side",
+            center_count=center_count,
+            side_count=side_count,
+            deadzone=deadzone,
+        )))
+
+    # Free-roam variants: free_roam_<Map>[_v<N>_p<M>]
+    if scenario_name.startswith("free_roam_"):
+        rest = scenario_name[len("free_roam_"):]
+        map_name = None
+        num_vehicles = 0
+        num_pedestrians = 0
+
+        # Parse optional _v<N>_p<M> suffix
+        import re
+        match = re.match(r"^([A-Za-z0-9]+?)(?:_v(\d+))?(?:_p(\d+))?$", rest)
+        if match:
+            map_name = match.group(1)
+            if match.group(2):
+                num_vehicles = int(match.group(2))
+            if match.group(3):
+                num_pedestrians = int(match.group(3))
+        else:
+            raise ValueError(
+                f"Invalid free_roam format: {scenario_name}. "
+                "Use free_roam_<Map>[_v<N>_p<M>] (e.g., free_roam_Town05_v20_p30)"
+            )
+
+        return _apply_config(FreeRoamScenario(FreeRoamConfig(
+            name=scenario_name,
+            description=f"Free-roam on {map_name}",
+            map_name=map_name,
+            num_npc_vehicles=num_vehicles,
+            num_pedestrians=num_pedestrians,
+        )))
 
     raise ValueError(f"Unknown scenario: {scenario_name}")
 
@@ -126,7 +207,9 @@ __all__ = [
     "TrolleyMicroConfig",
     "ActionBiasScenario",
     "ActionBiasConfig",
-    "SimpleTrolleyScenario",
-    "MazeNavigationScenario",
+    "MazeScenario",
+    "MazeConfig",
+    "FreeRoamScenario",
+    "FreeRoamConfig",
     "get_scenario",
 ]

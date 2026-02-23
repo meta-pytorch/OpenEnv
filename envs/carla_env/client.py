@@ -29,6 +29,15 @@ class CarlaEnv(EnvClient[CarlaAction, CarlaObservation, CarlaState]):
         >>> result = env.step(CarlaAction(action_type="emergency_stop"))
         >>> env.close()
 
+    Override scenario config at reset time (no new scenario name needed):
+        >>> result = env.reset(scenario_config={"weather": "HardRainNoon", "max_steps": 100})
+
+    Switch scenario AND override config:
+        >>> result = env.reset(
+        ...     scenario_name="free_roam_Town05",
+        ...     scenario_config={"num_npc_vehicles": 30, "route_distance_max": 300.0},
+        ... )
+
     For async usage:
         >>> async with CarlaEnv(base_url="http://localhost:8000") as env:
         ...     result = await env.reset()

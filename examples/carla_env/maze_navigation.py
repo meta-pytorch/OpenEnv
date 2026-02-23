@@ -14,18 +14,19 @@ Usage:
 """
 
 import argparse
+import math
 import sys
 import base64
 from pathlib import Path
 from dataclasses import dataclass
-from typing import List
+from typing import Dict, List, Optional
 
 # Add parent directory to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 
 from carla_env import CarlaEnv, CarlaAction
 from config import MODELS, MAZE_SCENARIOS, BLOG_EXAMPLES
-from llm_clients import create_client
+from llm_clients import create_client, build_vision_message
 
 @dataclass
 class MazeResult:
@@ -46,7 +47,10 @@ def run_maze_episode(
     verbose: bool = True,
     save_images: bool = False,
     output_dir: str = "llm_images",
-    image_interval: int = 5
+    image_interval: int = 5,
+    vision: bool = False,
+    vision_interval: int = 1,
+    scenario_config_overrides: Optional[Dict] = None,
 ) -> MazeResult:
     """Run maze navigation episode with LLM decision-making.
 
@@ -59,11 +63,23 @@ def run_maze_episode(
         save_images: Save camera images during navigation
         output_dir: Directory to save images
         image_interval: Capture image every N steps (default: 5)
+        vision: Send camera images to the LLM for visual reasoning
+        vision_interval: Capture image for LLM every N steps (default: 1)
     """
 
     # Get configs
     model_config = MODELS[model_key]
     scenario_config = MAZE_SCENARIOS[scenario_key]
+
+    if vision and not model_config.supports_vision:
+        import warnings
+        warnings.warn(
+            f"Model '{model_key}' does not support vision. "
+            "Images will not be sent to the LLM. Use a vision-capable model "
+            "(e.g. claude-sonnet-4.5, gpt-5.2) or remove --vision.",
+            stacklevel=2,
+        )
+        vision = False
 
     # Setup output directory if saving images
     if save_images:
@@ -86,11 +102,15 @@ def run_maze_episode(
 
     try:
         # Reset to maze scenario
-        result = env.reset(scenario_name=scenario_config.scenario_name)
+        reset_kwargs = {"scenario_name": scenario_config.scenario_name}
+        if scenario_config_overrides:
+            reset_kwargs["scenario_config"] = scenario_config_overrides
+        result = env.reset(**reset_kwargs)
         obs = result.observation
 
-        initial_distance = obs.goal_distance if hasattr(obs, 'goal_distance') else 153.0
+        initial_distance = obs.goal_distance if getattr(obs, 'goal_distance', None) is not None else 153.0
         distance_traveled = 0.0
+        prev_location = getattr(obs, 'location', None)
         decisions = []
 
         if verbose:
@@ -153,7 +173,7 @@ def run_maze_episode(
             history_summary = "\n".join(action_history[-10:]) if action_history else "No actions yet."
 
             # Build current state description
-            if hasattr(obs, 'goal_distance'):
+            if getattr(obs, 'goal_distance', None) is not None:
                 goal_info = f"Goal: {obs.goal_distance:.1f}m {getattr(obs, 'goal_direction', 'unknown')}"
             else:
                 goal_info = "Goal: Unknown"
@@ -181,7 +201,16 @@ Instructions:
 
 Make your tool call now (no explanations)."""
 
-            messages = [{"role": "user", "content": prompt}]
+            # Build message — include camera image if vision is enabled
+            if vision and (step % vision_interval == 0):
+                img_result = env.step(CarlaAction(action_type="capture_image"))
+                image_b64 = img_result.observation.camera_image
+                if image_b64:
+                    messages = [build_vision_message(prompt, image_b64, model_config.provider)]
+                else:
+                    messages = [{"role": "user", "content": prompt}]
+            else:
+                messages = [{"role": "user", "content": prompt}]
 
             # Get LLM decision
             response = llm.chat(messages, tools, max_tokens=256)
@@ -205,7 +234,7 @@ Make your tool call now (no explanations)."""
                 result = env.step(action)
                 obs = result.observation
                 #print(obs)
-                if hasattr(obs, 'goal_distance'):
+                if getattr(obs, 'goal_distance', None) is not None:
                     direction = getattr(obs, 'goal_direction', 'unknown')
                     action_history.append(f"Step {step+1}: get_goal_info() → {obs.goal_distance:.1f}m {direction}")
                 else:
@@ -224,9 +253,13 @@ Make your tool call now (no explanations)."""
                 result = env.step(action)
                 obs = result.observation
 
-                # Update distance traveled
-                if hasattr(obs, 'goal_distance'):
-                    distance_traveled = initial_distance - obs.goal_distance
+                # Update distance traveled from location coordinates
+                cur_location = getattr(obs, 'location', None)
+                if cur_location and prev_location:
+                    dx = cur_location[0] - prev_location[0]
+                    dy = cur_location[1] - prev_location[1]
+                    distance_traveled += math.sqrt(dx * dx + dy * dy)
+                    prev_location = cur_location
 
                 action_history.append(f"Step {step+1}: control(t={throttle:.2f}, s={steer:.2f}) → {obs.speed_kmh:.1f} km/h")
 
@@ -265,7 +298,7 @@ Make your tool call now (no explanations)."""
                     print(f"📸 Saved final image: {image_file.name}")
 
         # Final stats
-        final_distance = obs.goal_distance if hasattr(obs, 'goal_distance') else initial_distance
+        final_distance = obs.goal_distance if getattr(obs, 'goal_distance', None) is not None else initial_distance
         success = final_distance < 10.0  # Within 10m of goal
 
         if verbose:
@@ -348,8 +381,35 @@ Examples:
         default=5,
         help="Capture image every N steps (default: 5)"
     )
+    parser.add_argument(
+        "--vision",
+        action="store_true",
+        help="Send camera images to the LLM for visual reasoning (requires vision-capable model)"
+    )
+    parser.add_argument(
+        "--vision-interval",
+        type=int,
+        default=1,
+        help="Send image to LLM every N steps when --vision is enabled (default: 1)"
+    )
+    parser.add_argument("--camera-width", type=int, default=None, help="Camera image width (default: 640)")
+    parser.add_argument("--camera-height", type=int, default=None, help="Camera image height (default: 360)")
+    parser.add_argument("--camera-fov", type=int, default=None, help="Camera field of view (default: 90)")
+    parser.add_argument("--jpeg-quality", type=int, default=None, help="JPEG compression quality (default: 75)")
 
     args = parser.parse_args()
+
+    # Build scenario_config overrides from CLI flags
+    overrides = {}
+    if args.camera_width is not None:
+        overrides["camera_width"] = args.camera_width
+    if args.camera_height is not None:
+        overrides["camera_height"] = args.camera_height
+    if args.camera_fov is not None:
+        overrides["camera_fov"] = args.camera_fov
+    if args.jpeg_quality is not None:
+        overrides["jpeg_quality"] = args.jpeg_quality
+    scenario_config_overrides = overrides or None
 
     if args.run_all_blog_examples:
         # Run all maze examples from blog
@@ -369,7 +429,10 @@ Examples:
                     model_key, "maze-1", args.base_url, args.max_steps,
                     save_images=args.save_images,
                     output_dir=args.output_dir,
-                    image_interval=args.image_interval
+                    image_interval=args.image_interval,
+                    vision=args.vision,
+                    vision_interval=args.vision_interval,
+                    scenario_config_overrides=scenario_config_overrides,
                 )
                 results.append(result)
             except Exception as e:
@@ -398,7 +461,10 @@ Examples:
             args.model, "maze-1", args.base_url, args.max_steps,
             save_images=args.save_images,
             output_dir=args.output_dir,
-            image_interval=args.image_interval
+            image_interval=args.image_interval,
+            vision=args.vision,
+            vision_interval=args.vision_interval,
+            scenario_config_overrides=scenario_config_overrides,
         )
 
         print("\n" + "="*70)
@@ -406,7 +472,7 @@ Examples:
         print("="*70)
         print(f"Model: {result.model}")
         print(f"Distance traveled: {result.distance_traveled:.1f}m")
-        print(f"Goal distance: {result.goal_distance:.1f}m")
+        print(f"Goal distance: {result.goal_distance:.1f}m" if result.goal_distance is not None else "Goal distance: Unknown")
         print(f"Success: {result.success}")
 
     else:

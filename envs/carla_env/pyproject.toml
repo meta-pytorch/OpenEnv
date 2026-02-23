@@ -12,14 +12,7 @@ build-backend = "setuptools.build_meta"
 name = "openenv-carla-env"
 version = "0.1.0"
 description = "CARLA environment for OpenEnv - embodied evaluation with temporal flow"
-readme = "README.md"
 requires-python = ">=3.10"
-license = {text = "BSD-3-Clause"}
-authors = [
-    {name = "OpenEnv Contributors"}
-]
-keywords = ["openenv", "carla", "reinforcement-learning", "embodied-ai", "simulation"]
-
 dependencies = [
     # Core OpenEnv dependencies (required for server functionality)
     "openenv-core[core]>=0.2.1",
@@ -27,35 +20,18 @@ dependencies = [
     "pydantic>=2.0.0",
     "uvicorn>=0.24.0",
     "requests>=2.31.0",
-    # Environment-specific dependencies
-    # carla package is optional - only needed for real mode
-    # mock mode (default) uses built-in physics simulation
+    # CARLA Python API is installed directly in Dockerfiles
+    # via: pip install carla-ue5-api==0.10.0
 ]
 
 [project.optional-dependencies]
-# Real CARLA mode (requires CARLA server)
 carla = [
-    "carla>=0.9.15",
+    "carla-ue5-api==0.10.0",
 ]
-
-# Development dependencies
 dev = [
     "pytest>=8.0.0",
     "pytest-cov>=4.0.0",
-    "pytest-asyncio>=0.21.0",
-    "ruff>=0.1.0",
 ]
-
-# All dependencies
-all = [
-    "openenv-carla-env[carla,dev]",
-]
-
-[project.urls]
-Homepage = "https://github.com/meta-pytorch/OpenEnv"
-Documentation = "https://meta-pytorch.org/OpenEnv/"
-Repository = "https://github.com/meta-pytorch/OpenEnv"
-Issues = "https://github.com/meta-pytorch/OpenEnv/issues"
 
 [project.scripts]
 # Server entry point - enables running via: uv run --project . server
@@ -66,11 +42,3 @@ server = "carla_env.server.app:main"
 include-package-data = true
 packages = ["carla_env", "carla_env.server"]
 package-dir = {"carla_env" = ".", "carla_env.server" = "server"}
-
-[tool.ruff]
-line-length = 100
-target-version = "py310"
-
-[tool.ruff.lint]
-select = ["E", "F", "I", "W"]
-ignore = ["E501"]  # Line too long (handled by formatter)

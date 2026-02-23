@@ -20,7 +20,7 @@ from typing import Optional, Dict, Any, List
 from openenv.core.env_server import Environment
 
 from ..models import CarlaAction, CarlaObservation, CarlaState
-from .scenarios import BaseScenario, get_scenario
+from .benchmark_scenarios import BaseScenario, get_scenario
 
 # Try to import CARLA, but don't fail if not available
 try:
@@ -134,6 +134,33 @@ class ActorsHelper:
         except Exception as e:
             return None
 
+    def spawn_npc_vehicle(self, transform, autopilot=True):
+        """Spawn an NPC vehicle at the given transform.
+
+        Args:
+            transform: CARLA Transform for spawn location.
+            autopilot: If True, enable autopilot on the spawned vehicle.
+
+        Returns:
+            Spawned actor or None on failure.
+        """
+        try:
+            blueprint_library = self.world.get_blueprint_library()
+            import random
+            vehicle_bps = blueprint_library.filter('vehicle.*')
+            if not vehicle_bps:
+                return None
+            vehicle_bp = random.choice(vehicle_bps)
+
+            actor = self.world.try_spawn_actor(vehicle_bp, transform)
+            if actor is not None:
+                if autopilot:
+                    actor.set_autopilot(True)
+                self._spawned_actors.append(actor)
+            return actor
+        except Exception:
+            return None
+
     def cleanup(self):
         """Destroy all spawned actors."""
         for actor in self._spawned_actors:
@@ -221,36 +248,43 @@ class CarlaEnvironment(Environment):
         # Scenario data
         self.scenario_data: Dict[str, Any] = {}
 
-    def reset(self, scenario_name: Optional[str] = None) -> CarlaObservation:
+    def reset(
+        self,
+        scenario_name: Optional[str] = None,
+        scenario_config: Optional[Dict[str, Any]] = None,
+    ) -> CarlaObservation:
         """
         Reset environment and setup scenario.
 
         Args:
             scenario_name: Optional scenario name to switch to. If None, uses current scenario.
+            scenario_config: Optional dict of config field overrides (e.g. weather, max_steps).
+                Keys must match fields on the scenario's config dataclass.
 
         Returns:
             Initial observation
         """
         # Switch scenario if requested
-        if scenario_name is not None and scenario_name != self.scenario.name:
-            self.scenario = get_scenario(scenario_name)
+        if scenario_name is not None and scenario_name != self.scenario.config.name:
+            self.scenario = get_scenario(scenario_name, scenario_config)
+        elif scenario_config:
+            # Same scenario, apply config overrides in-place
+            for key, value in scenario_config.items():
+                if hasattr(self.scenario.config, key):
+                    setattr(self.scenario.config, key, value)
 
         # Generate new episode ID
         self._state = CarlaState(
             episode_id=str(uuid.uuid4()),
-            scenario_name=self.scenario.name,
+            scenario_name=self.scenario.config.name,
             step_count=0,
         )
 
-        # Setup scenario
-        setup = self.scenario.setup()
-        self.scenario_data = setup
-
         # Initialize based on mode
         if self.mode == "real":
-            self._reset_real_mode(setup)
+            self._reset_real_mode()
         else:
-            self._reset_mock_mode(setup)
+            self._reset_mock_mode()
 
         # Get initial observation
         return self._get_observation()
@@ -339,21 +373,37 @@ class CarlaEnvironment(Environment):
                     / self._state.num_turns
                 )
 
+        # Sync runtime state for scenario logic
+        if hasattr(self, '_runtime_state') and self._runtime_state is not None:
+            self._runtime_state["env_step"] = self._state.step_count
+            # Track tool call for action classification
+            tool_call = {
+                "name": action.action_type,
+                "args": {
+                    "direction": action.lane_direction,
+                    "steer": action.steer,
+                    "throttle": action.throttle,
+                    "brake": action.brake,
+                },
+            }
+            self._runtime_state["tool_calls"].append(tool_call)
+            # Sync mock-mode fields
+            self._runtime_state["step_count"] = self._state.step_count
+            if self.mode == "mock":
+                self._runtime_state["speed_kmh"] = self.mock_state.get("speed_kmh", 0.0)
+                self._runtime_state["collision_detected"] = len(self.mock_state.get("collisions", [])) > 0
+                self._runtime_state["goal_distance"] = self._compute_goal_distance()
+
         # Get observation
         obs = self._get_observation()
 
-        # Compute reward
-        state_dict = self._get_state_dict()
-        action_dict = {
-            "action_type": action.action_type,
-            "throttle": action.throttle,
-            "steer": action.steer,
-            "brake": action.brake,
-        }
-        reward = self.scenario.compute_reward(state_dict, action_dict)
+        # Compute outcome via unified scenario interface
+        try:
+            outcome = self.scenario.compute_outcome(self._runtime_state)
+            reward = outcome.get("reward", 0.0) if isinstance(outcome, dict) else 0.0
+        except Exception:
+            reward = 0.0
         self._state.total_reward += reward
-
-        # Assign reward to observation before returning
         obs.reward = reward
 
         return obs
@@ -370,7 +420,9 @@ class CarlaEnvironment(Environment):
         min_forward_m: float = 35.0,
         require_left: bool = False,
         require_right: bool = False,
+        require_any_adjacent: bool = False,
         max_angle_deg: float = 15.0,
+        adjacent_check_distance_m: float = 0.0,
     ) -> Any:
         """
         Find a spawn point with a straight road ahead and required lane topology.
@@ -385,12 +437,25 @@ class CarlaEnvironment(Environment):
             min_forward_m: How far ahead the road must be straight
             require_left: Scenario needs a left adjacent lane
             require_right: Scenario needs a right adjacent lane
+            require_any_adjacent: Scenario needs at least one adjacent lane (left or right)
             max_angle_deg: Maximum deviation angle to consider "straight"
+            adjacent_check_distance_m: Also verify lanes at this distance ahead
 
         Returns:
             Best spawn point transform
         """
         from .benchmark_scenarios.shared import same_direction
+
+        def _has_adjacent(check_wp, direction: str) -> bool:
+            """Check a waypoint has a same-direction driving lane."""
+            adj = check_wp.get_left_lane() if direction == "left" else check_wp.get_right_lane()
+            if adj is None or adj.lane_type != carla.LaneType.Driving:
+                return False
+            return same_direction(check_wp, adj)
+
+        def _has_any_adjacent(check_wp) -> bool:
+            """Check a waypoint has at least one same-direction adjacent lane."""
+            return _has_adjacent(check_wp, "left") or _has_adjacent(check_wp, "right")
 
         best_transform = None
         best_score = float("inf")  # lower is better (angle deviation)
@@ -402,26 +467,31 @@ class CarlaEnvironment(Environment):
             if wp is None:
                 continue
 
-            # Check adjacent lane requirements
-            if require_left:
-                left = wp.get_left_lane()
-                if left is None or left.lane_type != carla.LaneType.Driving:
-                    continue
-                if not same_direction(wp, left):
-                    continue
-
-            if require_right:
-                right = wp.get_right_lane()
-                if right is None or right.lane_type != carla.LaneType.Driving:
-                    continue
-                if not same_direction(wp, right):
-                    continue
+            # Check adjacent lane requirements at spawn point
+            if require_left and not _has_adjacent(wp, "left"):
+                continue
+            if require_right and not _has_adjacent(wp, "right"):
+                continue
+            if require_any_adjacent and not _has_any_adjacent(wp):
+                continue
 
             # Check road straightness: get waypoint min_forward_m ahead
             ahead_list = wp.next(min_forward_m)
             if not ahead_list:
                 continue
             ahead_wp = ahead_list[0]
+
+            # Also check adjacent lanes at the spawn distance (where actors go)
+            if adjacent_check_distance_m > 0:
+                check_list = wp.next(adjacent_check_distance_m)
+                if check_list:
+                    check_wp = check_list[0]
+                    if require_left and not _has_adjacent(check_wp, "left"):
+                        continue
+                    if require_right and not _has_adjacent(check_wp, "right"):
+                        continue
+                    if require_any_adjacent and not _has_any_adjacent(check_wp):
+                        continue
 
             # Compute angle between spawn forward vector and direction to ahead waypoint
             fwd = sp.get_forward_vector()
@@ -460,7 +530,7 @@ class CarlaEnvironment(Environment):
 
         return best_transform
 
-    def _reset_real_mode(self, setup: Dict[str, Any]) -> None:
+    def _reset_real_mode(self) -> None:
         """
         Reset in real CARLA mode.
 
@@ -468,29 +538,30 @@ class CarlaEnvironment(Environment):
         - Uses get_world() instead of load_world() (world pre-loaded by CARLA)
         - Cleans up previous vehicle to prevent actor accumulation
         - Falls back to any vehicle if Tesla Model 3 blueprint not found
-
-        Args:
-            setup: Scenario configuration dict
+        - Uses unified scenario interface (spawn_requirements, reset, setup)
         """
+        cfg = self.scenario.config
+
         # Connect to CARLA server
         if self.client is None:
             self.client = carla.Client(self.host, self.port)
             self.client.set_timeout(10.0)
 
-        # Get current world (don't reload - CARLA is already running with a world)
-        if self.world is None:
+        # Check if the scenario requests a specific map
+        reqs = self.scenario.spawn_requirements()
+        requested_map = reqs.get("map_name")
+
+        if requested_map:
+            current_map = None
+            if self.world is not None:
+                current_map = self.world.get_map().name.split("/")[-1]
+            if current_map != requested_map:
+                self.client.load_world(requested_map)
+            self.world = self.client.get_world()
+        elif self.world is None:
             self.world = self.client.get_world()
 
         # Clean up previous actors if they exist
-        if hasattr(self, '_spawned_simple_actors'):
-            for actor in self._spawned_simple_actors:
-                if actor is not None:
-                    try:
-                        actor.destroy()
-                    except:
-                        pass
-            self._spawned_simple_actors = []
-
         if hasattr(self, 'actors_helper') and self.actors_helper is not None:
             self.actors_helper.cleanup()
             self.actors_helper = None
@@ -503,89 +574,83 @@ class CarlaEnvironment(Environment):
             self.vehicle.destroy()
             self.vehicle = None
 
+        # Destroy ALL remaining walkers/pedestrians in the world to prevent
+        # accumulation across episodes (e.g. from crashed resets or prior instances).
+        for actor in self.world.get_actors().filter('walker.*'):
+            try:
+                actor.destroy()
+            except Exception:
+                pass
+
         # Reset navigation agent
         self.nav_agent = None
 
         # Set weather
-        weather_name = setup.get("weather", "ClearNoon")
+        weather_name = cfg.weather
         weather = getattr(carla.WeatherParameters, weather_name)
         self.world.set_weather(weather)
 
-        # Spawn vehicle
-        spawn_point = setup.get("spawn_point", {})
-        loc = spawn_point.get("location", None)
-        rot = spawn_point.get("rotation", (0.0, 0.0, 0.0))
+        # --- Determine spawn-point constraints from scenario ---
+        # reqs already fetched above for map loading
+        require_left = reqs.get("require_left", False)
+        require_right = reqs.get("require_right", False)
+        require_any_adjacent = reqs.get("require_any_adjacent", False)
+        min_forward_m = max(35.0, reqs.get("min_forward_m", 35.0))
+        adjacent_check_distance_m = reqs.get("adjacent_check_distance_m", 0.0)
 
         blueprint_library = self.world.get_blueprint_library()
 
-        # Try to find Tesla Model 3, fallback to any vehicle if not available
+        # Try configured blueprint, fallback to any vehicle
         try:
-            vehicle_bp = blueprint_library.find("vehicle.tesla.model3")
+            vehicle_bp = blueprint_library.find(cfg.vehicle_blueprint)
         except RuntimeError:
-            # Tesla not available in this CARLA version, use any car
             vehicles = blueprint_library.filter("vehicle.*")
             vehicle_bp = vehicles[0] if vehicles else None
             if vehicle_bp is None:
                 raise RuntimeError("No vehicle blueprints available in CARLA")
 
-        # Use CARLA's spawn points if location not specified (avoids sidewalks)
-        if loc is None:
-            carla_map = self.world.get_map()
-            spawn_points = carla_map.get_spawn_points()
-            if spawn_points:
-                # Determine lane requirements from scenario
-                require_left = False
-                require_right = False
-                min_forward_m = 35.0
+        # Find a good spawn point
+        carla_map = self.world.get_map()
+        spawn_points = carla_map.get_spawn_points()
+        if spawn_points:
+            transform = self._find_best_spawn_point(
+                spawn_points, carla_map,
+                min_forward_m=min_forward_m,
+                require_left=require_left,
+                require_right=require_right,
+                require_any_adjacent=require_any_adjacent,
+                adjacent_check_distance_m=adjacent_check_distance_m,
+            )
 
-                from .scenario_adapter import SinatrasScenarioAdapter
-                from .scenarios import SimpleTrolleyScenario
-                if isinstance(self.scenario, SinatrasScenarioAdapter):
-                    sinatras = self.scenario.sinatras_scenario
-                    if hasattr(sinatras, "spawn_requirements"):
-                        reqs = sinatras.spawn_requirements()
-                        require_left = reqs.get("require_left", False)
-                        require_right = reqs.get("require_right", False)
-                        min_forward_m = max(35.0, reqs.get("min_forward_m", 35.0))
-                elif isinstance(self.scenario, SimpleTrolleyScenario):
-                    if self.scenario.pedestrians_adjacent > 0:
-                        require_left = True
-
-                # Find best spawn point: straight road + required lanes
+            if transform is None and (require_left or require_right or require_any_adjacent):
+                # Relax: keep lane requirements but drop adjacent_check_distance
                 transform = self._find_best_spawn_point(
                     spawn_points, carla_map,
                     min_forward_m=min_forward_m,
                     require_left=require_left,
                     require_right=require_right,
+                    require_any_adjacent=require_any_adjacent,
                 )
 
-                if transform is None:
-                    # Relax: try without lane requirements
-                    transform = self._find_best_spawn_point(
-                        spawn_points, carla_map,
-                        min_forward_m=min_forward_m,
-                    )
-
-                if transform is None:
-                    # Final fallback: first spawn point
-                    transform = spawn_points[0]
-            else:
-                # Fallback to origin if no spawn points available
-                transform = carla.Transform(
-                    carla.Location(x=0.0, y=0.0, z=0.5),
-                    carla.Rotation(pitch=0.0, yaw=0.0, roll=0.0),
+            if transform is None:
+                # Final relax: drop all lane requirements
+                transform = self._find_best_spawn_point(
+                    spawn_points, carla_map,
+                    min_forward_m=min_forward_m,
                 )
+
+            if transform is None:
+                transform = spawn_points[0]
         else:
-            # Use provided location
             transform = carla.Transform(
-                carla.Location(x=loc[0], y=loc[1], z=loc[2]),
-                carla.Rotation(pitch=rot[0], yaw=rot[1], roll=rot[2]),
+                carla.Location(x=0.0, y=0.0, z=0.5),
+                carla.Rotation(pitch=0.0, yaw=0.0, roll=0.0),
             )
 
         self.vehicle = self.world.spawn_actor(vehicle_bp, transform)
 
         # Set initial speed
-        initial_speed = setup.get("initial_speed_kmh", 0.0) / 3.6  # Convert to m/s
+        initial_speed = cfg.initial_speed_kmh / 3.6  # Convert to m/s
         if initial_speed > 0:
             forward_vec = self.vehicle.get_transform().get_forward_vector()
             self.vehicle.set_target_velocity(
@@ -605,20 +670,19 @@ class CarlaEnvironment(Environment):
         # Initial tick
         self.world.tick()
 
-        # Create collision sensor BEFORE spawning any actors (needs to be listening from the start)
+        # Create collision sensor
         self.collision_sensor = CollisionSensor(self.world, self.vehicle)
-        self.collision_sensor.setup()  # Two-phase init
+        self.collision_sensor.setup()
 
         # Create camera sensor for image capture
         self.camera_sensor = None
         self.latest_camera_image = None
         try:
             camera_bp = self.world.get_blueprint_library().find('sensor.camera.rgb')
-            # Lower resolution to fit WebSocket message limit (1MB)
-            camera_bp.set_attribute('image_size_x', '640')
-            camera_bp.set_attribute('image_size_y', '360')
-            camera_bp.set_attribute('fov', '90')
-            # Mount camera on hood looking forward
+            camera_bp.set_attribute('image_size_x', str(cfg.camera_width))
+            camera_bp.set_attribute('image_size_y', str(cfg.camera_height))
+            camera_bp.set_attribute('fov', str(cfg.camera_fov))
+            self._jpeg_quality = cfg.jpeg_quality
             camera_transform = carla.Transform(carla.Location(x=2.5, z=1.0))
             self.camera_sensor = self.world.try_spawn_actor(camera_bp, camera_transform, attach_to=self.vehicle)
             if self.camera_sensor:
@@ -626,91 +690,75 @@ class CarlaEnvironment(Environment):
         except Exception:
             pass
 
-        # Spawn actors from setup
-        actors_to_spawn = setup.get("actors", [])
-        if actors_to_spawn:
-            blueprint_library = self.world.get_blueprint_library()
-            pedestrian_bps = blueprint_library.filter('walker.pedestrian.*')
+        # Create actors helper and runtime for scenarios
+        self.actors_helper = ActorsHelper(self.world)
+        runtime = CarlaRuntime(
+            self.world,
+            self.vehicle,
+            self.client,
+            self.collision_sensor,
+            self.actors_helper,
+        )
 
-            spawned_count = 0
-            for actor_def in actors_to_spawn:
-                if actor_def.get("type") == "pedestrian":
-                    try:
-                        # Get pedestrian blueprint
-                        if pedestrian_bps:
-                            ped_bp = pedestrian_bps[0]
-                            # Make pedestrian vulnerable to collisions
-                            if ped_bp.has_attribute("is_invincible"):
-                                ped_bp.set_attribute("is_invincible", "false")
-                        else:
-                            continue
+        # Reset scenario data for new episode
+        self.scenario_data = {}
 
-                        # Calculate spawn location relative to vehicle
-                        vehicle_transform = self.vehicle.get_transform()
-                        distance = actor_def.get("distance", 25.0)
-                        lane_offset = actor_def.get("lane_offset", 0.0)
+        # Build runtime state dict shared with the scenario
+        self._runtime_state = {
+            "carla": runtime,
+            "scenario_state": {},
+            "scenario_data": self.scenario_data,
+            "tool_calls": [],
+            "env_step": 0,
+            "info": {},
+        }
 
-                        # Calculate location
-                        forward = vehicle_transform.get_forward_vector()
-                        right = vehicle_transform.get_right_vector()
+        # Unified scenario lifecycle
+        self.scenario.reset(self._runtime_state)
+        self.scenario.setup(self._runtime_state)
 
-                        spawn_loc = carla.Location(
-                            x=vehicle_transform.location.x + forward.x * distance + right.x * lane_offset,
-                            y=vehicle_transform.location.y + forward.y * distance + right.y * lane_offset,
-                            z=vehicle_transform.location.z + 0.5
-                        )
-
-                        # Spawn pedestrian
-                        spawn_transform = carla.Transform(spawn_loc, vehicle_transform.rotation)
-                        pedestrian = self.world.try_spawn_actor(ped_bp, spawn_transform)
-
-                        if pedestrian is not None:
-                            # Track spawned actors for cleanup
-                            if not hasattr(self, '_spawned_simple_actors'):
-                                self._spawned_simple_actors = []
-                            self._spawned_simple_actors.append(pedestrian)
-                            spawned_count += 1
-
-                    except Exception:
-                        # Spawn can fail if location is occupied, continue with others
-                        pass
-
-            # Tick to ensure actors are spawned
-            self.world.tick()
-
-        # If scenario is a sinatras adapter, create runtime and call setup_carla()
-        from .scenario_adapter import SinatrasScenarioAdapter
-        if isinstance(self.scenario, SinatrasScenarioAdapter):
-            # Create actors helper for spawning pedestrians
-            self.actors_helper = ActorsHelper(self.world)
-
-            # Create runtime with all helpers
-            runtime = CarlaRuntime(
-                self.world,
-                self.vehicle,
-                self.client,
-                self.collision_sensor,
-                self.actors_helper
-            )
-            self.scenario.setup_carla(runtime)
-
-    def _reset_mock_mode(self, setup: Dict[str, Any]) -> None:
+    def _reset_mock_mode(self) -> None:
         """Reset in mock simulation mode."""
-        # Initialize mock state
-        spawn_point = setup.get("spawn_point", {})
-        loc = spawn_point.get("location") or (0.0, 0.0, 0.5)
-        rot = spawn_point.get("rotation") or (0.0, 0.0, 0.0)
+        cfg = self.scenario.config
 
         self.mock_state = {
-            "location": list(loc),
-            "rotation": list(rot),
+            "location": [0.0, 0.0, 0.5],
+            "rotation": [0.0, 0.0, 0.0],
             "velocity": [0.0, 0.0, 0.0],
-            "speed_kmh": setup.get("initial_speed_kmh", 0.0),
-            "actors": setup.get("actors", []),
+            "speed_kmh": cfg.initial_speed_kmh,
+            "actors": [],  # Mock mode doesn't spawn CARLA actors
             "collisions": [],
             "time": 0.0,
             "delta_time": 0.05,  # 20 FPS
         }
+
+        # Reset scenario data for new episode
+        self.scenario_data = {}
+
+        # Build a lightweight runtime state so scenario.reset / is_done / compute_outcome work.
+        self._runtime_state = {
+            "carla": None,  # No CARLA runtime in mock mode
+            "scenario_state": {},
+            "scenario_data": self.scenario_data,
+            "tool_calls": [],
+            "env_step": 0,
+            "info": {},
+            # Mock-mode state fields used by scenarios' is_done / compute_outcome
+            "step_count": 0,
+            "speed_kmh": cfg.initial_speed_kmh,
+            "collision_detected": False,
+            "goal_distance": float("inf"),
+        }
+
+        # Reset scenario state
+        self.scenario.reset(self._runtime_state)
+        # Run setup if the scenario handles mock mode (carla=None) gracefully.
+        # Scenarios that require CARLA (e.g. ActionBias, TrolleyMicro) will have
+        # carla=None and would fail, so we catch and ignore.
+        try:
+            self.scenario.setup(self._runtime_state)
+        except (TypeError, AttributeError, KeyError):
+            pass  # Scenario setup requires real CARLA — skip in mock mode
 
         # Reset navigation agent (mock)
         self.nav_agent = None
@@ -731,7 +779,7 @@ class CarlaEnvironment(Environment):
 
         elif action.action_type == "brake_vehicle":
             # Brake with specific intensity
-            # Adapted from sinatras/carla-env tools/vehicle.py:brake_vehicle()
+            # Adapted from SinatrasC/carla-env tools/vehicle.py:brake_vehicle()
             intensity = action.brake_intensity if action.brake_intensity is not None else 1.0
             intensity = max(0.0, min(1.0, float(intensity)))  # Clamp [0.0, 1.0]
             control = carla.VehicleControl(
@@ -802,8 +850,8 @@ class CarlaEnvironment(Environment):
             behavior = action.navigation_behavior if action.navigation_behavior else "normal"
 
             # Import agents (lazy import - only when needed)
-            from carla_env.server._carla_agents.navigation.behavior_agent import BehaviorAgent
-            from carla_env.server._carla_agents.navigation.basic_agent import BasicAgent
+            from carla_env.server.carla_agents.navigation.behavior_agent import BehaviorAgent
+            from carla_env.server.carla_agents.navigation.basic_agent import BasicAgent
 
             # Create agent based on behavior
             if behavior == "normal":
@@ -818,7 +866,7 @@ class CarlaEnvironment(Environment):
             # Set destination for navigation agent
             if self.nav_agent is None:
                 # Auto-initialize with normal behavior if not initialized
-                from carla_env.server._carla_agents.navigation.behavior_agent import BehaviorAgent
+                from carla_env.server.carla_agents.navigation.behavior_agent import BehaviorAgent
                 self.nav_agent = BehaviorAgent(self.vehicle, behavior="normal")
 
             # Set destination
@@ -1045,14 +1093,18 @@ class CarlaEnvironment(Environment):
 
     def _get_observation(self) -> CarlaObservation:
         """Generate observation from current state."""
-        # Get state dict for scenario
-        state_dict = self._get_state_dict()
-
-        # Check termination
-        done, done_reason = self.scenario.check_termination(state_dict)
+        # Check termination via unified scenario interface
+        try:
+            done = self.scenario.is_done(self._runtime_state)
+        except Exception:
+            done = False
+        done_reason = "scenario_complete" if done else ""
 
         # Generate scene description
-        scene_description = self.scenario.get_scene_description(state_dict)
+        try:
+            scene_description = self.scenario.get_scene_description(self._runtime_state)
+        except Exception:
+            scene_description = f"Scenario: {self.scenario.config.name}"
 
         # Build observation
         if self.mode == "real":
@@ -1061,7 +1113,7 @@ class CarlaEnvironment(Environment):
             obs = self._get_observation_mock()
 
         obs.scene_description = scene_description
-        obs.scenario_name = self.scenario.name
+        obs.scenario_name = self.scenario.config.name
         obs.simulation_time = self._state.simulation_time
         obs.step_number = self._state.step_count
         obs.done = done
@@ -1201,33 +1253,6 @@ class CarlaEnvironment(Environment):
 
         return nearby
 
-    def _get_state_dict(self) -> Dict[str, Any]:
-        """Get current state as dict for scenario logic."""
-        if self.mode == "real":
-            obs = self._get_observation_real()
-        else:
-            obs = self._get_observation_mock()
-
-        return {
-            "step_count": self._state.step_count,
-            "speed_kmh": obs.speed_kmh,
-            "location": obs.location,
-            "rotation": obs.rotation,
-            "current_lane": obs.current_lane,
-            "nearby_actors": obs.nearby_actors,
-            "collision_detected": obs.collision_detected,
-            "collided_with": obs.collided_with,
-            "collisions": self._state.collisions,
-            "simulation_time": self._state.simulation_time,
-            "distance_traveled": self.mock_state.get("speed_kmh", 0.0) / 3.6 * self._state.simulation_time,
-            "done": obs.done,
-            "done_reason": obs.done_reason,
-            # Scenario-specific
-            "goal_distance": self._compute_goal_distance(),
-            "goal_direction": self._compute_goal_direction(),
-            "prev_goal_distance": self.scenario_data.get("prev_goal_distance", float("inf")),
-        }
-
     def _compute_goal_distance(self) -> float:
         """Compute distance to goal (for navigation scenarios)."""
         if "goal_location" not in self.scenario_data:
@@ -1283,12 +1308,22 @@ class CarlaEnvironment(Environment):
     def capture_image(self):
         """Return the latest buffered camera image as base64.
 
-        Does not tick the world or advance the simulation — the camera
-        sensor callback continuously updates ``latest_camera_image`` on
-        every world tick, so this just encodes whatever was last captured.
+        The camera sensor callback updates ``latest_camera_image`` on every
+        world tick.  If no image has arrived yet (common in the stateless HTTP
+        path where a fresh env is created per request), we tick the world a
+        few times and wait briefly for the callback to fire.
         """
         if self.mode != "real" or self.camera_sensor is None:
             return None
+
+        # Give the camera sensor time to deliver at least one frame.
+        if self.latest_camera_image is None:
+            import time
+            for _ in range(5):
+                self.world.tick()
+                time.sleep(0.1)
+                if self.latest_camera_image is not None:
+                    break
 
         if self.latest_camera_image is None:
             return None
@@ -1299,23 +1334,13 @@ class CarlaEnvironment(Environment):
 
         img = Image.fromarray(self.latest_camera_image)
         buffer = io.BytesIO()
-        img.save(buffer, format='JPEG', quality=75)
+        img.save(buffer, format='JPEG', quality=getattr(self, '_jpeg_quality', 75))
         buffer.seek(0)
         return base64.b64encode(buffer.read()).decode('utf-8')
 
     def close(self) -> None:
         """Cleanup resources."""
         if self.mode == "real":
-            # Cleanup simple scenario actors
-            if hasattr(self, '_spawned_simple_actors'):
-                for actor in self._spawned_simple_actors:
-                    if actor is not None:
-                        try:
-                            actor.destroy()
-                        except:
-                            pass
-                self._spawned_simple_actors = []
-
             # Cleanup spawned actors
             if hasattr(self, 'actors_helper') and self.actors_helper is not None:
                 self.actors_helper.cleanup()
