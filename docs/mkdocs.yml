@@ -106,13 +106,7 @@ nav:
     - OpenEnv in 15 Minutes: tutorials/openenv-tutorial.md
     - Wordle with GRPO: tutorials/wordle-grpo.md
 
-  - Environments:
-    - Overview: environments/index.md
-    - Games: environments/index.md#games-puzzles
-    - Code Execution: environments/index.md#code-execution
-    - Web & Browser: environments/index.md#web-browser
-    - Simulation: environments/index.md#simulation
-    - Conversational: environments/index.md#conversational
+  - Environments: environments/index.md
 
   - API Reference:
     - reference/index.md
