@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Copy-Paste Task</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            padding: 20px;
+        }
+        .field-group {
+            margin-bottom: 15px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+        }
+        input[type="text"] {
+            width: 300px;
+            padding: 5px;
+        }
+        button {
+            padding: 8px 20px;
+            margin-top: 10px;
+        }
+        #success-message, #error-message {
+            display: none;
+            margin-top: 15px;
+            padding: 10px;
+        }
+        #success-message {
+            background-color: #d4edda;
+            color: #155724;
+        }
+        #error-message {
+            background-color: #f8d7da;
+            color: #721c24;
+        }
+    </style>
+</head>
+<body>
+    <div class="field-group">
+        <label for="source-text">Source Text:</label>
+        <input 
+            type="text" 
+            id="source-text" 
+            value="Hello, this is the text to copy!" 
+            readonly
+        >
+    </div>
+    
+    <div class="field-group">
+        <label for="target-text">Target Field:</label>
+        <input 
+            type="text" 
+            id="target-text" 
+            placeholder="Paste the text here"
+        >
+    </div>
+    
+    <button id="submit-btn" onclick="checkSubmission()">Submit</button>
+    
+    <div id="success-message">Success! You've completed the task correctly.</div>
+    <div id="error-message">Error: The text doesn't match. Please try again.</div>
+    
+    <script>
+        function checkSubmission() {
+            const sourceText = document.getElementById('source-text').value;
+            const targetText = document.getElementById('target-text').value;
+            const successMsg = document.getElementById('success-message');
+            const errorMsg = document.getElementById('error-message');
+            const submitBtn = document.getElementById('submit-btn');
+            
+            successMsg.style.display = 'none';
+            errorMsg.style.display = 'none';
+            
+            if (targetText === sourceText) {
+                successMsg.style.display = 'block';
+                submitBtn.disabled = true;
+            } else {
+                errorMsg.style.display = 'block';
+            }
+        }
+        
+        document.getElementById('target-text').addEventListener('keypress', function(event) {
+            if (event.key === 'Enter') {
+                checkSubmission();
+            }
+        });
+    </script>
+</body>
+</html>
