@@ -13,9 +13,12 @@ generation with continuous reward for RL training.
 
 from __future__ import annotations
 
+import logging
 import random
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Tuple
+
+logger = logging.getLogger(__name__)
 
 from .base import BaseScenario, ScenarioConfig
 
@@ -128,13 +131,26 @@ class FreeRoamScenario(BaseScenario[FreeRoamConfig]):
         for sp in available[: self.config.num_npc_vehicles]:
             runtime.actors.spawn_npc_vehicle(sp)
 
-        # Spawn pedestrians at random sidewalk locations
-        for _ in range(self.config.num_pedestrians):
-            loc = world.get_random_location_from_navigation()
-            if loc is not None:
-                import carla
-                transform = carla.Transform(loc)
-                runtime.actors.spawn_pedestrian(transform)
+        # Spawn pedestrians at random navigation-mesh locations.
+        # try_spawn_actor can fail due to collisions with geometry, so we
+        # retry with different locations (up to max_attempts per pedestrian).
+        import carla
+
+        ped_spawned = 0
+        max_attempts = 10
+        for i in range(self.config.num_pedestrians):
+            for attempt in range(max_attempts):
+                loc = world.get_random_location_from_navigation()
+                if loc is None:
+                    continue
+                # Raise z slightly to avoid ground-clipping collisions
+                loc.z += 0.5
+                actor = runtime.actors.spawn_pedestrian(carla.Transform(loc))
+                if actor is not None:
+                    ped_spawned += 1
+                    break
+        logger.info("Pedestrian spawn: requested=%d, spawned=%d (max %d attempts each)",
+                    self.config.num_pedestrians, ped_spawned, max_attempts)
 
     def _pick_goal_real(
         self,

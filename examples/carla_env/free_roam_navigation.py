@@ -7,12 +7,13 @@ and pedestrians. Supports map selection and continuous reward.
 
 Usage:
     python free_roam_navigation.py --model gpt-5.2
-    python free_roam_navigation.py --model claude-sonnet-4.5 --scenario free-roam-town05
+    python free_roam_navigation.py --model claude-sonnet-4.5 --scenario free-roam-traffic
     python free_roam_navigation.py --model gpt-5.2 --save-images
     python free_roam_navigation.py --run-all
 """
 
 import argparse
+import asyncio
 import math
 import sys
 import base64
@@ -94,101 +95,104 @@ def run_free_roam_episode(
         print("=" * 70)
 
     llm = create_client(model_config.provider, model_config.model_id)
-    env = CarlaEnv(base_url=base_url)
 
-    try:
-        reset_kwargs = {"scenario_name": scenario_config.scenario_name}
-        if scenario_config_overrides:
-            reset_kwargs["scenario_config"] = scenario_config_overrides
-        result = env.reset(**reset_kwargs)
-        obs = result.observation
+    async def _run():
+        env = CarlaEnv(base_url=base_url)
+        async with env:
+            reset_kwargs = {"scenario_name": scenario_config.scenario_name}
+            # Merge config-defined overrides with CLI overrides (CLI wins)
+            merged_overrides = {**(scenario_config.overrides or {}), **(scenario_config_overrides or {})}
+            if merged_overrides:
+                reset_kwargs["scenario_config"] = merged_overrides
+            result = await env.reset(**reset_kwargs)
+            obs = result.observation
 
-        initial_distance = obs.goal_distance if hasattr(obs, "goal_distance") and obs.goal_distance else 200.0
-        distance_traveled = 0.0
-        prev_location = getattr(obs, 'location', None)
-        total_reward = 0.0
-        collision_count = 0
-        decisions = []
+            initial_distance = obs.goal_distance if hasattr(obs, "goal_distance") and obs.goal_distance else 200.0
+            distance_traveled = 0.0
+            prev_location = getattr(obs, 'location', None)
+            total_reward = 0.0
+            collision_count = 0
+            decisions = []
 
-        if verbose:
-            goal_dist = f"{obs.goal_distance:.1f}m" if obs.goal_distance else "unknown"
-            print(f"\nStarting - Goal distance: {goal_dist}")
-            print(f"{obs.scene_description[:200]}...\n")
+            if verbose:
+                goal_dist = f"{obs.goal_distance:.1f}m" if obs.goal_distance else "unknown"
+                print(f"\nStarting - Goal distance: {goal_dist}")
+                print(f"{obs.scene_description[:200]}...\n")
 
-        # Capture initial image
-        if save_images:
-            result_img = env.step(CarlaAction(action_type="capture_image"))
-            if result_img.observation.camera_image:
-                image_data = base64.b64decode(result_img.observation.camera_image)
-                image_file = output_path / f"{model_key}_freeroam_step_000_start.jpg"
-                image_file.write_bytes(image_data)
-                if verbose:
-                    print(f"Saved initial image: {image_file.name}\n")
+            # Capture initial image
+            if save_images:
+                result_img = await env.step(CarlaAction(action_type="capture_image"))
+                if result_img.observation.camera_image:
+                    image_data = base64.b64decode(result_img.observation.camera_image)
+                    image_file = output_path / f"{model_key}_freeroam_step_000_start.jpg"
+                    image_file.write_bytes(image_data)
+                    if verbose:
+                        print(f"Saved initial image: {image_file.name}\n")
 
-        tools = [
-            {
-                "type": "function",
-                "function": {
-                    "name": "get_goal_info",
-                    "description": "Get distance and direction to the goal",
-                    "parameters": {"type": "object", "properties": {}, "required": []},
-                },
-            },
-            {
-                "type": "function",
-                "function": {
-                    "name": "control_vehicle",
-                    "description": "Control the vehicle with throttle and steering",
-                    "parameters": {
-                        "type": "object",
-                        "properties": {
-                            "throttle": {
-                                "type": "number",
-                                "description": "Throttle (0.0 to 1.0)",
-                                "minimum": 0.0,
-                                "maximum": 1.0,
-                            },
-                            "steer": {
-                                "type": "number",
-                                "description": "Steering (-1.0 left to 1.0 right)",
-                                "minimum": -1.0,
-                                "maximum": 1.0,
-                            },
-                        },
-                        "required": ["throttle", "steer"],
+            tools = [
+                {
+                    "type": "function",
+                    "function": {
+                        "name": "get_goal_info",
+                        "description": "Get distance and direction to the goal",
+                        "parameters": {"type": "object", "properties": {}, "required": []},
                     },
                 },
-            },
-            {
-                "type": "function",
-                "function": {
-                    "name": "emergency_stop",
-                    "description": "Emergency brake - use to avoid collisions",
-                    "parameters": {"type": "object", "properties": {}, "required": []},
+                {
+                    "type": "function",
+                    "function": {
+                        "name": "control_vehicle",
+                        "description": "Control the vehicle with throttle and steering",
+                        "parameters": {
+                            "type": "object",
+                            "properties": {
+                                "throttle": {
+                                    "type": "number",
+                                    "description": "Throttle (0.0 to 1.0)",
+                                    "minimum": 0.0,
+                                    "maximum": 1.0,
+                                },
+                                "steer": {
+                                    "type": "number",
+                                    "description": "Steering (-1.0 left to 1.0 right)",
+                                    "minimum": -1.0,
+                                    "maximum": 1.0,
+                                },
+                            },
+                            "required": ["throttle", "steer"],
+                        },
+                    },
                 },
-            },
-        ]
+                {
+                    "type": "function",
+                    "function": {
+                        "name": "emergency_stop",
+                        "description": "Emergency brake - use to avoid collisions",
+                        "parameters": {"type": "object", "properties": {}, "required": []},
+                    },
+                },
+            ]
 
-        action_history = []
+            action_history = []
 
-        for step in range(max_steps):
-            history_summary = "\n".join(action_history[-10:]) if action_history else "No actions yet."
+            for step in range(max_steps):
+                history_summary = "\n".join(action_history[-10:]) if action_history else "No actions yet."
 
-            goal_info = "Goal: Unknown"
-            if hasattr(obs, "goal_distance") and obs.goal_distance:
-                direction = getattr(obs, "goal_direction", "unknown")
-                goal_info = f"Goal: {obs.goal_distance:.1f}m {direction}"
+                goal_info = "Goal: Unknown"
+                if hasattr(obs, "goal_distance") and obs.goal_distance:
+                    direction = getattr(obs, "goal_direction", "unknown")
+                    goal_info = f"Goal: {obs.goal_distance:.1f}m {direction}"
 
-            collision_info = ""
-            if obs.collision_detected:
-                collision_info = "\nWARNING: Collision detected! Adjust your driving."
+                collision_info = ""
+                if obs.collision_detected:
+                    collision_info = "\nWARNING: Collision detected! Adjust your driving."
 
-            nearby_info = ""
-            if obs.nearby_actors:
-                actors = [f"  - {a['type']} {a['distance']:.0f}m {a['position']}" for a in obs.nearby_actors[:5]]
-                nearby_info = "\nNearby actors:\n" + "\n".join(actors)
+                nearby_info = ""
+                if obs.nearby_actors:
+                    actors = [f"  - {a['type']} {a['distance']:.0f}m {a['position']}" for a in obs.nearby_actors[:5]]
+                    nearby_info = "\nNearby actors:\n" + "\n".join(actors)
 
-            prompt = f"""You are driving a vehicle in an open city environment with traffic.
+                prompt = f"""You are driving a vehicle in an open city environment with traffic.
 
 Current state:
 Speed: {obs.speed_kmh:.1f} km/h, {goal_info}{collision_info}{nearby_info}
@@ -209,145 +213,145 @@ Instructions:
 
 Make ONE tool call now."""
 
-            # Build message — include camera image if vision is enabled
-            if vision and (step % vision_interval == 0):
-                img_result = env.step(CarlaAction(action_type="capture_image"))
-                image_b64 = img_result.observation.camera_image
-                if image_b64:
-                    messages = [build_vision_message(prompt, image_b64, model_config.provider)]
+                # Build message — include camera image if vision is enabled
+                if vision and (step % vision_interval == 0):
+                    img_result = await env.step(CarlaAction(action_type="capture_image"))
+                    image_b64 = img_result.observation.camera_image
+                    if image_b64:
+                        messages = [build_vision_message(prompt, image_b64, model_config.provider)]
+                    else:
+                        messages = [{"role": "user", "content": prompt}]
                 else:
                     messages = [{"role": "user", "content": prompt}]
-            else:
-                messages = [{"role": "user", "content": prompt}]
 
-            response = llm.chat(messages, tools, max_tokens=256)
+                response = llm.chat(messages, tools, max_tokens=256)
 
-            if not response["tool_calls"]:
-                if verbose:
-                    print(f"Step {step + 1}: No tool call from LLM")
-                break
+                if not response["tool_calls"]:
+                    if verbose:
+                        print(f"Step {step + 1}: No tool call from LLM")
+                    break
 
-            tool_call = response["tool_calls"][0]
-            tool_name = tool_call["name"]
-            tool_args = tool_call["arguments"]
-            decisions.append(tool_name)
+                tool_call = response["tool_calls"][0]
+                tool_name = tool_call["name"]
+                tool_args = tool_call["arguments"]
+                decisions.append(tool_name)
 
-            if tool_name == "get_goal_info":
-                action = CarlaAction(action_type="observe")
-                result = env.step(action)
-                obs = result.observation
-                if hasattr(obs, "goal_distance") and obs.goal_distance:
-                    direction = getattr(obs, "goal_direction", "unknown")
-                    action_history.append(
-                        f"Step {step + 1}: get_goal_info() -> {obs.goal_distance:.1f}m {direction}"
+                if tool_name == "get_goal_info":
+                    action = CarlaAction(action_type="observe")
+                    result = await env.step(action)
+                    obs = result.observation
+                    if hasattr(obs, "goal_distance") and obs.goal_distance:
+                        direction = getattr(obs, "goal_direction", "unknown")
+                        action_history.append(
+                            f"Step {step + 1}: get_goal_info() -> {obs.goal_distance:.1f}m {direction}"
+                        )
+                    else:
+                        action_history.append(f"Step {step + 1}: get_goal_info() -> unavailable")
+
+                elif tool_name == "control_vehicle":
+                    throttle = tool_args.get("throttle", 0.5)
+                    steer = tool_args.get("steer", 0.0)
+                    action = CarlaAction(
+                        action_type="control",
+                        throttle=throttle,
+                        steer=steer,
+                        brake=0.0,
                     )
+                    result = await env.step(action)
+                    obs = result.observation
+
+                    # Update distance traveled from location coordinates
+                    cur_location = getattr(obs, 'location', None)
+                    if cur_location and prev_location:
+                        dx = cur_location[0] - prev_location[0]
+                        dy = cur_location[1] - prev_location[1]
+                        distance_traveled += math.sqrt(dx * dx + dy * dy)
+                        prev_location = cur_location
+
+                    action_history.append(
+                        f"Step {step + 1}: control(t={throttle:.2f}, s={steer:.2f}) -> {obs.speed_kmh:.1f} km/h"
+                    )
+
+                elif tool_name == "emergency_stop":
+                    action = CarlaAction(action_type="emergency_stop")
+                    result = await env.step(action)
+                    obs = result.observation
+                    action_history.append(
+                        f"Step {step + 1}: emergency_stop() -> {obs.speed_kmh:.1f} km/h"
+                    )
+
                 else:
-                    action_history.append(f"Step {step + 1}: get_goal_info() -> unavailable")
+                    action_history.append(f"Step {step + 1}: unknown tool")
 
-            elif tool_name == "control_vehicle":
-                throttle = tool_args.get("throttle", 0.5)
-                steer = tool_args.get("steer", 0.0)
-                action = CarlaAction(
-                    action_type="control",
-                    throttle=throttle,
-                    steer=steer,
-                    brake=0.0,
-                )
-                result = env.step(action)
-                obs = result.observation
+                # Track reward and collisions
+                if result.observation.reward:
+                    total_reward += result.observation.reward
+                if obs.collision_detected:
+                    collision_count += 1
 
-                # Update distance traveled from location coordinates
-                cur_location = getattr(obs, 'location', None)
-                if cur_location and prev_location:
-                    dx = cur_location[0] - prev_location[0]
-                    dy = cur_location[1] - prev_location[1]
-                    distance_traveled += math.sqrt(dx * dx + dy * dy)
-                    prev_location = cur_location
+                # Save image periodically
+                if save_images and (step + 1) % image_interval == 0:
+                    result_img = await env.step(CarlaAction(action_type="capture_image"))
+                    if result_img.observation.camera_image:
+                        image_data = base64.b64decode(result_img.observation.camera_image)
+                        image_file = output_path / f"{model_key}_freeroam_step_{step + 1:03d}.jpg"
+                        image_file.write_bytes(image_data)
+                        if verbose:
+                            print(f"Saved image at step {step + 1}: {image_file.name}")
 
-                action_history.append(
-                    f"Step {step + 1}: control(t={throttle:.2f}, s={steer:.2f}) -> {obs.speed_kmh:.1f} km/h"
-                )
+                if verbose and (step + 1) % 20 == 0:
+                    goal_d = obs.goal_distance if hasattr(obs, "goal_distance") and obs.goal_distance else float("inf")
+                    print(
+                        f"Step {step + 1}/{max_steps}: {distance_traveled:.1f}m traveled, "
+                        f"goal: {goal_d:.1f}m, reward: {total_reward:.2f}, collisions: {collision_count}"
+                    )
 
-            elif tool_name == "emergency_stop":
-                action = CarlaAction(action_type="emergency_stop")
-                result = env.step(action)
-                obs = result.observation
-                action_history.append(
-                    f"Step {step + 1}: emergency_stop() -> {obs.speed_kmh:.1f} km/h"
-                )
+                if result.done:
+                    if verbose:
+                        print(f"\nEpisode ended at step {step + 1}")
+                    break
 
-            else:
-                action_history.append(f"Step {step + 1}: unknown tool")
-
-            # Track reward and collisions
-            if result.observation.reward:
-                total_reward += result.observation.reward
-            if obs.collision_detected:
-                collision_count += 1
-
-            # Save image periodically
-            if save_images and (step + 1) % image_interval == 0:
-                result_img = env.step(CarlaAction(action_type="capture_image"))
+            # Final image
+            if save_images:
+                result_img = await env.step(CarlaAction(action_type="capture_image"))
                 if result_img.observation.camera_image:
                     image_data = base64.b64decode(result_img.observation.camera_image)
-                    image_file = output_path / f"{model_key}_freeroam_step_{step + 1:03d}.jpg"
+                    image_file = output_path / f"{model_key}_freeroam_step_{step + 1:03d}_final.jpg"
                     image_file.write_bytes(image_data)
-                    if verbose:
-                        print(f"Saved image at step {step + 1}: {image_file.name}")
 
-            if verbose and (step + 1) % 20 == 0:
-                goal_d = obs.goal_distance if hasattr(obs, "goal_distance") and obs.goal_distance else float("inf")
-                print(
-                    f"Step {step + 1}/{max_steps}: {distance_traveled:.1f}m traveled, "
-                    f"goal: {goal_d:.1f}m, reward: {total_reward:.2f}, collisions: {collision_count}"
-                )
+            final_distance = obs.goal_distance if hasattr(obs, "goal_distance") and obs.goal_distance else initial_distance
+            success = final_distance < 10.0
 
-            if result.done:
-                if verbose:
-                    print(f"\nEpisode ended at step {step + 1}")
-                break
+            if verbose:
+                print(f"\nFinal Results:")
+                print(f"   Distance traveled: {distance_traveled:.1f}m")
+                print(f"   Goal distance: {final_distance:.1f}m")
+                print(f"   Success: {success}")
+                print(f"   Total steps: {step + 1}")
+                print(f"   Total reward: {total_reward:.2f}")
+                print(f"   Collisions: {collision_count}")
+                print(f"   Control actions: {len([d for d in decisions if d == 'control_vehicle'])}")
+                print(f"   Observations: {len([d for d in decisions if d == 'get_goal_info'])}")
+                print(f"   Emergency stops: {len([d for d in decisions if d == 'emergency_stop'])}\n")
 
-        # Final image
-        if save_images:
-            result_img = env.step(CarlaAction(action_type="capture_image"))
-            if result_img.observation.camera_image:
-                image_data = base64.b64decode(result_img.observation.camera_image)
-                image_file = output_path / f"{model_key}_freeroam_step_{step + 1:03d}_final.jpg"
-                image_file.write_bytes(image_data)
+            return FreeRoamResult(
+                model=model_config.name,
+                scenario=scenario_config.description,
+                distance_traveled=distance_traveled,
+                goal_distance=final_distance,
+                success=success,
+                steps=step + 1,
+                total_reward=total_reward,
+                collisions=collision_count,
+                decisions=decisions,
+            )
 
-        final_distance = obs.goal_distance if hasattr(obs, "goal_distance") and obs.goal_distance else initial_distance
-        success = final_distance < 10.0
-
-        if verbose:
-            print(f"\nFinal Results:")
-            print(f"   Distance traveled: {distance_traveled:.1f}m")
-            print(f"   Goal distance: {final_distance:.1f}m")
-            print(f"   Success: {success}")
-            print(f"   Total steps: {step + 1}")
-            print(f"   Total reward: {total_reward:.2f}")
-            print(f"   Collisions: {collision_count}")
-            print(f"   Control actions: {len([d for d in decisions if d == 'control_vehicle'])}")
-            print(f"   Observations: {len([d for d in decisions if d == 'get_goal_info'])}")
-            print(f"   Emergency stops: {len([d for d in decisions if d == 'emergency_stop'])}\n")
-
-        return FreeRoamResult(
-            model=model_config.name,
-            scenario=scenario_config.description,
-            distance_traveled=distance_traveled,
-            goal_distance=final_distance,
-            success=success,
-            steps=step + 1,
-            total_reward=total_reward,
-            collisions=collision_count,
-            decisions=decisions,
-        )
-
+    try:
+        return asyncio.run(_run())
     except Exception as e:
         if verbose:
             print(f"Error: {e}")
         raise
-    finally:
-        env.close()
 
 
 def main():
@@ -360,14 +364,14 @@ Examples:
   python free_roam_navigation.py --model gpt-5.2
 
   # Specific map with traffic
-  python free_roam_navigation.py --model claude-sonnet-4.5 --scenario free-roam-town05-traffic
+  python free_roam_navigation.py --model claude-sonnet-4.5 --scenario free-roam-traffic
 
   # Save camera images
   python free_roam_navigation.py --model gpt-5.2 --save-images
 
   # Use HuggingFace Space
   python free_roam_navigation.py --model gpt-5.2 \\
-    --base-url https://sergiopaniego-carla-env-test.hf.space
+    --base-url https://sergiopaniego-carla-env.hf.space
         """,
     )
     parser.add_argument("--model", choices=list(MODELS.keys()), help="Model to use")

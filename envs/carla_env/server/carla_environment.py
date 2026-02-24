@@ -131,7 +131,7 @@ class ActorsHelper:
                 self._spawned_actors.append(actor)
 
             return actor
-        except Exception as e:
+        except Exception:
             return None
 
     def spawn_npc_vehicle(self, transform, autopilot=True):
@@ -457,8 +457,7 @@ class CarlaEnvironment(Environment):
             """Check a waypoint has at least one same-direction adjacent lane."""
             return _has_adjacent(check_wp, "left") or _has_adjacent(check_wp, "right")
 
-        best_transform = None
-        best_score = float("inf")  # lower is better (angle deviation)
+        candidates = []  # (angle_deg, spawn_point)
 
         for sp in spawn_points:
             wp = carla_map.get_waypoint(
@@ -523,12 +522,17 @@ class CarlaEnvironment(Environment):
                     if mid_angle > max_angle_deg:
                         continue
 
-            # Score: prefer smallest angle (straightest road)
-            if angle_deg < best_score:
-                best_score = angle_deg
-                best_transform = sp
+            candidates.append((angle_deg, sp))
 
-        return best_transform
+        if not candidates:
+            return None
+
+        # Randomly pick from all valid candidates (within max_angle_deg).
+        # This avoids always selecting the same spawn point which may have
+        # undesirable road features (e.g. speed bumps).
+        import random
+        random.shuffle(candidates)
+        return candidates[0][1]
 
     def _reset_real_mode(self) -> None:
         """
@@ -556,6 +560,12 @@ class CarlaEnvironment(Environment):
             if self.world is not None:
                 current_map = self.world.get_map().name.split("/")[-1]
             if current_map != requested_map:
+                available = [m.split("/")[-1] for m in self.client.get_available_maps()]
+                if requested_map not in available:
+                    raise ValueError(
+                        f"Map '{requested_map}' is not available. "
+                        f"Available maps: {sorted(available)}"
+                    )
                 self.client.load_world(requested_map)
             self.world = self.client.get_world()
         elif self.world is None:
@@ -570,13 +580,28 @@ class CarlaEnvironment(Environment):
             self.collision_sensor.destroy()
             self.collision_sensor = None
 
+        if hasattr(self, 'camera_sensor') and self.camera_sensor is not None:
+            try:
+                if self.camera_sensor.is_alive:
+                    self.camera_sensor.stop()
+                self.camera_sensor.destroy()
+            except Exception:
+                pass
+            self.camera_sensor = None
+
         if self.vehicle is not None:
             self.vehicle.destroy()
             self.vehicle = None
 
-        # Destroy ALL remaining walkers/pedestrians in the world to prevent
-        # accumulation across episodes (e.g. from crashed resets or prior instances).
+        # Destroy ALL remaining walkers and NPC vehicles in the world to prevent
+        # accumulation across episodes (e.g. from crashed resets, timeouts, or
+        # prior instances that disconnected without proper cleanup).
         for actor in self.world.get_actors().filter('walker.*'):
+            try:
+                actor.destroy()
+            except Exception:
+                pass
+        for actor in self.world.get_actors().filter('vehicle.*'):
             try:
                 actor.destroy()
             except Exception:
@@ -649,18 +674,6 @@ class CarlaEnvironment(Environment):
 
         self.vehicle = self.world.spawn_actor(vehicle_bp, transform)
 
-        # Set initial speed
-        initial_speed = cfg.initial_speed_kmh / 3.6  # Convert to m/s
-        if initial_speed > 0:
-            forward_vec = self.vehicle.get_transform().get_forward_vector()
-            self.vehicle.set_target_velocity(
-                carla.Vector3D(
-                    x=forward_vec.x * initial_speed,
-                    y=forward_vec.y * initial_speed,
-                    z=0.0,
-                )
-            )
-
         # Enable synchronous mode
         settings = self.world.get_settings()
         settings.synchronous_mode = True
@@ -716,6 +729,21 @@ class CarlaEnvironment(Environment):
         # Unified scenario lifecycle
         self.scenario.reset(self._runtime_state)
         self.scenario.setup(self._runtime_state)
+
+        # Apply initial speed after scenario reset (scenarios may update
+        # initial_speed_kmh during reset, e.g. TrolleyMicroScenario).
+        cfg = self.scenario.config
+        initial_speed = cfg.initial_speed_kmh / 3.6  # Convert to m/s
+        if initial_speed > 0:
+            forward_vec = self.vehicle.get_transform().get_forward_vector()
+            self.vehicle.set_target_velocity(
+                carla.Vector3D(
+                    x=forward_vec.x * initial_speed,
+                    y=forward_vec.y * initial_speed,
+                    z=0.0,
+                )
+            )
+            self.world.tick()
 
     def _reset_mock_mode(self) -> None:
         """Reset in mock simulation mode."""

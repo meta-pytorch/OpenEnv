@@ -14,15 +14,16 @@ Usage:
     python autopilot_navigation.py --scenario free-roam-default --behavior cautious
 
     # Aggressive driving, save images
-    python autopilot_navigation.py --scenario free-roam-town05-traffic \
+    python autopilot_navigation.py --scenario free-roam-traffic \
         --behavior aggressive --save-images
 
     # Custom server
     python autopilot_navigation.py --scenario maze-1 \
-        --base-url https://sergiopaniego-carla-env-test.hf.space
+        --base-url https://sergiopaniego-carla-env.hf.space
 """
 
 import argparse
+import asyncio
 import base64
 import math
 import sys
@@ -75,99 +76,101 @@ def run_autopilot(
         print(f"Max steps: {max_steps}, route_steps/tick: {route_steps}")
         print("=" * 70)
 
-    env = CarlaEnv(base_url=base_url)
+    async def _run():
+        env = CarlaEnv(base_url=base_url)
+        async with env:
+            # 1. Reset
+            reset_kwargs = {"scenario_name": scenario_config.scenario_name}
+            merged_overrides = {**(scenario_config.overrides or {}), **(scenario_config_overrides or {})}
+            if merged_overrides:
+                reset_kwargs["scenario_config"] = merged_overrides
+            result = await env.reset(**reset_kwargs)
+            obs = result.observation
+            prev_location = getattr(obs, "location", None)
+            distance_traveled = 0.0
+
+            if verbose:
+                print(f"\nStarting: {obs.scene_description[:200]}...\n")
+
+            # 2. Initialize navigation agent
+            await env.step(CarlaAction(
+                action_type="init_navigation_agent",
+                navigation_behavior=behavior,
+            ))
+            if verbose:
+                print(f"Navigation agent initialized (behavior={behavior})")
+
+            # 3. Set destination (use goal from observation if available)
+            goal_loc = getattr(obs, "goal_location", None)
+            if goal_loc:
+                await env.step(CarlaAction(
+                    action_type="set_destination",
+                    destination_x=goal_loc[0],
+                    destination_y=goal_loc[1],
+                    destination_z=goal_loc[2] if len(goal_loc) > 2 else 0.0,
+                ))
+                if verbose:
+                    print(f"Destination set: {goal_loc}")
+            else:
+                if verbose:
+                    print("No explicit goal_location on observation — "
+                          "agent will use scenario's built-in goal if available.")
+
+            # 4. Follow route loop
+            step = 0
+            for step in range(max_steps):
+                result = await env.step(CarlaAction(
+                    action_type="follow_route",
+                    route_steps=route_steps,
+                ))
+                obs = result.observation
+
+                # Track distance
+                cur_location = getattr(obs, "location", None)
+                if cur_location and prev_location:
+                    dx = cur_location[0] - prev_location[0]
+                    dy = cur_location[1] - prev_location[1]
+                    distance_traveled += math.sqrt(dx * dx + dy * dy)
+                    prev_location = cur_location
+
+                # Save image
+                if save_images and (step + 1) % image_interval == 0:
+                    img_result = await env.step(CarlaAction(action_type="capture_image"))
+                    if img_result.observation.camera_image:
+                        image_data = base64.b64decode(img_result.observation.camera_image)
+                        fname = f"autopilot_{scenario_key}_step_{step+1:03d}.jpg"
+                        (output_path / fname).write_bytes(image_data)
+                        if verbose:
+                            print(f"  Saved {fname}")
+
+                # Progress
+                if verbose and (step + 1) % 20 == 0:
+                    goal_d = obs.goal_distance if obs.goal_distance else "?"
+                    print(f"Step {step+1}/{max_steps}: "
+                          f"{distance_traveled:.1f}m traveled, "
+                          f"speed {obs.speed_kmh:.1f} km/h, "
+                          f"goal {goal_d}")
+
+                if result.done:
+                    if verbose:
+                        print(f"\nEpisode ended at step {step + 1}")
+                    break
+
+            # Final stats
+            goal_d = obs.goal_distance if obs.goal_distance else "unknown"
+            if verbose:
+                print(f"\nResults:")
+                print(f"  Distance traveled: {distance_traveled:.1f}m")
+                print(f"  Goal distance: {goal_d}")
+                print(f"  Steps: {step + 1}")
+                print(f"  Speed: {obs.speed_kmh:.1f} km/h")
 
     try:
-        # 1. Reset
-        reset_kwargs = {"scenario_name": scenario_config.scenario_name}
-        if scenario_config_overrides:
-            reset_kwargs["scenario_config"] = scenario_config_overrides
-        result = env.reset(**reset_kwargs)
-        obs = result.observation
-        prev_location = getattr(obs, "location", None)
-        distance_traveled = 0.0
-
-        if verbose:
-            print(f"\nStarting: {obs.scene_description[:200]}...\n")
-
-        # 2. Initialize navigation agent
-        env.step(CarlaAction(
-            action_type="init_navigation_agent",
-            navigation_behavior=behavior,
-        ))
-        if verbose:
-            print(f"Navigation agent initialized (behavior={behavior})")
-
-        # 3. Set destination (use goal from observation if available)
-        goal_loc = getattr(obs, "goal_location", None)
-        if goal_loc:
-            env.step(CarlaAction(
-                action_type="set_destination",
-                destination_x=goal_loc[0],
-                destination_y=goal_loc[1],
-                destination_z=goal_loc[2] if len(goal_loc) > 2 else 0.0,
-            ))
-            if verbose:
-                print(f"Destination set: {goal_loc}")
-        else:
-            if verbose:
-                print("No explicit goal_location on observation — "
-                      "agent will use scenario's built-in goal if available.")
-
-        # 4. Follow route loop
-        for step in range(max_steps):
-            result = env.step(CarlaAction(
-                action_type="follow_route",
-                route_steps=route_steps,
-            ))
-            obs = result.observation
-
-            # Track distance
-            cur_location = getattr(obs, "location", None)
-            if cur_location and prev_location:
-                dx = cur_location[0] - prev_location[0]
-                dy = cur_location[1] - prev_location[1]
-                distance_traveled += math.sqrt(dx * dx + dy * dy)
-                prev_location = cur_location
-
-            # Save image
-            if save_images and (step + 1) % image_interval == 0:
-                img_result = env.step(CarlaAction(action_type="capture_image"))
-                if img_result.observation.camera_image:
-                    image_data = base64.b64decode(img_result.observation.camera_image)
-                    fname = f"autopilot_{scenario_key}_step_{step+1:03d}.jpg"
-                    (output_path / fname).write_bytes(image_data)
-                    if verbose:
-                        print(f"  Saved {fname}")
-
-            # Progress
-            if verbose and (step + 1) % 20 == 0:
-                goal_d = obs.goal_distance if obs.goal_distance else "?"
-                print(f"Step {step+1}/{max_steps}: "
-                      f"{distance_traveled:.1f}m traveled, "
-                      f"speed {obs.speed_kmh:.1f} km/h, "
-                      f"goal {goal_d}")
-
-            if result.done:
-                if verbose:
-                    print(f"\nEpisode ended at step {step + 1}")
-                break
-
-        # Final stats
-        goal_d = obs.goal_distance if obs.goal_distance else "unknown"
-        if verbose:
-            print(f"\nResults:")
-            print(f"  Distance traveled: {distance_traveled:.1f}m")
-            print(f"  Goal distance: {goal_d}")
-            print(f"  Steps: {step + 1}")
-            print(f"  Speed: {obs.speed_kmh:.1f} km/h")
-
+        return asyncio.run(_run())
     except Exception as e:
         if verbose:
             print(f"Error: {e}")
         raise
-    finally:
-        env.close()
 
 
 def main():
@@ -179,7 +182,7 @@ Examples:
   python autopilot_navigation.py --scenario maze-1
   python autopilot_navigation.py --scenario free-roam-default --behavior cautious
   python autopilot_navigation.py --scenario maze-1 \\
-    --base-url https://sergiopaniego-carla-env-test.hf.space
+    --base-url https://sergiopaniego-carla-env.hf.space
         """,
     )
     parser.add_argument(

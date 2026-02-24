@@ -14,6 +14,7 @@ Usage:
 """
 
 import argparse
+import asyncio
 import math
 import sys
 import base64
@@ -97,91 +98,91 @@ def run_maze_episode(
     # Create LLM client
     llm = create_client(model_config.provider, model_config.model_id)
 
-    # Create environment
-    env = CarlaEnv(base_url=base_url)
+    async def _run():
+        env = CarlaEnv(base_url=base_url)
+        async with env:
+            # Reset to maze scenario
+            reset_kwargs = {"scenario_name": scenario_config.scenario_name}
+            merged_overrides = {**(scenario_config.overrides or {}), **(scenario_config_overrides or {})}
+            if merged_overrides:
+                reset_kwargs["scenario_config"] = merged_overrides
+            result = await env.reset(**reset_kwargs)
+            obs = result.observation
 
-    try:
-        # Reset to maze scenario
-        reset_kwargs = {"scenario_name": scenario_config.scenario_name}
-        if scenario_config_overrides:
-            reset_kwargs["scenario_config"] = scenario_config_overrides
-        result = env.reset(**reset_kwargs)
-        obs = result.observation
+            initial_distance = obs.goal_distance if getattr(obs, 'goal_distance', None) is not None else 153.0
+            distance_traveled = 0.0
+            prev_location = getattr(obs, 'location', None)
+            decisions = []
 
-        initial_distance = obs.goal_distance if getattr(obs, 'goal_distance', None) is not None else 153.0
-        distance_traveled = 0.0
-        prev_location = getattr(obs, 'location', None)
-        decisions = []
+            if verbose:
+                print(f"\n📍 Starting Position:")
+                print(f"{obs.scene_description[:200]}...\n")
 
-        if verbose:
-            print(f"\n📍 Starting Position:")
-            print(f"{obs.scene_description[:200]}...\n")
+            # Capture initial image if requested
+            if save_images:
+                result_img = await env.step(CarlaAction(action_type="capture_image"))
+                if result_img.observation.camera_image:
+                    image_data = base64.b64decode(result_img.observation.camera_image)
+                    image_file = output_path / f"{model_key}_maze_step_000_start.jpg"
+                    image_file.write_bytes(image_data)
+                    if verbose:
+                        print(f"📸 Saved initial image: {image_file.name}\n")
 
-        # Capture initial image if requested
-        if save_images:
-            result_img = env.step(CarlaAction(action_type="capture_image"))
-            if result_img.observation.camera_image:
-                image_data = base64.b64decode(result_img.observation.camera_image)
-                image_file = output_path / f"{model_key}_maze_step_000_start.jpg"
-                image_file.write_bytes(image_data)
-                if verbose:
-                    print(f"📸 Saved initial image: {image_file.name}\n")
-
-        # Define navigation tools
-        tools = [
-            {
-                "type": "function",
-                "function": {
-                    "name": "get_goal_info",
-                    "description": "Get information about the goal location (distance and direction)",
-                    "parameters": {"type": "object", "properties": {}, "required": []}
-                }
-            },
-            {
-                "type": "function",
-                "function": {
-                    "name": "control_vehicle",
-                    "description": "Control the vehicle with throttle and steering",
-                    "parameters": {
-                        "type": "object",
-                        "properties": {
-                            "throttle": {
-                                "type": "number",
-                                "description": "Throttle value (0.0 to 1.0)",
-                                "minimum": 0.0,
-                                "maximum": 1.0
+            # Define navigation tools
+            tools = [
+                {
+                    "type": "function",
+                    "function": {
+                        "name": "get_goal_info",
+                        "description": "Get information about the goal location (distance and direction)",
+                        "parameters": {"type": "object", "properties": {}, "required": []}
+                    }
+                },
+                {
+                    "type": "function",
+                    "function": {
+                        "name": "control_vehicle",
+                        "description": "Control the vehicle with throttle and steering",
+                        "parameters": {
+                            "type": "object",
+                            "properties": {
+                                "throttle": {
+                                    "type": "number",
+                                    "description": "Throttle value (0.0 to 1.0)",
+                                    "minimum": 0.0,
+                                    "maximum": 1.0
+                                },
+                                "steer": {
+                                    "type": "number",
+                                    "description": "Steering value (-1.0 left to 1.0 right)",
+                                    "minimum": -1.0,
+                                    "maximum": 1.0
+                                }
                             },
-                            "steer": {
-                                "type": "number",
-                                "description": "Steering value (-1.0 left to 1.0 right)",
-                                "minimum": -1.0,
-                                "maximum": 1.0
-                            }
-                        },
-                        "required": ["throttle", "steer"]
+                            "required": ["throttle", "steer"]
+                        }
                     }
                 }
-            }
-        ]
+            ]
 
-        # Track action history for context (keep last 10 actions)
-        action_history = []
+            # Track action history for context (keep last 10 actions)
+            action_history = []
 
-        # Multi-step navigation loop with stateless calls
-        for step in range(max_steps):
-            # Build fresh context for each call with history summary
-            history_summary = "\n".join(action_history[-10:]) if action_history else "No actions yet."
+            # Multi-step navigation loop with stateless calls
+            for step in range(max_steps):
+                # Build fresh context for each call with history summary
+                history_summary = "\n".join(action_history[-10:]) if action_history else "No actions yet."
 
-            # Build current state description
-            if getattr(obs, 'goal_distance', None) is not None:
-                goal_info = f"Goal: {obs.goal_distance:.1f}m {getattr(obs, 'goal_direction', 'unknown')}"
-            else:
-                goal_info = "Goal: Unknown"
+                # Build current state description
+                if getattr(obs, 'goal_distance', None) is not None:
+                    goal_info = f"Goal: {obs.goal_distance:.1f}m {getattr(obs, 'goal_direction', 'unknown')}"
+                else:
+                    goal_info = "Goal: Unknown"
 
-            current_state = f"Speed: {obs.speed_kmh:.1f} km/h, {goal_info}"
+                current_state = f"Speed: {obs.speed_kmh:.1f} km/h, {goal_info}"
 
-            # Create fresh prompt for this step
-            prompt = f"""You are navigating a vehicle to a goal location.
+                # Create fresh prompt for this step
+                prompt = f"""You are navigating a vehicle to a goal location.
 
 Current state:
 {current_state}
@@ -201,131 +202,130 @@ Instructions:
 
 Make your tool call now (no explanations)."""
 
-            # Build message — include camera image if vision is enabled
-            if vision and (step % vision_interval == 0):
-                img_result = env.step(CarlaAction(action_type="capture_image"))
-                image_b64 = img_result.observation.camera_image
-                if image_b64:
-                    messages = [build_vision_message(prompt, image_b64, model_config.provider)]
+                # Build message — include camera image if vision is enabled
+                if vision and (step % vision_interval == 0):
+                    img_result = await env.step(CarlaAction(action_type="capture_image"))
+                    image_b64 = img_result.observation.camera_image
+                    if image_b64:
+                        messages = [build_vision_message(prompt, image_b64, model_config.provider)]
+                    else:
+                        messages = [{"role": "user", "content": prompt}]
                 else:
                     messages = [{"role": "user", "content": prompt}]
-            else:
-                messages = [{"role": "user", "content": prompt}]
 
-            # Get LLM decision
-            response = llm.chat(messages, tools, max_tokens=256)
+                # Get LLM decision
+                response = llm.chat(messages, tools, max_tokens=256)
 
-            if not response["tool_calls"]:
-                if verbose:
-                    print(f"Step {step+1}: No tool call from LLM")
-                    if response.get("text"):
-                        print(f"   Model said: {response['text'][:150]}")
-                break
+                if not response["tool_calls"]:
+                    if verbose:
+                        print(f"Step {step+1}: No tool call from LLM")
+                        if response.get("text"):
+                            print(f"   Model said: {response['text'][:150]}")
+                    break
 
-            tool_call = response["tool_calls"][0]
-            tool_name = tool_call["name"]
-            tool_args = tool_call["arguments"]
+                tool_call = response["tool_calls"][0]
+                tool_name = tool_call["name"]
+                tool_args = tool_call["arguments"]
 
-            decisions.append(tool_name)
+                decisions.append(tool_name)
 
-            # Execute tool
-            if tool_name == "get_goal_info":
-                action = CarlaAction(action_type="observe")
-                result = env.step(action)
-                obs = result.observation
-                #print(obs)
-                if getattr(obs, 'goal_distance', None) is not None:
-                    direction = getattr(obs, 'goal_direction', 'unknown')
-                    action_history.append(f"Step {step+1}: get_goal_info() → {obs.goal_distance:.1f}m {direction}")
+                # Execute tool
+                if tool_name == "get_goal_info":
+                    action = CarlaAction(action_type="observe")
+                    result = await env.step(action)
+                    obs = result.observation
+                    if getattr(obs, 'goal_distance', None) is not None:
+                        direction = getattr(obs, 'goal_direction', 'unknown')
+                        action_history.append(f"Step {step+1}: get_goal_info() → {obs.goal_distance:.1f}m {direction}")
+                    else:
+                        action_history.append(f"Step {step+1}: get_goal_info() → unavailable")
+
+                elif tool_name == "control_vehicle":
+                    throttle = tool_args.get("throttle", 0.5)
+                    steer = tool_args.get("steer", 0.0)
+
+                    action = CarlaAction(
+                        action_type="control",
+                        throttle=throttle,
+                        steer=steer,
+                        brake=0.0
+                    )
+                    result = await env.step(action)
+                    obs = result.observation
+
+                    # Update distance traveled from location coordinates
+                    cur_location = getattr(obs, 'location', None)
+                    if cur_location and prev_location:
+                        dx = cur_location[0] - prev_location[0]
+                        dy = cur_location[1] - prev_location[1]
+                        distance_traveled += math.sqrt(dx * dx + dy * dy)
+                        prev_location = cur_location
+
+                    action_history.append(f"Step {step+1}: control(t={throttle:.2f}, s={steer:.2f}) → {obs.speed_kmh:.1f} km/h")
+
                 else:
-                    action_history.append(f"Step {step+1}: get_goal_info() → unavailable")
+                    action_history.append(f"Step {step+1}: unknown tool")
 
-            elif tool_name == "control_vehicle":
-                throttle = tool_args.get("throttle", 0.5)
-                steer = tool_args.get("steer", 0.0)
+                # Capture image periodically if requested
+                if save_images and (step + 1) % image_interval == 0:
+                    result_img = await env.step(CarlaAction(action_type="capture_image"))
+                    if result_img.observation.camera_image:
+                        image_data = base64.b64decode(result_img.observation.camera_image)
+                        image_file = output_path / f"{model_key}_maze_step_{step+1:03d}.jpg"
+                        image_file.write_bytes(image_data)
+                        if verbose:
+                            print(f"📸 Saved image at step {step+1}: {image_file.name}")
 
-                action = CarlaAction(
-                    action_type="control",
-                    throttle=throttle,
-                    steer=steer,
-                    brake=0.0
-                )
-                result = env.step(action)
-                obs = result.observation
+                if verbose and (step + 1) % 10 == 0:
+                    print(f"Step {step+1}/{max_steps}: {distance_traveled:.1f}m traveled, "
+                          f"{len([d for d in decisions if d == 'control_vehicle'])} controls, "
+                          f"{len([d for d in decisions if d == 'get_goal_info'])} observations")
 
-                # Update distance traveled from location coordinates
-                cur_location = getattr(obs, 'location', None)
-                if cur_location and prev_location:
-                    dx = cur_location[0] - prev_location[0]
-                    dy = cur_location[1] - prev_location[1]
-                    distance_traveled += math.sqrt(dx * dx + dy * dy)
-                    prev_location = cur_location
+                # Check if done
+                if result.done:
+                    if verbose:
+                        print(f"\n✓ Episode ended at step {step+1}")
+                    break
 
-                action_history.append(f"Step {step+1}: control(t={throttle:.2f}, s={steer:.2f}) → {obs.speed_kmh:.1f} km/h")
-
-            else:
-                action_history.append(f"Step {step+1}: unknown tool")
-
-            # Capture image periodically if requested
-            if save_images and (step + 1) % image_interval == 0:
-                result_img = env.step(CarlaAction(action_type="capture_image"))
+            # Capture final image if requested
+            if save_images:
+                result_img = await env.step(CarlaAction(action_type="capture_image"))
                 if result_img.observation.camera_image:
                     image_data = base64.b64decode(result_img.observation.camera_image)
-                    image_file = output_path / f"{model_key}_maze_step_{step+1:03d}.jpg"
+                    image_file = output_path / f"{model_key}_maze_step_{step+1:03d}_final.jpg"
                     image_file.write_bytes(image_data)
                     if verbose:
-                        print(f"📸 Saved image at step {step+1}: {image_file.name}")
+                        print(f"📸 Saved final image: {image_file.name}")
 
-            if verbose and (step + 1) % 10 == 0:
-                print(f"Step {step+1}/{max_steps}: {distance_traveled:.1f}m traveled, "
-                      f"{len([d for d in decisions if d == 'control_vehicle'])} controls, "
-                      f"{len([d for d in decisions if d == 'get_goal_info'])} observations")
+            # Final stats
+            final_distance = obs.goal_distance if getattr(obs, 'goal_distance', None) is not None else initial_distance
+            success = final_distance < 10.0  # Within 10m of goal
 
-            # Check if done
-            if result.done:
-                if verbose:
-                    print(f"\n✓ Episode ended at step {step+1}")
-                break
+            if verbose:
+                print(f"\n📊 Final Results:")
+                print(f"   Distance traveled: {distance_traveled:.1f}m")
+                print(f"   Goal distance: {final_distance:.1f}m")
+                print(f"   Success: {success}")
+                print(f"   Total steps: {step+1}")
+                print(f"   Control actions: {len([d for d in decisions if d == 'control_vehicle'])}")
+                print(f"   Observations: {len([d for d in decisions if d == 'get_goal_info'])}\n")
 
-        # Capture final image if requested
-        if save_images:
-            result_img = env.step(CarlaAction(action_type="capture_image"))
-            if result_img.observation.camera_image:
-                image_data = base64.b64decode(result_img.observation.camera_image)
-                image_file = output_path / f"{model_key}_maze_step_{step+1:03d}_final.jpg"
-                image_file.write_bytes(image_data)
-                if verbose:
-                    print(f"📸 Saved final image: {image_file.name}")
+            return MazeResult(
+                model=model_config.name,
+                scenario=scenario_config.description,
+                distance_traveled=distance_traveled,
+                goal_distance=final_distance,
+                success=success,
+                steps=step+1,
+                decisions=decisions
+            )
 
-        # Final stats
-        final_distance = obs.goal_distance if getattr(obs, 'goal_distance', None) is not None else initial_distance
-        success = final_distance < 10.0  # Within 10m of goal
-
-        if verbose:
-            print(f"\n📊 Final Results:")
-            print(f"   Distance traveled: {distance_traveled:.1f}m")
-            print(f"   Goal distance: {final_distance:.1f}m")
-            print(f"   Success: {success}")
-            print(f"   Total steps: {step+1}")
-            print(f"   Control actions: {len([d for d in decisions if d == 'control_vehicle'])}")
-            print(f"   Observations: {len([d for d in decisions if d == 'get_goal_info'])}\n")
-
-        return MazeResult(
-            model=model_config.name,
-            scenario=scenario_config.description,
-            distance_traveled=distance_traveled,
-            goal_distance=final_distance,
-            success=success,
-            steps=step+1,
-            decisions=decisions
-        )
-
+    try:
+        return asyncio.run(_run())
     except Exception as e:
         if verbose:
             print(f"❌ Error: {e}")
         raise
-    finally:
-        env.close()
 
 def main():
     parser = argparse.ArgumentParser(

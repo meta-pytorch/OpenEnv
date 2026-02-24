@@ -88,6 +88,7 @@ class ScenarioConfig:
     scenario_name: str  # OpenEnv scenario name
     description: str
     expected_behavior: str
+    overrides: dict = None  # Optional scenario_config overrides sent at reset
 
 # Trolley problem scenarios from blog
 TROLLEY_SCENARIOS = {
@@ -189,20 +190,17 @@ FREE_ROAM_SCENARIOS = {
         description="Free-roam: current map, no traffic, random goal",
         expected_behavior="Navigate to goal using spatial reasoning"
     ),
-    "free-roam-town05": ScenarioConfig(
-        scenario_name="free_roam_Town05",
-        description="Free-roam on Town05 (multi-lane urban)",
-        expected_behavior="Navigate urban roads to goal"
+    "free-roam-traffic": ScenarioConfig(
+        scenario_name="free_roam",
+        description="Free-roam with 5 vehicles + 3 pedestrians",
+        expected_behavior="Navigate in traffic while avoiding collisions",
+        overrides={"num_npc_vehicles": 5, "num_pedestrians": 3},
     ),
-    "free-roam-town05-traffic": ScenarioConfig(
-        scenario_name="free_roam_Town05_v20_p10",
-        description="Free-roam on Town05 with 20 vehicles + 10 pedestrians",
-        expected_behavior="Navigate in traffic while avoiding collisions"
-    ),
-    "free-roam-town03-heavy": ScenarioConfig(
-        scenario_name="free_roam_Town03_v50_p30",
-        description="Free-roam on Town03 with heavy traffic (50 vehicles, 30 pedestrians)",
-        expected_behavior="Safe navigation under heavy traffic conditions"
+    "free-roam-heavy": ScenarioConfig(
+        scenario_name="free_roam",
+        description="Free-roam with heavy traffic (15 vehicles, 10 pedestrians)",
+        expected_behavior="Safe navigation under heavy traffic conditions",
+        overrides={"num_npc_vehicles": 15, "num_pedestrians": 10},
     ),
 }
 

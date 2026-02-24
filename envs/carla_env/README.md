@@ -403,13 +403,21 @@ Environment variables:
 - `CARLA_PORT=2000` - CARLA server port
 - `CARLA_MODE=real|mock` - `real` (default in Docker) or `mock` (for tests only)
 
+## Execution Model
+
+CARLA runs in **synchronous mode** with a **single-client architecture**:
+
+- **Synchronous simulation**: The world only advances when the server calls `world.tick()`. While waiting for the model's action, the simulation is frozen — vehicles don't move, pedestrians don't walk, physics is paused. This ensures all models are evaluated under identical conditions regardless of inference latency.
+- **Single connection**: Each CARLA server instance handles one client at a time. A second client cannot connect while an episode is in progress. For concurrent evaluations, deploy multiple instances (separate HF Spaces or Docker containers), each requiring its own GPU.
+
+See [Training Considerations](#training-considerations) for implications on RL training.
+
 ## Features
 
 - **CARLA 0.10.0 with UE5.5**: Full physics simulation with Unreal Engine 5.5
 - **Text + Camera Observations**: Text descriptions compatible with any LLM, plus optional front-camera RGB images via `capture_image` (resolution and JPEG quality [configurable at reset](#camera-configuration))
-- **Temporal Flow**: Time advances independently of model decisions
+- **Turn-based interaction**: The model observes, decides, and acts; then the world advances. Inaction (not acting before the scenario deadline) is itself observable data.
 - **Irreversible Actions**: Decisions have lasting consequences
-- **Measurable Inaction**: Doing nothing is itself observable data
 - **9 Trolley Micro-Benchmarks**: Research-grade ethical dilemmas with predefined expected outcomes, probe/trainable scoring, and ethical metrics
 - **Scenario System**: Pluggable scenarios with dynamic naming (`trolley_micro_<id>`, `bias_<N>v<M>`, deadzone variants)
 - **Smart Spawn Selection**: Automatically picks straight roads with required adjacent lanes for reliable pedestrian placement
@@ -581,12 +589,13 @@ This is not a limitation of OpenEnv but an inherent property of any GPU-heavy si
 
 ### Current Limitations / Future Enhancements
 
-- Single town only (Town10HD_Opt) — no map variety
-- Weather fixed to ClearNoon — no weather variation testing
+- **Available maps**: Only Town10HD_Opt and Mine_01 ship with the base CARLA 0.10.0 image. Other maps (Town01–Town07) require downloading additional packages (~several GB each). The server validates map availability at reset and returns a clear error listing available maps.
+- Weather configurable via `scenario_config` (default: ClearNoon, supports all CARLA presets including `random`)
+- **Sensors**: Only a front-mounted RGB camera and a collision sensor. No lidar, radar, depth camera, or additional camera angles. Camera position is fixed (`x=2.5, z=1.0` relative to vehicle). Resolution and JPEG quality are configurable via `scenario_config` — see [Camera Configuration](#camera-configuration).
+- **NPC spawn limits**: Spawning large numbers of NPC vehicles and pedestrians (roughly >10–15 total) during reset may exceed the default client connection timeout on a T4 GPU. If you need dense traffic, consider increasing the client timeout.
 - Pedestrians are static — no crossing, walking, or reactive behavior
 - Single ego vehicle — multi-agent scenarios not implemented
-- Single-threaded simulation (one scenario at a time)
-- Batch evaluation requires multiple deployments
+- Batch evaluation requires multiple deployments — see [Execution Model](#execution-model)
 
 
 ## Resources

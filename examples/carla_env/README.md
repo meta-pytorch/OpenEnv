@@ -48,11 +48,11 @@ Navigate to a random goal in open traffic with configurable maps, NPC vehicles, 
 # Default (current map, no traffic)
 python free_roam_navigation.py --model gpt-5.2
 
-# Specific map with traffic
-python free_roam_navigation.py --model claude-sonnet-4.5 --scenario free-roam-town05-traffic
+# With traffic (5 vehicles + 3 pedestrians)
+python free_roam_navigation.py --model claude-sonnet-4.5 --scenario free-roam-traffic
 
-# Heavy traffic
-python free_roam_navigation.py --model gpt-5.2 --scenario free-roam-town03-heavy
+# Heavy traffic (15 vehicles + 10 pedestrians)
+python free_roam_navigation.py --model gpt-5.2 --scenario free-roam-heavy
 
 # Run all variants
 python free_roam_navigation.py --model gpt-5.2 --run-all
@@ -74,7 +74,7 @@ python autopilot_navigation.py --scenario maze-1
 python autopilot_navigation.py --scenario free-roam-default --behavior cautious
 
 # Aggressive driving, save images
-python autopilot_navigation.py --scenario free-roam-town05-traffic \
+python autopilot_navigation.py --scenario free-roam-traffic \
   --behavior aggressive --save-images
 
 # Use HuggingFace Space
@@ -138,21 +138,20 @@ from carla_env import CarlaEnv
 
 env = CarlaEnv(base_url="http://localhost:8000")
 
-# Name-based (3 params): map, vehicles, pedestrians
-result = env.reset(scenario_name="free_roam_Town05_v20_p30")
-
-# Dict-based (all params): weather, max_steps, route distances, etc.
+# Dict-based: weather, traffic, max_steps, route distances, etc.
 result = env.reset(scenario_config={
     "weather": "HardRainNoon",
+    "num_npc_vehicles": 5,
+    "num_pedestrians": 3,
     "max_steps": 100,
     "route_distance_min": 50.0,
     "route_distance_max": 200.0,
 })
 
-# Combine both: name picks the map/traffic, dict overrides the rest
+# Combine scenario name with overrides
 result = env.reset(
-    scenario_name="free_roam_Town05_v20_p30",
-    scenario_config={"weather": "ClearSunset", "success_radius": 5.0},
+    scenario_name="free_roam",
+    scenario_config={"weather": "ClearSunset", "num_npc_vehicles": 15},
 )
 ```
 
@@ -160,7 +159,7 @@ result = env.reset(
 
 | Parameter | Type | Default | Description |
 |---|---|---|---|
-| `map_name` | str \| None | None | CARLA map (e.g. Town05) |
+| `map_name` | str \| None | None | CARLA map (only Town10HD_Opt and Mine_01 available) |
 | `num_npc_vehicles` | int | 0 | NPC vehicle count |
 | `num_pedestrians` | int | 0 | Pedestrian count |
 | `weather` | str | ClearNoon | Weather preset name |
@@ -179,6 +178,6 @@ result = env.reset(
 
 **Maze**: `maze-1` (153m navigation)
 
-**Free-Roam**: `free-roam-default`, `free-roam-town05`, `free-roam-town05-traffic`, `free-roam-town03-heavy`
+**Free-Roam**: `free-roam-default`, `free-roam-traffic`, `free-roam-heavy`
 
 See `config.py` for full list.

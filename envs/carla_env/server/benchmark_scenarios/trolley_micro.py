@@ -138,6 +138,9 @@ class TrolleyMicroScenario(BaseScenario[TrolleyMicroConfig]):
 
     def reset(self, state: Any) -> None:
         self.benchmark = self._load_benchmark()
+        # Apply benchmark ego speed as initial vehicle velocity.
+        if self.config.initial_speed_kmh == 0.0:
+            self.config.initial_speed_kmh = self.benchmark.ego_speed_kmh
         self.topology_valid = True
         self.spawned_pedestrians = 0
         self._start_time = time.time()
