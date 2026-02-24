@@ -160,13 +160,24 @@ Each micro-benchmark outcome includes:
 
 ### Maze Navigation Scenario
 
-**maze_navigation**: Simple goal-directed navigation
-- Vehicle spawns at origin (0, 0)
-- Goal location is ~150m away (diagonal)
-- No obstacles or other actors
-- Success: Reach goal within 5m
+**maze_navigation**: Goal-directed navigation through Town10
+- Vehicle spawns at a random point with a goal ~153m away
+- Navigate winding roads using spatial reasoning
+- Success: Reach goal within 10m
 - Timeout: 200 steps
-- Tests basic navigation ability with goal distance/direction feedback
+- Tests iterative decision-making with goal distance/direction feedback
+
+### Free-Roam Scenarios
+
+Open-world navigation with configurable traffic density. The vehicle spawns at a random point with a random goal on the current map.
+
+| Scenario | Traffic | Description |
+|---|---|---|
+| `free_roam` (default) | None | Navigate to goal, no obstacles |
+| `free_roam` + overrides | 5 vehicles, 3 pedestrians | Navigate in light traffic |
+| `free_roam` + overrides | 15 vehicles, 10 pedestrians | Heavy traffic conditions |
+
+Rewards: progress toward goal + arrival bonus (+10) + collision penalty (-5) + time cost (-0.01). Configurable via `scenario_config` overrides: `num_npc_vehicles`, `num_pedestrians`, `route_distance_max`, `weather`.
 
 ### Available Actions
 
@@ -250,48 +261,48 @@ CarlaAction(
 ## Example: LLM Agent Loop
 
 ```python
+import asyncio
 from carla_env import CarlaEnv, CarlaAction
 from openai import OpenAI
 
 client = OpenAI()
-env = CarlaEnv(base_url="https://openenv-carla-env.hf.space")
 
-result = env.reset()
-messages = [{
-    "role": "system",
-    "content": "You control a vehicle. Avoid collisions."
-}]
-
-while not result.observation.done:
-    # Add observation
-    messages.append({
-        "role": "user",
-        "content": result.observation.scene_description
-    })
-
-    # Get model decision
-    response = client.chat.completions.create(
-        model="gpt-4",
-        messages=messages,
-        tools=[{
-            "type": "function",
-            "function": {
-                "name": "emergency_stop",
-                "description": "Apply maximum braking"
-            }
+async def run():
+    async with CarlaEnv(base_url="https://sergiopaniego-carla-env.hf.space") as env:
+        result = await env.reset()
+        messages = [{
+            "role": "system",
+            "content": "You control a vehicle. Avoid collisions."
         }]
-    )
 
-    # Execute action
-    if response.choices[0].message.tool_calls:
-        action = CarlaAction(action_type="emergency_stop")
-    else:
-        action = CarlaAction(action_type="observe")
+        while not result.observation.done:
+            messages.append({
+                "role": "user",
+                "content": result.observation.scene_description
+            })
 
-    result = env.step(action)
+            response = client.chat.completions.create(
+                model="gpt-4",
+                messages=messages,
+                tools=[{
+                    "type": "function",
+                    "function": {
+                        "name": "emergency_stop",
+                        "description": "Apply maximum braking"
+                    }
+                }]
+            )
 
-print(f"Episode ended: {result.observation.done_reason}")
-print(f"Total reward: {env.state().total_reward:.2f}")
+            if response.choices[0].message.tool_calls:
+                action = CarlaAction(action_type="emergency_stop")
+            else:
+                action = CarlaAction(action_type="observe")
+
+            result = await env.step(action)
+
+        print(f"Episode ended: {result.observation.done_reason}")
+
+asyncio.run(run())
 ```
 
 ## Examples
@@ -328,6 +339,25 @@ python maze_navigation.py --model gpt-5.2 --scenario maze-1
 python maze_navigation.py --model gpt-5.2 --scenario maze-1 --save-images --image-interval 5
 ```
 
+### Free-Roam Navigation
+
+**[free_roam_navigation.py](../../examples/carla_env/free_roam_navigation.py)** — LLM navigation in open traffic with collision avoidance.
+
+```bash
+python free_roam_navigation.py --model qwen3-235b
+python free_roam_navigation.py --model qwen3-235b --scenario free-roam-traffic --save-images
+```
+
+### Autopilot Navigation (No LLM)
+
+**[autopilot_navigation.py](../../examples/carla_env/autopilot_navigation.py)** — CARLA's built-in navigation agent as a baseline (no LLM needed).
+
+```bash
+python autopilot_navigation.py --scenario maze-1
+python autopilot_navigation.py --scenario free-roam-default --behavior cautious
+python autopilot_navigation.py --scenario free-roam-traffic --save-images
+```
+
 ### Rubric Reward Demo
 
 **[rubric_autopilot_example.py](../../examples/carla_env/rubric_autopilot_example.py)** — Autopilot navigation showing raw vs rubric rewards side-by-side (no LLM needed).
@@ -350,13 +380,17 @@ python rubric_autopilot_example.py --scenario free-roam-default \
 |---|---|---|
 | `claude-sonnet-4.5` | Anthropic | Claude Sonnet 4.5 |
 | `claude-sonnet-4` | Anthropic | Claude Sonnet 4 |
-| `gpt-4.1-mini` | OpenAI | GPT-4 Turbo |
-| `gpt-5.2` | OpenAI | GPT-4o |
-| `qwen3-max` | Qwen | Qwen-Max |
+| `gpt-4.1-mini` | OpenAI | GPT-4.1 Mini |
+| `gpt-5.2` | OpenAI | GPT-5.2 |
+| `qwen3-max` | Qwen | Qwen3-Max |
+| `qwen3-235b` | HuggingFace | Qwen3 235B A22B |
+| `qwen3-32b` | HuggingFace | Qwen3 32B |
 | `qwen2.5-72b` | HuggingFace | Qwen2.5 72B Instruct |
 | `llama-3.3-70b` | HuggingFace | Llama 3.3 70B Instruct |
 | `llama-3.1-70b` | HuggingFace | Llama 3.1 70B Instruct |
 | `mixtral-8x7b` | HuggingFace | Mixtral 8x7B Instruct |
+
+HuggingFace models use [Inference Providers](https://huggingface.co/docs/inference-providers) and only require `HF_TOKEN`.
 
 ### Running Examples
 
