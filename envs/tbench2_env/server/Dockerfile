@@ -59,20 +59,6 @@ FROM ${BASE_IMAGE}
 
 WORKDIR /app
 
-# Install git and git-lfs for cloning HuggingFace datasets
-RUN apt-get update && \
-    apt-get install -y --no-install-recommends git git-lfs && \
-    rm -rf /var/lib/apt/lists/* && \
-    git lfs install
-
-# Clone SETA dataset from HuggingFace
-# Source: https://huggingface.co/datasets/camel-ai/seta-env
-RUN git clone --depth 1 https://huggingface.co/datasets/camel-ai/seta-env /app/seta-env
-
-# Set TB2_TASKS_DIR to point to SETA tasks
-# Tasks are in /app/seta-env/Dataset/ with numeric IDs (1, 2, 3, etc.)
-ENV TB2_TASKS_DIR="/app/seta-env/Dataset"
-
 # Copy the virtual environment from builder
 COPY --from=builder /app/env/.venv /app/.venv
 

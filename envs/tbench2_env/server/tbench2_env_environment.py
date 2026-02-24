@@ -300,22 +300,8 @@ class Tbench2Environment(Environment[Tbench2Action, Tbench2Observation, Tbench2S
             raise RuntimeError("Terminal toolkit not initialized.")
 
         _read_timeout(self._task_dir, fallback=900.0)  # Validate timeout config
-
-        # Determine evaluation method based on task format
-        run_tests_sh = self._task_dir / "run-tests.sh"
         tests_dir = self._task_dir / "tests"
-
-        if run_tests_sh.exists():
-            # SETA format: use run-tests.sh
-            # Source: https://huggingface.co/datasets/camel-ai/seta-env
-            cmd = f"cd {self._task_dir} && bash run-tests.sh; echo __TB2_EXIT_CODE__:$?"
-        elif tests_dir.exists():
-            # Terminal-Bench-2 format: use pytest
-            cmd = f"cd {self._task_dir} && python -m pytest -q {tests_dir} -rA; echo __TB2_EXIT_CODE__:$?"
-        else:
-            # No tests found
-            return "No tests found (neither run-tests.sh nor tests/ directory)", 0.0, {"tests_passed": False, "exit_code": -1}
-
+        cmd = f"cd {self._task_dir} && python -m pytest -q {tests_dir} -rA; echo __TB2_EXIT_CODE__:$?"
         output = self._terminal_toolkit.shell_exec(
             id="tb2-tests",
             command=cmd,
