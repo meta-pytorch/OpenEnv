@@ -30,7 +30,10 @@ import sys
 from pathlib import Path
 from typing import Dict, Optional
 
-sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
+# Add repo src/ and envs/ to path for imports
+_repo_root = Path(__file__).resolve().parent.parent.parent
+sys.path.insert(0, str(_repo_root / "src"))
+sys.path.insert(0, str(_repo_root / "envs"))
 
 from carla_env import CarlaEnv, CarlaAction
 from config import MAZE_SCENARIOS, FREE_ROAM_SCENARIOS

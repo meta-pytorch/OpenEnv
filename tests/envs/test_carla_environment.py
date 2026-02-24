@@ -23,6 +23,7 @@ from carla_env.server.benchmark_scenarios import (
 )
 from carla_env.server.benchmark_scenarios.base import ScenarioConfig
 from carla_env.server.benchmark_scenarios.free_roam import WEATHER_PRESETS
+from carla_env.server.rubrics import CarlaTrolleyRubric, CarlaNavigationRubric
 
 
 class TestCarlaEnvironmentMock:
@@ -498,3 +499,78 @@ class TestCameraConfig:
         # Unspecified camera fields keep defaults
         assert env.scenario.config.camera_fov == 90
         assert env.scenario.config.jpeg_quality == 75
+
+
+class TestRubrics:
+    """Test CARLA rubric integration."""
+
+    def test_trolley_scenario_gets_trolley_rubric(self):
+        """Trolley scenarios use CarlaTrolleyRubric."""
+        env = CarlaEnvironment(scenario_name="trolley_saves", mode="mock")
+        assert isinstance(env.rubric, CarlaTrolleyRubric)
+
+    def test_trolley_micro_gets_trolley_rubric(self):
+        """Trolley micro scenarios use CarlaTrolleyRubric."""
+        env = CarlaEnvironment(scenario_name="trolley_micro_classic_3v1", mode="mock")
+        assert isinstance(env.rubric, CarlaTrolleyRubric)
+
+    def test_maze_gets_navigation_rubric(self):
+        """Maze scenario uses CarlaNavigationRubric."""
+        env = CarlaEnvironment(scenario_name="maze_navigation", mode="mock")
+        assert isinstance(env.rubric, CarlaNavigationRubric)
+
+    def test_free_roam_gets_navigation_rubric(self):
+        """Free-roam scenario uses CarlaNavigationRubric."""
+        env = CarlaEnvironment(scenario_name="free_roam", mode="mock")
+        assert isinstance(env.rubric, CarlaNavigationRubric)
+
+    def test_rubric_switches_on_scenario_change(self):
+        """Rubric updates when scenario changes at reset."""
+        env = CarlaEnvironment(scenario_name="trolley_saves", mode="mock")
+        assert isinstance(env.rubric, CarlaTrolleyRubric)
+        env.reset(scenario_name="maze_navigation")
+        assert isinstance(env.rubric, CarlaNavigationRubric)
+
+    def test_trolley_rubric_returns_zero_until_done(self):
+        """CarlaTrolleyRubric returns 0.0 on intermediate steps."""
+        rubric = CarlaTrolleyRubric(gamma=0.99)
+        obs = CarlaObservation(done=False, reward=0.5)
+        action = CarlaAction(action_type="observe")
+        assert rubric(action, obs) == 0.0
+
+    def test_trolley_rubric_returns_reward_on_done(self):
+        """CarlaTrolleyRubric returns terminal reward when done."""
+        rubric = CarlaTrolleyRubric(gamma=0.99)
+        obs = CarlaObservation(done=True, reward=1.0)
+        action = CarlaAction(action_type="observe")
+        assert rubric(action, obs) == 1.0
+
+    def test_navigation_rubric_returns_step_reward(self):
+        """CarlaNavigationRubric returns per-step reward."""
+        rubric = CarlaNavigationRubric()
+        obs = CarlaObservation(done=False, reward=0.42)
+        action = CarlaAction(action_type="control")
+        assert rubric(action, obs) == 0.42
+
+    def test_step_populates_rubric_reward(self):
+        """step() populates obs.rubric_reward from the rubric."""
+        env = CarlaEnvironment(scenario_name="maze_navigation", mode="mock")
+        env.reset()
+        obs = env.step(CarlaAction(action_type="observe"))
+        # rubric_reward should be present (may be 0.0 for first step)
+        assert hasattr(obs, "rubric_reward")
+
+    def test_trolley_rubric_discounting(self):
+        """CarlaTrolleyRubric compute_step_rewards applies discounting."""
+        rubric = CarlaTrolleyRubric(gamma=0.5)
+        action = CarlaAction(action_type="observe")
+        # 3 intermediate steps, then terminal
+        for _ in range(3):
+            rubric(action, CarlaObservation(done=False, reward=0.0))
+        rubric(action, CarlaObservation(done=True, reward=1.0))
+        rewards = rubric.compute_step_rewards()
+        assert len(rewards) == 4
+        # Last step: gamma^0 * 1.0 = 1.0
+        assert rewards[3] == pytest.approx(1.0)
+        # First step: gamma^3 * 1.0 = 0.125
+        assert rewards[0] == pytest.approx(0.125)

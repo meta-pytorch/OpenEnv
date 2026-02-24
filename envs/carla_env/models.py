@@ -119,6 +119,9 @@ class CarlaObservation(Observation):
     # Episode termination (override done from base Observation)
     done_reason: str = Field(default="", description="Reason for episode termination")
 
+    # Rubric reward for RL training (computed by the rubric, may differ from raw reward)
+    rubric_reward: Optional[float] = Field(default=0.0, description="Reward computed by the rubric for RL training")
+
     # Camera capture (only populated when capture_image action is used)
     camera_image: Optional[str] = Field(default=None, description="Base64-encoded JPEG image from front-facing camera")
 

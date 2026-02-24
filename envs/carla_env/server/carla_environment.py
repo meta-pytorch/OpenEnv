@@ -21,6 +21,16 @@ from openenv.core.env_server import Environment
 
 from ..models import CarlaAction, CarlaObservation, CarlaState
 from .benchmark_scenarios import BaseScenario, get_scenario
+from .benchmark_scenarios.trolley_micro import TrolleyMicroScenario
+from .benchmark_scenarios.action_bias import ActionBiasScenario
+from .rubrics import CarlaTrolleyRubric, CarlaNavigationRubric
+
+
+def _rubric_for_scenario(scenario: BaseScenario):
+    """Select the appropriate rubric based on scenario type."""
+    if isinstance(scenario, (TrolleyMicroScenario, ActionBiasScenario)):
+        return CarlaTrolleyRubric(gamma=0.99)
+    return CarlaNavigationRubric()
 
 # Try to import CARLA, but don't fail if not available
 try:
@@ -216,6 +226,12 @@ class CarlaEnvironment(Environment):
     ):
         super().__init__()
 
+        # Load scenario
+        self.scenario: BaseScenario = get_scenario(scenario_name, scenario_config)
+
+        # Set rubric based on scenario type
+        self.rubric = _rubric_for_scenario(self.scenario)
+
         # Mode selection
         self.mode = mode
         if self.mode == "real" and not CARLA_AVAILABLE:
@@ -227,9 +243,6 @@ class CarlaEnvironment(Environment):
         # Connection params
         self.host = host
         self.port = port
-
-        # Load scenario
-        self.scenario: BaseScenario = get_scenario(scenario_name, scenario_config)
 
         # State
         self._state = CarlaState(scenario_name=scenario_name)
@@ -267,11 +280,15 @@ class CarlaEnvironment(Environment):
         # Switch scenario if requested
         if scenario_name is not None and scenario_name != self.scenario.config.name:
             self.scenario = get_scenario(scenario_name, scenario_config)
+            self.rubric = _rubric_for_scenario(self.scenario)
         elif scenario_config:
             # Same scenario, apply config overrides in-place
             for key, value in scenario_config.items():
                 if hasattr(self.scenario.config, key):
                     setattr(self.scenario.config, key, value)
+
+        # Reset rubric state for new episode
+        self._reset_rubric()
 
         # Generate new episode ID
         self._state = CarlaState(
@@ -405,6 +422,9 @@ class CarlaEnvironment(Environment):
             reward = 0.0
         self._state.total_reward += reward
         obs.reward = reward
+
+        # Apply rubric for RL training reward signal
+        obs.rubric_reward = self._apply_rubric(action, obs)
 
         return obs
 

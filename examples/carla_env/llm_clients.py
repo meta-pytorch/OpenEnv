@@ -214,21 +214,41 @@ class HuggingFaceClient(LLMClient):
                 "Set it with: export HF_TOKEN=your-token\n"
                 "Get token from: https://huggingface.co/settings/tokens"
             )
-        # HuggingFace Inference API is OpenAI-compatible
+        # HuggingFace Inference Providers (OpenAI-compatible)
         self.client = OpenAI(
             api_key=api_key,
-            base_url="https://api-inference.huggingface.co/v1/"
+            base_url="https://router.huggingface.co/v1/"
         )
         self.model_id = model_id
 
     def chat(self, messages, tools, max_tokens=2048):
-        # Same as OpenAI (HF uses OpenAI-compatible format)
-        response = self.client.chat.completions.create(
-            model=self.model_id,
-            max_tokens=max_tokens,
-            tools=tools,
-            messages=messages
-        )
+        import json
+        import re
+
+        # Qwen3 defaults to thinking mode which burns all tokens on hidden
+        # reasoning. Disable it by prepending /no_think to the last message
+        # and increasing max_tokens as a safety margin.
+        if "qwen3" in self.model_id.lower():
+            messages = [*messages]  # shallow copy
+            last = messages[-1]
+            if isinstance(last.get("content"), str):
+                messages[-1] = {**last, "content": "/no_think\n\n" + last["content"]}
+            max_tokens = max(max_tokens, 512)
+
+        try:
+            response = self.client.chat.completions.create(
+                model=self.model_id,
+                max_tokens=max_tokens,
+                tools=tools,
+                messages=messages,
+            )
+        except Exception as e:
+            # Some models generate malformed tool calls like
+            # <function=name={"arg": val}</function> — parse them manually
+            failed = self._parse_failed_generation(e)
+            if failed:
+                return failed
+            raise
 
         message = response.choices[0].message
 
@@ -236,9 +256,8 @@ class HuggingFaceClient(LLMClient):
         if message.tool_calls:
             for tc in message.tool_calls:
                 try:
-                    import json
                     arguments = json.loads(tc.function.arguments)
-                except:
+                except Exception:
                     arguments = {}
 
                 tool_calls.append({
@@ -249,6 +268,39 @@ class HuggingFaceClient(LLMClient):
         return {
             "tool_calls": tool_calls,
             "text": message.content or ""
+        }
+
+    @staticmethod
+    def _parse_failed_generation(error: Exception) -> dict | None:
+        """Extract tool call from HF's failed_generation error response.
+
+        Some open models emit malformed syntax like:
+            <function=control_vehicle={"throttle": 0.5, "steer": -0.5}</function>
+        HF returns this in the error body. We parse it as a fallback.
+        """
+        import json
+        import re
+
+        error_str = str(error)
+        if "tool_use_failed" not in error_str and "failed_generation" not in error_str:
+            return None
+
+        # Match <function=name={"key": val}</function> or <function=name>{"key": val}</function>
+        pattern = r'<function=(\w+)[=>](\{.*?\})\s*</function>'
+        match = re.search(pattern, error_str)
+        if not match:
+            return None
+
+        name = match.group(1)
+        try:
+            arguments = json.loads(match.group(2))
+        except json.JSONDecodeError:
+            return None
+
+        print(f"  [HF fallback] Recovered tool call: {name}({arguments})")
+        return {
+            "tool_calls": [{"name": name, "arguments": arguments}],
+            "text": ""
         }
 
 def create_client(provider: str, model_id: str) -> LLMClient:

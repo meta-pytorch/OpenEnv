@@ -80,6 +80,18 @@ MODELS = {
         model_id="mistralai/Mixtral-8x7B-Instruct-v0.1",
         api_key_env="HF_TOKEN"
     ),
+    "qwen3-235b": ModelConfig(
+        name="Qwen3 235B A22B",
+        provider="huggingface",
+        model_id="Qwen/Qwen3-235B-A22B",
+        api_key_env="HF_TOKEN"
+    ),
+    "qwen3-32b": ModelConfig(
+        name="Qwen3 32B",
+        provider="huggingface",
+        model_id="Qwen/Qwen3-32B",
+        api_key_env="HF_TOKEN"
+    ),
 }
 
 @dataclass

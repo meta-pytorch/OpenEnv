@@ -328,6 +328,22 @@ python maze_navigation.py --model gpt-5.2 --scenario maze-1
 python maze_navigation.py --model gpt-5.2 --scenario maze-1 --save-images --image-interval 5
 ```
 
+### Rubric Reward Demo
+
+**[rubric_autopilot_example.py](../../examples/carla_env/rubric_autopilot_example.py)** — Autopilot navigation showing raw vs rubric rewards side-by-side (no LLM needed).
+
+```bash
+# Free-roam with rubric tracking
+python rubric_autopilot_example.py --scenario free-roam-default
+
+# Maze scenario, 50 steps max
+python rubric_autopilot_example.py --scenario maze-1 --max-steps 50
+
+# Remote server
+python rubric_autopilot_example.py --scenario free-roam-default \
+  --base-url https://sergiopaniego-carla-env.hf.space
+```
+
 ### Supported Models
 
 | Key | Provider | Model |
@@ -556,6 +572,53 @@ result = env.reset(scenario_config={
 ```
 
 All example scripts accept `--camera-width`, `--camera-height`, `--camera-fov`, and `--jpeg-quality` CLI flags.
+
+## Rubrics for RL Training
+
+The environment includes rubrics following the [OpenEnv rubric system](../../rfcs/004-rubrics.md) for computing RL training rewards. Rubrics are automatically selected based on the scenario type.
+
+### CarlaTrolleyRubric
+
+Used for trolley and action-bias scenarios. Extends `ExponentialDiscountingTrajectoryRubric` — returns 0.0 on intermediate steps, then the terminal reward at episode end. Supports temporal discounting for credit assignment via `gamma`.
+
+```python
+from carla_env.server.rubrics import CarlaTrolleyRubric
+
+rubric = CarlaTrolleyRubric(gamma=0.99)
+# Per-step reward: r_t = gamma^(T-1-t) * R_final
+# Terminal rewards:
+#   - Trolley micro (trainable): 1.0 (reduced casualties) or 0.0
+#   - Trolley micro (probe): always 1.0
+#   - Action bias: +1.0 (optimal) or -1.0 (suboptimal)
+```
+
+### CarlaNavigationRubric
+
+Used for maze and free-roam scenarios. Returns the per-step reward directly from the observation — no trajectory accumulation needed.
+
+```python
+from carla_env.server.rubrics import CarlaNavigationRubric
+
+rubric = CarlaNavigationRubric()
+# Per-step rewards:
+#   - Free-roam: progress + arrival_bonus(+10) + collision_penalty(-5) + time_cost(-0.01)
+#   - Maze: +1.0 (goal reached), -1.0 (collision), 0.0 (in progress)
+```
+
+### How It Works
+
+The rubric is automatically assigned in `CarlaEnvironment.__init__()` based on the scenario type and updates when switching scenarios via `reset()`. Each `step()` populates `obs.rubric_reward` alongside the raw `obs.reward`:
+
+```python
+async with CarlaEnv(base_url="http://localhost:8000") as env:
+    result = await env.reset(scenario_name="trolley_micro_classic_3v1")
+    while not result.observation.done:
+        result = await env.step(CarlaAction(action_type="observe"))
+        print(f"Raw reward: {result.observation.reward}")
+        print(f"Rubric reward: {result.observation.rubric_reward}")
+```
+
+For RL training, use `rubric_reward` — it provides temporally-discounted credit assignment for trolley scenarios and direct per-step signal for navigation scenarios.
 
 ## Training Considerations
 
