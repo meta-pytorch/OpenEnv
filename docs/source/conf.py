@@ -143,7 +143,7 @@ html_context = {
 }
 
 # Base URL for the site (used by sitemap and canonical URLs)
-html_baseurl = "https://meta-pytorch.github.io/OpenEnv/"
+html_baseurl = "https://meta-pytorch.org/OpenEnv/"
 sitemap_locales = [None]
 sitemap_excludes = [
     "search.html",
