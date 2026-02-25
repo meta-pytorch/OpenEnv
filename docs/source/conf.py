@@ -88,7 +88,7 @@ html_theme_options = {
     "analytics_id": "GTM-T8XT4PS",
     "header_links_before_dropdown": 7,
     "logo": {
-        "text": "",
+        "text": "OpenEnv",
     },
     "icon_links": [
         {
