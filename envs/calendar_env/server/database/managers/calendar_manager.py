@@ -250,7 +250,7 @@ class CalendarManager:
         if calendar.conference_properties:
             try:
                 formatted["conferenceProperties"] = json.loads(calendar.conference_properties)
-            except:
+            except Exception:
                 pass
 
         return formatted

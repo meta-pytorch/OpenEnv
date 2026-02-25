@@ -116,7 +116,7 @@ async def list_events(
                 page_token_int = int(pageToken)
                 if not page_token_int >= 0:
                     raise ValueError("Please enter a valid pageToken value. Page token must be greater than equal to 0 and must be string integer")
-            except:
+            except Exception:
                 raise ValueError("Please enter a valid pageToken value. Page token must be greater than equal to 0 and must be string integer")
 
         # Convert eventTypes enum list to comma-separated string for the manager
@@ -805,7 +805,7 @@ async def get_event_instances(
                 page_token_int = int(pageToken)
                 if not page_token_int >= 0:
                     raise ValueError("Please enter a valid pageToken value. Page token must be greater than equal to 0 and must be string integer")
-            except:
+            except Exception:
                 raise ValueError("Please enter a valid pageToken value. Page token must be greater than equal to 0 and must be string integer")
 
 

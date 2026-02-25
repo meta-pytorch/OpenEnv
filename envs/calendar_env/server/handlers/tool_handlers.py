@@ -48,7 +48,7 @@ def log_tool_response(tool_name, tool_input, result, database_id):
             try:
                 with open(log_file, 'r') as f:
                     logs = json.load(f)
-            except:
+            except Exception:
                 logs = []
 
         # Add new entry
@@ -246,7 +246,7 @@ async def execute_tool_generic(tool_name: str, arguments: Dict, database_id: str
                     "status_code": response.status_code,
                     "isError": False
                 }
-            except:
+            except Exception:
                 result = {
                     "text": f"Operation completed successfully\nStatus: {response.status_code}",
                     "status_code": response.status_code,

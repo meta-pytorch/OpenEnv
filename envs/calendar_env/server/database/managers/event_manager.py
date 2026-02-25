@@ -2081,7 +2081,7 @@ class EventManager:
                                     elif hasattr(value, 'dict'):
                                         processed_value = value.dict()
                                     setattr(db_event, field, processed_value)
-                                except:
+                                except Exception:
                                     pass
                             elif field == "workingLocationProperties":
                                 # Handle working location properties separately to avoid issues
@@ -2107,7 +2107,7 @@ class EventManager:
                 # Incremenet event versioning
                 try:
                     db_event.sequence += 1
-                except:
+                except Exception:
                     db_event.sequence = 0
                 db_event.updated_at = datetime.now(timezone.utc)
                 

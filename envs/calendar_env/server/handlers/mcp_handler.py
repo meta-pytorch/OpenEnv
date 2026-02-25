@@ -76,7 +76,7 @@ async def handle_mcp_request(request: Request) -> Optional[JSONRPCResponse]:
         try:
             body = await request.json()
             request_id = body.get("id")
-        except:
+        except Exception:
             request_id = None
 
         return JSONRPCResponse(jsonrpc="2.0", id=request_id, result={"error": f"Internal error: {str(e)}"})

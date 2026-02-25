@@ -520,7 +520,7 @@ class GPUProfiler:
                 for key in GPU_SPECS:
                     if key.lower() in name.lower():
                         return key
-        except:
+        except Exception:
             pass
         return "default"
 
@@ -759,34 +759,34 @@ class GPUProfiler:
                 try:
                     kernel.compute_throughput_pct = float(sm_tp.replace(',', '').replace('%', ''))
                     compute_throughputs.append(kernel.compute_throughput_pct)
-                except:
+                except Exception:
                     pass
 
                 try:
                     kernel.memory_throughput_pct = float(dram_tp.replace(',', '').replace('%', ''))
                     memory_throughputs.append(kernel.memory_throughput_pct)
-                except:
+                except Exception:
                     pass
 
                 occ = row.get('sm__warps_active.avg.pct_of_peak_sustained_elapsed', '0')
                 try:
                     kernel.achieved_occupancy_pct = float(occ.replace(',', '').replace('%', ''))
                     occupancies.append(kernel.achieved_occupancy_pct)
-                except:
+                except Exception:
                     pass
 
                 regs = row.get('launch__registers_per_thread', '0')
                 try:
                     kernel.registers_per_thread = int(float(regs.replace(',', '')))
                     profile.max_registers_per_thread = max(profile.max_registers_per_thread, kernel.registers_per_thread)
-                except:
+                except Exception:
                     pass
 
                 smem = row.get('launch__shared_mem_per_block_driver', '0')
                 try:
                     kernel.shared_mem_bytes = int(float(smem.replace(',', '')))
                     profile.max_shared_mem_bytes = max(profile.max_shared_mem_bytes, kernel.shared_mem_bytes)
-                except:
+                except Exception:
                     pass
 
                 dram_read = row.get('dram__bytes_read.sum', '0')
@@ -794,7 +794,7 @@ class GPUProfiler:
                 try:
                     profile.total_dram_bytes_read += int(float(dram_read.replace(',', '')))
                     profile.total_dram_bytes_written += int(float(dram_write.replace(',', '')))
-                except:
+                except Exception:
                     pass
 
                 if kernel.memory_throughput_pct > kernel.compute_throughput_pct + 10:
@@ -1162,7 +1162,7 @@ try:
                         if hasattr(kernel, 'asm'):
                             if 'ptx' in kernel.asm:
                                 ptx_code += kernel.asm['ptx']
-            except:
+            except Exception:
                 pass
 except ImportError:
     pass

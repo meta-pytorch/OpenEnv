@@ -524,7 +524,7 @@ except Exception as e:
             # Parse JSON output
             try:
                 data = json.loads(proc.stdout.strip().split("\n")[-1])
-            except:
+            except Exception:
                 return CorrectnessResult(
                     correct=False,
                     error=f"Failed to parse output: {proc.stdout[:500]} {proc.stderr[:500]}"
@@ -664,7 +664,7 @@ except Exception as e:
 
             try:
                 data = json.loads(proc.stdout.strip().split("\n")[-1])
-            except:
+            except Exception:
                 return BenchmarkResult(
                     error=f"Failed to parse: {proc.stdout[:500]} {proc.stderr[:500]}"
                 )
