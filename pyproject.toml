@@ -62,6 +62,7 @@ docs = [
     "matplotlib",
     "nest-asyncio",
     "gradio",
+    "smolagents",
 ]
 all = [
     "openenv-core[core]",
