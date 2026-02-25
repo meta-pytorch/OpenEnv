@@ -13,7 +13,7 @@ via the Arcade Learning Environment (ALE).
 
 from __future__ import annotations
 
-from typing import Any, Dict, List, Literal, Optional
+from typing import List, Literal, Optional
 
 from openenv.core.env_server import Action, Observation, State
 
@@ -28,6 +28,7 @@ class AtariAction(Action):
         obs_type: Observation type ("rgb", "grayscale", or "ram").
         full_action_space: Whether to use full (18 actions) or minimal action space.
     """
+
     action_id: int
     game_name: str = "pong"
     obs_type: Literal["rgb", "grayscale", "ram"] = "rgb"
@@ -52,6 +53,7 @@ class AtariObservation(Observation):
         episode_frame_number: Frame number within current episode.
         frame_number: Total frame number since environment creation.
     """
+
     screen: List[int]
     screen_shape: List[int]
     legal_actions: List[int]
@@ -74,6 +76,7 @@ class AtariState(State):
         repeat_action_probability: Probability of repeating previous action (sticky actions).
         frameskip: Number of frames to skip per action.
     """
+
     game_name: str = "pong"
     obs_type: Literal["rgb", "grayscale", "ram"] = "rgb"
     full_action_space: bool = False

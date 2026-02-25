@@ -14,7 +14,7 @@ via the OpenEnv Environment interface.
 import uuid
 import base64
 import io
-from typing import Any, Dict, Literal, Optional
+from typing import Literal, Optional
 from PIL import Image
 
 from openenv.core.env_server import Action, Environment, Observation
@@ -84,6 +84,7 @@ class AtariEnvironment(Environment):
 
         # Configure ALE
         from ale_py import LoggerMode
+
         self.ale.setLoggerMode(LoggerMode.Error)  # Error mode only
         self.ale.setFloat("repeat_action_probability", repeat_action_probability)
 
@@ -251,16 +252,16 @@ class AtariEnvironment(Environment):
                 # Convert screen to PIL Image
                 # screen is [H, W, 3]
                 img = Image.fromarray(screen.astype(np.uint8))
-                
+
                 # Save to bytes
                 buffered = io.BytesIO()
                 img.save(buffered, format="PNG")
-                
+
                 # Encode to base64
                 img_str = base64.b64encode(buffered.getvalue()).decode("utf-8")
                 obs.screen_image = f"data:image/png;base64,{img_str}"
             except Exception:
                 # Silently skip image generation if it fails
                 pass
-        
+
         return obs
