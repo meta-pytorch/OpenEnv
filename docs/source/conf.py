@@ -31,7 +31,7 @@ if RELEASE:
     html_title = f"OpenEnv {version} documentation"
     switcher_version = version
 else:
-    version = f"main ({openenv_version})"
+    version = "main"
     release = "main"
     html_title = "OpenEnv"
     switcher_version = "main"
