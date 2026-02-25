@@ -25,7 +25,7 @@ The output will be in `docs/_build/html/`.
 
 ## Preview
 
-Start a local server to preview the site:
+From the repo root, start a local server:
 
 ```bash
 cd docs/_build/html
