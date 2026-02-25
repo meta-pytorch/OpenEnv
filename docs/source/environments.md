@@ -466,7 +466,7 @@ Autonomous wildfire-control simulation where agents contain spreading fires usin
 `````
 
 ```{tip}
-Want to publish your own environment? Head over to the [Build Your Own Environment](environment-builder.md) guide for a step-by-step walkthrough.
+Want to publish your own environment? Head over to the [Build Your Own Environment](auto_getting_started/environment-builder.md) guide for a step-by-step walkthrough.
 ```
 
 ## Community Environments

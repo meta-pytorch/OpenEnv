@@ -4,7 +4,7 @@ Welcome to the OpenEnv tutorials! These guides will help you get started with us
 
 ## Getting Started
 
-If you're new to OpenEnv, we recommend starting with the [Getting Started](/getting_started/README.rst) series to understand the core concepts and basic usage patterns.
+If you're new to OpenEnv, we recommend starting with the [Getting Started](/auto_getting_started/index) series to understand the core concepts and basic usage patterns.
 
 ## Available Tutorials
 

@@ -72,7 +72,7 @@ sphinx_gallery_conf = {
     "nested_sections": False,
 }
 
-exclude_patterns = []
+exclude_patterns = ["getting_started/*.md", "getting_started/README.rst"]
 
 # -- Options for HTML output -------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#options-for-html-output

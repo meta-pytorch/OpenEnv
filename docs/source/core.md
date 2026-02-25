@@ -1,6 +1,6 @@
 # Core API
 
-The `openenv.core` package provides the core abstractions for building and running environments. For an end-to-end tutorial on building environments with OpenEnv, see the [building an environment](environment-builder.md) guide.
+The `openenv.core` package provides the core abstractions for building and running environments. For an end-to-end tutorial on building environments with OpenEnv, see the [building an environment](auto_getting_started/environment-builder.md) guide.
 
 ## Core runtime (`core`)
 
