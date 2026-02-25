@@ -21,7 +21,18 @@ cd docs
 make html
 ```
 
-The output will be in `docs/_build/html/`. Open `docs/_build/html/index.html` in your browser.
+The output will be in `docs/_build/html/`.
+
+## Preview
+
+Start a local server to preview the site:
+
+```bash
+cd docs/_build/html
+python -m http.server 8000
+```
+
+Then open [http://localhost:8000](http://localhost:8000) in your browser.
 
 ### Build Variants
 
