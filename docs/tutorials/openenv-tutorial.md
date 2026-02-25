@@ -4,7 +4,9 @@
 
 <img src="https://upload.wikimedia.org/wikipedia/commons/1/10/PyTorch_logo_icon.svg" width="200" alt="PyTorch">
 
-## From "Hello World" to RL Training in 5 Minutes ✨
+### *From "Hello World" to RL Training in 5 Minutes* ✨
+
+---
 
 **What if RL environments were as easy to use as REST APIs?**
 
@@ -19,13 +21,15 @@ Author: [Sanyam Bhutani](http://twitter.com/bhutanisanyam1/)
 
 </div>
 
+---
+
 ## Why OpenEnv?
 
 Let's take a trip down memory lane:
 
-It's 2016, RL is popular. You read some papers, it looks promising.
+It's 2016, RL is popular. You read some papers, it looks promising. 
 
-But in real world: Cartpole is the best you can run on a gaming GPU.
+But in real world: Cartpole is the best you can run on a gaming GPU. 
 
 What do you do beyond Cartpole?
 
@@ -33,7 +37,7 @@ Fast-forward to 2025, GRPO is awesome and this time it's not JUST in theory, it 
 
 The problem still remains, how do you take these RL algorithms and take them beyond Cartpole?
 
-A huge part of RL is giving your algorithms environment access to learn.
+A huge part of RL is giving your algorithms environment access to learn. 
 
 We are excited to introduce an Environment Spec for adding Open Environments for RL Training. This will allow you to focus on your experiments and allow everyone to bring their environments.
 
@@ -88,7 +92,7 @@ Focus on experiments, use OpenEnvironments, and build agents that go beyond Cart
 
 !!! tip "Pro Tip"
     This notebook is designed to run top-to-bottom in Google Colab with zero setup!
-
+    
     ⏱️ **Time**: ~5 minutes | 📊 **Difficulty**: Beginner-friendly | 🎯 **Outcome**: Production-ready RL knowledge
 
 ---
@@ -161,9 +165,9 @@ while guesses_left > 0:
     # Policy: Random guessing (no learning yet!)
     guess = random.randint(1, 10)
     guesses_left -= 1
-
+    
     print(f"💭 Guess #{3-guesses_left}: {guess}", end=" → ")
-
+    
     # Reward signal (but we're not using it!)
     if guess == target:
         print("🎉 Correct! +10 points")
@@ -290,10 +294,10 @@ if IN_COLAB:
     print("\n📦 Cloning OpenEnv repository...")
     !git clone https://github.com/meta-pytorch/OpenEnv.git > /dev/null 2>&1
     %cd OpenEnv
-
+    
     print("📚 Installing dependencies (this takes ~10 seconds)...")
     !pip install -q fastapi uvicorn requests
-
+    
     import sys
     sys.path.insert(0, './src')
     print("\n✅ Setup complete! Everything is ready to go! 🎉")
@@ -352,15 +356,15 @@ print("""
 
     class Environment(ABC):
         '''Base class for all environment implementations'''
-
+        
         @abstractmethod
         def reset(self) -> Observation:
             '''Start new episode'''
-
+        
         @abstractmethod
         def step(self, action: Action) -> Observation:
             '''Execute action, return observation'''
-
+        
         @property
         def state(self) -> State:
             '''Get episode metadata'''
@@ -369,13 +373,13 @@ print("""
 
     class HTTPEnvClient(ABC):
         '''Base class for HTTP clients'''
-
+        
         def reset(self) -> StepResult:
             # HTTP POST /reset
-
+        
         def step(self, action) -> StepResult:
             # HTTP POST /step
-
+        
         def state(self) -> State:
             # HTTP GET /state
 """)
@@ -395,15 +399,15 @@ print("🎯 You focus on RL, OpenEnv handles the infrastructure.\n")
 
     class Environment(ABC):
         '''Base class for all environment implementations'''
-
+        
         @abstractmethod
         def reset(self) -> Observation:
             '''Start new episode'''
-
+        
         @abstractmethod
         def step(self, action: Action) -> Observation:
             '''Execute action, return observation'''
-
+        
         @property
         def state(self) -> State:
             '''Get episode metadata'''
@@ -412,13 +416,13 @@ print("🎯 You focus on RL, OpenEnv handles the infrastructure.\n")
 
     class HTTPEnvClient(ABC):
         '''Base class for HTTP clients'''
-
+        
         def reset(self) -> StepResult:
             # HTTP POST /reset
-
+        
         def step(self, action) -> StepResult:
             # HTTP POST /step
-
+        
         def state(self) -> State:
             # HTTP GET /state
 
@@ -458,14 +462,14 @@ print("="*70)
 
 print("""
 class OpenSpielEnv(HTTPEnvClient[OpenSpielAction, OpenSpielObservation]):
-
+    
     def _step_payload(self, action: OpenSpielAction) -> dict:
         '''Convert typed action to JSON for HTTP'''
         return {
             "action_id": action.action_id,
             "game_name": action.game_name,
         }
-
+    
     def _parse_result(self, payload: dict) -> StepResult:
         '''Parse HTTP JSON response into typed observation'''
         return StepResult(
@@ -480,13 +484,13 @@ print("─" * 70)
 print("\n✨ Usage (works for ALL OpenEnv environments):")
 print("""
   env = OpenSpielEnv(base_url="http://localhost:8000")
-
+  
   result = env.reset()
   # Returns StepResult[OpenSpielObservation] - Type safe!
-
+  
   result = env.step(OpenSpielAction(action_id=2, game_name="catch"))
   # Type checker knows this is valid!
-
+  
   state = env.state()
   # Returns OpenSpielState
 """)
@@ -502,14 +506,14 @@ print("\n🎯 This pattern works for ANY environment you want to wrap!\n")
 ======================================================================
 
 class OpenSpielEnv(HTTPEnvClient[OpenSpielAction, OpenSpielObservation]):
-
+    
     def _step_payload(self, action: OpenSpielAction) -> dict:
         '''Convert typed action to JSON for HTTP'''
         return {
             "action_id": action.action_id,
             "game_name": action.game_name,
         }
-
+    
     def _parse_result(self, payload: dict) -> StepResult:
         '''Parse HTTP JSON response into typed observation'''
         return StepResult(
@@ -524,13 +528,13 @@ class OpenSpielEnv(HTTPEnvClient[OpenSpielAction, OpenSpielObservation]):
 ✨ Usage (works for ALL OpenEnv environments):
 
   env = OpenSpielEnv(base_url="http://localhost:8000")
-
+  
   result = env.reset()
   # Returns StepResult[OpenSpielObservation] - Type safe!
-
+  
   result = env.step(OpenSpielAction(action_id=2, game_name="catch"))
   # Type checker knows this is valid!
-
+  
   state = env.state()
   # Returns OpenSpielState
 
@@ -625,7 +629,7 @@ print("   ✅ Self-documenting code\n")
 The client **inherits from HTTPEnvClient** and implements 3 methods:
 
 1. `_step_payload()` - Convert action → JSON
-2. `_parse_result()` - Parse JSON → typed observation
+2. `_parse_result()` - Parse JSON → typed observation  
 3. `_parse_state()` - Parse JSON → state
 
 That's it! The base class handles all HTTP communication.
@@ -1055,11 +1059,11 @@ class YourEnvironment(Environment):
     def reset(self) -> Observation:
         # Initialize your game/simulation
         return YourObservation(...)
-
+    
     def step(self, action: Action) -> Observation:
         # Execute action, update state
         return YourObservation(...)
-
+    
     @property
     def state(self) -> State:
         return self._state
@@ -1075,7 +1079,7 @@ class YourEnv(HTTPEnvClient[YourAction, YourObservation]):
     def _step_payload(self, action: YourAction) -> dict:
         """Convert action to JSON"""
         return {"action_value": action.action_value}
-
+    
     def _parse_result(self, payload: dict) -> StepResult:
         """Parse JSON to observation"""
         return StepResult(
@@ -1083,7 +1087,7 @@ class YourEnv(HTTPEnvClient[YourAction, YourObservation]):
             reward=payload['reward'],
             done=payload['done']
         )
-
+    
     def _parse_state(self, payload: dict) -> YourState:
         return YourState(...)
 ```
@@ -1203,7 +1207,7 @@ OpenEnv includes 3 complete examples:
 
 !!! success "The Bottom Line"
     OpenEnv brings **production engineering** to RL:
-
+    
     - Same environments work locally and in production
     - Type safety catches bugs early
     - Docker isolation prevents conflicts
@@ -1253,3 +1257,4 @@ OpenEnv includes 3 complete examples:
 3. 🎮 **Explore** other OpenSpiel games
 4. 🛠️ **Build** your own environment integration
 5. 💬 **Share** what you build with the community!
+
