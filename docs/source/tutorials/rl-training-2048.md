@@ -34,7 +34,7 @@ You'll also need:
 
 ### Installation
 
-```python
+```bash
 # Install required packages
 !pip install -q unsloth openenv-core trl
 

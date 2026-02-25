@@ -124,6 +124,7 @@ Focus on experiments, use OpenEnvironments, and build agents that go beyond Cart
 
 ---
 
+(part-1-rl-in-60-seconds)=
 ## Part 1: RL in 60 Seconds ⏱️
 
 **Reinforcement Learning is simpler than you think.**
@@ -201,6 +202,7 @@ print("="*62 + "\n")
 
 ---
 
+(part-2-the-problem-with-traditional-rl)=
 ## Part 2: The Problem with Traditional RL 😤
 
 ### 🤔 Why Can't We Just Use OpenAI Gym?
@@ -270,13 +272,14 @@ Think of it like this: You don't run your database in the same process as your w
 
 ---
 
+(part-3-setup)=
 ## Part 3: Setup 🛠️
 
 **Running in Colab?** This cell will clone OpenEnv and install dependencies automatically.
 
 **Running locally?** Make sure you're in the OpenEnv directory.
 
-```python
+```ipython3
 # Detect environment
 try:
     import google.colab
@@ -318,6 +321,7 @@ print("💡 Tip: Run cells top-to-bottom for the best experience.\n")
 
 ---
 
+(part-4-the-openenv-pattern)=
 ## Part 4: The OpenEnv Pattern 🏗️
 
 ### Every OpenEnv Environment Has 3 Components:
@@ -430,6 +434,7 @@ print("🎯 You focus on RL, OpenEnv handles the infrastructure.\n")
 
 ---
 
+(part-5-example-integration---openspiel)=
 ## Part 5: Example Integration - OpenSpiel 🎮
 
 ### What is OpenSpiel?
@@ -632,6 +637,7 @@ That's it! The base class handles all HTTP communication.
 
 ---
 
+(part-6-using-real-openspiel)=
 ## Part 6: Using Real OpenSpiel 🎮
 
 <div style="text-align: center; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 30px; border-radius: 15px; margin: 30px 0;">
@@ -757,6 +763,7 @@ print("   • Works via HTTP (we'll see that next!)\n")
 
 ---
 
+(part-7-four-policies)=
 ## Part 7: Four Policies 🤖
 
 Let's test 4 different AI strategies:
@@ -883,6 +890,7 @@ print("   • Work with ANY OpenSpiel game that exposes these!\n")
 
 ---
 
+(part-8-policy-competition)=
 ## Part 8: Policy Competition! 🏆
 
 Let's run **50 episodes** for each policy against **REAL OpenSpiel** and see who wins!
@@ -947,6 +955,7 @@ evaluate_policies(client, num_episodes=50)
 
 ---
 
+(part-9-switching-to-other-games)=
 ## Part 9: Switching to Other Games 🎮
 
 ### What We Just Used: Real OpenSpiel! 🎉
@@ -1015,6 +1024,7 @@ result = client.reset()  # Now playing Tic-Tac-Toe!
 
 ---
 
+(part-10-create-your-own-integration)=
 ## Part 10: Create Your Own Integration 🛠️
 
 ### The 5-Step Pattern
@@ -1135,6 +1145,7 @@ OpenEnv includes 3 complete examples:
 
 ---
 
+(summary-your-journey)=
 ## 🎓 Summary: Your Journey
 
 ### What You Learned
@@ -1213,6 +1224,7 @@ OpenEnv includes 3 complete examples:
 
 ---
 
+(resources)=
 ## 📚 Resources
 
 ### 🔗 Essential Links
