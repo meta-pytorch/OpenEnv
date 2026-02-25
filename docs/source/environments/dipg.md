@@ -1,1 +1,0 @@
-../../environments/dipg.md
