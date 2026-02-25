@@ -99,6 +99,9 @@ jobs:
             context: envs/openapp_env
           - name: maze-env
             dockerfile: envs/maze_env/server/Dockerfile
+          - name: openspiel-env
+            dockerfile: server/Dockerfile
+            context: envs/openspiel_env
 
     steps:
       - name: Checkout code
