@@ -1,2 +1,2 @@
---8<-- "../../envs/textarena_env/README.md"
-
+```{include} ../../../envs/textarena_env/README.md
+```
