@@ -247,6 +247,222 @@ Browser automation environment for web agents with DOM interaction, navigation, 
 ```
 ````
 
+````{grid-item-card} KernRL
+:class-card: sd-border-1
+
+RL environment for GPU kernel optimization. Train LLM agents to write fast CUDA/Triton kernels that beat baseline implementations.
+
++++
+```{button-link} environments/kernrl.html
+:color: primary
+:outline:
+
+{octicon}`file;1em` Docs
+```
+````
+
+````{grid-item-card} Calendar
+:class-card: sd-border-1
+
+Calendar tool-use environment exposing a Calendar Gym through the OpenEnv reset/step/state interface for scheduling agents.
+
++++
+```{button-link} environments/calendar.html
+:color: primary
+:outline:
+
+{octicon}`file;1em` Docs
+```
+````
+
+````{grid-item-card} Chess
+:class-card: sd-border-1
+
+Chess RL environment powered by the moonfish engine with configurable opponents, position evaluation, and full chess rules.
+
++++
+```{button-link} environments/chess.html
+:color: primary
+:outline:
+
+{octicon}`file;1em` Docs
+```
+````
+
+````{grid-item-card} Connect4
+:class-card: sd-border-1
+
+Classic Connect Four board game environment for training agents on turn-based strategy with a 6×7 grid.
+
++++
+```{button-link} environments/connect4.html
+:color: primary
+:outline:
+
+{octicon}`file;1em` Docs
+```
+````
+
+````{grid-item-card} DM Control
+:class-card: sd-border-1
+
+Generic OpenEnv wrapper for dm_control.suite, providing access to all MuJoCo-based continuous control tasks like cartpole, walker, and humanoid.
+
++++
+```{button-link} environments/dm_control.html
+:color: primary
+:outline:
+
+{octicon}`file;1em` Docs
+```
+````
+
+````{grid-item-card} FinQA
+:class-card: sd-border-1
+
+Financial question-answering environment that evaluates LLMs on complex financial questions using tool calls on SEC 10-K filing data.
+
++++
+```{button-link} environments/finqa.html
+:color: primary
+:outline:
+
+{octicon}`file;1em` Docs
+```
+````
+
+````{grid-item-card} Grid World
+:class-card: sd-border-1
+
+Simple 5×5 grid world RL testbed and step-by-step guide for building new OpenEnv environments from scratch.
+
++++
+```{button-link} environments/grid_world.html
+:color: primary
+:outline:
+
+{octicon}`file;1em` Docs
+```
+```{button-link} https://huggingface.co/spaces/yuvrajpant56/grid_world_env
+:color: warning
+:outline:
+
+🤗 Hugging Face
+```
+````
+
+````{grid-item-card} Julia
+:class-card: sd-border-1
+
+Julia code execution environment with test result tracking and reward calculation for RL training on Julia programming tasks.
+
++++
+```{button-link} environments/julia.html
+:color: primary
+:outline:
+
+{octicon}`file;1em` Docs
+```
+````
+
+````{grid-item-card} Maze
+:class-card: sd-border-1
+
+Gridworld maze where agents navigate from start to exit while avoiding walls, with configurable 8×8 layouts.
+
++++
+```{button-link} environments/maze.html
+:color: primary
+:outline:
+
+{octicon}`file;1em` Docs
+```
+````
+
+````{grid-item-card} OpenApp
+:class-card: sd-border-1
+
+Web application simulation wrapping the OpenApps framework and BrowserGym for training UI agents on calendar, todo, messenger, and maps apps.
+
++++
+```{button-link} environments/openapp.html
+:color: primary
+:outline:
+
+{octicon}`file;1em` Docs
+```
+````
+
+````{grid-item-card} Reasoning Gym
+:class-card: sd-border-1
+
+Integrates the Reasoning Gym library to provide single-step reasoning tasks with configurable datasets and scoring.
+
++++
+```{button-link} environments/reasoning_gym.html
+:color: primary
+:outline:
+
+{octicon}`file;1em` Docs
+```
+````
+
+````{grid-item-card} REPL
+:class-card: sd-border-1
+
+Python REPL environment for code execution tasks based on the Recursive Language Models paradigm with sandboxed execution and context loading.
+
++++
+```{button-link} environments/repl.html
+:color: primary
+:outline:
+
+{octicon}`file;1em` Docs
+```
+````
+
+````{grid-item-card} TB2
+:class-card: sd-border-1
+
+OpenEnv wrapper for Terminal-Bench 2 tasks with local and Docker execution modes for terminal-based agent evaluation.
+
++++
+```{button-link} environments/tbench2.html
+:color: primary
+:outline:
+
+{octicon}`file;1em` Docs
+```
+````
+
+````{grid-item-card} Unity
+:class-card: sd-border-1
+
+OpenEnv wrapper for Unity ML-Agents environments, providing access to Unity's RL environments through HTTP/WebSocket interfaces.
+
++++
+```{button-link} environments/unity.html
+:color: primary
+:outline:
+
+{octicon}`file;1em` Docs
+```
+````
+
+````{grid-item-card} Wildfire
+:class-card: sd-border-1
+
+Autonomous wildfire-control simulation where agents contain spreading fires using water, firebreaks, and timing under dynamic conditions.
+
++++
+```{button-link} environments/wildfire.html
+:color: primary
+:outline:
+
+{octicon}`file;1em` Docs
+```
+````
+
 `````
 
 ```{tip}
@@ -298,4 +514,18 @@ environments/snake
 environments/websearch
 environments/browsergym
 environments/repl
+environments/calendar
+environments/chess
+environments/connect4
+environments/dm_control
+environments/finqa
+environments/grid_world
+environments/julia
+environments/kernrl
+environments/maze
+environments/openapp
+environments/reasoning_gym
+environments/tbench2
+environments/unity
+environments/wildfire
 ```

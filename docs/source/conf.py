@@ -179,6 +179,27 @@ def remove_orphan_and_duplicate_toctree(app, docname, source):
         source[0] = content
 
 
+def copy_md_pages_to_gallery(app):
+    """Copy .md pages from getting_started/ to auto_getting_started/.
+
+    Sphinx Gallery only processes .py files and README.rst.  Any extra .md
+    pages that live alongside the gallery source must be copied into the
+    generated gallery directory so Sphinx can discover them as part of the
+    same toctree (important for section-nav context in pydata-sphinx-theme).
+    """
+    import shutil
+    import glob
+
+    srcdir = os.path.join(app.srcdir, "getting_started")
+    dstdir = os.path.join(app.srcdir, "auto_getting_started")
+    os.makedirs(dstdir, exist_ok=True)
+    for md_file in glob.glob(os.path.join(srcdir, "*.md")):
+        shutil.copy2(md_file, dstdir)
+
+
 def setup(app):
+    # Copy extra .md pages into the gallery output dir (priority 900 so it
+    # runs after sphinx-gallery's builder-inited handler at default priority).
+    app.connect("builder-inited", copy_md_pages_to_gallery, priority=900)
     # Hook into source-read to modify content before Sphinx processes it
     app.connect("source-read", remove_orphan_and_duplicate_toctree)

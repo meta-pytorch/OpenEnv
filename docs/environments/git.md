@@ -1,2 +1,2 @@
---8<-- "../../envs/git_env/README.md"
-
+```{include} ../../../envs/git_env/README.md
+```

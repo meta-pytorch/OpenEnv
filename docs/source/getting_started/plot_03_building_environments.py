@@ -2,7 +2,7 @@
 Building Environments
 =====================
 
-**Part 3 of 3** in the OpenEnv Getting Started Series
+**Part 3 of 5** in the OpenEnv Getting Started Series
 
 This notebook covers how to create your own OpenEnv environment, package it
 with Docker, and share it on Hugging Face Hub.
@@ -520,7 +520,7 @@ print(f"  Result: {'Won!' if obs.reward > 0 else 'Lost!'}")
 # Ready to Deploy?
 # ~~~~~~~~~~~~~~~~
 #
-# The :doc:`Build Your Own Environment </environment-builder>` reference guide
+# The :doc:`Packaging & Deploying </auto_getting_started/environment-builder>` reference guide
 # covers everything you need to package and share your environment:
 #
 # - **Server**: Wrapping your environment with FastAPI
@@ -561,7 +561,7 @@ print(f"  Result: {'Won!' if obs.reward > 0 else 'Lost!'}")
 # Congratulations!
 # ----------------
 #
-# You've completed the OpenEnv Getting Started Series!
+# You've completed the hands-on notebooks in the OpenEnv Getting Started Series!
 #
 # **You can now:**
 #
@@ -570,9 +570,10 @@ print(f"  Result: {'Won!' if obs.reward > 0 else 'Lost!'}")
 # - ✅ Build your own custom environments
 # - ✅ Test environments locally
 #
-# **Continue learning:**
+# **Continue the series:**
 #
-# - :doc:`Build Your Own Environment </environment-builder>` - Deploy your environment
+# - :doc:`Packaging & Deploying </auto_getting_started/environment-builder>` (Part 4) - Package and deploy your environment with the CLI
+# - :doc:`Contributing to Hugging Face </auto_getting_started/contributing-envs>` (Part 5) - Share environments on Hugging Face Hub
 # - :doc:`RL Training Tutorial </tutorials/rl-training-2048>` - Train agents on 2048
 # - Explore ``envs/`` directory for more examples
 #

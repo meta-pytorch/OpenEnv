@@ -2,7 +2,7 @@
 Introduction & Quick Start
 ==========================
 
-**Part 1 of 3** in the OpenEnv Getting Started Series
+**Part 1 of 5** in the OpenEnv Getting Started Series
 
 This notebook introduces OpenEnv, explains why it exists, and gets you
 running your first environment.

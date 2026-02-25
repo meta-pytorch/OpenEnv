@@ -2,7 +2,7 @@
 Using Environments
 ==================
 
-**Part 2 of 3** in the OpenEnv Getting Started Series
+**Part 2 of 5** in the OpenEnv Getting Started Series
 
 This notebook covers how to use OpenEnv environments: connecting to them,
 creating AI policies, running evaluations, and working with different games.

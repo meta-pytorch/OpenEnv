@@ -1,5 +1,7 @@
 # Contributing to Hugging Face
 
+**Part 5 of 5** in the OpenEnv Getting Started Series
+
 OpenEnv environments are designed to be shared. The `openenv` CLI provides first-class
 commands for publishing, forking, and contributing to environments hosted as
 [Hugging Face Spaces](https://huggingface.co/spaces).
@@ -185,6 +187,6 @@ openenv push --repo-id openenv/echo-env --create-pr
 ## Next Steps
 
 - [Build your own environment from scratch](environment-builder.md)
-- [Customize the web UI](customizing-web-ui.md)
-- [Browse available environments](environments.md)
-- [End-to-end tutorial](tutorials/openenv-tutorial.md)
+- [Customize the web UI](../customizing-web-ui.md)
+- [Browse available environments](../environments.md)
+- [End-to-end tutorial](../tutorials/openenv-tutorial.md)

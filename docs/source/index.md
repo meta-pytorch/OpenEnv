@@ -8,7 +8,7 @@
     <a class="hero__button hero__button--primary" href="auto_getting_started/index.html">
       Getting Started Tutorials
     </a>
-    <a class="hero__button" href="environment-builder.html">
+    <a class="hero__button" href="auto_getting_started/environment-builder.html">
       Build Your Own Environment
     </a>
     <a class="hero__button" href="environments.html">
@@ -75,7 +75,7 @@ New to OpenEnv? Follow our recommended learning path:
 
 1. **[Getting Started Tutorials](auto_getting_started/index)** — A hands-on, 3-part series covering what OpenEnv is, how to use existing environments, and how to build your own.
 
-2. **[Build Your Own Environment](environment-builder)** — The complete reference guide for creating, packaging, and deploying custom environments with Docker and Hugging Face Hub.
+2. **[Build Your Own Environment](auto_getting_started/environment-builder)** — The complete reference guide for creating, packaging, and deploying custom environments with Docker and Hugging Face Hub.
 
 3. **[Explore Environments](environments)** — Browse pre-built environments for games, coding, web browsing, and more.
 

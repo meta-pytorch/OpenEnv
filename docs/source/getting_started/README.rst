@@ -18,7 +18,11 @@ The tutorials are designed to be followed in sequence, building upon concepts fr
 
 3. **Building & Sharing Environments** - Create your own custom environment from scratch, package it with Docker, and share it on Hugging Face Hub.
 
-**No GPU Required!** All three tutorials run without a GPU.
+4. **Packaging & Deploying** - The complete reference guide for creating, packaging, and deploying custom environments with the ``openenv`` CLI.
+
+5. **Contributing to Hugging Face** - Publish, fork, and contribute to environments hosted as Hugging Face Spaces.
+
+**No GPU Required!** All five tutorials run without a GPU.
 
 For GPU-intensive training workflows, see the :doc:`RL Training Tutorial </tutorials/rl-training-2048>` in the Tutorials section.
 
