@@ -47,6 +47,15 @@ The `openenv` CLI provides a set of commands for building, validating, and pushi
    :show-inheritance:
 ```
 
+## `openenv fork`
+
+```{eval-rst}
+.. automodule:: openenv.cli.commands.fork
+   :members:
+   :undoc-members:
+   :show-inheritance:
+```
+
 # API Reference
 
 ## Entry point
