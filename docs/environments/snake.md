@@ -1,2 +1,2 @@
-```{include} ../../../envs/snake_env/README.md
-```
+--8<-- "../../envs/snake_env/README.md"
+
