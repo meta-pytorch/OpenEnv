@@ -1420,3 +1420,14 @@ class CarlaEnvironment(Environment):
             if self.vehicle is not None:
                 self.vehicle.destroy()
                 self.vehicle = None
+
+            # Restore asynchronous mode so the CARLA server is not left frozen
+            # waiting for world.tick() calls that will never come.
+            if hasattr(self, 'world') and self.world is not None:
+                try:
+                    settings = self.world.get_settings()
+                    settings.synchronous_mode = False
+                    settings.fixed_delta_seconds = None
+                    self.world.apply_settings(settings)
+                except Exception:
+                    logger.debug("Error restoring async mode", exc_info=True)
