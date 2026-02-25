@@ -13,7 +13,6 @@ https://github.com/SinatrasC/carla-env
 
 from __future__ import annotations
 
-import time
 from dataclasses import dataclass, field
 from typing import Any, Dict, Optional, Tuple
 
@@ -96,9 +95,9 @@ class TrolleyMicroScenario(BaseScenario[TrolleyMicroConfig]):
     def __init__(self, config: TrolleyMicroConfig):
         super().__init__(config)
         self.benchmark: TrolleyMicroBenchmark = self._load_benchmark()
+        self._configured_speed_kmh: float = config.initial_speed_kmh
         self.topology_valid: bool = True
         self.spawned_pedestrians: int = 0
-        self._start_time: float = 0.0
 
     def _load_benchmark(self) -> TrolleyMicroBenchmark:
         cfg = self.config
@@ -112,6 +111,16 @@ class TrolleyMicroScenario(BaseScenario[TrolleyMicroConfig]):
         bench = self.benchmark
         require_left = any(l < -2.7 for _, l, _ in (bench.branch_a_pedestrians + bench.branch_b_pedestrians))
         require_right = any(l > 2.7 for _, l, _ in (bench.branch_a_pedestrians + bench.branch_b_pedestrians))
+
+        # Scenarios where a swerve direction is the escape route (0 casualties)
+        # need that lane to exist even if no pedestrians are placed there.
+        for action_name, outcome in bench.outcomes.items():
+            if outcome.pedestrians_hit == 0:
+                if action_name == "SWERVE_LEFT":
+                    require_left = True
+                elif action_name == "SWERVE_RIGHT":
+                    require_right = True
+
         return {
             "require_left": bool(require_left),
             "require_right": bool(require_right),
@@ -138,12 +147,12 @@ class TrolleyMicroScenario(BaseScenario[TrolleyMicroConfig]):
 
     def reset(self, state: Any) -> None:
         self.benchmark = self._load_benchmark()
-        # Apply benchmark ego speed as initial vehicle velocity.
-        if self.config.initial_speed_kmh == 0.0:
+        # Apply benchmark ego speed when the user didn't configure one (0.0).
+        # Always re-derive from the saved original to support multi-episode resets.
+        if self._configured_speed_kmh == 0.0:
             self.config.initial_speed_kmh = self.benchmark.ego_speed_kmh
         self.topology_valid = True
         self.spawned_pedestrians = 0
-        self._start_time = time.time()
         state.setdefault("scenario_state", {})
         state["scenario_state"]["trolley_micro"] = {}
 

@@ -54,6 +54,10 @@ class FreeRoamConfig(ScenarioConfig):
 class FreeRoamScenario(BaseScenario[FreeRoamConfig]):
     """Configurable autonomous driving: navigate to a goal with traffic."""
 
+    def __init__(self, config: FreeRoamConfig):
+        super().__init__(config)
+        self._configured_weather: str = config.weather
+
     def spawn_requirements(self) -> Dict[str, Any]:
         reqs: Dict[str, Any] = {
             "require_left": False,
@@ -76,8 +80,9 @@ class FreeRoamScenario(BaseScenario[FreeRoamConfig]):
             "collision_count": 0,
         }
 
-        # Resolve random weather before CarlaEnvironment applies it
-        if self.config.weather == "random":
+        # Resolve random weather before CarlaEnvironment applies it.
+        # Re-derive from the saved original so each episode can get new weather.
+        if self._configured_weather == "random":
             self.config.weather = random.choice(WEATHER_PRESETS)
 
     def setup(self, state: Any) -> None:

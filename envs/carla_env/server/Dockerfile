@@ -70,8 +70,6 @@ RUN wget -q https://tiny.carla.org/carla-0-10-0-linux-tar -O /tmp/CARLA_0.10.0.t
     # Move the extracted directory to /opt/carla
     && mv /opt/carla_temp/Carla-0.10.0-Linux-Shipping /opt/carla \
     && rm -rf /opt/carla_temp \
-    # List contents to see what executables are available
-    && echo "CARLA directory contents:" && ls -la /opt/carla/ \
     # Find and make executable any .sh files
     && find /opt/carla -name "*.sh" -type f -exec chmod +x {} \;
 
@@ -174,10 +172,10 @@ except Exception as e:\n\
     exit 1\n\
 }\n\
 \n\
-# Start OpenEnv FastAPI server\n\
+# Start OpenEnv FastAPI server as non-root\n\
 echo "🚀 Starting OpenEnv server..."\n\
 cd /app\n\
-uvicorn carla_env.server.app:app --host 0.0.0.0 --port 8000\n\
+exec su - carla -c "cd /app && PYTHONPATH=/app:/opt/carla/PythonAPI/carla uvicorn carla_env.server.app:app --host 0.0.0.0 --port 8000"\n\
 ' > /start.sh && chmod +x /start.sh
 
 CMD ["/start.sh"]

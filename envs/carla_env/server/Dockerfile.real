@@ -38,6 +38,10 @@ RUN pip install --no-cache-dir carla-ue5-api==0.10.0
 # Copy CARLA environment code
 COPY . /app/carla_env/
 
+# Create non-root user
+RUN useradd -m -u 1000 -s /bin/bash carla \
+    && chown -R carla:carla /app
+
 # Set Python path
 ENV PYTHONPATH=/app:$PYTHONPATH
 
@@ -52,6 +56,8 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
     CMD curl -f http://localhost:8000/health || exit 1
 
 EXPOSE 8000
+
+USER carla
 
 # Run server (expects external CARLA server at CARLA_HOST:CARLA_PORT)
 CMD ["uvicorn", "carla_env.server.app:app", "--host", "0.0.0.0", "--port", "8000"]

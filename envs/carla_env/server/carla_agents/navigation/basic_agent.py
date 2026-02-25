@@ -1,4 +1,4 @@
-# Copyright (c) # Copyright (c) 2018-2020 CVC.
+# Copyright (c) 2018-2020 CVC.
 #
 # This work is licensed under the terms of the MIT license.
 # For a copy, see <https://opensource.org/licenses/MIT>.
@@ -151,10 +151,10 @@ class BasicAgent(object):
             :param start_location (carla.Location): starting location of the route
         """
         if not start_location:
-            start_location = self._local_planner.target_waypoint.transform.location
+            start_location = self._vehicle.get_location()
             clean_queue = True
         else:
-            start_location = self._vehicle.get_location()
+            # Use the caller-provided start_location as-is.
             clean_queue = False
 
         start_waypoint = self._map.get_waypoint(start_location)

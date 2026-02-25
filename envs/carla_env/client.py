@@ -10,7 +10,7 @@ Client for CARLA environment.
 Provides EnvClient wrapper for remote or local CARLA instances.
 """
 
-from typing import Optional, Dict, Any
+from typing import Dict, Any
 from openenv.core.env_client import EnvClient, StepResult
 from .models import CarlaAction, CarlaObservation, CarlaState
 
@@ -42,12 +42,18 @@ class CarlaEnv(EnvClient[CarlaAction, CarlaObservation, CarlaState]):
         >>> async with CarlaEnv(base_url="http://localhost:8000") as env:
         ...     result = await env.reset()
         ...     result = await env.step(CarlaAction(action_type="observe"))
+
+    Launch from Docker (delegates to base class):
+        >>> env = await CarlaEnv.from_docker_image(
+        ...     "carla-env:latest",
+        ...     environment={"CARLA_SCENARIO": "trolley_saves", "CARLA_MODE": "mock"},
+        ... )
     """
 
     def __init__(
         self,
         base_url: str = "http://localhost:8000",
-        **kwargs
+        **kwargs: Any,
     ):
         """
         Initialize CARLA environment client.
@@ -74,49 +80,3 @@ class CarlaEnv(EnvClient[CarlaAction, CarlaObservation, CarlaState]):
     def _parse_state(self, payload: Dict[str, Any]) -> CarlaState:
         """Parse JSON response to CarlaState."""
         return CarlaState(**payload)
-
-    @classmethod
-    def from_docker_image(
-        cls,
-        image: str = "carla-env:latest",
-        scenario: str = "trolley_saves",
-        mode: str = "mock",
-        **kwargs
-    ) -> "CarlaEnv":
-        """
-        Create CARLA environment from Docker image.
-
-        Args:
-            image: Docker image name
-            scenario: Scenario to run
-            mode: "mock" or "real"
-            **kwargs: Additional Docker run arguments
-
-        Returns:
-            CarlaEnv instance connected to container
-        """
-        from openenv.core.containers import LocalDockerProvider
-
-        provider = LocalDockerProvider()
-
-        # Environment variables for configuration
-        environment = {
-            "CARLA_SCENARIO": scenario,
-            "CARLA_MODE": mode,
-        }
-
-        if "environment" in kwargs:
-            environment.update(kwargs.pop("environment"))
-
-        container = provider.create_container(
-            image=image,
-            environment=environment,
-            **kwargs
-        )
-
-        provider.start_container(container.id)
-
-        # Get container URL
-        base_url = f"http://localhost:{container.ports.get('8000', 8000)}"
-
-        return cls(base_url=base_url)

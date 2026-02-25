@@ -33,7 +33,7 @@ These agents require:
 Simple point-to-point navigation:
 
 ```python
-from server.carla_agents.navigation.basic_agent import BasicAgent
+from carla_env.server.carla_agents.navigation.basic_agent import BasicAgent
 
 # Initialize agent (requires CARLA vehicle)
 agent = BasicAgent(vehicle)
@@ -57,7 +57,7 @@ if agent.done():
 Advanced navigation with traffic behavior:
 
 ```python
-from server.carla_agents.navigation.behavior_agent import BehaviorAgent
+from carla_env.server.carla_agents.navigation.behavior_agent import BehaviorAgent
 
 # Initialize with behavior
 agent = BehaviorAgent(
@@ -130,7 +130,6 @@ carla_agents/
 │   ├── basic_agent.py           # BasicAgent class
 │   ├── behavior_agent.py        # BehaviorAgent class
 │   ├── behavior_types.py        # Behavior type definitions
-│   ├── constant_velocity_agent.py  # Constant speed agent
 │   ├── controller.py            # PID controllers
 │   │   ├── VehiclePIDController
 │   │   ├── PIDLongitudinalController (throttle/brake)
@@ -146,7 +145,7 @@ carla_agents/
 PID controllers for smooth vehicle control:
 
 ```python
-from server.carla_agents.navigation.controller import VehiclePIDController
+from carla_env.server.carla_agents.navigation.controller import VehiclePIDController
 
 # Create controller
 controller = VehiclePIDController(
@@ -168,7 +167,7 @@ control = controller.run_step(target_speed, target_waypoint)
 Follows a queue of waypoints:
 
 ```python
-from server.carla_agents.navigation.local_planner import LocalPlanner
+from carla_env.server.carla_agents.navigation.local_planner import LocalPlanner
 
 planner = LocalPlanner(vehicle)
 
@@ -188,7 +187,7 @@ remaining = len(planner.waypoints_queue)
 Plans routes on CARLA road network:
 
 ```python
-from server.carla_agents.navigation.global_route_planner import GlobalRoutePlanner
+from carla_env.server.carla_agents.navigation.global_route_planner import GlobalRoutePlanner
 
 planner = GlobalRoutePlanner(world.get_map(), sampling_resolution=2.0)
 

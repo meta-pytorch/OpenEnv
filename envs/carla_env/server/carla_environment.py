@@ -18,6 +18,9 @@ import uuid
 import math
 from typing import Optional, Dict, Any, List
 from openenv.core.env_server import Environment
+from .logging import get_logger
+
+logger = get_logger("environment")
 
 from ..models import CarlaAction, CarlaObservation, CarlaState
 from .benchmark_scenarios import BaseScenario, get_scenario
@@ -69,7 +72,7 @@ class CollisionSensor:
                 actor_type = str(event.other_actor.type_id)
                 self._collided_actors[actor_id] = actor_type
         except Exception:
-            pass  # Silently ignore collision parsing errors
+            logger.warning("Failed to parse collision event", exc_info=True)
 
     def count_unique_by_prefix(self, prefix: str) -> int:
         """Count unique actors hit that match prefix (e.g., 'walker.')."""
@@ -100,8 +103,8 @@ class CollisionSensor:
                 if self._sensor.is_alive:
                     self._sensor.stop()
                 self._sensor.destroy()
-            except:
-                pass
+            except Exception:
+                logger.debug("Error destroying collision sensor", exc_info=True)
             self._sensor = None
 
 
@@ -177,8 +180,8 @@ class ActorsHelper:
             if actor is not None:
                 try:
                     actor.destroy()
-                except:
-                    pass
+                except Exception:
+                    logger.debug("Error destroying actor %s", actor, exc_info=True)
         self._spawned_actors.clear()
 
 
@@ -257,6 +260,9 @@ class CarlaEnvironment(Environment):
 
         # Mock mode state
         self.mock_state: Dict[str, Any] = {}
+
+        # Runtime state shared with scenarios (populated in reset)
+        self._runtime_state: Dict[str, Any] = {}
 
         # Scenario data
         self.scenario_data: Dict[str, Any] = {}
@@ -391,7 +397,7 @@ class CarlaEnvironment(Environment):
                 )
 
         # Sync runtime state for scenario logic
-        if hasattr(self, '_runtime_state') and self._runtime_state is not None:
+        if self._runtime_state and "tool_calls" in self._runtime_state:
             self._runtime_state["env_step"] = self._state.step_count
             # Track tool call for action classification
             tool_call = {
@@ -419,6 +425,7 @@ class CarlaEnvironment(Environment):
             outcome = self.scenario.compute_outcome(self._runtime_state)
             reward = outcome.get("reward", 0.0) if isinstance(outcome, dict) else 0.0
         except Exception:
+            logger.exception("compute_outcome failed — defaulting reward to 0.0")
             reward = 0.0
         self._state.total_reward += reward
         obs.reward = reward
@@ -1405,8 +1412,8 @@ class CarlaEnvironment(Environment):
                     if self.camera_sensor.is_alive:
                         self.camera_sensor.stop()
                     self.camera_sensor.destroy()
-                except:
-                    pass
+                except Exception:
+                    logger.debug("Error destroying camera sensor", exc_info=True)
                 self.camera_sensor = None
 
             # Cleanup vehicle
