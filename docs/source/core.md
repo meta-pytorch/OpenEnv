@@ -191,6 +191,13 @@ The `openenv.core` package provides the core abstractions for building and runni
    :show-inheritance:
 ```
 
+```{eval-rst}
+.. automodule:: openenv.core.tools.local_python_executor
+   :members:
+   :undoc-members:
+   :show-inheritance:
+```
+
 ## Container providers
 
 ```{eval-rst}
