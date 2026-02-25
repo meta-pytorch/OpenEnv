@@ -38,7 +38,7 @@ class FleetMCPTools:
     api_key: str
     mcp_urls: Sequence[str]
     max_retries: int = 3
-    retry_base_delay: float = 1.0
+    retry_base_delay: float = 2.0
     _clients: Optional[List[FleetMCPClient]] = field(default=None, repr=False)
     _tool_owner: Optional[Dict[str, FleetMCPClient]] = field(default=None, repr=False)
 
@@ -113,7 +113,9 @@ class FleetMCPTools:
                     await asyncio.sleep(delay)
 
         logger.error(f"list_tools failed after {self.max_retries} attempts: {_unwrap_exception(last_error)}")
-        return ListToolsAction(tools=[])
+        raise RuntimeError(
+            f"list_tools failed after {self.max_retries} attempts"
+        ) from last_error
 
     async def _call_tool_single_attempt(
         self, tool_name: str, arguments: Dict[str, Any]

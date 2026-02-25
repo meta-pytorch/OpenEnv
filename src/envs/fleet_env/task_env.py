@@ -98,10 +98,7 @@ class FleetTaskEnv:
             request_timeout_s=self.request_timeout_s,
         )
 
-        # Fetch tools for tool_use tasks
-        # Note: tools are fetched lazily on first reset_async() to avoid
-        # asyncio.run() issues when __init__ is called from async context
-        self._tools_fetched = False
+        # Tools are fetched in reset_async() to avoid asyncio.run() issues in __init__
 
     @property
     def task_key(self) -> str:
@@ -212,30 +209,26 @@ class FleetTaskEnv:
                     f"[env={self.env_key}] Fleet env reset failed (timeout={self.reset_timeout_s}s), continuing with empty observation: {e}"
                 )
 
-        # Fetch tools lazily on first reset (avoids asyncio.run in __init__)
-        # Note: Fetch tools for ALL modalities (tool_use and computer_use both need tools)
-        if self._tools and not self._tools_fetched:
+        # Fetch tools on every reset
+        if self._tools:
             try:
                 tools_result = await self._tools.list_tools()
                 self._tools_cache = tools_result.tools
-                self._tools_fetched = True
             except Exception as e:
                 logger.warning(f"[env={self.env_key}] Failed to fetch tools: {e}")
                 self._tools_cache = []
-                self._tools_fetched = True
 
         # Filter tools based on modality:
         # - computer_use: keep ONLY the 'computer' tool
         # - tool_use: EXCLUDE the 'computer' tool (should only use API tools)
-        if self._tools_cache:
-            if self.modality == "tool_use":
-                # Exclude computer tool for tool_use tasks
-                self._tools_cache = [
-                    t
-                    for t in self._tools_cache
-                    if t.get("name") != "computer"
-                    and t.get("function", {}).get("name") != "computer"
-                ]
+        if self._tools_cache and self.modality == "tool_use":
+            # Exclude computer tool for tool_use tasks
+            self._tools_cache = [
+                t
+                for t in self._tools_cache
+                if t.get("name") != "computer"
+                and t.get("function", {}).get("name") != "computer"
+            ]
 
         # For computer_use, filter to only the 'computer' tool
         # IMPORTANT: Always apply filter for computer_use modality to prevent
