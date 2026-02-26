@@ -15,6 +15,7 @@ from typing import Any, Dict, List, Optional, Sequence
 
 from .fleet_mcp_client import FleetMCPClient
 from .models import ListToolsAction, convert_tool_format
+from .telemetry import fleet_error, fleet_warning
 
 logger = logging.getLogger(__name__)
 
@@ -81,6 +82,10 @@ class FleetMCPTools:
         if errors:
             # Some clients failed but we got tools from others
             logger.warning(f"Some MCP clients failed to list tools: {errors}")
+            fleet_warning(
+                "fleet_list_tools_partial",
+                error_message="; ".join(errors),
+            )
 
         return tools
 
@@ -110,9 +115,21 @@ class FleetMCPTools:
                         f"list_tools attempt {attempt + 1}/{self.max_retries} failed: {error_msg}. "
                         f"Retrying in {delay:.1f}s..."
                     )
+                    fleet_warning(
+                        "fleet_list_tools_retry",
+                        attempt=attempt + 1,
+                        max_retries=self.max_retries,
+                        error_message=error_msg,
+                    )
                     await asyncio.sleep(delay)
 
         logger.error(f"list_tools failed after {self.max_retries} attempts: {_unwrap_exception(last_error)}")
+        fleet_error(
+            "fleet_list_tools_exhausted",
+            attempt=self.max_retries,
+            max_retries=self.max_retries,
+            error_message=_unwrap_exception(last_error),
+        )
         raise RuntimeError(
             f"list_tools failed after {self.max_retries} attempts"
         ) from last_error
@@ -170,10 +187,24 @@ class FleetMCPTools:
                         f"call_tool({tool_name}) attempt {attempt + 1}/{self.max_retries} failed: {error_msg}. "
                         f"Retrying in {delay:.1f}s..."
                     )
+                    fleet_warning(
+                        "fleet_call_tool_retry",
+                        tool_name=tool_name,
+                        attempt=attempt + 1,
+                        max_retries=self.max_retries,
+                        error_message=error_msg,
+                    )
                     await asyncio.sleep(delay)
 
         logger.error(
             f"call_tool({tool_name}) failed after {self.max_retries} attempts: {_unwrap_exception(last_error)}"
+        )
+        fleet_error(
+            "fleet_call_tool_exhausted",
+            tool_name=tool_name,
+            attempt=self.max_retries,
+            max_retries=self.max_retries,
+            error_message=_unwrap_exception(last_error),
         )
         raise RuntimeError(
             f"call_tool({tool_name}) failed after {self.max_retries} attempts"

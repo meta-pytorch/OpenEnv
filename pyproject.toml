@@ -30,6 +30,7 @@ dependencies = [
 fleet = [
     "mcp>=1.0.0",
     "fleet-python>=0.2.79",
+    "logfire>=3.0.0",
 ]
 
 [project.scripts]

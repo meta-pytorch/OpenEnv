@@ -16,6 +16,7 @@ logger = logging.getLogger(__name__)
 
 from .client import FleetEnvClient
 from .mcp_tools import FleetMCPTools
+from .telemetry import fleet_error, fleet_exception, fleet_warning, fleet_info
 
 
 class FleetTaskEnv:
@@ -208,6 +209,14 @@ class FleetTaskEnv:
                 logger.warning(
                     f"[env={self.env_key}] Fleet env reset failed (timeout={self.reset_timeout_s}s), continuing with empty observation: {e}"
                 )
+                fleet_exception(
+                    "fleet_env_reset_failed",
+                    task_key=self.task_key,
+                    env_key=self.env_key,
+                    modality=self.modality,
+                    step_count=self._step_count,
+                    timeout_s=self.reset_timeout_s,
+                )
 
         # Fetch tools on every reset
         if self._tools:
@@ -216,6 +225,13 @@ class FleetTaskEnv:
                 self._tools_cache = tools_result.tools
             except Exception as e:
                 logger.warning(f"[env={self.env_key}] Failed to fetch tools: {e}")
+                fleet_exception(
+                    "fleet_tools_list_failed",
+                    task_key=self.task_key,
+                    env_key=self.env_key,
+                    modality=self.modality,
+                    step_count=self._step_count,
+                )
                 self._tools_cache = []
 
         # Filter tools based on modality:
@@ -245,10 +261,19 @@ class FleetTaskEnv:
             else:
                 # No computer tool found - this is a configuration error
                 # The MCP image should expose the 'computer' tool for computer_use tasks
+                available = [t.get('name') or t.get('function', {}).get('name') for t in self._tools_cache]
                 logger.warning(
                     f"[env={self.env_key}] Task {self.task_key}: computer_use modality but no 'computer' tool found. "
-                    f"Available tools: {[t.get('name') or t.get('function', {}).get('name') for t in self._tools_cache]}. "
+                    f"Available tools: {available}. "
                     f"Check MCP image configuration."
+                )
+                fleet_warning(
+                    "fleet_computer_tool_missing",
+                    task_key=self.task_key,
+                    env_key=self.env_key,
+                    modality=self.modality,
+                    step_count=self._step_count,
+                    available_tools=available,
                 )
                 # Clear tools to prevent model from using API tools
                 self._tools_cache = []
@@ -279,6 +304,13 @@ class FleetTaskEnv:
             except Exception as e:
                 logger.warning(
                     f"Task {self.task_key}: failed to capture initial screenshot: {e}"
+                )
+                fleet_exception(
+                    "fleet_screenshot_failed",
+                    task_key=self.task_key,
+                    env_key=self.env_key,
+                    modality=self.modality,
+                    step_count=self._step_count,
                 )
 
         return obs
@@ -342,6 +374,14 @@ class FleetTaskEnv:
             except Exception as e:
                 info["tool_error"] = str(e)
                 tool_result = {"error": str(e)}
+                fleet_exception(
+                    "fleet_tool_call_failed",
+                    task_key=self.task_key,
+                    env_key=self.env_key,
+                    modality=self.modality,
+                    step_count=self._step_count,
+                    tool_name=tool_name,
+                )
 
         # Determine if done
         self._done = agent_done or max_steps_reached
@@ -435,6 +475,14 @@ class FleetTaskEnv:
                 f"Verifier execution failed for task {self.task_key}: {e}\n"
                 f"Verifier code:\n{verifier_code}"
             )
+            fleet_exception(
+                "fleet_verifier_failed",
+                task_key=self.task_key,
+                env_key=self.env_key,
+                modality=self.modality,
+                step_count=self._step_count,
+                verifier_code_snippet=verifier_code[:200] if verifier_code else "",
+            )
             return 0.0
 
     def close(self):
@@ -443,7 +491,13 @@ class FleetTaskEnv:
             try:
                 self._orch.close()
             except Exception:
-                pass
+                fleet_exception(
+                    "fleet_env_close_failed",
+                    task_key=self.task_key,
+                    env_key=self.env_key,
+                    modality=self.modality,
+                    step_count=self._step_count,
+                )
             self._orch = None
             self._tools = None
             self._tools_cache = None

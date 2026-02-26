@@ -23,6 +23,7 @@ except ImportError:
 
 from .mcp_tools import FleetMCPTools
 from .models import CallToolAction, ListToolsAction
+from .telemetry import fleet_error, fleet_warning, fleet_info
 
 
 class FleetEnvClient(HTTPEnvClient[Action, Observation]):
@@ -114,14 +115,39 @@ class FleetEnvClient(HTTPEnvClient[Action, Observation]):
                         f"[env={env_key}] Fleet.make() failed (attempt {attempt + 1}/{max_retries}): {e}. "
                         f"Retrying in {delay:.1f}s..."
                     )
+                    fleet_warning(
+                        "fleet_make_retry",
+                        env_key=env_key,
+                        attempt=attempt + 1,
+                        max_retries=max_retries,
+                        error_type=type(e).__name__,
+                        error_message=str(e),
+                        retry_delay_s=delay,
+                    )
                     time.sleep(delay)
                 else:
                     _logger.error(
                         f"[env={env_key}] Fleet.make() failed after {attempt + 1} attempt(s): {e}"
                     )
+                    fleet_error(
+                        "fleet_make_failed",
+                        env_key=env_key,
+                        attempt=attempt + 1,
+                        max_retries=max_retries,
+                        error_type=type(e).__name__,
+                        error_message=str(e),
+                    )
                     raise
 
-        _logger.info(f"Fleet instance ready in {time.time() - start:.1f}s: {env.instance_id}")
+        elapsed = time.time() - start
+        instance_id = getattr(env, "instance_id", "unknown")
+        _logger.info(f"Fleet instance ready in {elapsed:.1f}s: {instance_id}")
+        fleet_info(
+            "fleet_env_created",
+            env_key=env_key,
+            instance_id=instance_id,
+            elapsed_s=round(elapsed, 1),
+        )
 
         root = env.urls.root
         # Fleet currently exposes multiple MCP endpoints. Prefer /api/v1/mcp first.

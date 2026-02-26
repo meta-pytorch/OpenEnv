@@ -114,6 +114,44 @@ Agent: Tool execution result received.
 result=CallToolResult(... structuredContent={'result': {'output': 'X=683,Y=384', ...}})
 ```
 
+### Telemetry
+
+Structured error tracking via [Logfire](https://logfire.pydantic.dev/). Covers init failures, tool call failures, MCP timeouts, and verifier errors across all fleet task executions.
+
+**Setup:**
+
+```python
+from envs.fleet_env import configure_fleet_telemetry
+
+configure_fleet_telemetry(token="your-logfire-token", environment="production")
+```
+
+If you never call `configure_fleet_telemetry()`, logfire silently drops all events (no noise, no crashes).
+
+**What gets tracked:**
+
+| Event | Level | Where |
+|-------|-------|-------|
+| `fleet_env_created` | info | `client.py` — successful `Fleet.make()` |
+| `fleet_make_retry` | warning | `client.py` — transient `Fleet.make()` failure, retrying |
+| `fleet_make_failed` | error | `client.py` — `Fleet.make()` permanently failed |
+| `fleet_env_reset_failed` | exception | `task_env.py` — env reset threw |
+| `fleet_tools_list_failed` | exception | `task_env.py` — tool listing threw |
+| `fleet_computer_tool_missing` | warning | `task_env.py` — computer_use mode but no computer tool |
+| `fleet_screenshot_failed` | exception | `task_env.py` — initial screenshot threw |
+| `fleet_tool_call_failed` | exception | `task_env.py` — agent tool call threw |
+| `fleet_verifier_failed` | exception | `task_env.py` — verifier execution threw |
+| `fleet_env_close_failed` | exception | `task_env.py` — env close threw |
+| `fleet_list_tools_partial` | warning | `mcp_tools.py` — some MCP endpoints failed |
+| `fleet_list_tools_retry` | warning | `mcp_tools.py` — list_tools retrying |
+| `fleet_list_tools_exhausted` | error | `mcp_tools.py` — list_tools retries exhausted |
+| `fleet_call_tool_retry` | warning | `mcp_tools.py` — call_tool retrying |
+| `fleet_call_tool_exhausted` | error | `mcp_tools.py` — call_tool retries exhausted |
+
+All events carry relevant context (`task_key`, `env_key`, `modality`, etc). Exception-level events include the full traceback.
+
+The wrapper lives in `telemetry.py` — four functions: `fleet_info`, `fleet_warning`, `fleet_error`, `fleet_exception`.
+
 ### TODOs
 
 - **MCP endpoint abstraction**: stop hardcoding `("api/v1/mcp", "mcp")` and discover endpoints (or accept a single unified endpoint when Fleet provides one).
