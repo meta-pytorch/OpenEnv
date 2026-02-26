@@ -6,7 +6,7 @@
 
 """Tests for rubric integration with Environment base class."""
 
-from typing import Any, Optional, List, Tuple
+from typing import Any, List, Optional, Tuple
 
 from openenv.core.env_server.interfaces import Environment
 from openenv.core.env_server.types import Action, Observation, State
