@@ -11,12 +11,10 @@ The Chat environment provides a chat-based interface for LLMs with support
 for tokenization and message history management.
 """
 
-from pydantic import Field
-
 import torch
-
 from openenv.core.env_server.interfaces import Message
 from openenv.core.env_server.types import Action, Observation, State
+from pydantic import Field
 
 
 class ChatAction(Action):

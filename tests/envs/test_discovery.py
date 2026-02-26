@@ -19,14 +19,14 @@ Tests cover:
 from unittest.mock import Mock, patch
 
 from openenv.auto._discovery import (
+    _create_env_info_from_package,
+    _infer_class_name,
+    _is_hub_url,
+    _normalize_env_name,
     EnvironmentDiscovery,
     EnvironmentInfo,
     get_discovery,
     reset_discovery,
-    _normalize_env_name,
-    _is_hub_url,
-    _infer_class_name,
-    _create_env_info_from_package,
 )
 
 

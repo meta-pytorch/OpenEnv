@@ -6,16 +6,16 @@
 
 """Tests for container rubrics: Sequential, Gate, WeightedSum, RubricList, RubricDict."""
 
-import pytest
 from typing import Any
 
+import pytest
 from openenv.core.rubrics.base import Rubric
 from openenv.core.rubrics.containers import (
-    Sequential,
     Gate,
-    WeightedSum,
-    RubricList,
     RubricDict,
+    RubricList,
+    Sequential,
+    WeightedSum,
 )
 
 

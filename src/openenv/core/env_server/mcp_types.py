@@ -22,7 +22,7 @@ from typing import Any, Dict, List, Literal, Optional, Union
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from .types import Action, Observation, BaseMessage
+from .types import Action, BaseMessage, Observation
 
 
 # =============================================================================
