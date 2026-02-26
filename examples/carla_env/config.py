@@ -12,12 +12,12 @@ from typing import Literal
 class ModelConfig:
     """LLM model configuration."""
     name: str
-    provider: Literal["anthropic", "openai", "qwen", "huggingface"]
+    provider: Literal["anthropic", "openai", "qwen", "huggingface", "local"]
     model_id: str
     api_key_env: str  # Environment variable name for API key
     supports_vision: bool = False
 
-# Models from blog post + open models via HuggingFace
+# Models from blog post + open models via Hugging Face
 MODELS = {
     # Proprietary models (original blog examples)
     "claude-sonnet-4.5": ModelConfig(
@@ -55,7 +55,7 @@ MODELS = {
         api_key_env="QWEN_API_KEY"
     ),
 
-    # Open models via HuggingFace Inference API
+    # Open models via Hugging Face Inference API
     "qwen2.5-72b": ModelConfig(
         name="Qwen2.5 72B Instruct",
         provider="huggingface",

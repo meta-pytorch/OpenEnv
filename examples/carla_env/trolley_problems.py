@@ -39,6 +39,10 @@ Usage:
 
     # Run all blog examples
     python trolley_problems.py --run-all-blog-examples
+
+    # Use a local/Hub fine-tuned model
+    python trolley_problems.py --model sergiopaniego/Qwen3-0.6B-carla-trolley-escape --scenario escape-exists \\
+        --base-url https://sergiopaniego-carla-env.hf.space
 """
 
 import argparse
@@ -54,7 +58,7 @@ sys.path.insert(0, str(_repo_root / "src"))
 sys.path.insert(0, str(_repo_root / "envs"))
 
 from carla_env import CarlaEnv, CarlaAction
-from config import MODELS, TROLLEY_SCENARIOS, BLOG_EXAMPLES
+from config import MODELS, ModelConfig, TROLLEY_SCENARIOS, BLOG_EXAMPLES
 
 @dataclass
 class EpisodeResult:
@@ -66,6 +70,24 @@ class EpisodeResult:
     outcome: str
     reward: float
     steps: int
+
+
+def _resolve_model(model_key: str) -> ModelConfig:
+    """Resolve a model key to a ModelConfig.
+
+    If model_key is a known preset (e.g. "claude-sonnet-4.5"), returns the
+    preset config. Otherwise, treats it as a Hugging Face model ID and
+    creates a local config that loads the model with transformers.
+    """
+    if model_key in MODELS:
+        return MODELS[model_key]
+    # Treat as a Hugging Face model ID for local inference
+    return ModelConfig(
+        name=model_key,
+        provider="local",
+        model_id=model_key,
+        api_key_env="",  # No API key needed for local models
+    )
 
 async def _capture_sequence_async(env, output_path, prefix, num_frames=20, verbose=True, drive_straight=False):
     """Capture a sequence of images by ticking the simulation forward.
@@ -186,7 +208,7 @@ def run_trolley_episode(
     """
 
     # Get configs
-    model_config = MODELS[model_key]
+    model_config = _resolve_model(model_key)
     scenario_config = TROLLEY_SCENARIOS[scenario_key]
 
     if vision and not model_config.supports_vision:
@@ -236,7 +258,7 @@ def run_trolley_episode(
             if save_images:
                 if verbose:
                     print("   Capturing approach sequence...")
-                prefix = f"{model_key}_{scenario_key}_approach"
+                prefix = f"{model_key.replace('/', '_')}_{scenario_key}_approach"
                 await _capture_sequence_async(env, output_path, prefix, num_frames=5, verbose=verbose)
                 # Re-capture current observation
                 img_result = await env.step(CarlaAction(action_type="capture_image"))
@@ -346,7 +368,7 @@ Make your decision by calling one of the available tools."""
                 if save_images:
                     if verbose:
                         print(f"   Capturing post-decision sequence ({tool_name})...")
-                    prefix = f"{model_key}_{scenario_key}_after_{tool_name}"
+                    prefix = f"{model_key.replace('/', '_')}_{scenario_key}_after_{tool_name}"
                     await _capture_sequence_async(env, output_path, prefix, num_frames=num_frames, verbose=verbose)
 
                 if verbose:
@@ -398,15 +420,20 @@ Examples:
   # Run all blog examples
   python trolley_problems.py --run-all-blog-examples
 
-  # Use HuggingFace Space
+  # Use Hugging Face Space
   python trolley_problems.py --model gpt-5.2 --scenario saves-3v0 \\
     --base-url https://sergiopaniego-carla-env.hf.space
+
+  # Use a local/Hub fine-tuned model
+  python trolley_problems.py --model sergiopaniego/Qwen3-0.6B-carla-trolley-escape \\
+    --scenario escape-exists --base-url https://sergiopaniego-carla-env.hf.space
         """
     )
     parser.add_argument(
         "--model",
-        choices=list(MODELS.keys()),
-        help="Model to use"
+        type=str,
+        help="Model to use: a preset name (e.g. claude-sonnet-4.5) or a Hugging Face model ID "
+             "(e.g. sergiopaniego/Qwen3-0.6B-carla-trolley-escape) for local inference"
     )
     parser.add_argument(
         "--scenario",

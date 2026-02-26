@@ -5,7 +5,8 @@ Supports:
 - Anthropic (Claude)
 - OpenAI (GPT)
 - Qwen (via OpenAI-compatible API)
-- HuggingFace (Open models via Inference API)
+- Hugging Face (Open models via Inference API)
+- Local (Hugging Face models loaded with transformers)
 """
 
 import os
@@ -204,7 +205,7 @@ class QwenClient(LLMClient):
         }
 
 class HuggingFaceClient(LLMClient):
-    """HuggingFace Inference API client (OpenAI-compatible)."""
+    """Hugging Face Inference API client (OpenAI-compatible)."""
 
     def __init__(self, model_id: str):
         api_key = os.getenv("HF_TOKEN")
@@ -214,7 +215,7 @@ class HuggingFaceClient(LLMClient):
                 "Set it with: export HF_TOKEN=your-token\n"
                 "Get token from: https://huggingface.co/settings/tokens"
             )
-        # HuggingFace Inference Providers (OpenAI-compatible)
+        # Hugging Face Inference Providers (OpenAI-compatible)
         self.client = OpenAI(
             api_key=api_key,
             base_url="https://router.huggingface.co/v1/"
@@ -303,12 +304,114 @@ class HuggingFaceClient(LLMClient):
             "text": ""
         }
 
+class LocalClient(LLMClient):
+    """Local model client using transformers (AutoModelForCausalLM + AutoTokenizer).
+
+    Loads a Hugging Face model locally on GPU and generates responses with tool calling
+    support. Uses the tokenizer's built-in chat template (e.g., Qwen3 has native tool
+    support via <tool_call> tags).
+    """
+
+    def __init__(self, model_id: str):
+        import torch
+        from transformers import AutoModelForCausalLM, AutoTokenizer
+
+        print(f"  [LocalClient] Loading model: {model_id}")
+        self.tokenizer = AutoTokenizer.from_pretrained(model_id)
+        self.model = AutoModelForCausalLM.from_pretrained(
+            model_id,
+            torch_dtype=torch.bfloat16,
+            device_map="auto",
+        )
+        self.model_id = model_id
+        print(f"  [LocalClient] Model loaded on {self.model.device}")
+
+    def chat(self, messages, tools, max_tokens=2048):
+        import json
+        import re
+
+        # Convert OpenAI-style tools to the format expected by the chat template
+        tool_defs = []
+        for tool in tools:
+            func = tool["function"]
+            tool_defs.append({
+                "type": "function",
+                "function": {
+                    "name": func["name"],
+                    "description": func["description"],
+                    "parameters": func["parameters"],
+                },
+            })
+
+        # Apply chat template with tools
+        text = self.tokenizer.apply_chat_template(
+            messages,
+            tools=tool_defs,
+            tokenize=False,
+            add_generation_prompt=True,
+            enable_thinking=False,
+        )
+
+        inputs = self.tokenizer(text, return_tensors="pt").to(self.model.device)
+
+        output_ids = self.model.generate(
+            **inputs,
+            max_new_tokens=max_tokens,
+            do_sample=False,
+        )
+
+        # Decode only the generated tokens (skip the prompt)
+        generated_ids = output_ids[0][inputs["input_ids"].shape[1]:]
+        response_text = self.tokenizer.decode(generated_ids, skip_special_tokens=True)
+
+        # Parse tool calls from <tool_call>...</tool_call> tags (Qwen3 format)
+        tool_calls = []
+        text_parts = []
+
+        tool_call_pattern = r'<tool_call>\s*(\{.*?\})\s*</tool_call>'
+        matches = re.findall(tool_call_pattern, response_text, re.DOTALL)
+
+        if matches:
+            for match in matches:
+                try:
+                    parsed = json.loads(match)
+                    tool_calls.append({
+                        "name": parsed.get("name", ""),
+                        "arguments": parsed.get("arguments", {}),
+                    })
+                except json.JSONDecodeError:
+                    continue
+
+            # Extract non-tool-call text
+            remaining = re.sub(tool_call_pattern, "", response_text, flags=re.DOTALL).strip()
+            if remaining:
+                text_parts.append(remaining)
+        else:
+            # No tool_call tags — try to parse as raw JSON (some models output JSON directly)
+            try:
+                parsed = json.loads(response_text.strip())
+                if "name" in parsed:
+                    tool_calls.append({
+                        "name": parsed["name"],
+                        "arguments": parsed.get("arguments", {}),
+                    })
+                else:
+                    text_parts.append(response_text)
+            except json.JSONDecodeError:
+                text_parts.append(response_text)
+
+        return {
+            "tool_calls": tool_calls,
+            "text": " ".join(text_parts),
+        }
+
+
 def create_client(provider: str, model_id: str) -> LLMClient:
     """
     Factory function to create LLM client.
 
     Args:
-        provider: "anthropic", "openai", "qwen", or "huggingface"
+        provider: "anthropic", "openai", "qwen", "huggingface", or "local"
         model_id: Model identifier for the provider
 
     Returns:
@@ -322,5 +425,7 @@ def create_client(provider: str, model_id: str) -> LLMClient:
         return QwenClient(model_id)
     elif provider == "huggingface":
         return HuggingFaceClient(model_id)
+    elif provider == "local":
+        return LocalClient(model_id)
     else:
         raise ValueError(f"Unknown provider: {provider}")
