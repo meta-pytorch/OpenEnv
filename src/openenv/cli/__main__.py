@@ -14,7 +14,6 @@ following the Hugging Face CLI pattern.
 import sys
 
 import typer
-
 from openenv.cli.commands import build, fork, init, push, serve, validate
 
 # Create the main CLI app

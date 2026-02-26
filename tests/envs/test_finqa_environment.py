@@ -26,8 +26,8 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from envs.finqa_env.server.rewards import (
     compute_reward,
-    parse_number,
     extract_boxed_answer,
+    parse_number,
 )
 
 

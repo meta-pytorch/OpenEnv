@@ -161,8 +161,8 @@ class TestSmokeFactoryPattern:
 
     def test_smoke_create_app_accepts_class(self):
         """Test that create_app accepts a class (not instance)."""
-        from openenv.core.env_server.http_server import create_app
         from envs.echo_env.server.echo_environment import EchoEnvironment
+        from openenv.core.env_server.http_server import create_app
         from openenv.core.env_server.mcp_types import (
             CallToolAction,
             CallToolObservation,
@@ -176,8 +176,8 @@ class TestSmokeFactoryPattern:
 
     def test_smoke_create_app_accepts_factory_function(self):
         """Test that create_app accepts a factory function."""
-        from openenv.core.env_server.http_server import create_app
         from envs.echo_env.server.echo_environment import EchoEnvironment
+        from openenv.core.env_server.http_server import create_app
         from openenv.core.env_server.mcp_types import (
             CallToolAction,
             CallToolObservation,
@@ -194,8 +194,8 @@ class TestSmokeFactoryPattern:
 
     def test_smoke_create_app_rejects_instance(self):
         """Test that create_app rejects an instance (not callable)."""
-        from openenv.core.env_server.http_server import create_app
         from envs.echo_env.server.echo_environment import EchoEnvironment
+        from openenv.core.env_server.http_server import create_app
         from openenv.core.env_server.mcp_types import (
             CallToolAction,
             CallToolObservation,
