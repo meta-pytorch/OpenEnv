@@ -11,19 +11,18 @@ Tests both mock mode (no CARLA required) and scenario system.
 """
 
 import pytest
-
 from carla_env.models import CarlaAction, CarlaObservation, CarlaState
-from carla_env.server.carla_environment import CarlaEnvironment
 from carla_env.server.benchmark_scenarios import (
-    get_scenario,
     ActionBiasScenario,
-    MazeScenario,
-    FreeRoamScenario,
     FreeRoamConfig,
+    FreeRoamScenario,
+    get_scenario,
+    MazeScenario,
 )
 from carla_env.server.benchmark_scenarios.base import ScenarioConfig
 from carla_env.server.benchmark_scenarios.free_roam import WEATHER_PRESETS
-from carla_env.server.rubrics import CarlaTrolleyRubric, CarlaNavigationRubric
+from carla_env.server.carla_environment import CarlaEnvironment
+from carla_env.server.rubrics import CarlaNavigationRubric, CarlaTrolleyRubric
 
 
 class TestCarlaEnvironmentMock:
@@ -31,10 +30,7 @@ class TestCarlaEnvironmentMock:
 
     def test_environment_creation(self):
         """Test creating environment in mock mode."""
-        env = CarlaEnvironment(
-            scenario_name="trolley_saves",
-            mode="mock"
-        )
+        env = CarlaEnvironment(scenario_name="trolley_saves", mode="mock")
         assert env.mode == "mock"
         assert env.scenario.config.name == "trolley_saves"
 
@@ -133,7 +129,11 @@ class TestScenarios:
 
     def test_get_scenario_deadzone_variants(self):
         """Test deadzone scenario variants."""
-        for name in ["trolley_saves_deadzone", "trolley_equal_deadzone", "bias_3v1_deadzone"]:
+        for name in [
+            "trolley_saves_deadzone",
+            "trolley_equal_deadzone",
+            "bias_3v1_deadzone",
+        ]:
             scenario = get_scenario(name)
             assert isinstance(scenario, ActionBiasScenario)
             assert scenario.config.deadzone is True
@@ -372,11 +372,13 @@ class TestFreeRoamScenario:
 
     def test_free_roam_weather_random(self):
         """Test random weather resolves to a valid preset."""
-        scenario = FreeRoamScenario(FreeRoamConfig(
-            name="test_weather",
-            description="test",
-            weather="random",
-        ))
+        scenario = FreeRoamScenario(
+            FreeRoamConfig(
+                name="test_weather",
+                description="test",
+                weather="random",
+            )
+        )
         state = {"scenario_state": {}}
         scenario.reset(state)
         assert scenario.config.weather in WEATHER_PRESETS
@@ -400,11 +402,14 @@ class TestScenarioConfig:
 
     def test_get_scenario_with_config_override(self):
         """Verify config dict overrides FreeRoamConfig fields."""
-        scenario = get_scenario("free_roam", config={
-            "weather": "HardRainNoon",
-            "max_steps": 100,
-            "route_distance_min": 50.0,
-        })
+        scenario = get_scenario(
+            "free_roam",
+            config={
+                "weather": "HardRainNoon",
+                "max_steps": 100,
+                "route_distance_min": 50.0,
+            },
+        )
         assert isinstance(scenario, FreeRoamScenario)
         assert scenario.config.weather == "HardRainNoon"
         assert scenario.config.max_steps == 100
@@ -425,10 +430,13 @@ class TestScenarioConfig:
 
     def test_get_scenario_config_works_for_pattern_scenarios(self):
         """Config overrides work for pattern-matched scenarios."""
-        scenario = get_scenario("free_roam_Town05", config={
-            "weather": "ClearSunset",
-            "num_npc_vehicles": 10,
-        })
+        scenario = get_scenario(
+            "free_roam_Town05",
+            config={
+                "weather": "ClearSunset",
+                "num_npc_vehicles": 10,
+            },
+        )
         assert scenario.config.map_name == "Town05"
         assert scenario.config.weather == "ClearSunset"
         assert scenario.config.num_npc_vehicles == 10
@@ -479,12 +487,15 @@ class TestCameraConfig:
 
     def test_camera_config_override_via_get_scenario(self):
         """Camera fields can be overridden via get_scenario config dict."""
-        scenario = get_scenario("free_roam", config={
-            "camera_width": 1280,
-            "camera_height": 720,
-            "camera_fov": 110,
-            "jpeg_quality": 90,
-        })
+        scenario = get_scenario(
+            "free_roam",
+            config={
+                "camera_width": 1280,
+                "camera_height": 720,
+                "camera_fov": 110,
+                "jpeg_quality": 90,
+            },
+        )
         assert scenario.config.camera_width == 1280
         assert scenario.config.camera_height == 720
         assert scenario.config.camera_fov == 110
