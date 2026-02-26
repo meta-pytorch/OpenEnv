@@ -61,7 +61,6 @@ docs = [
     "sphinx-gallery>=0.14.0",
     "matplotlib",
     "nest-asyncio",
-    "gradio",
     "smolagents",
 ]
 all = [
