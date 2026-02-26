@@ -320,7 +320,7 @@ class LocalClient(LLMClient):
         self.tokenizer = AutoTokenizer.from_pretrained(model_id)
         self.model = AutoModelForCausalLM.from_pretrained(
             model_id,
-            torch_dtype=torch.bfloat16,
+            dtype=torch.bfloat16,
             device_map="auto",
         )
         self.model_id = model_id
@@ -360,9 +360,16 @@ class LocalClient(LLMClient):
             do_sample=False,
         )
 
-        # Decode only the generated tokens (skip the prompt)
+        # Decode only the generated tokens (skip the prompt).
+        # NOTE: skip_special_tokens=False is required because Qwen3 uses <tool_call>
+        # and </tool_call> as special tokens. With True, they get stripped and we
+        # can't parse tool calls. We manually strip EOS/padding tokens instead.
         generated_ids = output_ids[0][inputs["input_ids"].shape[1]:]
-        response_text = self.tokenizer.decode(generated_ids, skip_special_tokens=True)
+        response_text = self.tokenizer.decode(generated_ids, skip_special_tokens=False)
+        # Remove EOS and padding tokens that may appear in the raw decoded text
+        for special_tok in [self.tokenizer.eos_token, self.tokenizer.pad_token, "<|endoftext|>", "<|im_end|>"]:
+            if special_tok:
+                response_text = response_text.replace(special_tok, "")
 
         # Parse tool calls from <tool_call>...</tool_call> tags (Qwen3 format)
         tool_calls = []

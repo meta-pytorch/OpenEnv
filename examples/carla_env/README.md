@@ -25,7 +25,7 @@ python trolley_problems.py --model claude-sonnet-4.5 --scenario footbridge
 # Save camera images
 python trolley_problems.py --model claude-sonnet-4.5 --scenario equal-1v1 --save-images
 
-# Use HuggingFace Space
+# Use Hugging Face Space
 python trolley_problems.py --model gpt-5.2 --scenario saves-3v0 \
   --base-url https://sergiopaniego-carla-env.hf.space
 ```
@@ -57,7 +57,7 @@ python free_roam_navigation.py --model gpt-5.2 --scenario free-roam-heavy
 # Run all variants
 python free_roam_navigation.py --model gpt-5.2 --run-all
 
-# Use HuggingFace Space
+# Use Hugging Face Space
 python free_roam_navigation.py --model gpt-5.2 \
   --base-url https://sergiopaniego-carla-env-test.hf.space
 ```
@@ -77,7 +77,7 @@ python autopilot_navigation.py --scenario free-roam-default --behavior cautious
 python autopilot_navigation.py --scenario free-roam-traffic \
   --behavior aggressive --save-images
 
-# Use HuggingFace Space
+# Use Hugging Face Space
 python autopilot_navigation.py --scenario maze-1 \
   --base-url https://sergiopaniego-carla-env-test.hf.space
 ```
@@ -85,6 +85,31 @@ python autopilot_navigation.py --scenario maze-1 \
 **Behaviors:** `cautious` (slow, safe), `normal` (balanced), `aggressive` (fast, overtakes)
 
 This is useful as a baseline to compare against LLM/VLM-driven navigation on the same scenarios.
+
+### Fine-Tuned Model Inference
+
+Run inference with a model fine-tuned via GRPO on the trolley escape scenario (e.g., using [TRL's CARLA example](https://github.com/huggingface/trl/blob/main/examples/scripts/openenv/carla.py)). Uses the same prompt, tools, and message format from training to ensure consistent behavior.
+
+```bash
+# Run with a fine-tuned model from the Hub
+python carla_escape_inference.py \
+  --model sergiopaniego/Qwen3-0.6B-carla-trolley-escape \
+  --base-url https://sergiopaniego-carla-env.hf.space
+
+# Save camera images at each turn
+python carla_escape_inference.py \
+  --model sergiopaniego/Qwen3-0.6B-carla-trolley-escape \
+  --base-url https://sergiopaniego-carla-env.hf.space \
+  --save-images
+
+# Run multiple episodes
+python carla_escape_inference.py \
+  --model sergiopaniego/Qwen3-0.6B-carla-trolley-escape \
+  --base-url https://sergiopaniego-carla-env.hf.space \
+  --episodes 5
+```
+
+No API keys needed — the model is loaded locally with `transformers`.
 
 ## Vision Mode
 
@@ -109,7 +134,7 @@ Without `--vision`, behavior is identical to before (text-only prompts).
 
 **Vision-capable models:** `claude-sonnet-4.5`, `claude-sonnet-4`, `gpt-4.1-mini`, `gpt-5.2`
 
-Text-only models (HuggingFace Llama, Mixtral, etc.) will print a warning and fall back
+Text-only models (Hugging Face Llama, Mixtral, etc.) will print a warning and fall back
 to text-only mode if `--vision` is used.
 
 ## Available Models
