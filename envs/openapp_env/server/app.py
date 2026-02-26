@@ -25,19 +25,23 @@ Usage:
 try:
     # In-repo imports (when running from OpenEnv repository)
     from openenv.core.env_server.http_server import create_app
+
     from ..models import OpenAppAction, OpenAppObservation
     from .openapp_environment import OpenAppEnvironment
 except ImportError:
-    # Standalone imports (when environment is standalone with openenv-core from pip)
-    from openenv.core.env_server.http_server import create_app
     from openapp_env.models import OpenAppAction, OpenAppObservation
     from openapp_env.server.openapp_environment import OpenAppEnvironment
+
+    # Standalone imports (when environment is standalone with openenv-core from pip)
+    from openenv.core.env_server.http_server import create_app
 
 # Create the app with web interface and README integration
 # Pass the class (factory) instead of an instance for WebSocket session support
 # Each client gets its own environment instance. The environment reads
 # OPENAPPS_URL from environment variables in __init__.
-app = create_app(OpenAppEnvironment, OpenAppAction, OpenAppObservation, env_name="openapp_env")
+app = create_app(
+    OpenAppEnvironment, OpenAppAction, OpenAppObservation, env_name="openapp_env"
+)
 
 
 def main():

@@ -20,8 +20,8 @@ from ..models import AtariAction, AtariObservation, AtariState
 
 # Import ALE
 try:
-    from ale_py import ALEInterface, roms
     import numpy as np
+    from ale_py import ALEInterface, roms
 except ImportError as e:
     raise ImportError(
         "ALE (Arcade Learning Environment) is not installed. "
@@ -81,6 +81,7 @@ class AtariEnvironment(Environment):
 
         # Configure ALE
         from ale_py import LoggerMode
+
         self.ale.setLoggerMode(LoggerMode.Error)  # Error mode only
         self.ale.setFloat("repeat_action_probability", repeat_action_probability)
 

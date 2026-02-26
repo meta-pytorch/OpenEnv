@@ -44,15 +44,15 @@ class SingleAgentWrapper(gym.Wrapper):
     def __init__(self, env):
         super().__init__(env)
         # Unwrap observation and action spaces for single agent
-        if hasattr(env.observation_space, '__getitem__'):
+        if hasattr(env.observation_space, "__getitem__"):
             self.observation_space = env.observation_space[0]
-        if hasattr(env.action_space, '__getitem__'):
+        if hasattr(env.action_space, "__getitem__"):
             self.action_space = env.action_space[0]
 
     def reset(self, **kwargs):
         obs = self.env.reset(**kwargs)
         # Remove first dimension if it's a multi-agent array (num_agents, H, W, C)
-        if hasattr(obs, 'shape') and len(obs.shape) == 4 and obs.shape[0] == 1:
+        if hasattr(obs, "shape") and len(obs.shape) == 4 and obs.shape[0] == 1:
             return obs[0]  # Return (H, W, C)
         # Return first agent's observation if it's a list
         if isinstance(obs, list):
@@ -65,7 +65,7 @@ class SingleAgentWrapper(gym.Wrapper):
 
         # Unwrap returns for single agent
         # Handle observation: remove first dimension if shape is (1, H, W, C)
-        if hasattr(obs, 'shape') and len(obs.shape) == 4 and obs.shape[0] == 1:
+        if hasattr(obs, "shape") and len(obs.shape) == 4 and obs.shape[0] == 1:
             obs = obs[0]  # Convert (1, H, W, C) -> (H, W, C)
         elif isinstance(obs, list):
             obs = obs[0]

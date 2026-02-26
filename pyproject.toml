@@ -111,6 +111,21 @@ markers = [
     "integration: Integration tests with external resources",
 ]
 
+[dependency-groups]
+dev = [
+    "ruff>=0.14.0",
+    "usort>=1.1.0",
+    "pytest>=7.0",
+    "pytest-asyncio>=0.21",
+]
+
+[tool.usort]
+# Disable first_party auto-detection so all non-stdlib imports land in
+# the same "third_party" bucket (the default_category). This matches
+# pyfmt's usort behavior inside arc f, which groups openenv.* and env
+# package imports together without blank-line separators.
+first_party_detection = false
+
 [tool.ruff]
 line-length = 88
 

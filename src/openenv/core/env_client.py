@@ -34,14 +34,15 @@ import os
 from abc import ABC, abstractmethod
 from typing import Any, Dict, Generic, Optional, Type, TYPE_CHECKING, TypeVar
 
-from .client_types import StepResult, StateT
+from .client_types import StateT, StepResult
 from .containers.runtime import LocalDockerProvider, UVProvider
 from .utils import convert_to_ws_url
 
 if TYPE_CHECKING:
+    from websockets.asyncio.client import ClientConnection
+
     from .containers.runtime import ContainerProvider, RuntimeProvider
     from .sync_client import SyncEnvClient
-    from websockets.asyncio.client import ClientConnection
 
 from websockets.asyncio.client import connect as ws_connect
 
