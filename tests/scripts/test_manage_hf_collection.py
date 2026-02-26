@@ -4,10 +4,11 @@ Unit tests for the Hugging Face collection manager script.
 These tests mock all external API calls to test the logic without making real API requests.
 """
 
-import pytest
-import sys
 import os
+import sys
 from unittest.mock import Mock, patch
+
+import pytest
 from huggingface_hub.utils import HfHubHTTPError
 
 

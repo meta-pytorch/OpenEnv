@@ -39,25 +39,23 @@ if [ "$BRANCH" = "main" ] || [ "$BRANCH" = "master" ]; then
 fi
 echo "On branch: $BRANCH"
 
-# === Worktree Check (SOFT WARNING) ===
+# === Import Sort + Format Check ===
 echo ""
-echo "=== Worktree Check ==="
-TOPLEVEL=$(git rev-parse --show-toplevel 2>/dev/null)
-if [ -f "$TOPLEVEL/.git" ]; then
-    echo "Working in worktree: $TOPLEVEL"
+echo "=== Import Sort + Format Check ==="
+# Run the arc f pipeline: usort then ruff format
+uv run usort format src/ tests/ >/dev/null 2>&1
+uv run ruff format src/ tests/ >/dev/null 2>&1
+CHANGED=$(git diff --name-only -- '*.py' 2>/dev/null || true)
+if [ -n "$CHANGED" ]; then
+    echo "Files need formatting (usort + ruff format):"
+    echo "$CHANGED"
+    echo ""
+    echo "Auto-formatting and staging changes..."
+    git add $CHANGED
+    echo "Fixed! Changes staged."
 else
-    echo "NOTE: Not in a worktree (working in main clone)"
-    echo "  Consider using worktrees for feature development"
+    echo "Import sort + format check passed!"
 fi
-
-# === Format Check ===
-echo ""
-echo "=== Format Check ==="
-uv run ruff format src/ tests/ --check || {
-    echo "Format check failed. Run 'uv run ruff format src/ tests/' to fix."
-    exit 1
-}
-echo "Format check passed!"
 
 # === Lint Check ===
 echo ""
@@ -146,13 +144,20 @@ while read local_ref local_sha remote_ref remote_sha; do
 done
 echo "Not pushing to protected branch - OK"
 
-# 1. Format check
+# 1. Import sort + format check
 echo ""
-echo "=== Format Check ==="
-uv run ruff format src/ tests/ --check || {
-    echo "Format check failed. Run 'uv run ruff format src/ tests/' to fix."
+echo "=== Import Sort + Format Check ==="
+uv run usort format src/ tests/ >/dev/null 2>&1
+uv run ruff format src/ tests/ >/dev/null 2>&1
+CHANGED_FMT=$(git diff --name-only -- '*.py' 2>/dev/null || true)
+if [ -n "$CHANGED_FMT" ]; then
+    echo "Files not properly formatted:"
+    echo "$CHANGED_FMT"
+    echo ""
+    echo "Run: uv run usort format src/ tests/ && uv run ruff format src/ tests/"
+    git checkout -- $CHANGED_FMT 2>/dev/null || true
     FAILED=1
-}
+fi
 
 # 2. Lint check
 echo ""
@@ -279,9 +284,9 @@ echo ""
 echo "Git hooks installed successfully!"
 echo ""
 echo "Hooks installed:"
-echo "  - pre-commit: branch check, worktree warning, format, lint, check-debug"
+echo "  - pre-commit: branch check, usort+format, lint, check-debug"
 echo "  - commit-msg: issue reference reminder (soft warning)"
-echo "  - pre-push: format, lint, tests, check-debug, invariant checks, conflict detection"
+echo "  - pre-push: usort+format, lint, tests, check-debug, invariant checks, conflict detection"
 echo "  - post-merge: worktree cleanup reminder"
 echo ""
 echo "To skip hooks temporarily: git commit/push --no-verify"

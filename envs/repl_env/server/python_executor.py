@@ -108,9 +108,7 @@ class PythonExecutor:
         """Register helper functions with the executor."""
         helpers = {
             "format_exc": traceback.format_exc,
-            "safe_json_dumps": lambda obj: json.dumps(
-                obj, default=lambda o: repr(o)
-            ),
+            "safe_json_dumps": lambda obj: json.dumps(obj, default=lambda o: repr(o)),
         }
         # Register helpers as callable tools
         for name, func in helpers.items():
@@ -257,30 +255,21 @@ class PythonExecutor:
                     success = False
                     exception_msg = str(ex)
             except Exception:
-                logger.debug(
-                    "Failed to read exec_result.exception", exc_info=True
-                )
+                logger.debug("Failed to read exec_result.exception", exc_info=True)
 
             # Determine success from exit_code if available
             try:
                 if hasattr(exec_result, "exit_code"):
-                    if (
-                        exec_result.exit_code is not None
-                        and exec_result.exit_code != 0
-                    ):
+                    if exec_result.exit_code is not None and exec_result.exit_code != 0:
                         success = False
                 elif hasattr(exec_result, "success"):
                     success = bool(exec_result.success)
             except Exception:
-                logger.debug(
-                    "Failed to determine exec_result exit code", exc_info=True
-                )
+                logger.debug("Failed to determine exec_result exit code", exc_info=True)
 
         except Exception as e:
             success = False
-            exception_msg = (
-                f"{type(e).__name__}: {str(e)}\n{traceback.format_exc()}"
-            )
+            exception_msg = f"{type(e).__name__}: {str(e)}\n{traceback.format_exc()}"
             stderr_parts.append(exception_msg)
 
         execution_time = time.time() - start_time

@@ -6,9 +6,9 @@
 
 """Tests for the base Rubric class."""
 
-import pytest
 from typing import Any
 
+import pytest
 from openenv.core.rubrics.base import Rubric
 
 

@@ -64,10 +64,20 @@ jobs:
       - name: Install dependencies
         run: |
           uv sync --all-extras
-          uv pip install ruff
+          uv pip install ruff usort
 
-      - name: Run ruff format check
-        run: uv run ruff format src/ tests/ --check
+      - name: Run import sort + format check
+        run: |
+          # Replicate the arc f pipeline: usort then ruff format
+          uv run usort format src/ tests/
+          uv run ruff format src/ tests/
+          # If any files changed, they weren't properly formatted
+          if [ -n "$(git diff --name-only -- '*.py')" ]; then
+            echo "ERROR: Files not properly formatted. Run:"
+            echo "  uv run usort format src/ tests/ && uv run ruff format src/ tests/"
+            git diff --name-only -- '*.py'
+            exit 1
+          fi
 
       - name: Run ruff lint check
         run: uv run ruff check src/ tests/

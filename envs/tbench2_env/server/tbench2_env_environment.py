@@ -108,7 +108,9 @@ class Tbench2Environment(Environment[Tbench2Action, Tbench2Observation, Tbench2S
     ) -> None:
         super().__init__()
         self.tasks_dir = tasks_dir or os.getenv("TB2_TASKS_DIR", "")
-        self.output_dir = Path(output_dir or os.getenv("TB2_OUTPUT_DIR", "/tmp/tbench2_env_runs"))
+        self.output_dir = Path(
+            output_dir or os.getenv("TB2_OUTPUT_DIR", "/tmp/tbench2_env_runs")
+        )
         self.command_timeout_s = command_timeout_s
         self.safe_mode = safe_mode
 
@@ -137,7 +139,9 @@ class Tbench2Environment(Environment[Tbench2Action, Tbench2Observation, Tbench2S
         self._task_dir = task_dir
 
         trial_name = f"{resolved_task_id}.{episode_id or uuid4().hex}"
-        session_logs_dir = self.output_dir / trial_name / "terminal_toolkit_session_logs"
+        session_logs_dir = (
+            self.output_dir / trial_name / "terminal_toolkit_session_logs"
+        )
         session_logs_dir.mkdir(parents=True, exist_ok=True)
 
         self._terminal_toolkit = TerminalToolkit(
@@ -279,7 +283,9 @@ class Tbench2Environment(Environment[Tbench2Action, Tbench2Observation, Tbench2S
             raise ValueError("Provide task_id or task_path to reset TB2 environment.")
 
         if not self.tasks_dir:
-            cache_dir = Path(os.getenv("TB2_CACHE_DIR", str(self.output_dir / "repo_cache")))
+            cache_dir = Path(
+                os.getenv("TB2_CACHE_DIR", str(self.output_dir / "repo_cache"))
+            )
             repo_dir = _download_tb2_repo(cache_dir)
             resolved = repo_dir / task_id
         else:
@@ -323,7 +329,9 @@ class Tbench2Environment(Environment[Tbench2Action, Tbench2Observation, Tbench2S
         return output, reward, info
 
 
-class Tbench2DockerEnvironment(Environment[Tbench2Action, Tbench2Observation, Tbench2State]):
+class Tbench2DockerEnvironment(
+    Environment[Tbench2Action, Tbench2Observation, Tbench2State]
+):
     """OpenEnv wrapper around Terminal-Bench 2 tasks with Docker isolation.
 
     This environment runs each task in its own Docker container, reading
@@ -345,7 +353,9 @@ class Tbench2DockerEnvironment(Environment[Tbench2Action, Tbench2Observation, Tb
     ) -> None:
         super().__init__()
         self.tasks_dir = tasks_dir or os.getenv("TB2_TASKS_DIR", "")
-        self.output_dir = Path(output_dir or os.getenv("TB2_OUTPUT_DIR", "/tmp/tbench2_env_runs"))
+        self.output_dir = Path(
+            output_dir or os.getenv("TB2_OUTPUT_DIR", "/tmp/tbench2_env_runs")
+        )
         self.command_timeout_s = command_timeout_s
         self.safe_mode = safe_mode
 
@@ -387,8 +397,12 @@ class Tbench2DockerEnvironment(Environment[Tbench2Action, Tbench2Observation, Tb
         # Read task configuration including Docker image
         task_toml_path = task_dir / "task.toml"
         if task_toml_path.exists():
-            self._task_config = tomllib.loads(task_toml_path.read_text(encoding="utf-8"))
-            self._task_image = self._task_config.get("environment", {}).get("docker_image", "")
+            self._task_config = tomllib.loads(
+                task_toml_path.read_text(encoding="utf-8")
+            )
+            self._task_image = self._task_config.get("environment", {}).get(
+                "docker_image", ""
+            )
         else:
             self._task_image = ""
             self._task_config = {}
@@ -495,7 +509,9 @@ class Tbench2DockerEnvironment(Environment[Tbench2Action, Tbench2Observation, Tb
         # Copy to container
         self._container.put_archive(dest_path, tar_stream.getvalue())
 
-    def _exec_in_container(self, command: str, workdir: str = "/task") -> tuple[int, str]:
+    def _exec_in_container(
+        self, command: str, workdir: str = "/task"
+    ) -> tuple[int, str]:
         """Execute a command inside the container."""
         if self._container is None:
             raise RuntimeError("Container not started. Call reset() first.")
@@ -556,7 +572,9 @@ class Tbench2DockerEnvironment(Environment[Tbench2Action, Tbench2Observation, Tb
             elif action.action_type == "write_file":
                 if self._container:
                     # Write to container
-                    exit_code, _ = self._exec_in_container(f"cat > {action.file_path} << 'EOF'\n{action.content}\nEOF")
+                    exit_code, _ = self._exec_in_container(
+                        f"cat > {action.file_path} << 'EOF'\n{action.content}\nEOF"
+                    )
                     success = exit_code == 0
                     output = f"Wrote to {action.file_path}"
                 else:
@@ -577,7 +595,9 @@ class Tbench2DockerEnvironment(Environment[Tbench2Action, Tbench2Observation, Tb
                 done = True
 
             else:
-                raise ValueError(f"Unsupported action_type in Docker mode: {action.action_type}")
+                raise ValueError(
+                    f"Unsupported action_type in Docker mode: {action.action_type}"
+                )
 
         except Exception as exc:
             success = False
@@ -683,7 +703,9 @@ class Tbench2DockerEnvironment(Environment[Tbench2Action, Tbench2Observation, Tb
             raise ValueError("Provide task_id or task_path to reset TB2 environment.")
 
         if not self.tasks_dir:
-            cache_dir = Path(os.getenv("TB2_CACHE_DIR", str(self.output_dir / "repo_cache")))
+            cache_dir = Path(
+                os.getenv("TB2_CACHE_DIR", str(self.output_dir / "repo_cache"))
+            )
             repo_dir = _download_tb2_repo(cache_dir)
             resolved = repo_dir / task_id
         else:

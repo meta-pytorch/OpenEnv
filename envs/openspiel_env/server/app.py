@@ -32,12 +32,14 @@ import os
 try:
     # In-repo imports (when running from OpenEnv repository)
     from openenv.core.env_server.http_server import create_app
+
     from ..models import OpenSpielAction, OpenSpielObservation
     from .openspiel_environment import OpenSpielEnvironment
 except ImportError:
+    from models import OpenSpielAction, OpenSpielObservation
+
     # Standalone imports (when environment is standalone with openenv from pip)
     from openenv.core.env_server.http_server import create_app
-    from models import OpenSpielAction, OpenSpielObservation
     from server.openspiel_environment import OpenSpielEnvironment
 
 # Get game configuration from environment variables

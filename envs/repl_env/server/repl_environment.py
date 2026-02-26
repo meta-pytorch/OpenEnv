@@ -31,9 +31,9 @@ except ImportError:
     from openenv.core.env_server.types import EnvironmentMetadata
 
 try:
-    from ..models import REPLAction, REPLObservation, REPLState, CodeBlockResult
+    from ..models import CodeBlockResult, REPLAction, REPLObservation, REPLState
 except ImportError:
-    from models import REPLAction, REPLObservation, REPLState, CodeBlockResult
+    from models import CodeBlockResult, REPLAction, REPLObservation, REPLState
 
 try:
     from .python_executor import PythonExecutor
@@ -102,12 +102,8 @@ class REPLEnvironment(Environment):
             llm_batch_fn: Optional function for llm_query_batched() support
         """
         self.initial_context = context or os.environ.get("REPL_CONTEXT", "")
-        self.initial_task_prompt = task_prompt or os.environ.get(
-            "REPL_TASK_PROMPT", ""
-        )
-        self.max_iterations = int(
-            os.environ.get("REPL_MAX_ITERATIONS", max_iterations)
-        )
+        self.initial_task_prompt = task_prompt or os.environ.get("REPL_TASK_PROMPT", "")
+        self.max_iterations = int(os.environ.get("REPL_MAX_ITERATIONS", max_iterations))
         self.max_output_length = max_output_length
         self.context_preview_length = context_preview_length
 
@@ -141,7 +137,7 @@ class REPLEnvironment(Environment):
             hf_token: HuggingFace API token (not logged or persisted)
             llm_model: Model to use (default: Qwen/Qwen3-Coder-480B-A35B-Instruct)
         """
-        from concurrent.futures import ThreadPoolExecutor, as_completed
+        from concurrent.futures import as_completed, ThreadPoolExecutor
 
         try:
             from huggingface_hub import InferenceClient
@@ -242,9 +238,7 @@ class REPLEnvironment(Environment):
         )
 
         # Initialize executor
-        self._executor = PythonExecutor(
-            max_output_length=self.max_output_length
-        )
+        self._executor = PythonExecutor(max_output_length=self.max_output_length)
 
         # Initialize answer dict (Prime Intellect style)
         self._executor.set_variable("answer", {"content": "", "ready": False})
@@ -261,9 +255,7 @@ class REPLEnvironment(Environment):
             self._executor.inject_function(
                 "llm_query_batched", self.llm_batch_fn
             )  # Official name
-            self._executor.inject_function(
-                "llm_batch", self.llm_batch_fn
-            )  # Alias
+            self._executor.inject_function("llm_batch", self.llm_batch_fn)  # Alias
 
         # Inject FINAL helper function so both FINAL(x) and print(f'FINAL({x})') work
         # Returns the FINAL pattern as a string so it appears in stdout for detection
@@ -285,9 +277,7 @@ class REPLEnvironment(Environment):
             value = executor.get_variable(var_name_clean)
             if value is not None:
                 return f"FINAL({value})"
-            return (
-                f"FINAL_VAR({var_name_clean})"  # Fallback for regex detection
-            )
+            return f"FINAL_VAR({var_name_clean})"  # Fallback for regex detection
 
         self._executor.inject_function("FINAL_VAR", final_var_helper)
 
@@ -349,9 +339,7 @@ class REPLEnvironment(Environment):
             REPLObservation with execution results
         """
         if self._state is None or self._executor is None:
-            raise RuntimeError(
-                "Environment not initialized. Call reset() first."
-            )
+            raise RuntimeError("Environment not initialized. Call reset() first.")
 
         self._state.step_count += 1
         self._state.iteration += 1
@@ -409,9 +397,7 @@ class REPLEnvironment(Environment):
                 if self._state.context
                 else None
             ),
-            context_length=len(self._state.context)
-            if self._state.context
-            else 0,
+            context_length=len(self._state.context) if self._state.context else 0,
             available_variables=self._state.namespace_keys,
             iteration=self._state.iteration,
             max_iterations=self.max_iterations,
@@ -490,9 +476,7 @@ class REPLEnvironment(Environment):
             done=True,
             reward=reward,
             metadata={
-                "final_answer": self._state.final_answer
-                if self._state
-                else None,
+                "final_answer": self._state.final_answer if self._state else None,
                 "total_execution_time": (
                     self._state.total_execution_time if self._state else 0
                 ),
@@ -511,9 +495,7 @@ class REPLEnvironment(Environment):
             RuntimeError: If environment not initialized
         """
         if self._state is None:
-            raise RuntimeError(
-                "Environment not initialized. Call reset() first."
-            )
+            raise RuntimeError("Environment not initialized. Call reset() first.")
         return self._state
 
     def close(self) -> None:

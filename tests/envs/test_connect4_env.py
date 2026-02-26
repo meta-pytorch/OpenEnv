@@ -18,17 +18,13 @@ import pytest
 # Add the project root to the path for envs imports
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
 
-from envs.connect4_env import (
-    Connect4Action,
-    Connect4Observation,
-    Connect4Env,
-)
-import subprocess
-
-import unittest
-import time
-import requests
 import signal
+import subprocess
+import time
+import unittest
+
+import requests
+from envs.connect4_env import Connect4Action, Connect4Env, Connect4Observation
 
 
 # Skip this legacy test file - comprehensive tests in test_websockets.py

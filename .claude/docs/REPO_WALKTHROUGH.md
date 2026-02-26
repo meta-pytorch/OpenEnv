@@ -48,8 +48,9 @@ src/
 │   │   │
 │   │   ├── containers/           # Container lifecycle management
 │   │   │   ├── runtime/              # Provider implementations
-│   │   │   │   ├── local_docker.py       # LocalDockerProvider
-│   │   │   │   └── uv_provider.py        # UVProvider (for local dev)
+│   │   │   │   ├── providers.py           # ContainerProvider/RuntimeProvider ABCs + LocalDockerProvider
+│   │   │   │   ├── daytona_provider.py    # DaytonaProvider (Daytona cloud sandboxes)
+│   │   │   │   └── uv_provider.py         # UVProvider (for local dev)
 │   │   │   └── images/               # Base Docker images
 │   │   │       └── Dockerfile            # openenv-base image
 │   │   │
@@ -100,6 +101,7 @@ envs/
 ├── sumo_rl_env/              # Traffic simulation (SUMO)
 ├── connect4_env/             # Connect Four game
 ├── dipg_safety_env/          # Safety-focused environment
+├── reasoning_gym_env/        # Reasoning problems and puzzles
 └── websearch_env/            # Web search environment
 ```
 
@@ -146,21 +148,50 @@ rfcs/
 ├── skills/                   # Auto-discovered skills
 │   ├── alignment-review/
 │   │   └── SKILL.md              # Two-tier code review
+│   ├── implement/
+│   │   └── SKILL.md              # Make tests pass (Green phase)
 │   ├── pre-submit-pr/
 │   │   └── SKILL.md              # PR readiness validation
-│   └── rfc-check/
-│       └── SKILL.md              # RFC requirement analysis
+│   ├── rfc-check/
+│   │   └── SKILL.md              # RFC requirement analysis
+│   ├── simplify/
+│   │   └── SKILL.md              # Refactor after tests pass
+│   ├── sprint/
+│   │   └── SKILL.md              # Parallel multi-issue batch (Agent Teams)
+│   ├── update-docs/
+│   │   └── SKILL.md              # Fix stale docs after API changes
+│   ├── work-on-issue/
+│   │   └── SKILL.md              # Start TDD on a single issue
+│   └── write-tests/
+│       └── SKILL.md              # Write failing tests (Red phase)
 │
 ├── agents/                   # Specialized subagents
 │   ├── alignment-reviewer.md     # Review for bugs + alignment
+│   ├── build-validator.md        # Validate builds
+│   ├── docs-updater.md           # Fix stale docs after API changes
 │   ├── env-validator.md          # Validate environments e2e
+│   ├── implementer.md            # Make tests pass with minimal code
+│   ├── issue-worker.md           # Extract requirements from GitHub issues
 │   ├── openenv-architect.md      # Design new features
-│   └── build-validator.md        # Validate builds
+│   ├── pr-planner.md             # Plan stacked PRs for complex features
+│   └── tester.md                 # Write high-signal, failing tests
 │
 └── hooks/                    # Automation scripts
     ├── lint.sh                   # Run ruff format check
     ├── test.sh                   # Run pytest
-    └── check-debug.sh            # Find debug code
+    ├── check-debug.sh            # Find debug code
+    ├── post-push-pr.sh           # Validate PR after push (freshness, CI, conflicts)
+    ├── tdd-state.sh              # Shared TDD state helpers (is_tdd_active, activate, deactivate)
+    ├── tdd-deactivate.sh         # Standalone TDD deactivation script
+    ├── install.sh                # Install git hooks (pre-commit, pre-push, etc.)
+    ├── session-start.sh          # SessionStart banner (3-state: TDD/worktree/explore)
+    ├── no-direct-code.sh         # PreToolUse: block direct edits when TDD active
+    ├── pre-commit-check.sh       # PreToolUse: warn on git commit in TDD mode
+    ├── pre-pr-check.sh           # PreToolUse: block gh pr create if branch stale
+    ├── delegate-todos.sh         # PostToolUse: TDD workflow reminder on TodoWrite
+    ├── after-tester.sh           # SubagentStop: next steps after tester
+    ├── after-implementer.sh      # SubagentStop: next steps after implementer
+    └── after-docs-updater.sh     # SubagentStop: next steps after docs-updater
 ```
 
 ## Documentation (`docs/`)

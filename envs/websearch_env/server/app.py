@@ -29,8 +29,9 @@ except Exception as e:  # pragma: no cover
         "    uv sync\n'"
     ) from e
 
-from .web_search_environment import WebSearchEnvironment
 from models import WebSearchAction, WebSearchObservation
+
+from .web_search_environment import WebSearchEnvironment
 
 # Create the environment instance
 env = WebSearchEnvironment()

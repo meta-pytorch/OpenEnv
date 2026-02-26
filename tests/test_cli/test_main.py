@@ -9,9 +9,8 @@
 from unittest.mock import patch
 
 import pytest
-from typer.testing import CliRunner
-
 from openenv.cli.__main__ import main
+from typer.testing import CliRunner
 
 
 runner = CliRunner()

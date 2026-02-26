@@ -2,9 +2,9 @@
 
 import os
 
-from openenv.core.env_server.http_server import create_app
 from browsergym_env.models import BrowserGymAction, BrowserGymObservation
 from browsergym_env.server.browsergym_environment import BrowserGymEnvironment
+from openenv.core.env_server.http_server import create_app
 
 # Get configuration from environment variables
 benchmark = os.environ.get("BROWSERGYM_BENCHMARK", "miniwob")

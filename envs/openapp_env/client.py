@@ -17,15 +17,17 @@ from typing import Any, Dict
 try:
     # In-repo imports (when running from OpenEnv repository)
     from openenv.core.client_types import StepResult
-    from openenv.core.env_server.types import State
     from openenv.core.env_client import EnvClient
+    from openenv.core.env_server.types import State
+
     from .models import OpenAppAction, OpenAppObservation
 except ImportError:
+    from openapp_env.models import OpenAppAction, OpenAppObservation
+
     # Standalone imports (when environment is standalone with openenv-core from pip)
     from openenv.core.client_types import StepResult
-    from openenv.core.env_server.types import State
     from openenv.core.env_client import EnvClient
-    from openapp_env.models import OpenAppAction, OpenAppObservation
+    from openenv.core.env_server.types import State
 
 
 class OpenAppEnv(EnvClient[OpenAppAction, OpenAppObservation, State]):

@@ -10,9 +10,10 @@
 from .env_server import *  # noqa: F403
 from . import env_server
 from .env_client import EnvClient
-from .sync_client import SyncEnvClient
-from .generic_client import GenericEnvClient, GenericAction
+from .generic_client import GenericAction, GenericEnvClient
+from .llm_client import LLMClient, OpenAIClient
 from .mcp_client import MCPClientBase, MCPToolClient
+from .sync_client import SyncEnvClient
 
 __all__ = [
     "EnvClient",
@@ -21,4 +22,6 @@ __all__ = [
     "GenericAction",
     "MCPClientBase",
     "MCPToolClient",
+    "LLMClient",
+    "OpenAIClient",
 ] + env_server.__all__  # type: ignore

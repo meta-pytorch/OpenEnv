@@ -34,14 +34,15 @@ import os
 from abc import ABC, abstractmethod
 from typing import Any, Dict, Generic, Optional, Type, TYPE_CHECKING, TypeVar
 
-from .client_types import StepResult, StateT
+from .client_types import StateT, StepResult
 from .containers.runtime import LocalDockerProvider, UVProvider
 from .utils import convert_to_ws_url
 
 if TYPE_CHECKING:
+    from websockets.asyncio.client import ClientConnection
+
     from .containers.runtime import ContainerProvider, RuntimeProvider
     from .sync_client import SyncEnvClient
-    from websockets.asyncio.client import ClientConnection
 
 from websockets.asyncio.client import connect as ws_connect
 
@@ -89,6 +90,7 @@ class EnvClient(ABC, Generic[ActT, ObsT, StateT]):
         base_url: str,
         connect_timeout_s: float = 10.0,
         message_timeout_s: float = 60.0,
+        max_message_size_mb: float = 100.0,
         provider: Optional["ContainerProvider | RuntimeProvider"] = None,
         mode: Optional[str] = None,
     ):
@@ -100,6 +102,8 @@ class EnvClient(ABC, Generic[ActT, ObsT, StateT]):
                      Will be converted to ws:// if http:// is provided.
             connect_timeout_s: Timeout for establishing WebSocket connection
             message_timeout_s: Timeout for receiving responses to messages
+            max_message_size_mb: Maximum WebSocket message size in megabytes.
+                                Default 100MB to handle large observations (screenshots, DOM, etc.)
             provider: Optional container/runtime provider for lifecycle management.
                      Can be a ContainerProvider (Docker) or RuntimeProvider (UV).
             mode: Communication mode: 'simulation' for Gym-style API (default) or
@@ -128,6 +132,9 @@ class EnvClient(ABC, Generic[ActT, ObsT, StateT]):
         self._ws_url = f"{ws_url}/ws"
         self._connect_timeout = connect_timeout_s
         self._message_timeout = message_timeout_s
+        self._max_message_size = int(
+            max_message_size_mb * 1024 * 1024
+        )  # Convert MB to bytes
         self._provider = provider
         self._ws: Optional[ClientConnection] = None
 
@@ -169,6 +176,7 @@ class EnvClient(ABC, Generic[ActT, ObsT, StateT]):
             self._ws = await ws_connect(
                 self._ws_url,
                 open_timeout=self._connect_timeout,
+                max_size=self._max_message_size,
             )
         except Exception as e:
             raise ConnectionError(f"Failed to connect to {self._ws_url}: {e}") from e

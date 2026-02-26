@@ -27,6 +27,7 @@ share/python-wheels/
 *.egg
 MANIFEST
 .worktrees/
+.tdd-session.json
 
 # PyInstaller
 *.manifest
@@ -128,3 +129,6 @@ log_outputs/*
 # .sesskey
 *.sesskey
 site/
+
+# FinQA data (downloaded via download_data.sh)
+envs/finqa_env/data/

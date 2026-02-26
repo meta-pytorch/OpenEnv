@@ -14,10 +14,10 @@ These tests verify the MCPToolClient class functionality including:
 4. Error handling for tool failures
 """
 
-import pytest
 from unittest.mock import AsyncMock
 
-from openenv.core.mcp_client import MCPClientBase, MCPToolClient
+import pytest
+from openenv.core.client_types import StepResult
 from openenv.core.env_server.mcp_types import (
     CallToolAction,
     CallToolObservation,
@@ -27,7 +27,7 @@ from openenv.core.env_server.mcp_types import (
     ToolError,
     ToolErrorType,
 )
-from openenv.core.client_types import StepResult
+from openenv.core.mcp_client import MCPClientBase, MCPToolClient
 
 
 # =============================================================================

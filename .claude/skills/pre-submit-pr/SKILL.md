@@ -37,11 +37,19 @@ Comprehensive validation before submitting a pull request. Run this before creat
      - Update REPO_WALKTHROUGH.md to reflect the changes
      - Include these updates in the PR
    - Check triggers: new directories in `src/`, `envs/`, `.claude/`, or `rfcs/`
+   - Check if any public API signatures changed (function/class renames, new params):
+     - Search for references in docs/, examples/, README.md, other .py docstrings
+     - If stale references found, recommend running `/update-docs` before PR
 
 6. **Summarize PR readiness**:
    - List all blocking issues
    - List all discussion points for reviewers
    - Provide overall verdict
+
+7. **After push/PR creation**, run the post-push check:
+   - `bash .claude/hooks/post-push-pr.sh`
+   - Verifies: PR is open, no merge conflicts, branch freshness,
+     PR description quality, CI check status
 
 ## Output Format
 
@@ -76,6 +84,7 @@ Comprehensive validation before submitting a pull request. Run this before creat
 
 ### Documentation Freshness
 [UP TO DATE / UPDATED: list of changes made to REPO_WALKTHROUGH.md]
+[STALE DOCS: run /update-docs — list of stale references found]
 
 ### Verdict: READY FOR PR / ISSUES TO ADDRESS
 

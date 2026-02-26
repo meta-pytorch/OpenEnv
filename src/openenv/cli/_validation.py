@@ -129,9 +129,10 @@ def get_deployment_modes(env_path: Path) -> dict[str, bool]:
         "python_module": False,
     }
 
-    # Check Docker
-    dockerfile = env_path / "server" / "Dockerfile"
-    modes["docker"] = dockerfile.exists()
+    # Check Docker (Dockerfile may be in server/ or at env root)
+    modes["docker"] = (env_path / "server" / "Dockerfile").exists() or (
+        env_path / "Dockerfile"
+    ).exists()
 
     # Check multi-mode deployment readiness
     is_valid, _ = validate_multi_mode_deployment(env_path)
