@@ -7,20 +7,19 @@
 """Tests for MCP type definitions."""
 
 import pytest
-from pydantic import ValidationError
-
 from openenv.core.env_server.mcp_types import (
+    CallToolAction,
+    CallToolObservation,
+    ListToolsAction,
+    ListToolsObservation,
+    RESERVED_TOOL_NAMES,
     Tool,
     ToolError,
     ToolErrorType,
-    ListToolsAction,
-    CallToolAction,
-    ListToolsObservation,
-    CallToolObservation,
     WSMCPMessage,
     WSMCPResponse,
-    RESERVED_TOOL_NAMES,
 )
+from pydantic import ValidationError
 
 
 class TestTool:

@@ -37,6 +37,7 @@ except Exception as e:  # pragma: no cover
 
 # Import from local models.py (PYTHONPATH includes /app/env in Docker)
 from models import __ENV_CLASS_NAME__Action, __ENV_CLASS_NAME__Observation
+
 from .__ENV_NAME___environment import __ENV_CLASS_NAME__Environment
 
 

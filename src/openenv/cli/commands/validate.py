@@ -14,7 +14,6 @@ are properly configured for multi-mode deployment.
 from pathlib import Path
 
 import typer
-
 from openenv.cli._validation import (
     format_validation_report,
     get_deployment_modes,

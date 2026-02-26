@@ -5,7 +5,7 @@ Unified OpenEnv package bundling the CLI and core runtime.
 from importlib import metadata
 
 from .auto import AutoAction, AutoEnv
-from .core import GenericEnvClient, GenericAction, SyncEnvClient
+from .core import GenericAction, GenericEnvClient, SyncEnvClient
 
 __all__ = [
     "core",

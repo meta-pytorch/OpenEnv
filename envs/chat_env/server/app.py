@@ -73,7 +73,9 @@ def create_chat_environment():
 
 # Create the FastAPI app with web interface and README integration
 # Pass the factory function instead of an instance for WebSocket session support
-app = create_app(create_chat_environment, ChatAction, ChatObservation, env_name="chat_env")
+app = create_app(
+    create_chat_environment, ChatAction, ChatObservation, env_name="chat_env"
+)
 
 
 if __name__ == "__main__":

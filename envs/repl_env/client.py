@@ -38,11 +38,12 @@ from typing import Any, Callable, Dict, List, Optional, TYPE_CHECKING
 try:
     from openenv.core.client_types import StepResult
     from openenv.core.env_client import EnvClient
-    from .models import REPLAction, REPLObservation, REPLState, CodeBlockResult
+
+    from .models import CodeBlockResult, REPLAction, REPLObservation, REPLState
 except ImportError:
+    from models import CodeBlockResult, REPLAction, REPLObservation, REPLState
     from openenv.core.client_types import StepResult
     from openenv.core.env_client import EnvClient
-    from models import REPLAction, REPLObservation, REPLState, CodeBlockResult
 
 if TYPE_CHECKING:
     from .server.repl_environment import REPLEnvironment
@@ -265,9 +266,7 @@ class REPLEnv:
         Returns:
             StepResult with done=True.
         """
-        return self.step(
-            REPLAction(code="", is_final=True, final_answer=answer)
-        )
+        return self.step(REPLAction(code="", is_final=True, final_answer=answer))
 
     def get_variable(self, name: str) -> StepResult[REPLObservation]:
         """
@@ -315,9 +314,7 @@ class REPLEnv:
             self._remote_client.close()
             self._remote_client = None
 
-    def _wrap_observation(
-        self, obs: REPLObservation
-    ) -> StepResult[REPLObservation]:
+    def _wrap_observation(self, obs: REPLObservation) -> StepResult[REPLObservation]:
         """Wrap a local REPLObservation in a StepResult."""
         return StepResult(
             observation=obs,
