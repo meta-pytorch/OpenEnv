@@ -1,0 +1,14 @@
+[package]
+name = "agentbus_writeonce"
+version = "0.1.0"
+authors = ["Meta"]
+edition = "2021"
+
+[dependencies]
+agent_bus_proto-rust = { path = "../../proto" }
+agentbus_api = { path = "../../api" }
+anyhow = "1.0.101"
+bytes = { version = "1.11.1", features = ["serde"] }
+futures = { version = "0.3.31", features = ["async-await", "compat"] }
+prost = "0.12"
+tracing = { version = "0.1.41", features = ["attributes", "valuable"] }

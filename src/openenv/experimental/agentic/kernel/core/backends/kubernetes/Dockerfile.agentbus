@@ -1,0 +1,72 @@
+# (c) Meta Platforms, Inc. and affiliates. Confidential and proprietary.
+#
+# Multi-stage Dockerfile that builds server_py_ext (Rust extension) and layers
+# the agentbus Python package on top of the agentkernel base image.
+#
+# Usage (via build_base_image.sh --with-agentbus):
+#   The build script stages agentbus_python/ and agentbus_src/ into the build
+#   context, then runs this Dockerfile with BASE_IMAGE pointing to the
+#   pre-built agentkernel base image.
+
+ARG BASE_IMAGE=agentkernel:latest
+
+# --- Stage 1: Build server_py_ext (Rust extension) ---
+# Force builder to run on the host's native arch (no QEMU emulation).
+# When cross-compiling (e.g. amd64 host → arm64 target), rustc runs natively
+# and uses a cross-linker, avoiding QEMU zombie processes and hangs.
+FROM --platform=$BUILDPLATFORM python:3.12-slim AS builder
+ARG TARGETARCH
+
+RUN echo 'APT::Sandbox::User "root";' | tee -a /etc/apt/apt.conf.d/10sandbox
+
+# Install base build tools + cross-compilation toolchain for arm64
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    curl build-essential pkg-config libssl-dev && \
+    if [ "$TARGETARCH" = "arm64" ]; then \
+      dpkg --add-architecture arm64 && \
+      apt-get update && \
+      apt-get install -y --no-install-recommends \
+        gcc-aarch64-linux-gnu g++-aarch64-linux-gnu \
+        libssl-dev:arm64 zlib1g-dev:arm64 libzstd-dev:arm64; \
+    fi && \
+    rm -rf /var/lib/apt/lists/*
+
+RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+ENV PATH="/root/.cargo/bin:${PATH}"
+
+# Add cross-compilation target if needed
+RUN if [ "$TARGETARCH" = "arm64" ]; then \
+      rustup target add aarch64-unknown-linux-gnu; \
+    fi
+
+RUN pip install --no-cache-dir maturin[patchelf]
+
+WORKDIR /build
+COPY agentbus_src/ agentbus_src/
+
+# Build the wheel (cross-compile if target != host)
+WORKDIR /build/agentbus_src/server_py_ext
+RUN if [ "$TARGETARCH" = "arm64" ]; then \
+      export CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=aarch64-linux-gnu-gcc \
+             CC_aarch64_unknown_linux_gnu=aarch64-linux-gnu-gcc \
+             AR_aarch64_unknown_linux_gnu=aarch64-linux-gnu-ar \
+             PKG_CONFIG_ALLOW_CROSS=1 \
+             PKG_CONFIG_PATH=/usr/lib/aarch64-linux-gnu/pkgconfig \
+             OPENSSL_STATIC=1 \
+             PYO3_CROSS_PYTHON_VERSION=3.12 && \
+      maturin build --release --target aarch64-unknown-linux-gnu -i python3.12 --out /build/wheels; \
+    else \
+      maturin build --release --out /build/wheels; \
+    fi
+
+# --- Stage 2: Layer onto base image ---
+FROM ${BASE_IMAGE}
+
+# Install agentbus Python package (setup.py expects ../proto/agent_bus.proto)
+COPY agentbus_python/ /tmp/agentbus_python/
+COPY agentbus_src/proto/ /tmp/proto/
+RUN uv pip install --system --no-cache /tmp/agentbus_python/ && rm -rf /tmp/agentbus_python/ /tmp/proto/
+
+# Install pre-built server_py_ext wheel
+COPY --from=builder /build/wheels/*.whl /tmp/wheels/
+RUN uv pip install --system --no-cache /tmp/wheels/*.whl && rm -rf /tmp/wheels/

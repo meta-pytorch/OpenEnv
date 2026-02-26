@@ -1,0 +1,11 @@
+[package]
+name = "agentbus_simple"
+version = "0.1.0"
+authors = ["Meta"]
+edition = "2021"
+
+[dependencies]
+agent_bus_proto-rust = { path = "../../proto" }
+agentbus_api = { path = "../../api" }
+anyhow = "1.0.101"
+tracing = { version = "0.1.41", features = ["attributes", "valuable"] }

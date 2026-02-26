@@ -1,0 +1,13 @@
+[package]
+name = "agentbus_api"
+version = "0.1.0"
+authors = ["Meta"]
+edition = "2021"
+
+[dependencies]
+agent_bus_proto-rust = { path = "../proto" }
+anyhow = "1.0.101"
+bytes = { version = "1.11.1", features = ["serde"] }
+rand = { version = "0.8", features = ["small_rng"] }
+thiserror = "2.0.18"
+tokio = { version = "1.47.1", features = ["full", "test-util", "tracing"] }

@@ -1,0 +1,5 @@
+# Python build artifacts
+build/
+
+# Generated protobuf files
+src/agentbus/proto/

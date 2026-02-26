@@ -1,0 +1,29 @@
+[package]
+name = "agentbus_tests"
+version = "0.1.0"
+authors = ["Meta"]
+edition = "2021"
+
+[[test]]
+name = "macro_tests"
+path = "src/macro_tests.rs"
+
+[dependencies]
+agent_bus_proto-rust = { path = "../proto" }
+agentbus_api = { path = "../api" }
+agentbus_core = { path = "../core" }
+agentbus_simple = { path = "../impls/simple" }
+agentbus_writeonce = { path = "../impls/writeonce" }
+anyhow = "1.0.101"
+bytes = { version = "1.11.1", features = ["serde"] }
+fbinit = { version = "0.2.0", git = "https://github.com/facebookexperimental/rust-shed.git", branch = "main" }
+futures = { version = "0.3.31", features = ["async-await", "compat"] }
+paste = "1.0.14"
+pyo3 = { version = "0.26", features = ["anyhow", "multiple-pymethods", "py-clone"] }
+rand = { version = "0.8", features = ["small_rng"] }
+tokio = { version = "1.47.1", features = ["full", "test-util", "tracing"] }
+tonic = { version = "0.10.2", features = ["gzip", "tls", "tls-webpki-roots"] }
+tracing = { version = "0.1.41", features = ["attributes", "valuable"] }
+
+[dev-dependencies]
+fbinit-tokio = { version = "0.1.2", git = "https://github.com/facebookexperimental/rust-shed.git", branch = "main" }

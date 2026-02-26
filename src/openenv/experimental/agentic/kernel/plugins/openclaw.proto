@@ -1,0 +1,35 @@
+// (c) Meta Platforms, Inc. and affiliates. Confidential and proprietary.
+
+// OpenClaw agent type definition.
+//
+// Defines the spawn-time config and runtime control operations specific
+// to OpenClaw-based agents (TypeScript, backed by openclaw-agent-server).
+// The kernel treats these as opaque Any fields; callers import this
+// proto to pack/unpack them.
+//
+// Convention: every agent type proto must define:
+//   - SpawnInfo    (packed into SpawnRequest.spawn_info)
+//   - ControlRequest / ControlResponse (packed into agent.proto Control RPC)
+
+syntax = "proto3";
+package agentkernel.plugins.openclaw;
+
+// --- Spawn-time config ---
+
+message SpawnInfo {
+  string system_prompt = 1;
+  string model = 2; // e.g. "claude-sonnet-4-5"
+  string provider = 3; // e.g. "anthropic", "openai"
+  repeated string tools = 4; // e.g. ["bash", "browser"]
+  string thinking_level = 5; // "none", "low", "medium", "high"
+  string api_key = 6;
+  string base_url = 7;
+}
+
+// --- Runtime control operations ---
+// OpenClaw agents don't support control operations yet.
+// These are placeholders to satisfy the convention.
+
+message ControlRequest {}
+
+message ControlResponse {}

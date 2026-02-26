@@ -1,0 +1,25 @@
+# (c) Meta Platforms, Inc. and affiliates. Confidential and proprietary.
+
+load("@fbcode_macros//build_defs:python_library.bzl", "python_library")
+
+oncall("genai_agents_and_orchestration")
+
+python_library(
+    name = "agentkernel",
+    srcs = glob(
+        ["**/*.py"],
+        exclude = [
+            "tests/**",
+            "examples/**",
+            "fb/**",
+        ],
+    ),
+    visibility = ["PUBLIC"],
+    deps = [
+        "fbsource//third-party/pypi/aiohttp:aiohttp",
+        "fbsource//third-party/pypi/grpcio:grpcio",
+        "fbsource//third-party/pypi/kubernetes:kubernetes",
+        "fbsource//third-party/pypi/pyyaml:pyyaml",
+        "//msl_infra/experimental/agentic/bus/proto:agent_bus_proto-python",
+    ],
+)

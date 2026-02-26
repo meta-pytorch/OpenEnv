@@ -1,0 +1,24 @@
+[package]
+name = "agentbus_cli_lib"
+version = "0.1.0"
+authors = ["Meta"]
+edition = "2021"
+
+[[bin]]
+name = "agentbus_cli"
+path = "src/main.rs"
+
+[dependencies]
+agent_bus_proto-rust = { path = "../proto" }
+agentbus_api = { path = "../api" }
+agentbus_core = { path = "../core" }
+anyhow = "1.0.101"
+clap = { version = "4.5.42", features = ["derive", "env", "string", "unicode", "wrap_help"] }
+colored = "2.1.0"
+fbinit = { version = "0.2.0", git = "https://github.com/facebookexperimental/rust-shed.git", branch = "main" }
+fbinit-tokio = { version = "0.1.2", git = "https://github.com/facebookexperimental/rust-shed.git", branch = "main" }
+rustyline = { version = "14.0.0", features = ["derive"] }
+tokio = { version = "1.47.1", features = ["full", "test-util", "tracing"] }
+tracing = { version = "0.1.41", features = ["attributes", "valuable"] }
+tracing-glog = { version = "0.4.1", features = ["ansi", "tracing-log"] }
+tracing-subscriber = { version = "0.3.20", features = ["chrono", "env-filter", "json", "local-time", "parking_lot", "registry"] }

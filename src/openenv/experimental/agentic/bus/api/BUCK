@@ -1,0 +1,19 @@
+load("@fbsource//tools/build_defs:rust_library.bzl", "rust_library")
+load("//msl_infra/experimental/agentic/bus/fb:defs.bzl", "agentbus_proto_autocargo_dep")
+
+oncall("agent_bus")
+
+# AgentBus API - Core traits and environment abstractions
+rust_library(
+    name = "agentbus_api",
+    srcs = glob(["src/**/*.rs"]),
+    autocargo = agentbus_proto_autocargo_dep("../proto"),
+    deps = [
+        "fbsource//third-party/rust:anyhow",
+        "fbsource//third-party/rust:bytes",
+        "fbsource//third-party/rust:rand_08",
+        "fbsource//third-party/rust:thiserror",
+        "fbsource//third-party/rust:tokio",
+        "//msl_infra/experimental/agentic/bus/proto:agent_bus_proto-rust",
+    ],
+)

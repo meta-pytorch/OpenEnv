@@ -1,0 +1,25 @@
+{
+  "name": "openclaw-agent-server",
+  "version": "0.1.0",
+  "description": "HTTP server wrapping OpenClaw agent runtime for AgentKernel integration",
+  "private": true,
+  "type": "module",
+  "main": "dist/server.js",
+  "bin": {
+    "openclaw-agent-server": "dist/server.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/server.js",
+    "dev": "tsx src/server.ts"
+  },
+  "dependencies": {
+    "@grpc/grpc-js": "^1.12.0",
+    "@grpc/proto-loader": "^0.7.13"
+  },
+  "devDependencies": {
+    "@types/node": "^22.19.11",
+    "tsx": "^4.21.0",
+    "typescript": "^5.9.3"
+  }
+}

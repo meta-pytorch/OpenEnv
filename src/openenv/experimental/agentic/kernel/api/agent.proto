@@ -1,0 +1,109 @@
+// (c) Meta Platforms, Inc. and affiliates. Confidential and proprietary.
+
+// Service for interacting with a running agent.
+//
+// Turn is the data plane: send content, the agent processes it,
+// and streams back a response. One agent, one ongoing conversation.
+//
+// Control is the mutation plane: send agent-type-specific operations
+// to a running agent (e.g. add bundles, update configuration).
+// The kernel routes without parsing — callers pack the appropriate
+// ControlRequest from the agent's type proto (each plugin provides its own).
+//
+// The message body is opaque. The wire format is determined by the
+// agent's transport_format (set at spawn time, default: "anthropic").
+//
+// Transport
+// ---------
+// These protos define the contract (message shapes), not the wire
+// protocol. Implementation options:
+//   - gRPC with gRPC-Gateway annotations to expose HTTP+SSE
+//   - Connect (buf.build) — speaks HTTP natively, streaming via SSE
+//   - Proto as schema only — implement HTTP server by hand (FastAPI,
+//     etc.) with request/response shapes matching these messages
+//
+// The key constraint: standard Anthropic/OpenAI clients expect
+// HTTP+SSE, so whatever we pick must expose that. gRPC-Gateway and
+// Connect both handle this; the "schema only" approach is what
+// api_server already does today.
+//
+// Turn streaming: Turn returns a stream of TurnResponse chunks.
+// Over HTTP this maps to SSE (Server-Sent Events). Each chunk
+// carries a fragment of the agent's response in the transport
+// format (e.g. Anthropic SSE event). The final chunk has done=true.
+//
+// Async communication
+// -------------------
+// For fire-and-forget / mailbox-style messaging, we could either
+// augment this service with Notify() and SendMessage() RPCs or
+// introduce a separate MailboxService later.
+
+syntax = "proto3";
+package agentkernel.agent.v1;
+
+import "google/protobuf/any.proto";
+import "google/protobuf/empty.proto";
+import "google/protobuf/timestamp.proto";
+
+service AgentService {
+  // Data plane: take a turn in the conversation.
+  // Response is streamed as the agent generates it.
+  rpc Turn(TurnRequest) returns (stream TurnResponse);
+
+  // Mutation plane: send agent-type-specific control operations.
+  rpc Control(ControlRequest) returns (ControlResponse);
+
+  // Read conversation history.
+  rpc GetHistory(GetHistoryRequest) returns (GetHistoryResponse);
+}
+
+// --- Turn ---
+
+// Agents are private to their spawner — one agent, one conversation,
+// one owner. The nonce is generated at spawn time and returned only to
+// the spawning entity (in SpawnResponse). It must be presented in
+// every TurnRequest; the agent process rejects requests with a missing
+// or invalid nonce. See the comment on AgentSpawnerService in
+// spawner.proto for the full rationale.
+message TurnRequest {
+  string agent_id = 1;
+  bytes body = 2;
+  string nonce = 3;
+}
+
+message TurnResponse {
+  bytes body = 1;
+  bool done = 2;
+}
+
+// --- Control ---
+
+message ControlRequest {
+  string agent_id = 1;
+  // Pack the agent-type-specific request from the plugin's proto.
+  google.protobuf.Any payload = 2;
+}
+
+message ControlResponse {
+  bool success = 1;
+  string error = 2;
+  // Agent-type-specific result from the plugin's proto.
+  google.protobuf.Any result = 3;
+}
+
+// --- History ---
+
+message GetHistoryRequest {
+  string agent_id = 1;
+  int32 last_n = 2;
+}
+
+message GetHistoryResponse {
+  repeated HistoryEntry entries = 1;
+}
+
+message HistoryEntry {
+  string role = 1;
+  bytes content = 2;
+  google.protobuf.Timestamp timestamp = 3;
+}

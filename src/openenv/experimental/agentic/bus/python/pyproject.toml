@@ -1,0 +1,26 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel", "grpcio-tools>=1.50"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "agentbus"
+version = "0.1.0"
+requires-python = ">=3.11"
+license = {text = "BSD-3-Clause"}
+dependencies = [
+    "protobuf>=4.0",
+    "grpcio>=1.50",
+]
+
+[project.optional-dependencies]
+dev = [
+    "grpcio-tools>=1.50",   # For regenerating protocol buffers
+    "parameterized>=0.9",   # For parameterized tests
+    "pytest>=7.0",          # For running tests
+    # simulator_py_ext - Rust extension for deterministic simulation tests
+    # Build from ../simulator_py_ext with: maturin develop
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["agentbus*"]

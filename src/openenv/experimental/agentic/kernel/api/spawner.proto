@@ -1,0 +1,151 @@
+// (c) Meta Platforms, Inc. and affiliates. Confidential and proprietary.
+
+// Lifecycle service for spawning and killing agents within teams.
+//
+// The kernel is agent-type-agnostic. Agent-type-specific config is
+// carried as an opaque Any in spawn_info. Each plugin provides a proto
+// defining its SpawnInfo message (e.g. plugins/openclaw.proto).
+//
+// transport_format (on SpawnRequest) determines the wire format for
+// Turn communication with this agent — "anthropic" or "openai".
+// The agent's HTTP server must speak that format (SSE streaming).
+// See agent.proto for full transport notes.
+
+syntax = "proto3";
+package agentkernel.spawner.v1;
+
+import "google/protobuf/any.proto";
+import "google/protobuf/empty.proto";
+import "google/protobuf/timestamp.proto";
+
+// Agents are private to their spawner. Only the entity that called
+// SpawnAgent receives the nonce (in SpawnResponse) and can therefore
+// issue Turn requests to the agent. Other callers can list agents via
+// GetTeam but cannot communicate with them directly.
+//
+// Why: without this restriction, any caller could talk to any agent
+// by constructing a TurnRequest with its agent_id. That would require
+// a Session or Conversation container so that concurrent callers get
+// independent conversation state — but Mahesh and David strongly feel
+// that sessions add complexity to reasoning about state changes and
+// how one conversation affects another. So we have no sessions: one
+// agent, one conversation, one owner. The nonce enforces this.
+service AgentSpawnerService {
+  rpc CreateTeam(CreateTeamRequest) returns (Team);
+  rpc GetTeam(GetTeamRequest) returns (TeamInfo);
+  rpc DeleteTeam(DeleteTeamRequest) returns (google.protobuf.Empty);
+
+  rpc SpawnAgent(SpawnRequest) returns (SpawnResponse);
+  rpc KillAgent(KillRequest) returns (google.protobuf.Empty);
+}
+
+// Returned by SpawnAgent. Contains the Agent record plus a nonce that
+// the spawner must present in every TurnRequest. The nonce is a secret
+// — it is NOT included in the Agent message itself (which may appear
+// in TeamInfo and other read APIs).
+message SpawnResponse {
+  Agent agent = 1;
+  string nonce = 2;
+}
+
+// --- AgentBus ---
+
+// Kernel-level AgentBus configuration. Any agent type can opt in to
+// observability and safety by setting this on SpawnRequest.
+//
+// Supported URL schemes:
+//   memory://        - In-process server, kernel allocates a port
+//   memory://<port>  - In-process server on a fixed port
+//   remote://h:p     - Connect to an existing gRPC server
+message AgentBusConfig {
+  string url = 1; // Connection URL (default: "memory://")
+  bool disable_safety = 2; // Skip safety voting/decisions
+}
+
+// --- Spawn ---
+
+message SpawnRequest {
+  string name = 1;
+  reserved 2; // was: role (now in metadata)
+  string team_id = 3;
+  string agent_type = 4; // e.g. "openclaw"
+  string image = 5; // Image ID (optional, default base image)
+
+  string transport_format = 6; // "anthropic" (default), "openai"
+
+  // Agent-type-specific config. Each plugin provides a proto defining
+  // its SpawnInfo message (e.g. plugins/openclaw.proto).
+  google.protobuf.Any spawn_info = 7;
+
+  string setup_script_uri = 8; // Blob URI to post-start setup script
+  map<string, string> metadata = 9;
+
+  // Optional AgentBus config — enables observability and safety.
+  AgentBusConfig agentbus = 10;
+}
+
+message Agent {
+  string id = 1;
+  string name = 2;
+  reserved 3; // was: role (now in metadata)
+  string team_id = 4;
+  string agent_type = 5;
+  string image = 6;
+  google.protobuf.Any spawn_info = 7;
+  map<string, string> metadata = 8;
+  AgentState state = 9;
+  google.protobuf.Timestamp created_at = 10;
+
+  // Resolved AgentBus config (port may differ from request if
+  // the kernel allocated one for memory:// URLs).
+  AgentBusConfig agentbus = 11;
+}
+
+enum AgentState {
+  AGENT_STATE_UNSPECIFIED = 0;
+  AGENT_STATE_STARTING = 1;
+  AGENT_STATE_RUNNING = 2;
+  AGENT_STATE_IDLE = 3;
+  AGENT_STATE_STOPPED = 4;
+  AGENT_STATE_FAILED = 5;
+}
+
+// --- Kill ---
+
+message KillRequest {
+  string agent_id = 1;
+}
+
+// --- Teams ---
+
+message CreateTeamRequest {
+  string team_id = 1;
+  map<string, int32> resources = 2;
+
+  // Backend-specific configuration. Opaque to the kernel —
+  // each SpawnerService implementation interprets what it needs:
+  //   - Local/Bwrap: ignored
+  //   - Kubernetes: namespace, kubeconfig, node_selector, ...
+  //   - Pulumi: provider, region, instance_type, ...
+  google.protobuf.Any config = 3;
+}
+
+message Team {
+  string team_id = 1;
+  string status = 2;
+  map<string, int32> resources = 3;
+  map<string, int32> used_resources = 4;
+}
+
+message GetTeamRequest {
+  string team_id = 1;
+}
+
+message TeamInfo {
+  Team team = 1;
+  repeated Agent agents = 2;
+}
+
+message DeleteTeamRequest {
+  string team_id = 1;
+}

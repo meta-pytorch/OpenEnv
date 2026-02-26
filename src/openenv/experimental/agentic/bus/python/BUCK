@@ -1,0 +1,39 @@
+load("@fbsource//tools/build_defs/fb_native:python_wheel.bzl", "python_wheel")
+load("@fbsource//tools/target_determinator/macros:ci.bzl", "ci")
+
+oncall("agentbus")
+
+# Python wheel for AgentBus client
+# This packages the AgentBus Python client for use in conda environments
+PY_VERSIONS = [
+    "3.10",
+    "3.12",
+]
+
+[
+    python_wheel(
+        name = "agentbus_py{}.whl".format(py_ver),
+        constraint_overrides = [
+            "ovr_config//third-party/python/constraints:{}".format(py_ver),
+            "ovr_config//build_mode/constraints:fbcode-tp2-force-shared-linkage-mostly-static",
+        ],
+        dist = "agentbus",
+        labels = [
+            ci.overwrite(),
+            ci.opt(),
+        ],
+        # Include all AgentBus Python libraries needed by clients
+        libraries_query = 'filter("^fbcode//.*", deps(set({}),4096,target_deps()))'.format(" ".join([
+            "fbcode//msl_infra/experimental/agentic/bus/python/src/agentbus/agentbus_client:agentbus_client",
+            "fbcode//msl_infra/experimental/agentic/bus/python/src/agentbus/test_util:in_memory_agentbus",
+            "fbcode//msl_infra/experimental/agentic/bus/proto:agent_bus_proto-python",
+        ])),
+        python = "py{}".format(py_ver),
+        requires = [
+            "grpcio",  # gRPC is available on PyPI
+            "protobuf",  # Protocol Buffers is available on PyPI
+        ],
+        version = "0.0.1",
+    )
+    for py_ver in PY_VERSIONS
+]

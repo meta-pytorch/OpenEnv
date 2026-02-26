@@ -1,0 +1,30 @@
+name: TypeScript (OpenClaw Runner)
+
+on:
+  push:
+    branches: [ "main" ]
+    paths:
+      - "kernel/openclaw_runner/**"
+  pull_request:
+    branches: [ "main" ]
+    paths:
+      - "kernel/openclaw_runner/**"
+  schedule:
+    - cron: '0 0,12 * * *'
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Setup Bun
+      uses: oven-sh/setup-bun@v2
+
+    - name: Install dependencies
+      working-directory: kernel/openclaw_runner
+      run: bun install
+
+    - name: Run tests
+      working-directory: kernel/openclaw_runner
+      run: bun test

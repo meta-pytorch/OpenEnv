@@ -1,0 +1,43 @@
+[build-system]
+requires = ["setuptools>=45"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "agentic-kernel"
+version = "0.0.1"
+requires-python = ">=3.11"
+description = "AgentKernel - lightweight agent orchestration"
+authors = [{ name = "Joel Pobar" }]
+dependencies = ["aiohttp>=3.9.0"]
+
+[project.optional-dependencies]
+kubernetes = ["kubernetes>=32.0.0"]
+yaml = ["pyyaml>=6.0.0"]
+dev = ["pytest>=8.0.0", "pytest-asyncio>=0.24.0"]
+
+[tool.setuptools]
+packages = [
+    "agentic.kernel",
+    "agentic.kernel.core",
+    "agentic.kernel.core.backends",
+    "agentic.kernel.core.backends.local",
+    "agentic.kernel.core.backends.bwrap",
+    "agentic.kernel.core.backends.kubernetes",
+    "agentic.kernel.core.runner",
+    "agentic.kernel.core.storage",
+    "agentic.kernel.plugins",
+]
+
+[tool.setuptools.package-dir]
+"agentic.kernel" = "."
+"agentic.kernel.core" = "core"
+"agentic.kernel.core.backends" = "core/backends"
+"agentic.kernel.core.backends.local" = "core/backends/local"
+"agentic.kernel.core.backends.bwrap" = "core/backends/bwrap"
+"agentic.kernel.core.backends.kubernetes" = "core/backends/kubernetes"
+"agentic.kernel.core.runner" = "core/runner"
+"agentic.kernel.core.storage" = "core/storage"
+"agentic.kernel.plugins" = "plugins"
+
+[tool.pytest.ini_options]
+asyncio_mode = "strict"

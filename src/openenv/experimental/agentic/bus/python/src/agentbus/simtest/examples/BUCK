@@ -1,0 +1,28 @@
+load("@fbcode_macros//build_defs:python_library.bzl", "python_library")
+load("@fbcode_macros//build_defs:python_unittest.bzl", "python_unittest")
+
+oncall("agent_bus")
+
+# Example register implementations
+python_library(
+    name = "examples",
+    srcs = [
+        "__init__.py",
+        "register.py",
+    ],
+    # @lint-ignore BUCKLINT need base_module for OSS Python package structure
+    base_module = "agentbus.simtest.examples",
+)
+
+# Example tests
+python_unittest(
+    name = "test_register",
+    srcs = ["test_register.py"],
+    # @lint-ignore BUCKLINT need base_module for OSS Python package structure
+    base_module = "agentbus.simtest.examples",
+    deps = [
+        "fbsource//third-party/pypi/parameterized:parameterized",
+        ":examples",
+        "//msl_infra/experimental/agentic/bus/python/src/agentbus/simtest:simtest",
+    ],
+)

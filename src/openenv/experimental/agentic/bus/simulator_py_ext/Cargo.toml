@@ -1,0 +1,17 @@
+[package]
+name = "simulator_py_ext"
+version = "0.1.0"
+authors = ["Meta"]
+edition = "2021"
+
+[lib]
+test = false
+doctest = false
+crate-type = ["cdylib"]
+
+[dependencies]
+agentbus_tests = { path = "../tests" }
+pyo3 = { version = "0.26", features = ["anyhow", "multiple-pymethods", "py-clone"] }
+
+[features]
+extension-module = ["pyo3/extension-module"]

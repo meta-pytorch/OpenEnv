@@ -1,0 +1,48 @@
+// (c) Meta Platforms, Inc. and affiliates. Confidential and proprietary.
+
+// Packaging service: bundles code into agent images. Each agent type defines
+// what bundles mean — e.g. helper functions, skills, data files. Skills is
+// really an optimization so you can use images broadly and not have to keep
+// sending large blobs in every Spawn request.
+
+syntax = "proto3";
+package agentkernel.packaging.v1;
+
+service PackagingService {
+  // Creates the image spec and kicks off the build in one call.
+  // Returns a PackageJob — poll with GetPackage until status is "succeeded".
+  rpc CreateAgentImage(CreateAgentImageRequest) returns (PackageJob);
+  rpc GetPackage(GetPackageRequest) returns (PackageJob);
+}
+
+message CreateAgentImageRequest {
+  string name = 1;
+
+  // Custom code and artifacts to layer on top of the base image.
+  // Upload to blob storage first, then reference by URI here.
+  // Labels tell the builder what each bundle is and how to install it.
+  // TODO: define the blob storage proto/API for uploads.
+  repeated SourceBundle bundles = 7;
+}
+
+message SourceBundle {
+  string uri = 1; // Blob storage URI
+  map<string, string> labels = 2; // e.g. {"type": "skill", "name": "review"}
+}
+
+message AgentImage {
+  string id = 1;
+  string name = 2;
+  string uri = 6; // Only set after successful build
+}
+
+message PackageJob {
+  string id = 1;
+  string status = 2; // "building", "succeeded", "failed"
+  string error = 3;
+  AgentImage image = 4; // Populated when status is "succeeded"
+}
+
+message GetPackageRequest {
+  string id = 1;
+}

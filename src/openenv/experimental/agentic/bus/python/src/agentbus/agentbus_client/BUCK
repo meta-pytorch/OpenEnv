@@ -1,0 +1,19 @@
+load("@fbcode_macros//build_defs:python_library.bzl", "python_library")
+
+oncall("agent_bus")
+
+# Python library for AgentBus client configuration and code safety checks
+python_library(
+    name = "agentbus_client",
+    srcs = glob(
+        ["*.py"],
+        exclude = ["tests/**/*.py"],
+    ),
+    # @lint-ignore BUCKLINT need base_module for OSS Python package structure
+    base_module = "agentbus.agentbus_client",
+    typing = False,  # Disable type-checking for proto-generated types
+    deps = [
+        "fbsource//third-party/pypi/grpcio:grpcio",
+        "//msl_infra/experimental/agentic/bus/proto:agent_bus_proto-python",
+    ],
+)

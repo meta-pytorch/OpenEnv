@@ -1,0 +1,9 @@
+# Example AgentKernel config for Kubernetes backend.
+# Copy this file and fill in your cluster details.
+
+backend: kubernetes
+namespace: agentkernel
+base_image: your-registry.example.com/agentkernel:latest
+kubeconfig: ~/.kube/config
+registry_url: your-registry.example.com
+debug: true

@@ -1,0 +1,20 @@
+load("@fbsource//tools/build_defs:rust_library.bzl", "rust_library")
+load("//msl_infra/experimental/agentic/bus/fb:defs.bzl", "agentbus_proto_autocargo_dep")
+
+oncall("agent_bus")
+
+# WriteOnce-based implementation of AgentBus
+rust_library(
+    name = "agentbus_writeonce",
+    srcs = glob(["src/**/*.rs"]),
+    autocargo = agentbus_proto_autocargo_dep("../../proto"),
+    deps = [
+        "fbsource//third-party/rust:anyhow",
+        "fbsource//third-party/rust:bytes",
+        "fbsource//third-party/rust:futures",
+        "fbsource//third-party/rust:prost-0-12",
+        "fbsource//third-party/rust:tracing",
+        "//msl_infra/experimental/agentic/bus/api:agentbus_api",
+        "//msl_infra/experimental/agentic/bus/proto:agent_bus_proto-rust",
+    ],
+)

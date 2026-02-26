@@ -1,0 +1,27 @@
+load("@fbcode_macros//build_defs:python_library.bzl", "python_library")
+load("@fbcode_macros//build_defs:python_unittest.bzl", "python_unittest")
+
+oncall("agentbus")
+
+python_unittest(
+    name = "agentbus_client_test",
+    srcs = [
+        "test_agentbus_client.py",
+    ],
+    # @lint-ignore BUCKLINT need base_module for OSS Python package structure
+    base_module = "agentbus.agentbus_client.tests",
+    typing = False,  # Disable type-checking for proto-generated types
+    deps = [
+        "//later:lib",
+        "//msl_infra/experimental/agentic/bus/proto:agent_bus_proto-python",
+        "//msl_infra/experimental/agentic/bus/python/src/agentbus/agentbus_client:agentbus_client",
+        "//servicerouter/client/py3:base",
+        "//servicerouter/client/py3:get_client",
+    ],
+)
+
+python_library(
+    name = "__init__",
+    srcs = ["__init__.py"],
+    labels = ["autodeps2_generated"],
+)

@@ -1,0 +1,62 @@
+load("@fbcode_macros//build_defs:python_library.bzl", "python_library")
+load("@fbcode_macros//build_defs:python_unittest.bzl", "python_unittest")
+
+oncall("agent_bus")
+
+# Rust-backed event loop
+python_library(
+    name = "rust_backed_event_loop",
+    srcs = ["rust_backed_event_loop.py"],
+    # @lint-ignore BUCKLINT need base_module for OSS Python package structure
+    base_module = "agentbus.simtest",
+    deps = [
+        "//msl_infra/experimental/agentic/bus/simulator_py_ext:simulator_py_ext",
+    ],
+)
+
+# Testing utilities for simulator
+python_library(
+    name = "simulator_test_case",
+    srcs = ["simulator_test_case.py"],
+    # @lint-ignore BUCKLINT need base_module for OSS Python package structure
+    base_module = "agentbus.simtest",
+    deps = [
+        ":rust_backed_event_loop",
+    ],
+)
+
+# Main simtest package
+python_library(
+    name = "simtest",
+    srcs = ["__init__.py"],
+    # @lint-ignore BUCKLINT need base_module for OSS Python package structure
+    base_module = "agentbus.simtest",
+    deps = [
+        ":rust_backed_event_loop",
+        ":simulator_test_case",
+    ],
+)
+
+# Unit tests for core simulator functionality
+python_unittest(
+    name = "test_simulator",
+    srcs = ["test_simulator.py"],
+    # @lint-ignore BUCKLINT need base_module for OSS Python package structure
+    base_module = "agentbus.simtest",
+    deps = [
+        ":simtest",
+        "//msl_infra/experimental/agentic/bus/simulator_py_ext:simulator_py_ext",
+    ],
+)
+
+# Tests for RustBackedEventLoop integration with Rust simulator.
+python_unittest(
+    name = "test_rust_backed_event_loop",
+    srcs = ["test_rust_backed_event_loop.py"],
+    # @lint-ignore BUCKLINT need base_module for OSS Python package structure
+    base_module = "agentbus.simtest",
+    deps = [
+        ":rust_backed_event_loop",
+        "//msl_infra/experimental/agentic/bus/simulator_py_ext:simulator_py_ext",
+    ],
+)

@@ -1,0 +1,92 @@
+load("@fbsource//tools/build_defs:rust_library.bzl", "rust_library")
+load("@fbsource//tools/build_defs:rust_unittest.bzl", "rust_unittest")
+load("//msl_infra/experimental/agentic/bus/fb:defs.bzl", "agentbus_proto_autocargo_dep")
+
+oncall("agent_bus")
+
+# Test library - contains simulator (can add more shared test code later)
+rust_library(
+    name = "agentbus_tests",
+    srcs = [
+        "src/common.rs",
+        "src/common/fault_config.rs",
+        "src/common/helpers.rs",
+        "src/common/integration_utils.rs",
+        "src/fixtures.rs",
+        "src/fixtures/integration.rs",
+        "src/fixtures/simtest.rs",
+        "src/fixtures/write_once_agentbus_fixture.rs",
+        "src/impls.rs",
+        "src/impls/chained_agentbus.rs",
+        "src/impls/channeled_agentbus.rs",
+        "src/impls/fault_injecting_agentbus.rs",
+        "src/lib.rs",
+        "src/macros.rs",
+        "src/macros/buggy_test_macros.rs",
+        "src/macros/failure_injection_macros.rs",
+        "src/macros/generic_simtest_macros.rs",
+        "src/macros/integration_test_macros.rs",
+        "src/scenarios.rs",
+        "src/scenarios/failure_injection_scenarios.rs",
+        "src/scenarios/lin_test.rs",
+        "src/scenarios/lin_test/counter_impl.rs",
+        "src/scenarios/lin_test/counter_trait.rs",
+        "src/scenarios/lin_test/counter_worker.rs",
+        "src/scenarios/lin_test/linearizability_tracker.rs",
+        "src/scenarios/lin_test/random_voter.rs",
+        "src/scenarios/lin_test/test.rs",
+        "src/scenarios/lin_test/tracking_counter.rs",
+        "src/scenarios/multi_node.rs",
+        "src/scenarios/sim_only_scenarios.rs",
+        "src/scenarios/test_scenarios.rs",
+        "src/simulator.rs",
+        "src/simulator_py_ext.rs",
+        "src/write_once_space.rs",
+        "src/write_once_space/fixtures.rs",
+        "src/write_once_space/fixtures/simtest.rs",
+        "src/write_once_space/macros.rs",
+        "src/write_once_space/macros/generic_simtest_macros.rs",
+        "src/write_once_space/macros/integration_test_macros.rs",
+        "src/write_once_space/scenarios.rs",
+        "src/write_once_space/scenarios/test_scenarios.rs",
+    ],
+    autocargo = agentbus_proto_autocargo_dep("../proto"),
+    test_deps = ["//common/rust/shed/fbinit:fbinit-tokio"],
+    test_srcs = [
+        "src/simulator/simulator_tests.rs",
+    ],
+    deps = [
+        "fbsource//third-party/rust:anyhow",
+        "fbsource//third-party/rust:bytes",
+        "fbsource//third-party/rust:futures",
+        "fbsource//third-party/rust:paste",
+        "fbsource//third-party/rust:pyo3",
+        "fbsource//third-party/rust:rand_08",
+        "fbsource//third-party/rust:tokio",
+        "fbsource//third-party/rust:tonic-0-10",
+        "fbsource//third-party/rust:tracing",
+        "//common/rust/shed/fbinit:fbinit",
+        "//msl_infra/experimental/agentic/bus/api:agentbus_api",
+        "//msl_infra/experimental/agentic/bus/core:agentbus_core",
+        "//msl_infra/experimental/agentic/bus/impls/simple:agentbus_simple",
+        "//msl_infra/experimental/agentic/bus/impls/writeonce:agentbus_writeonce",
+        "//msl_infra/experimental/agentic/bus/proto:agent_bus_proto-rust",
+    ],
+)
+
+# Consolidated macro-based tests (replaces simtests, failure_injection_tests, integration_tests)
+rust_unittest(
+    name = "macro_tests",
+    srcs = [
+        "src/macro_tests.rs",
+    ],
+    crate_root = "src/macro_tests.rs",
+    deps = [
+        "fbsource//third-party/rust:anyhow",
+        "fbsource//third-party/rust:paste",
+        "fbsource//third-party/rust:rand_08",
+        ":agentbus_tests",
+        "//common/rust/shed/fbinit:fbinit",
+        "//common/rust/shed/fbinit:fbinit-tokio",
+    ],
+)

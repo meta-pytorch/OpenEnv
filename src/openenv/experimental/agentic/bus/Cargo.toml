@@ -1,0 +1,16 @@
+[workspace]
+members = [
+  "api",
+  "cli",
+  "core",
+  "impls/dynamodb",
+  "impls/simple",
+  "impls/writeonce",
+  "proto",
+  "server_py_ext",
+  "server_py_ext/lib",
+  "simulator_py_ext",
+  "tests",
+  "tests/oss",
+]
+resolver = "2"

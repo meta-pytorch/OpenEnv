@@ -1,0 +1,27 @@
+[package]
+name = "agentbus_core"
+version = "0.1.0"
+authors = ["Meta"]
+edition = "2021"
+
+[dependencies]
+agent_bus_proto-rust = { path = "../proto" }
+agentbus_api = { path = "../api" }
+agentbus_writeonce = { path = "../impls/writeonce" }
+anyhow = "1.0.101"
+async-trait = "0.1.86"
+clap = { version = "4.5.42", features = ["derive", "env", "string", "unicode", "wrap_help"] }
+fbinit = { version = "0.2.0", git = "https://github.com/facebookexperimental/rust-shed.git", branch = "main" }
+fbinit-tokio = { version = "0.1.2", git = "https://github.com/facebookexperimental/rust-shed.git", branch = "main" }
+futures = { version = "0.3.31", features = ["async-await", "compat"] }
+reqwest = { version = "0.11.27", features = ["blocking", "cookies", "gzip", "json", "multipart", "native-tls", "rustls-tls", "rustls-tls-native-roots", "socks", "stream"] }
+serde = { version = "1.0.219", features = ["derive", "rc"] }
+signal-hook = "0.3.18"
+signal-hook-tokio = { version = "0.3.1", features = ["futures-v0_3"] }
+thiserror = "2.0.18"
+tokio = { version = "1.47.1", features = ["full", "test-util", "tracing"] }
+tokio-retry = "0.3"
+tonic = { version = "0.10.2", features = ["gzip", "tls", "tls-webpki-roots"] }
+tracing = { version = "0.1.41", features = ["attributes", "valuable"] }
+tracing-glog = { version = "0.4.1", features = ["ansi", "tracing-log"] }
+tracing-subscriber = { version = "0.3.20", features = ["chrono", "env-filter", "json", "local-time", "parking_lot", "registry"] }

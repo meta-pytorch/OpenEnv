@@ -1,0 +1,18 @@
+load("@fbsource//tools/build_defs:rust_library.bzl", "rust_library")
+
+oncall("agent_bus")
+
+rust_library(
+    name = "agentbus_dynamodb",
+    srcs = glob(["src/**/*.rs"]),
+    test_deps = [
+        "fbsource//third-party/rust:aws-smithy-mocks",
+        "fbsource//third-party/rust:tokio",
+    ],
+    deps = [
+        "fbsource//third-party/rust:anyhow",
+        "fbsource//third-party/rust:aws-sdk-dynamodb",
+        "fbsource//third-party/rust:bytes",
+        "//msl_infra/experimental/agentic/bus/api:agentbus_api",
+    ],
+)

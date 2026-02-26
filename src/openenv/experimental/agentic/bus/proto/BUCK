@@ -1,0 +1,22 @@
+load("@fbcode_macros//build_defs:protobuf_library.bzl", "protobuf_library")
+
+oncall("agent_bus")
+
+# gRPC definitions for AgentBus service
+# NOTE: Cargo.toml is hand-written (not autocargo-generated) because we need
+# custom build.rs for cargo builds. See proto/Cargo.toml for details.
+protobuf_library(
+    name = "agent_bus_proto",
+    srcs = ["agent_bus.proto"],
+    base_path = "agentbus/proto",
+    grpc_langs = [
+        "rust",
+        "python",
+    ],
+    langs = [
+        "rust",
+        "python",
+    ],
+    python_use_pypi_grpcio = True,
+    rust_use_prost = True,
+)

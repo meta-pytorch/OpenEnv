@@ -1,0 +1,28 @@
+name: Rust (Bus)
+
+on:
+  push:
+    branches: [ "main" ]
+    paths:
+      - "bus/**"
+  pull_request:
+    branches: [ "main" ]
+    paths:
+      - "bus/**"
+  schedule:
+    - cron: '0 0,12 * * *'
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    - name: Build
+      working-directory: bus
+      run: cargo build --verbose
+    - name: Run tests
+      working-directory: bus
+      run: cargo test --verbose

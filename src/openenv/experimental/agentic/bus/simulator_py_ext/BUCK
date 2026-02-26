@@ -1,0 +1,38 @@
+load("@fbcode_macros//build_defs:rust_python_extension.bzl", "rust_python_extension")
+
+oncall("agent_bus")
+
+# Python extension for use by Python code
+rust_python_extension(
+    name = "simulator_py_ext",
+    srcs = ["src/lib.rs"],
+    autocargo = {
+        "cargo_target_config": {
+            "crate_type": ["cdylib"],
+            "name": "simulator_py_ext",
+            "path": "src/lib.rs",
+        },
+        "cargo_toml_config": {
+            "dependencies_override": {
+                "dependencies": {
+                    "agentbus_tests": {"path": "../tests"},
+                },
+            },
+            "features": {
+                "extension-module": ["pyo3/extension-module"],
+            },
+            "package": {
+                "name": "simulator_py_ext",
+            },
+        },
+    },
+    # @lint-ignore BUCKLINT need base_module for top-level import
+    base_module = "",
+    crate_root = "src/lib.rs",
+    module_name = "simulator_py_ext",
+    types = ["simulator_py_ext.pyi"],
+    deps = [
+        "fbsource//third-party/rust:pyo3",
+        "//msl_infra/experimental/agentic/bus/tests:agentbus_tests",
+    ],
+)

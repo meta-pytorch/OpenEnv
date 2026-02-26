@@ -1,0 +1,69 @@
+load("@fbsource//tools/build_defs:rust_binary.bzl", "rust_binary")
+load("@fbsource//tools/build_defs:rust_library.bzl", "rust_library")
+load("//msl_infra/experimental/agentic/bus/fb:defs.bzl", "agentbus_proto_autocargo_dep")
+
+oncall("agent_bus")
+
+# Core AgentBus library with all traits and utilities
+rust_library(
+    name = "agentbus_core",
+    srcs = glob(
+        ["src/**/*.rs"],
+        exclude = ["src/bin/**"],
+    ),
+    autocargo = agentbus_proto_autocargo_dep("../proto"),
+    deps = [
+        "fbsource//third-party/rust:anyhow",
+        "fbsource//third-party/rust:async-trait",
+        "fbsource//third-party/rust:clap",
+        "fbsource//third-party/rust:futures",
+        "fbsource//third-party/rust:reqwest-0-11",
+        "fbsource//third-party/rust:serde",
+        "fbsource//third-party/rust:signal-hook",
+        "fbsource//third-party/rust:signal-hook-tokio",
+        "fbsource//third-party/rust:thiserror",
+        "fbsource//third-party/rust:tokio",
+        "fbsource//third-party/rust:tonic-0-10",
+        "fbsource//third-party/rust:tracing",
+        "fbsource//third-party/rust:tracing-glog",
+        "fbsource//third-party/rust:tracing-subscriber",
+        "//common/rust/shed/fbinit:fbinit",
+        "//msl_infra/experimental/agentic/bus/api:agentbus_api",
+        "//msl_infra/experimental/agentic/bus/proto:agent_bus_proto-rust",
+    ],
+)
+
+# Main server binary
+rust_binary(
+    name = "agent_bus_server",
+    srcs = ["src/bin/agent_bus_server.rs"],
+    deps = [
+        "fbsource//third-party/rust:anyhow",
+        "fbsource//third-party/rust:clap",
+        ":agentbus_core",
+        "//common/rust/shed/fbinit:fbinit",
+        "//msl_infra/experimental/agentic/bus/impls/writeonce:agentbus_writeonce",
+    ],
+)
+
+# Decider service binary
+rust_binary(
+    name = "decider_service",
+    srcs = ["src/bin/decider_service.rs"],
+    deps = [
+        "fbsource//third-party/rust:anyhow",
+        "fbsource//third-party/rust:clap",
+        "fbsource//third-party/rust:futures",
+        "fbsource//third-party/rust:signal-hook",
+        "fbsource//third-party/rust:signal-hook-tokio",
+        "fbsource//third-party/rust:tokio",
+        "fbsource//third-party/rust:tokio-retry",
+        "fbsource//third-party/rust:tracing",
+        "fbsource//third-party/rust:tracing-glog",
+        "fbsource//third-party/rust:tracing-subscriber",
+        ":agentbus_core",
+        "//common/rust/shed/fbinit:fbinit",
+        "//common/rust/shed/fbinit:fbinit-tokio",
+        "//msl_infra/experimental/agentic/bus/proto:agent_bus_proto-rust",
+    ],
+)

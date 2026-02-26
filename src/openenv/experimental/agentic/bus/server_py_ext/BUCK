@@ -1,0 +1,49 @@
+load("@fbcode_macros//build_defs:rust_python_extension.bzl", "rust_python_extension")
+load("//msl_infra/experimental/agentic/bus/fb:defs.bzl", "agentbus_proto_autocargo_dep")
+
+oncall("agent_bus")
+
+# Python extension for running AgentBus in-process
+rust_python_extension(
+    name = "server_py_ext",
+    srcs = ["src/lib.rs"],
+    autocargo = agentbus_proto_autocargo_dep(
+        "../proto",
+        {
+            "cargo_target_config": {
+                "crate_type": ["cdylib"],
+                "name": "server_py_ext",
+                "path": "src/lib.rs",
+            },
+            "cargo_toml_config": {
+                "dependencies_override": {
+                    "dependencies": {
+                        "agentbus_api": {"path": "../api"},
+                        "agentbus_core": {"path": "../core"},
+                        "agentbus_writeonce": {"path": "../impls/writeonce"},
+                    },
+                },
+                "features": {
+                    "extension-module": ["pyo3/extension-module"],
+                },
+                "package": {
+                    "name": "server_py_ext",
+                },
+            },
+        },
+    ),
+    # @lint-ignore BUCKLINT need base_module for top-level import
+    base_module = "",
+    crate_root = "src/lib.rs",
+    module_name = "server_py_ext",
+    deps = [
+        "fbsource//third-party/rust:pyo3",
+        "fbsource//third-party/rust:tokio",
+        "fbsource//third-party/rust:tracing",
+        "fbsource//third-party/rust:tracing-glog",
+        "fbsource//third-party/rust:tracing-subscriber",
+        "//msl_infra/experimental/agentic/bus/core:agentbus_core",
+        "//msl_infra/experimental/agentic/bus/impls/writeonce:agentbus_writeonce",
+        "//msl_infra/experimental/agentic/bus/server_py_ext/lib:server_py_ext_lib",
+    ],
+)
