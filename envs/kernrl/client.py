@@ -35,15 +35,17 @@ from typing import Any, Dict
 try:
     # In-repo imports (when running from OpenEnv repository)
     from openenv.core.client_types import StepResult
-    from openenv.core.env_server.types import State
     from openenv.core.env_client import EnvClient
+    from openenv.core.env_server.types import State
+
     from .models import KernelAction, KernelObservation, KernelState
 except ImportError:
+    from models import KernelAction, KernelObservation, KernelState
+
     # Standalone imports (when environment is standalone with openenv from pip)
     from openenv.core.client_types import StepResult
-    from openenv.core.env_server.types import State
     from openenv.core.env_client import EnvClient
-    from models import KernelAction, KernelObservation, KernelState
+    from openenv.core.env_server.types import State
 
 
 class kernrl_env(EnvClient[KernelAction, KernelObservation, KernelState]):

@@ -92,13 +92,16 @@ jobs:
           - name: snake-env
             dockerfile: envs/snake_env/server/Dockerfile
           - name: unity-env
-            dockerfile: server/Dockerfile
+            dockerfile: envs/unity_env/server/Dockerfile
             context: envs/unity_env
           - name: openapp-env
-            dockerfile: server/Dockerfile
+            dockerfile: envs/openapp_env/server/Dockerfile
             context: envs/openapp_env
           - name: maze-env
             dockerfile: envs/maze_env/server/Dockerfile
+          - name: openspiel-env
+            dockerfile: envs/openspiel_env/server/Dockerfile
+            context: envs/openspiel_env
 
     steps:
       - name: Checkout code

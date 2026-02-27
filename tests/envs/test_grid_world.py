@@ -8,7 +8,7 @@ import pytest
 
 # Import your client and models DIRECTLY
 from envs.grid_world_env.client import GridWorldEnv
-from envs.grid_world_env.models import MoveAction, GridWorldAction
+from envs.grid_world_env.models import GridWorldAction, MoveAction
 
 
 def test_grid_world_flow():

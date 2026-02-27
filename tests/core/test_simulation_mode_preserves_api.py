@@ -26,8 +26,8 @@ This addresses GitHub issue #346 Task #1:
    (4) Sim mode is the default when no mode specified."
 """
 
-import sys
 import json
+import sys
 from pathlib import Path
 
 import pytest
@@ -38,15 +38,12 @@ from fastapi.testclient import TestClient
 sys.path.insert(0, str(Path(__file__).parent.parent.parent / "src"))
 sys.path.insert(0, str(Path(__file__).parent.parent.parent / "envs"))
 
+from fastmcp import FastMCP
 from openenv.core.env_server.http_server import HTTPEnvServer
 from openenv.core.env_server.interfaces import Environment
 from openenv.core.env_server.mcp_environment import MCPEnvironment
+from openenv.core.env_server.mcp_types import CallToolAction, CallToolObservation
 from openenv.core.env_server.types import Action, Observation, State
-from openenv.core.env_server.mcp_types import (
-    CallToolAction,
-    CallToolObservation,
-)
-from fastmcp import FastMCP
 
 
 # ============================================================================
