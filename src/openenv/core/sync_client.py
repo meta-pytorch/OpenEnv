@@ -31,7 +31,7 @@ import inspect
 import threading
 from typing import Any, Dict, Generic, TYPE_CHECKING, TypeVar
 
-from .client_types import StepResult, StateT
+from .client_types import StateT, StepResult
 
 if TYPE_CHECKING:
     from .env_client import EnvClient
