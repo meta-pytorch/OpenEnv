@@ -156,7 +156,8 @@ All events include these base attributes (set automatically via task context):
 | `fleet_tools_list_failed` | exception | Tool listing threw |
 | `fleet_computer_tool_missing` | warning | computer_use mode but no computer tool |
 | `fleet_screenshot_failed` | exception | Initial screenshot threw |
-| `fleet_tool_call_failed` | exception | Agent tool call threw |
+| `fleet_tool_call_failed` | exception | Agent tool call threw (Python exception) |
+| `fleet_mcp_tool_error` | warning | MCP server returned error in tool result |
 | `fleet_verifier_failed` | exception | Verifier execution threw |
 | `fleet_env_close_failed` | exception | Env close threw |
 | `fleet_list_tools_partial` | warning | Some MCP endpoints failed |
@@ -175,7 +176,7 @@ SELECT
     attributes->>'modality' as modality,
     COUNT(*) FILTER (WHERE message = 'fleet_rollout_started') as num_rollouts,
     COUNT(*) FILTER (WHERE message = 'fleet_rollout_completed') as completed,
-    COUNT(*) FILTER (WHERE message = 'fleet_tool_call_failed') as tool_errors,
+    COUNT(*) FILTER (WHERE message IN ('fleet_tool_call_failed', 'fleet_mcp_tool_error')) as tool_errors,
     COUNT(*) FILTER (WHERE message = 'fleet_verifier_failed') as verifier_errors
 FROM records
 WHERE service_name = 'openenv-fleet'

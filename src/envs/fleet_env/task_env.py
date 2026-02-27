@@ -16,7 +16,43 @@ logger = logging.getLogger(__name__)
 
 from .client import FleetEnvClient
 from .mcp_tools import FleetMCPTools
-from .telemetry import fleet_error, fleet_exception, fleet_warning, fleet_info, set_task_context, clear_task_context
+from .telemetry import (
+    fleet_error,
+    fleet_exception,
+    fleet_warning,
+    fleet_info,
+    set_task_context,
+    clear_task_context,
+)
+
+
+def _is_tool_error(result: Any) -> Tuple[bool, Optional[str]]:
+    """Check if a tool result indicates an error.
+
+    MCP server errors come back as:
+    - {"error": "..."} from isError=True responses
+    - {"status": "failed", ...} from some tools
+    - {"isError": true, ...} in some formats
+
+    Returns:
+        (is_error, error_message) tuple
+    """
+    if not isinstance(result, dict):
+        return False, None
+
+    # Direct error field (from FleetMCPClient._extract_tool_result)
+    if "error" in result:
+        return True, str(result["error"])
+
+    # Status field pattern
+    if result.get("status") == "failed":
+        return True, result.get("message") or result.get("error") or "status=failed"
+
+    # isError field pattern
+    if result.get("isError"):
+        return True, result.get("message") or result.get("error") or "isError=true"
+
+    return False, None
 
 
 class FleetTaskEnv:
@@ -268,7 +304,10 @@ class FleetTaskEnv:
             else:
                 # No computer tool found - this is a configuration error
                 # The MCP image should expose the 'computer' tool for computer_use tasks
-                available = [t.get('name') or t.get('function', {}).get('name') for t in self._tools_cache]
+                available = [
+                    t.get("name") or t.get("function", {}).get("name")
+                    for t in self._tools_cache
+                ]
                 logger.warning(
                     f"[env={self.env_key}] Task {self.task_key}: computer_use modality but no 'computer' tool found. "
                     f"Available tools: {available}. "
@@ -378,6 +417,17 @@ class FleetTaskEnv:
             try:
                 tool_result = await self._tools.call_tool(tool_name, tool_params)
                 info["tool_result"] = tool_result
+
+                # Check for MCP server errors (not Python exceptions)
+                is_error, error_msg = _is_tool_error(tool_result)
+                if is_error:
+                    info["tool_error"] = error_msg
+                    fleet_warning(
+                        "fleet_mcp_tool_error",
+                        step_count=self._step_count,
+                        tool_name=tool_name,
+                        error_message=error_msg[:500] if error_msg else None,
+                    )
             except Exception as e:
                 info["tool_error"] = str(e)
                 tool_result = {"error": str(e)}
