@@ -321,10 +321,7 @@ class TestAddSpacesToCollection:
 
         # Verify calls were made with correct parameters
         calls = mock_api.add_collection_item.call_args_list
-        assert (
-            calls[0][1]["collection_slug"]
-            == "openenv/environment-hub-test"
-        )
+        assert calls[0][1]["collection_slug"] == "openenv/environment-hub-test"
         assert calls[0][1]["item_id"] == "owner1/space1"
         assert calls[0][1]["item_type"] == "space"
         assert calls[0][1]["note"] == "OpenEnv release v2.1.0"
