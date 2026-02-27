@@ -11,8 +11,12 @@ A chat-based environment for LLMs, designed as a blank canvas for conversation a
 """
 
 import torch
-
-from openenv.core.env_server.interfaces import Environment, Message, ModelTokenizer, Transform
+from openenv.core.env_server.interfaces import (
+    Environment,
+    Message,
+    ModelTokenizer,
+    Transform,
+)
 
 from ..models import ChatAction, ChatObservation, ChatState
 

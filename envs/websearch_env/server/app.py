@@ -29,8 +29,8 @@ except Exception as e:  # pragma: no cover
         "    uv sync\n'"
     ) from e
 
-from .web_search_environment import WebSearchEnvironment
 from models import WebSearchAction, WebSearchObservation
+from .web_search_environment import WebSearchEnvironment
 
 # Create the app with web interface and README integration.
 # Newer OpenEnv server APIs expect an environment factory/class, while
@@ -42,7 +42,7 @@ try:
         WebSearchObservation,
         env_name="websearch_env",
     )
-except TypeError:
+except TypeError:  # pragma: no cover - compatibility with older OpenEnv create_app signatures
     app = create_app(
         WebSearchEnvironment(),
         WebSearchAction,

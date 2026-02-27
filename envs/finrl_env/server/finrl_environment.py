@@ -187,9 +187,7 @@ class FinRLEnvironment(Environment):
             return 0.0
 
         # First element is usually cash balance
-        state_array = (
-            state if isinstance(state, np.ndarray) else np.array(state)
-        )
+        state_array = state if isinstance(state, np.ndarray) else np.array(state)
 
         # Get stock dimension
         stock_dim = self.finrl_env_config.get("stock_dim", 1)

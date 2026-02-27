@@ -6,20 +6,7 @@
 
 """Grid World Environment - A simple test environment for HTTP server."""
 
+from .client import GridWorldEnv
+from .models import GridWorldAction, GridWorldObservation
+
 __all__ = ["GridWorldAction", "GridWorldObservation", "GridWorldEnv"]
-
-
-def __getattr__(name: str):
-    if name == "GridWorldEnv":
-        from .client import GridWorldEnv
-
-        return GridWorldEnv
-    if name == "GridWorldAction":
-        from .models import GridWorldAction
-
-        return GridWorldAction
-    if name == "GridWorldObservation":
-        from .models import GridWorldObservation
-
-        return GridWorldObservation
-    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

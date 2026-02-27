@@ -124,12 +124,16 @@ finrl_env_class, finrl_config = load_finrl_config()
 # Factory function to create FinRLEnvironment instances
 def create_finrl_environment():
     """Factory function that creates FinRLEnvironment with config."""
-    return FinRLEnvironment(finrl_env_class=finrl_env_class, finrl_env_config=finrl_config)
+    return FinRLEnvironment(
+        finrl_env_class=finrl_env_class, finrl_env_config=finrl_config
+    )
 
 
 # Create the FastAPI app with routes
 # Pass the factory function instead of an instance for WebSocket session support
-app = create_app(create_finrl_environment, FinRLAction, FinRLObservation, env_name="finrl_env")
+app = create_app(
+    create_finrl_environment, FinRLAction, FinRLObservation, env_name="finrl_env"
+)
 
 
 @app.get("/config")

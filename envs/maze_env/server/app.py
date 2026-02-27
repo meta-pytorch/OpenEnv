@@ -32,12 +32,14 @@ Usage:
 try:
     # In-repo imports (when running from OpenEnv repository)
     from openenv.core.env_server.http_server import create_app
+
     from ..models import MazeAction, MazeObservation
     from .maze_env_environment import MazeEnvironment
 except ImportError:
+    from models import MazeAction, MazeObservation
+
     # Standalone imports (when environment is standalone with openenv-core from pip)
     from openenv_core.env_server.http_server import create_app
-    from models import MazeAction, MazeObservation
     from server.maze_env_environment import MazeEnvironment
 
 
