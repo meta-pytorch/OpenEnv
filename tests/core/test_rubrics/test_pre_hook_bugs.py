@@ -14,11 +14,11 @@ These tests verify:
 These tests currently FAIL due to implementation bugs.
 """
 
-import pytest
 from typing import Any
 
+import pytest
 from openenv.core.rubrics.base import Rubric
-from openenv.core.rubrics.containers import Sequential, Gate, WeightedSum
+from openenv.core.rubrics.containers import Gate, Sequential, WeightedSum
 
 
 class TrackingRubric(Rubric):

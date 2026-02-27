@@ -17,9 +17,10 @@ from ..models import GridWorldAction, GridWorldObservation, MoveAction
 class GridWorldEnvironment(Environment):
     """
     A simple 5x5 Grid World environment.
-    
+
     The agent starts at [0, 0] and must navigate to [4, 4].
     """
+
     def __init__(self):
         super().__init__()
 
@@ -31,20 +32,14 @@ class GridWorldEnvironment(Environment):
         self.agent_x = 0
         self.agent_y = 0
 
-
         # Initialize the base OpenEnv State Container
-        self._state = State(
-            episode_id=str(uuid.uuid4()), step_count=0
-        )
-        
+        self._state = State(episode_id=str(uuid.uuid4()), step_count=0)
 
     def reset(self) -> GridWorldObservation:
-        
-        
         # Update State
         self.agent_x = 0
         self.agent_y = 0
-        
+
         self._state.step_count = 0
         self._state.episode_id = str(uuid.uuid4())
         # Return initial observation (reward must be float 0.0, not None)
@@ -53,7 +48,7 @@ class GridWorldEnvironment(Environment):
             y=self.agent_y,
             message="Welcome to Grid World! Goal is at [4, 4].",
             reward=0.0,
-            done=False
+            done=False,
         )
 
     def step(self, action: GridWorldAction) -> GridWorldObservation:
@@ -63,11 +58,11 @@ class GridWorldEnvironment(Environment):
         move = action.action
 
         # self._state.episode_steps += 1
-        
+
         # Use current state
         # current_x = self._state.agent_x
         # current_y = self._state.agent_y
-        
+
         move = action.action
 
         if move == MoveAction.UP:
@@ -83,7 +78,6 @@ class GridWorldEnvironment(Environment):
         self.agent_x = max(0, min(self.agent_x, self.grid_size - 1))
         self.agent_y = max(0, min(self.agent_y, self.grid_size - 1))
 
-
         # # Update State
         # self._state.agent_x = current_x
         # self._state.agent_y = current_y
@@ -97,13 +91,9 @@ class GridWorldEnvironment(Environment):
             reward = 1.0
             done = True
             message = "You found the goal!"
-        
+
         return GridWorldObservation(
-            x=self.agent_x,
-            y=self.agent_y,
-            message=message,
-            reward=reward,
-            done=done
+            x=self.agent_x, y=self.agent_y, message=message, reward=reward, done=done
         )
 
     @property
