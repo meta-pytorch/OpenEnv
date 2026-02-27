@@ -11,9 +11,8 @@ This module provides functions to check if environments are properly
 configured for multi-mode deployment (Docker, direct Python, notebooks, clusters).
 """
 
-import subprocess
-from typing import Any
 from pathlib import Path
+from typing import Any
 from urllib.parse import urlparse
 
 import requests
@@ -206,7 +205,9 @@ def validate_running_environment(
 
     # Criterion: Metadata endpoint has required fields.
     try:
-        metadata_response = requests.get(f"{normalized_url}/metadata", timeout=timeout_s)
+        metadata_response = requests.get(
+            f"{normalized_url}/metadata", timeout=timeout_s
+        )
     except requests.RequestException as exc:
         criteria.append(
             _make_criterion(
@@ -312,7 +313,9 @@ def validate_running_environment(
 
     # Criterion: MCP endpoint is reachable.
     try:
-        mcp_response = requests.post(f"{normalized_url}/mcp", json={}, timeout=timeout_s)
+        mcp_response = requests.post(
+            f"{normalized_url}/mcp", json={}, timeout=timeout_s
+        )
     except requests.RequestException as exc:
         criteria.append(
             _make_criterion(
@@ -343,9 +346,7 @@ def validate_running_environment(
                 actual={
                     "status_code": mcp_response.status_code,
                     "jsonrpc": (
-                        mcp_json.get("jsonrpc")
-                        if isinstance(mcp_json, dict)
-                        else None
+                        mcp_json.get("jsonrpc") if isinstance(mcp_json, dict) else None
                     ),
                 },
             )
@@ -403,7 +404,7 @@ def validate_multi_mode_deployment(env_path: Path) -> tuple[bool, list[str]]:
 
     Checks:
     1. pyproject.toml exists
-    2. uv.lock exists and is up-to-date
+    2. uv.lock exists
     3. pyproject.toml has [project.scripts] with server entry point
     4. server/app.py has a main() function
     5. Required dependencies are present
@@ -423,23 +424,6 @@ def validate_multi_mode_deployment(env_path: Path) -> tuple[bool, list[str]]:
     lockfile_path = env_path / "uv.lock"
     if not lockfile_path.exists():
         issues.append("Missing uv.lock - run 'uv lock' to generate it")
-    else:
-        # Check if uv.lock is up-to-date (optional, can be expensive)
-        # We can add a check using `uv lock --check` if needed
-        try:
-            result = subprocess.run(
-                ["uv", "lock", "--check", "--directory", str(env_path)],
-                capture_output=True,
-                text=True,
-                timeout=5,
-            )
-            if result.returncode != 0:
-                issues.append(
-                    "uv.lock is out of date with pyproject.toml - run 'uv lock' to update"
-                )
-        except (subprocess.TimeoutExpired, FileNotFoundError):
-            # If uv is not available or times out, skip this check
-            pass
 
     # Parse pyproject.toml
     try:

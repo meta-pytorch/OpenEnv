@@ -12,10 +12,9 @@ import json
 from pathlib import Path
 from unittest.mock import patch
 
-from typer.testing import CliRunner
-
 from openenv.cli.__main__ import app
 from openenv.cli._validation import validate_running_environment
+from typer.testing import CliRunner
 
 
 runner = CliRunner()
@@ -43,7 +42,7 @@ def _write_minimal_valid_env(env_dir: Path) -> None:
     )
     (env_dir / "uv.lock").write_text("")
     (env_dir / "pyproject.toml").write_text(
-        '[project]\n'
+        "[project]\n"
         'name = "test-env"\n'
         'version = "0.1.0"\n'
         'dependencies = ["openenv-core>=0.2.0"]\n'
@@ -52,11 +51,7 @@ def _write_minimal_valid_env(env_dir: Path) -> None:
         'server = "server.app:main"\n'
     )
     (env_dir / "server" / "app.py").write_text(
-        "def main():\n"
-        "    return None\n"
-        "\n"
-        "if __name__ == '__main__':\n"
-        "    main()\n"
+        "def main():\n    return None\n\nif __name__ == '__main__':\n    main()\n"
     )
 
 

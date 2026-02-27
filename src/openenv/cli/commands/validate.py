@@ -20,8 +20,8 @@ from openenv.cli._validation import (
     build_local_validation_json_report,
     format_validation_report,
     get_deployment_modes,
-    validate_running_environment,
     validate_multi_mode_deployment,
+    validate_running_environment,
 )
 
 
@@ -95,7 +95,11 @@ def validate(
         $ openenv validate envs/echo_env
     """
     runtime_target = url
-    if runtime_target is not None and target is not None and not _looks_like_url(target):
+    if (
+        runtime_target is not None
+        and target is not None
+        and not _looks_like_url(target)
+    ):
         typer.echo(
             "Error: Cannot combine a local path argument with --url runtime validation",
             err=True,
