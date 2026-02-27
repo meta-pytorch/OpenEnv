@@ -29,16 +29,20 @@ except ImportError as e:  # pragma: no cover
 
 
 class FleetMCPClient:
+    # Hard timeout for entire MCP operation (connection + request)
+    OPERATION_TIMEOUT_S = 60
+
     def __init__(self, url: str, api_key: str):
         self.url = url
         self.api_key = api_key
 
-    async def list_tools(self) -> List[Tool]:
+    async def _list_tools_impl(self) -> List[Tool]:
+        """Internal implementation without timeout wrapper."""
         async with streamablehttp_client(
             url=self.url,
             headers={"Authorization": f"Bearer {self.api_key}"},
-            timeout=timedelta(seconds=120),
-            sse_read_timeout=timedelta(seconds=300),
+            timeout=timedelta(seconds=30),
+            sse_read_timeout=timedelta(seconds=60),
         ) as streams:
             async with ClientSession(
                 read_stream=streams[0], write_stream=streams[1]
@@ -46,12 +50,26 @@ class FleetMCPClient:
                 await session.initialize()
                 return (await session.list_tools()).tools
 
-    async def call_tool(self, name: str, arguments: Dict[str, Any]) -> Any:
+    async def list_tools(self) -> List[Tool]:
+        """List tools with hard timeout to prevent hanging."""
+        import asyncio
+
+        try:
+            return await asyncio.wait_for(
+                self._list_tools_impl(), timeout=self.OPERATION_TIMEOUT_S
+            )
+        except asyncio.TimeoutError:
+            raise TimeoutError(
+                f"list_tools timed out after {self.OPERATION_TIMEOUT_S}s for {self.url}"
+            )
+
+    async def _call_tool_impl(self, name: str, arguments: Dict[str, Any]) -> Any:
+        """Internal implementation without timeout wrapper."""
         async with streamablehttp_client(
             url=self.url,
             headers={"Authorization": f"Bearer {self.api_key}"},
-            timeout=timedelta(seconds=120),
-            sse_read_timeout=timedelta(seconds=300),
+            timeout=timedelta(seconds=30),
+            sse_read_timeout=timedelta(seconds=60),
         ) as streams:
             async with ClientSession(
                 read_stream=streams[0], write_stream=streams[1]
@@ -59,6 +77,19 @@ class FleetMCPClient:
                 await session.initialize()
                 result = await session.call_tool(name, arguments)
                 return self._extract_tool_result(result)
+
+    async def call_tool(self, name: str, arguments: Dict[str, Any]) -> Any:
+        """Call tool with hard timeout to prevent hanging."""
+        import asyncio
+
+        try:
+            return await asyncio.wait_for(
+                self._call_tool_impl(name, arguments), timeout=self.OPERATION_TIMEOUT_S
+            )
+        except asyncio.TimeoutError:
+            raise TimeoutError(
+                f"call_tool({name}) timed out after {self.OPERATION_TIMEOUT_S}s for {self.url}"
+            )
 
     def _extract_tool_result(self, result: Any) -> Any:
         """Extract readable content from CallToolResult.
