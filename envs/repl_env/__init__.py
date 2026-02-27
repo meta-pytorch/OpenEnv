@@ -40,20 +40,20 @@ References:
     - Alex Zhang Blog: https://alexzhang13.github.io/blog/2025/rlm/
 """
 
-from .models import REPLAction, REPLObservation, REPLState, CodeBlockResult
 from .client import REPLEnv
+from .models import CodeBlockResult, REPLAction, REPLObservation, REPLState
 from .prompts import (
-    # System prompts
-    RLM_SYSTEM_PROMPT,
-    RLM_SYSTEM_PROMPT_QWEN,
-    # Prompt building
-    QueryMetadata,
+    build_initial_prompt,
     build_rlm_system_prompt,
     build_user_prompt,
-    build_initial_prompt,
     # Parsing utilities
     extract_code_blocks,
     format_observations,
+    # Prompt building
+    QueryMetadata,
+    # System prompts
+    RLM_SYSTEM_PROMPT,
+    RLM_SYSTEM_PROMPT_QWEN,
 )
 
 __all__ = [

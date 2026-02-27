@@ -28,12 +28,12 @@ Test coverage:
 - Proper error responses for invalid MCP requests
 """
 
+import json
 import sys
 from pathlib import Path
-import json
-import pytest
 from unittest.mock import patch
 
+import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
@@ -43,10 +43,8 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent / "envs"))
 
 from openenv.core.env_server.http_server import HTTPEnvServer
 from openenv.core.env_server.interfaces import Environment
+from openenv.core.env_server.mcp_types import RESERVED_TOOL_NAMES
 from openenv.core.env_server.types import Action, Observation, State
-from openenv.core.env_server.mcp_types import (
-    RESERVED_TOOL_NAMES,
-)
 
 
 # ============================================================================

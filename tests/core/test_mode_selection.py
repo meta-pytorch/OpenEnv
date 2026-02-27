@@ -26,19 +26,15 @@ Test coverage:
 """
 
 import os
+from unittest.mock import MagicMock, patch
+
 import pytest
-from unittest.mock import patch, MagicMock
-
 from fastmcp import FastMCP
-
+from openenv.core.env_server.mcp_environment import MCPEnvironment
+from openenv.core.env_server.mcp_types import ListToolsAction, ListToolsObservation
+from openenv.core.env_server.types import Observation, State
 from openenv.core.generic_client import GenericEnvClient
 from openenv.core.mcp_client import MCPToolClient
-from openenv.core.env_server.mcp_environment import MCPEnvironment
-from openenv.core.env_server.mcp_types import (
-    ListToolsAction,
-    ListToolsObservation,
-)
-from openenv.core.env_server.types import Observation, State
 
 
 # ============================================================================

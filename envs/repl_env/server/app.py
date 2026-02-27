@@ -41,12 +41,14 @@ import os
 try:
     # In-repo imports (when running from OpenEnv repository)
     from openenv.core.env_server.http_server import create_app
+
     from ..models import REPLAction, REPLObservation
     from .repl_environment import REPLEnvironment
 except ImportError:
+    from models import REPLAction, REPLObservation
+
     # Standalone imports (when environment is standalone with openenv from pip)
     from openenv.core.env_server.http_server import create_app
-    from models import REPLAction, REPLObservation
     from server.repl_environment import REPLEnvironment
 
 

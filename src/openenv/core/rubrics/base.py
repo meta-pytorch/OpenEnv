@@ -15,7 +15,7 @@ See RFC 004 for full design: rfcs/004-rubrics.md
 
 import inspect
 from abc import ABC, abstractmethod
-from typing import Any, Dict, Iterator, List, Optional, Tuple, Callable
+from typing import Any, Callable, Dict, Iterator, List, Optional, Tuple
 
 
 class Rubric(ABC):
