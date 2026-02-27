@@ -16,7 +16,7 @@ tags:
 
 # 🌲 Wildfire Environment
 
-Autonomous wildfire-control simulation for reinforcement-learning agents, built on the [OpenEnv](https://github.com/openenv) framework.  
+Autonomous wildfire-control simulation for reinforcement-learning agents, built on the [OpenEnv](https://github.com/openenv) framework.
 Agents must contain spreading fires using **water**, **firebreaks**, and **timing strategies** under changing **wind** and **humidity** conditions.
 
 [![Docker](https://img.shields.io/badge/docker-ready-blue)](https://hub.docker.com/)
@@ -48,7 +48,7 @@ Agents must contain spreading fires using **water**, **firebreaks**, and **timin
 
 ## 🔥 Why Wildfire Simulation?
 
-Wildland fires are intensifying globally due to climate change — increasing the urgency for **AI-assisted decision-making**.  
+Wildland fires are intensifying globally due to climate change — increasing the urgency for **AI-assisted decision-making**.
 This environment explores how intelligent systems can **control** fire spread in real time, under limited resources.
 
 ### Research Motivation
@@ -128,7 +128,7 @@ The goal is to **minimize fire spread** and **total burned area** while using re
 ### Episode Termination
 
 An episode ends when:
-- **All fires are extinguished** (`burning_count == 0`) - **Success!** 
+- **All fires are extinguished** (`burning_count == 0`) - **Success!**
 - **Maximum steps reached** (`step_count >= max_steps`) - Time limit exceeded
 
 ---
@@ -191,7 +191,7 @@ WildfireAction(action="water", x=10, y=15)
 - **Water/Damp cell (4)**: Redundant watering, gives **-0.05 reward**
 - **Ash/Break (0, 3)**: Wasteful, gives **-0.05 reward**
 
-**Resource Cost:** 1 water unit per action  
+**Resource Cost:** 1 water unit per action
 **Requires:** `remaining_water > 0` and valid coordinates
 
 **Best Use:** Extinguish active fires before they spread
@@ -211,7 +211,7 @@ WildfireAction(action="break", x=12, y=15)
 - **Firebreak (3)**: Redundant, gives **-0.01 reward**
 - **Ash (0)**: Wasteful, gives **-0.02 reward**
 
-**Resource Cost:** 1 firebreak material per action  
+**Resource Cost:** 1 firebreak material per action
 **Requires:** `remaining_breaks > 0` and valid coordinates
 
 **Best Use:** Create barriers ahead of fire front to contain spread
@@ -315,7 +315,7 @@ When episode terminates (`done == True`):
   - **+0.2 × (1.0 - burned_ratio)** bonus
 
 **Example:** Perfect containment (no burned cells):
-```python
+```text
 Reward = +0.5 + 0.5 × 1.0 = +1.0
 ```
 
@@ -338,7 +338,7 @@ Fire spreads using an **8-directional neighbor model**:
 3. Spread probability depends on:
    - **Base ignition probability**: `0.30` (30% chance)
    - **Humidity factor**: `(1.0 - humidity)` - higher humidity = less spread
-   - **Wind multiplier**: 
+   - **Wind multiplier**:
      - **+2.0x** in wind direction
      - **+0.5x** against wind
      - **+1.0x** perpendicular
@@ -616,7 +616,7 @@ total_reward = 0
 while not result.done:
     # Find burning cells
     burning_indices = np.where(grid_2d == 2)
-    
+
     if len(burning_indices[0]) > 0 and obs.remaining_water > 0:
         # Water the first burning cell
         y, x = burning_indices[0][0], burning_indices[1][0]
@@ -624,14 +624,14 @@ while not result.done:
     else:
         # Wait if no water or no fires
         action = WildfireAction(action="wait")
-    
+
     result = env.step(action)
     obs = result.observation
     total_reward += result.reward or 0
-    
+
     # Update grid
     grid_2d = np.array(obs.grid).reshape(obs.height, obs.width)
-    
+
     print(f"Step {obs.step}: Burning={obs.burning_count}, Reward={result.reward:.3f}")
 
 print(f"\nEpisode ended. Total reward: {total_reward:.2f}")
@@ -653,13 +653,13 @@ def create_firebreak_barrier(obs, env):
     """Create firebreak ahead of fire front based on wind direction."""
     grid_2d = np.array(obs.grid).reshape(obs.height, obs.width)
     wind = obs.wind_dir
-    
+
     # Find burning cells
     burning_y, burning_x = np.where(grid_2d == 2)
-    
+
     if len(burning_x) == 0 or obs.remaining_breaks == 0:
         return WildfireAction(action="wait")
-    
+
     # Calculate fire front position
     if wind == "E":
         target_x = int(np.max(burning_x)) + 2  # Ahead of easternmost fire
@@ -676,11 +676,11 @@ def create_firebreak_barrier(obs, env):
     else:
         # Fallback: water nearest burning cell
         return WildfireAction(action="water", x=int(burning_x[0]), y=int(burning_y[0]))
-    
+
     # Ensure within bounds
     target_x = max(0, min(obs.width - 1, target_x))
     target_y = max(0, min(obs.height - 1, target_y))
-    
+
     return WildfireAction(action="break", x=target_x, y=target_y)
 
 total_reward = 0
@@ -689,7 +689,7 @@ while not result.done:
     result = env.step(action)
     obs = result.observation
     total_reward += result.reward or 0
-    
+
     if obs.step % 10 == 0:
         print(f"Step {obs.step}: Fires={obs.burning_count}, Water={obs.remaining_water}, Breaks={obs.remaining_breaks}")
 
@@ -724,7 +724,7 @@ plt.ion()
 for step in range(50):
     if result.done:
         break
-    
+
     # Render grid
     grid_2d = np.array(obs.grid).reshape(obs.height, obs.width)
     ax.clear()
@@ -735,7 +735,7 @@ for step in range(50):
         f"Water: {obs.remaining_water} | Breaks: {obs.remaining_breaks}"
     )
     plt.pause(0.1)
-    
+
     # Take action (simple: water first burning cell)
     if obs.burning_count > 0 and obs.remaining_water > 0:
         burning_indices = np.where(grid_2d == 2)
@@ -746,7 +746,7 @@ for step in range(50):
             action = WildfireAction(action="wait")
     else:
         action = WildfireAction(action="wait")
-    
+
     result = env.step(action)
     obs = result.observation
 
@@ -771,7 +771,7 @@ for episode in range(num_episodes):
     obs = result.observation
     episode_reward = 0
     episode_steps = 0
-    
+
     while not result.done:
         # Random policy (replace with your RL agent)
         if random.random() < 0.4 and obs.remaining_water > 0:
@@ -788,12 +788,12 @@ for episode in range(num_episodes):
             )
         else:
             action = WildfireAction(action="wait")
-        
+
         result = env.step(action)
         obs = result.observation
         episode_reward += result.reward or 0
         episode_steps += 1
-    
+
     episode_rewards.append(episode_reward)
     state = env.state
     print(

@@ -1,4 +1,4 @@
-# AutoEnv & AutoAction: Auto-Discovery API
+# Auto-Discovery
 
 OpenEnv provides a HuggingFace-style auto-discovery API that makes it easy to work with environments without manual imports.
 
@@ -426,6 +426,6 @@ spec_version: 1
 
 ## See Also
 
-- [Environment Builder Guide](environment-builder.md) - How to create your own environments
+- [Environment Builder Guide](auto_getting_started/environment-builder.md) - How to create your own environments
 - [Core API Documentation](core.md) - Low-level API details
 - [HuggingFace Hub](https://huggingface.co/meta-pytorch) - Pre-built environments
