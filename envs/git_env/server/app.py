@@ -23,6 +23,7 @@ Usage:
     GITEA_URL=http://my-gitea:3000 uvicorn envs.git_env.server.app:app --host 0.0.0.0 --port 8000
 """
 
+import logging
 import os
 
 from openenv.core.env_server import create_app
@@ -30,11 +31,19 @@ from openenv.core.env_server import create_app
 from ..models import GitAction, GitObservation
 from .git_task_environment import GitTaskEnvironment
 
+logger = logging.getLogger(__name__)
+
 # Read configuration from environment variables
 gitea_url = os.getenv("GITEA_URL", "http://localhost:3000")
 gitea_username = os.getenv("GITEA_USERNAME", "openenv")
 gitea_password = os.getenv("GITEA_PASSWORD", "openenv")
 workspace_dir = os.getenv("WORKSPACE_DIR", "/workspace")
+
+if "GITEA_USERNAME" not in os.environ or "GITEA_PASSWORD" not in os.environ:
+    logger.warning(
+        "Using default Gitea credentials. Set GITEA_USERNAME and GITEA_PASSWORD "
+        "for non-local deployments."
+    )
 
 
 # Factory function to create GitTaskEnvironment instances

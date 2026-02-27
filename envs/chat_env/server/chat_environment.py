@@ -46,8 +46,12 @@ class ChatEnvironment(Environment):
     ):
         super().__init__(transform=transform)
 
-        if not hasattr(tokenizer, "apply_chat_template"):
-            raise ValueError("Tokenizer must have 'apply_chat_template' method")
+        if not hasattr(tokenizer, "apply_chat_template") and not hasattr(
+            tokenizer, "encode"
+        ):
+            raise ValueError(
+                "Tokenizer must have 'apply_chat_template' or 'encode' method"
+            )
         self.tokenizer = tokenizer
         self.system_prompt = system_prompt
         self.system_role = system_role
