@@ -11,7 +11,7 @@ from .context_manager import CONTEXT_TOOLS, CONTEXT_TOOL_NAMES, ContextManager
 from .mcp_tools import FleetMCPTools
 from .models import CallToolAction, ListToolsAction
 from .task_env import FleetTaskEnv, make_fleet_task_env
-from .telemetry import configure_fleet_telemetry
+from .telemetry import configure_fleet_telemetry, set_task_context, clear_task_context
 
 __all__ = [
     "FleetEnvClient",
@@ -24,4 +24,6 @@ __all__ = [
     "CONTEXT_TOOLS",
     "CONTEXT_TOOL_NAMES",
     "configure_fleet_telemetry",
+    "set_task_context",
+    "clear_task_context",
 ]

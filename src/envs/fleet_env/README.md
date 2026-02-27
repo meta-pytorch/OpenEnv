@@ -123,34 +123,65 @@ Structured error tracking via [Logfire](https://logfire.pydantic.dev/). Covers i
 ```python
 from envs.fleet_env import configure_fleet_telemetry
 
+# Default environment is "training_rollouts" - shows up in Logfire env dropdown
+configure_fleet_telemetry(token="your-logfire-token")
+
+# Or specify a custom environment
 configure_fleet_telemetry(token="your-logfire-token", environment="production")
 ```
 
 If you never call `configure_fleet_telemetry()`, logfire silently drops all events (no noise, no crashes).
 
+**Consistent Schema:**
+
+All events include these base attributes (set automatically via task context):
+
+| Attribute | Description | Example |
+|-----------|-------------|---------|
+| `env_key` | Environment key | `github`, `amazon` |
+| `env_version` | Environment version | `v0.0.12` |
+| `task_key` | Task identifier | `github-create-issue-001` |
+| `modality` | Task modality | `tool_use`, `computer_use` |
+
 **What gets tracked:**
 
-| Event | Level | Where |
-|-------|-------|-------|
-| `fleet_env_created` | info | `client.py` — successful `Fleet.make()` |
-| `fleet_make_retry` | warning | `client.py` — transient `Fleet.make()` failure, retrying |
-| `fleet_make_failed` | error | `client.py` — `Fleet.make()` permanently failed |
-| `fleet_env_reset_failed` | exception | `task_env.py` — env reset threw |
-| `fleet_tools_list_failed` | exception | `task_env.py` — tool listing threw |
-| `fleet_computer_tool_missing` | warning | `task_env.py` — computer_use mode but no computer tool |
-| `fleet_screenshot_failed` | exception | `task_env.py` — initial screenshot threw |
-| `fleet_tool_call_failed` | exception | `task_env.py` — agent tool call threw |
-| `fleet_verifier_failed` | exception | `task_env.py` — verifier execution threw |
-| `fleet_env_close_failed` | exception | `task_env.py` — env close threw |
-| `fleet_list_tools_partial` | warning | `mcp_tools.py` — some MCP endpoints failed |
-| `fleet_list_tools_retry` | warning | `mcp_tools.py` — list_tools retrying |
-| `fleet_list_tools_exhausted` | error | `mcp_tools.py` — list_tools retries exhausted |
-| `fleet_call_tool_retry` | warning | `mcp_tools.py` — call_tool retrying |
-| `fleet_call_tool_exhausted` | error | `mcp_tools.py` — call_tool retries exhausted |
+| Event | Level | Description |
+|-------|-------|-------------|
+| `fleet_env_created` | info | Successful `Fleet.make()` |
+| `fleet_rollout_started` | info | Rollout reset completed, tools loaded |
+| `fleet_rollout_completed` | info | Rollout done, includes `reward` and `step_count` |
+| `fleet_make_retry` | warning | Transient `Fleet.make()` failure, retrying |
+| `fleet_make_failed` | error | `Fleet.make()` permanently failed |
+| `fleet_env_reset_failed` | exception | Env reset threw |
+| `fleet_tools_list_failed` | exception | Tool listing threw |
+| `fleet_computer_tool_missing` | warning | computer_use mode but no computer tool |
+| `fleet_screenshot_failed` | exception | Initial screenshot threw |
+| `fleet_tool_call_failed` | exception | Agent tool call threw |
+| `fleet_verifier_failed` | exception | Verifier execution threw |
+| `fleet_env_close_failed` | exception | Env close threw |
+| `fleet_list_tools_partial` | warning | Some MCP endpoints failed |
+| `fleet_list_tools_retry` | warning | list_tools retrying |
+| `fleet_list_tools_exhausted` | error | list_tools retries exhausted |
+| `fleet_call_tool_retry` | warning | call_tool retrying |
+| `fleet_call_tool_exhausted` | error | call_tool retries exhausted |
 
-All events carry relevant context (`task_key`, `env_key`, `modality`, etc). Exception-level events include the full traceback.
+**Example Logfire SQL Query:**
 
-The wrapper lives in `telemetry.py` — four functions: `fleet_info`, `fleet_warning`, `fleet_error`, `fleet_exception`.
+```sql
+-- Rollout summary by env/version
+SELECT
+    attributes->>'env_key' as env,
+    attributes->>'env_version' as version,
+    attributes->>'modality' as modality,
+    COUNT(*) FILTER (WHERE message = 'fleet_rollout_started') as num_rollouts,
+    COUNT(*) FILTER (WHERE message = 'fleet_rollout_completed') as completed,
+    COUNT(*) FILTER (WHERE message = 'fleet_tool_call_failed') as tool_errors,
+    COUNT(*) FILTER (WHERE message = 'fleet_verifier_failed') as verifier_errors
+FROM records
+WHERE service_name = 'openenv-fleet'
+GROUP BY 1, 2, 3
+ORDER BY num_rollouts DESC;
+```
 
 ### TODOs
 

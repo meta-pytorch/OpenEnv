@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 
 from .client import FleetEnvClient
 from .mcp_tools import FleetMCPTools
-from .telemetry import fleet_error, fleet_exception, fleet_warning, fleet_info
+from .telemetry import fleet_error, fleet_exception, fleet_warning, fleet_info, set_task_context, clear_task_context
 
 
 class FleetTaskEnv:
@@ -99,6 +99,14 @@ class FleetTaskEnv:
             request_timeout_s=self.request_timeout_s,
         )
 
+        # Set telemetry context for this task (all events will include these attributes)
+        set_task_context(
+            env_key=self.env_key,
+            env_version=self.env_version,
+            task_key=self.task_key,
+            modality=self.modality,
+        )
+
         # Tools are fetched in reset_async() to avoid asyncio.run() issues in __init__
 
     @property
@@ -120,6 +128,11 @@ class FleetTaskEnv:
     def env_key(self) -> str:
         """Get the environment key (e.g., 'github', 'amazon')."""
         return self.task.get("env_key", "unknown")
+
+    @property
+    def env_version(self) -> str:
+        """Get the environment version (e.g., 'v0.0.12')."""
+        return self.task.get("env_version", "unknown")
 
     def _build_env_spec(self) -> str:
         """Build env_key:version spec for Fleet.make()."""
@@ -211,9 +224,6 @@ class FleetTaskEnv:
                 )
                 fleet_exception(
                     "fleet_env_reset_failed",
-                    task_key=self.task_key,
-                    env_key=self.env_key,
-                    modality=self.modality,
                     step_count=self._step_count,
                     timeout_s=self.reset_timeout_s,
                 )
@@ -227,9 +237,6 @@ class FleetTaskEnv:
                 logger.warning(f"[env={self.env_key}] Failed to fetch tools: {e}")
                 fleet_exception(
                     "fleet_tools_list_failed",
-                    task_key=self.task_key,
-                    env_key=self.env_key,
-                    modality=self.modality,
                     step_count=self._step_count,
                 )
                 self._tools_cache = []
@@ -269,9 +276,6 @@ class FleetTaskEnv:
                 )
                 fleet_warning(
                     "fleet_computer_tool_missing",
-                    task_key=self.task_key,
-                    env_key=self.env_key,
-                    modality=self.modality,
                     step_count=self._step_count,
                     available_tools=available,
                 )
@@ -307,11 +311,14 @@ class FleetTaskEnv:
                 )
                 fleet_exception(
                     "fleet_screenshot_failed",
-                    task_key=self.task_key,
-                    env_key=self.env_key,
-                    modality=self.modality,
                     step_count=self._step_count,
                 )
+
+        # Log successful rollout start
+        fleet_info(
+            "fleet_rollout_started",
+            num_tools=len(self._tools_cache) if self._tools_cache else 0,
+        )
 
         return obs
 
@@ -376,9 +383,6 @@ class FleetTaskEnv:
                 tool_result = {"error": str(e)}
                 fleet_exception(
                     "fleet_tool_call_failed",
-                    task_key=self.task_key,
-                    env_key=self.env_key,
-                    modality=self.modality,
                     step_count=self._step_count,
                     tool_name=tool_name,
                 )
@@ -465,6 +469,12 @@ class FleetTaskEnv:
             logger.info(
                 f"Task {self.task_key}: verifier returned success={response.success}, result={response.result}, score={score}"
             )
+            fleet_info(
+                "fleet_rollout_completed",
+                step_count=self._step_count,
+                reward=score,
+                verifier_success=response.success,
+            )
             return score
 
         except ImportError as e:
@@ -477,9 +487,6 @@ class FleetTaskEnv:
             )
             fleet_exception(
                 "fleet_verifier_failed",
-                task_key=self.task_key,
-                env_key=self.env_key,
-                modality=self.modality,
                 step_count=self._step_count,
                 verifier_code_snippet=verifier_code[:200] if verifier_code else "",
             )
@@ -493,15 +500,13 @@ class FleetTaskEnv:
             except Exception:
                 fleet_exception(
                     "fleet_env_close_failed",
-                    task_key=self.task_key,
-                    env_key=self.env_key,
-                    modality=self.modality,
                     step_count=self._step_count,
                 )
             self._orch = None
             self._tools = None
             self._tools_cache = None
             self._done = True
+        clear_task_context()
 
     def __enter__(self):
         return self
