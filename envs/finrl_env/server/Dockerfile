@@ -18,7 +18,11 @@ FROM envtorch-base:latest
 
 # Install FinRL and its dependencies with pinned versions for reproducibility
 RUN pip install --no-cache-dir \
-    finrl==0.3.6 \
+    finrl==0.3.7 \
+    alpaca-trade-api>=3.0.0 \
+    exchange_calendars>=4.5 \
+    wrds>=3.2.0 \
+    websockets>=15.0.1 \
     yfinance==0.2.28 \
     pandas==2.0.3 \
     numpy==1.24.3 \
@@ -35,10 +39,10 @@ COPY src/core/ /app/src/core/
 COPY envs/finrl_env/ /app/envs/finrl_env/
 
 # Set working directory for the application
-WORKDIR /app/src
+WORKDIR /app
 
 # Set Python path explicitly (redundant with base but clear)
-ENV PYTHONPATH=/app/src:${PYTHONPATH}
+ENV PYTHONPATH=/app/src:/app:${PYTHONPATH}
 
 # FinRL runtime configuration via environment variables
 # These can be overridden at runtime with -e flags

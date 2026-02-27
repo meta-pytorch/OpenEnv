@@ -32,7 +32,11 @@ import os
 from pathlib import Path
 
 import pandas as pd
-from openenv.core.env_server import create_app
+
+try:
+    from core.env_server import create_app
+except ImportError:
+    from openenv.core.env_server import create_app
 
 from ..models import FinRLAction, FinRLObservation
 from .finrl_environment import FinRLEnvironment

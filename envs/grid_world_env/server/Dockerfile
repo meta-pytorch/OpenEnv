@@ -17,8 +17,13 @@ COPY envs/grid_world_env/ /app/envs/grid_world_env/
 # 4. Environment Variables
 # Add /app to PYTHONPATH so python can find 'envs.grid_world_env'
 ENV PYTHONPATH="${PYTHONPATH}:/app"
+ENV ENABLE_WEB_INTERFACE=false
 
 EXPOSE 8000
+
+# Health check for HF runtime readiness
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+    CMD curl -f http://localhost:8000/health || exit 1
 
 # 5. Run the Server
 # Note: We run from the module path 'envs.grid_world_env.server.app'

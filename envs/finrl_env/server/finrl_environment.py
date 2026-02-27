@@ -13,8 +13,14 @@ Wraps FinRL's StockTradingEnv to conform to the OpenEnv interface.
 from uuid import uuid4
 
 import numpy as np
-from openenv.core.env_server.interfaces import Environment
-from openenv.core.env_server.types import State
+
+try:
+    # Prefer legacy /app/src/core import path in staged HF deployments.
+    from core.env_server.interfaces import Environment
+    from core.env_server.types import State
+except ImportError:
+    from openenv.core.env_server.interfaces import Environment
+    from openenv.core.env_server.types import State
 
 from ..models import FinRLAction, FinRLObservation
 
