@@ -48,4 +48,6 @@ def create_sumo_environment():
 
 # Create FastAPI app
 # Pass the factory function instead of an instance for WebSocket session support
-app = create_app(create_sumo_environment, SumoAction, SumoObservation, env_name="sumo_rl_env")
+app = create_app(
+    create_sumo_environment, SumoAction, SumoObservation, env_name="sumo_rl_env"
+)

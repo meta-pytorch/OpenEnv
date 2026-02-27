@@ -6,10 +6,9 @@
 
 import inspect
 from abc import ABC, abstractmethod
-from typing import Any, Generic, Optional, Protocol, TypeVar, TYPE_CHECKING
-from typing import TypedDict
+from typing import Any, Generic, Optional, Protocol, TYPE_CHECKING, TypedDict, TypeVar
 
-from .types import Action, Observation, State, EnvironmentMetadata
+from .types import Action, EnvironmentMetadata, Observation, State
 
 if TYPE_CHECKING:
     from openenv.core.rubrics import Rubric

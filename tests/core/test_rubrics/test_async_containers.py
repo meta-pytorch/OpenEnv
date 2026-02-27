@@ -13,12 +13,12 @@ This test file verifies that container rubrics work with async forward():
 - Parallel execution optimization
 """
 
-import pytest
 import asyncio
 from typing import Any
 
+import pytest
 from openenv.core.rubrics.base import Rubric
-from openenv.core.rubrics.containers import Sequential, Gate, WeightedSum
+from openenv.core.rubrics.containers import Gate, Sequential, WeightedSum
 
 
 class AsyncRubric(Rubric):

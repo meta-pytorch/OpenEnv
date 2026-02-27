@@ -47,13 +47,15 @@ from logging.handlers import RotatingFileHandler
 try:
     # In-repo imports (when running from OpenEnv repository)
     from openenv.core.env_server.http_server import create_app
+
     from ..models import JuliaAction, JuliaObservation
     from .julia_codeact_env import JuliaCodeActEnv
     from .julia_executor import JuliaExecutor
 except ImportError:
+    from models import JuliaAction, JuliaObservation
+
     # Standalone imports (when environment is standalone)
     from openenv.core.env_server.http_server import create_app
-    from models import JuliaAction, JuliaObservation
     from server.julia_codeact_env import JuliaCodeActEnv
     from server.julia_executor import JuliaExecutor
 

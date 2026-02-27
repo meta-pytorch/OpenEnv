@@ -27,8 +27,7 @@ try:
     from sumo_rl import SumoEnvironment as BaseSumoEnv
 except ImportError as e:
     raise ImportError(
-        "sumo-rl is not installed. "
-        "Please install it with: pip install sumo-rl"
+        "sumo-rl is not installed. Please install it with: pip install sumo-rl"
     ) from e
 
 
@@ -218,9 +217,7 @@ class SumoEnvironment(Environment):
         action_mask = list(range(num_phases))
 
         # Extract system metrics for metadata
-        system_info = {
-            k: v for k, v in info.items() if k.startswith("system_")
-        }
+        system_info = {k: v for k, v in info.items() if k.startswith("system_")}
 
         # Create observation
         return SumoObservation(

@@ -6,13 +6,13 @@
 
 """Tests for TrajectoryRubric and ExponentialDiscountingTrajectoryRubric."""
 
-import pytest
 from dataclasses import dataclass
 from typing import Any, List, Tuple
 
+import pytest
 from openenv.core.rubrics.trajectory import (
-    TrajectoryRubric,
     ExponentialDiscountingTrajectoryRubric,
+    TrajectoryRubric,
 )
 
 

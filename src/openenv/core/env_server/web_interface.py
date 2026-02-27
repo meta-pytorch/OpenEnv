@@ -20,8 +20,8 @@ from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 from typing import Any, Callable, Dict, List, Optional, Type
 
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 import gradio as gr
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from pydantic import BaseModel, ConfigDict, Field
 
 from .gradio_theme import OPENENV_GRADIO_CSS, OPENENV_GRADIO_THEME

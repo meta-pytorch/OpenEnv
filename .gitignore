@@ -128,3 +128,6 @@ log_outputs/*
 
 # .sesskey
 *.sesskey
+
+# FinQA data (downloaded via download_data.sh)
+envs/finqa_env/data/

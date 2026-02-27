@@ -33,9 +33,9 @@ Example:
 from __future__ import annotations
 
 import logging
-from typing import Type, Dict, Any
+from typing import Any, Dict, Type
 
-from ._discovery import get_discovery, _is_hub_url
+from ._discovery import _is_hub_url, get_discovery
 from .auto_env import AutoEnv
 
 logger = logging.getLogger(__name__)
