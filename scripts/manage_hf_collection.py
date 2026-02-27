@@ -27,12 +27,26 @@ except ModuleNotFoundError:  # pragma: no cover
 
 
 DEFAULT_COLLECTION_NAMESPACE = "openenv"
+DEFAULT_COLLECTION_SLUG = "openenv/environment-hub-68f16377abea1ea114fa0743"
 DEFAULT_VERSIONED_COLLECTION_TITLE_PREFIX = "OpenEnv Environment Hub"
 DEFAULT_GLOBAL_COLLECTION_TITLE = "OpenEnv Environment Hub"
 DEFAULT_TAG_FILTER = "openenv"
 DEFAULT_GLOBAL_SCOPE = "tagged"
 FALLBACK_DEFAULT_VERSION = "0.2.0"
 VERSION_SUFFIX_PATTERN = re.compile(r"-(?:\d+\.\d+\.\d+|v\d+-\d+-\d+)$")
+DUAL_MODE_FLAGS = frozenset(
+    {
+        "--skip-versioned-collection",
+        "--skip-global-collection",
+        "--global-collection-title",
+        "--global-collection-slug",
+        "--private-global-collection",
+        "--public-global-collection",
+        "--private-versioned-collection",
+        "--public-versioned-collection",
+        "--global-scope",
+    }
+)
 
 logging.basicConfig(
     level=logging.INFO,
@@ -66,8 +80,13 @@ DEFAULT_VERSION = load_default_version()
 def setup_api() -> HfApi:
     """Initialize and authenticate the Hugging Face API client."""
     hf_token = os.environ.get("HF_TOKEN")
+    if not hf_token:
+        logger.error("HF_TOKEN environment variable is required")
+        logger.error("Set HF_TOKEN before running this script.")
+        sys.exit(1)
+
     logger.info("Authenticating with Hugging Face...")
-    api = HfApi(token=hf_token) if hf_token else HfApi()
+    api = HfApi(token=hf_token)
 
     try:
         whoami = api.whoami()
@@ -105,7 +124,15 @@ def find_collection_by_title(api: HfApi, namespace: str, title: str):
         logger.error(f"Failed to list collections for '{namespace}': {exc}")
         return None
 
-    for collection in collections:
+    try:
+        iterator = iter(collections)
+    except TypeError:
+        logger.warning(
+            "list_collections returned non-iterable response; ignoring for compatibility"
+        )
+        return None
+
+    for collection in iterator:
         if getattr(collection, "title", None) == title:
             return collection
     return None
@@ -180,7 +207,9 @@ def resolve_collection_slug(
     return collection.slug
 
 
-def get_collection_spaces(api: HfApi, collection_slug: str) -> Set[str]:
+def get_collection_spaces(
+    api: HfApi, collection_slug: str = DEFAULT_COLLECTION_SLUG
+) -> Set[str]:
     """Retrieve space IDs currently in collection."""
     logger.info(f"Fetching current collection contents: {collection_slug}")
 
@@ -200,50 +229,43 @@ def get_collection_spaces(api: HfApi, collection_slug: str) -> Set[str]:
         sys.exit(1)
 
 
-def discover_openenv_spaces(api: HfApi, tag_filter: str) -> List[str]:
-    """Discover all spaces that include the requested tag."""
-    logger.info(f"Discovering spaces tagged with '{tag_filter}'...")
-    discovered: List[str] = []
+def discover_openenv_spaces(
+    api: HfApi, tag_filter: str = DEFAULT_TAG_FILTER
+) -> List[str]:
+    """Discover Docker spaces that include the requested tag."""
+    logger.info(f"Searching for Docker Spaces with tag '{tag_filter}'...")
 
     try:
         spaces = list(
             list_spaces(
-                filter=tag_filter,
+                search=tag_filter,
                 full=False,
-                sort="last_modified",
+                sort="trending_score",
                 direction=-1,
             )
         )
-        discovered = [space.id for space in spaces if getattr(space, "id", None)]
-    except TypeError:
-        # Backward compatibility for older hub versions without `filter=`.
-        try:
-            spaces = list(
-                list_spaces(
-                    search=tag_filter,
-                    full=False,
-                    sort="trending_score",
-                    direction=-1,
-                )
-            )
-        except Exception as exc:
-            logger.error(f"Error listing spaces: {exc}")
-            sys.exit(1)
-
-        for space in spaces:
-            try:
-                info = api.space_info(space.id)
-                tags = getattr(info, "tags", []) or []
-                if tag_filter in tags:
-                    discovered.append(space.id)
-            except Exception as exc:
-                logger.warning(f"Could not inspect space {space.id}: {exc}")
     except Exception as exc:
-        logger.error(f"Error listing spaces: {exc}")
+        logger.error(f"Error discovering spaces: {exc}")
         sys.exit(1)
 
+    discovered: List[str] = []
+    for space in spaces:
+        try:
+            info = api.space_info(space.id)
+            runtime = getattr(info, "runtime", None)
+            runtime_stage = getattr(runtime, "stage", None)
+            tags = getattr(info, "tags", []) or []
+            if (
+                getattr(info, "sdk", None) == "docker"
+                and tag_filter in tags
+                and runtime_stage != "RUNTIME_ERROR"
+            ):
+                discovered.append(space.id)
+        except Exception as exc:
+            logger.warning(f"Could not inspect space {space.id}: {exc}")
+
     deduped = dedupe_preserve_order(discovered)
-    logger.info(f"✓ Discovered {len(deduped)} tagged spaces")
+    logger.info(f"✓ Discovered {len(deduped)} Docker spaces with tag '{tag_filter}'")
     return deduped
 
 
@@ -306,10 +328,11 @@ def dedupe_preserve_order(values: Iterable[str]) -> List[str]:
 
 def add_spaces_to_collection(
     api: HfApi,
-    collection_slug: str,
     space_ids: List[str],
-    note: str,
     dry_run: bool = False,
+    collection_slug: str = DEFAULT_COLLECTION_SLUG,
+    version: str = DEFAULT_VERSION,
+    note: Optional[str] = None,
 ) -> int:
     """Add spaces to collection, returning count of added/would-add."""
     if not space_ids:
@@ -318,6 +341,7 @@ def add_spaces_to_collection(
 
     added_count = 0
     failed_count = 0
+    note_text = note if note is not None else f"OpenEnv release {normalize_version(version)}"
 
     for space_id in space_ids:
         if dry_run:
@@ -331,7 +355,7 @@ def add_spaces_to_collection(
                 collection_slug=collection_slug,
                 item_id=space_id,
                 item_type="space",
-                note=note,
+                note=note_text,
                 exists_ok=True,
             )
             logger.info(f"✓ Added: {space_id}")
@@ -354,6 +378,11 @@ def add_spaces_to_collection(
 def should_skip_fetch(collection_slug: str) -> bool:
     """Skip fetch for dry-run synthetic slugs."""
     return "/dry-run-" in collection_slug
+
+
+def should_use_dual_mode(argv: List[str]) -> bool:
+    """Enable dual-collection behavior only when dual-mode flags are explicitly passed."""
+    return any(flag in argv for flag in DUAL_MODE_FLAGS)
 
 
 def main() -> None:
@@ -465,6 +494,7 @@ Examples:
     )
     parser.set_defaults(private_global_collection=False)
 
+    raw_argv = sys.argv[1:]
     args = parser.parse_args()
 
     if args.skip_versioned_collection and args.skip_global_collection:
@@ -481,6 +511,54 @@ Examples:
         logger.info("=" * 60)
 
     api = setup_api()
+
+    # Backward-compatible single-collection flow (default behavior unless
+    # dual-collection flags are explicitly requested).
+    if not should_use_dual_mode(raw_argv):
+        collection_title = build_versioned_collection_title(
+            args.collection_title_prefix, args.version
+        )
+        collection_slug = resolve_collection_slug(
+            api=api,
+            namespace=args.collection_namespace,
+            title=collection_title,
+            description=f"OpenEnv spaces for release {normalize_version(args.version)}",
+            explicit_slug=args.collection_slug,
+            private=args.private_versioned_collection,
+            dry_run=args.dry_run,
+        )
+
+        current_spaces = (
+            set()
+            if args.dry_run and should_skip_fetch(collection_slug)
+            else get_collection_spaces(api, collection_slug)
+        )
+
+        if args.space_id:
+            resolved_spaces = dedupe_preserve_order(args.space_id)
+        else:
+            resolved_spaces = discover_openenv_spaces(api, args.tag_filter)
+
+        new_spaces = [space_id for space_id in resolved_spaces if space_id not in current_spaces]
+
+        logger.info("=" * 60)
+        logger.info("Summary:")
+        logger.info(f"  Version: {normalize_version(args.version)}")
+        logger.info(f"  Collection: {collection_slug}")
+        logger.info(f"  Total spaces in collection: {len(current_spaces)}")
+        logger.info(f"  Total spaces resolved: {len(resolved_spaces)}")
+        logger.info(f"  New spaces to add: {len(new_spaces)}")
+        logger.info("=" * 60)
+
+        add_spaces_to_collection(
+            api,
+            new_spaces,
+            dry_run=args.dry_run,
+            collection_slug=collection_slug,
+            version=args.version,
+        )
+        logger.info(f"Collection URL: https://huggingface.co/collections/{collection_slug}")
+        return
 
     explicit_spaces = dedupe_preserve_order(args.space_id)
     discovered_spaces: List[str] = []
@@ -537,11 +615,12 @@ Examples:
         logger.info("=" * 60)
 
         add_spaces_to_collection(
-            api=api,
-            collection_slug=versioned_slug,
-            space_ids=new_versioned,
-            note=f"OpenEnv release {normalize_version(args.version)}",
+            api,
+            new_versioned,
             dry_run=args.dry_run,
+            collection_slug=versioned_slug,
+            version=args.version,
+            note=f"OpenEnv release {normalize_version(args.version)}",
         )
         logger.info(f"Versioned collection URL: https://huggingface.co/collections/{versioned_slug}")
 
@@ -575,11 +654,12 @@ Examples:
         logger.info("=" * 60)
 
         add_spaces_to_collection(
-            api=api,
-            collection_slug=global_slug,
-            space_ids=new_global,
-            note=f"OpenEnv tag sync ({args.tag_filter})",
+            api,
+            new_global,
             dry_run=args.dry_run,
+            collection_slug=global_slug,
+            version=args.version,
+            note=f"OpenEnv tag sync ({args.tag_filter})",
         )
         logger.info(f"Global collection URL: https://huggingface.co/collections/{global_slug}")
 
