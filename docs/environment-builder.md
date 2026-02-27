@@ -288,6 +288,30 @@ openenv validate --verbose
 
 `openenv validate` checks for required files, ensures the Dockerfile/server entrypoints function, and lists supported deployment modes. The command exits non-zero if issues are found so you can wire it into CI.
 
+You can also validate a running environment endpoint and get criteria-level JSON:
+
+```bash
+openenv validate --url http://localhost:8000
+# or
+openenv validate https://username-my-env.hf.space
+```
+
+Example runtime output:
+
+```json
+{
+  "target": "http://localhost:8000",
+  "validation_type": "running_environment",
+  "standard_version": "1.0.0",
+  "passed": true,
+  "criteria": [
+    {"id": "health_endpoint", "passed": true},
+    {"id": "metadata_endpoint", "passed": true},
+    {"id": "schema_endpoint", "passed": true}
+  ]
+}
+```
+
 ### 8. Push & Share with `openenv push`
 
 Once validation passes, the CLI can deploy directly to Hugging Face Spaces or any registry:
