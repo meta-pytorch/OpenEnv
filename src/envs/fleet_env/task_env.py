@@ -17,7 +17,6 @@ logger = logging.getLogger(__name__)
 from .client import FleetEnvClient
 from .mcp_tools import FleetMCPTools
 from .telemetry import (
-    fleet_error,
     fleet_exception,
     fleet_warning,
     fleet_info,
@@ -41,7 +40,8 @@ def _is_tool_error(result: Any) -> Tuple[bool, Optional[str]]:
         return False, None
 
     # Direct error field (from FleetMCPClient._extract_tool_result)
-    if "error" in result:
+    # Check for truthy value to avoid false positives on {"error": null}
+    if result.get("error"):
         return True, str(result["error"])
 
     # Status field pattern
@@ -474,89 +474,105 @@ class FleetTaskEnv:
         """
         # Support both field names: verifier_code (OpenEnv) and verifier_func (Fleet SDK)
         verifier_code = self.task.get("verifier_code") or self.task.get("verifier_func")
+        score = 0.0
+        verifier_success = False
+        failure_reason = None
 
         if not verifier_code:
             # No verifier - return neutral reward
             logger.debug(f"Task {self.task_key}: no verifier_code, returning 0.0")
-            return 0.0
-
-        if not self._orch:
+            failure_reason = "no_verifier"
+        elif not self._orch:
             logger.warning(f"Task {self.task_key}: no orchestrator, returning 0.0")
-            return 0.0
-
-        # Get the Fleet env handle from the orchestrator
-        fleet_env = getattr(self._orch, "_fleet_env", None)
-        if not fleet_env:
-            logger.warning(f"Task {self.task_key}: no Fleet env handle, returning 0.0")
-            return 0.0
-
-        try:
-            # Use Fleet SDK's Task.verify_detailed() for proper verifier execution
-            from fleet.tasks import Task as FleetTask
-
-            # Create a Fleet SDK Task object with the verifier
-            fleet_task = FleetTask(
-                key=self.task_key,
-                prompt=self.prompt,
-                env_id=self.task.get("env_key", "unknown"),
-                verifier_func=verifier_code,
-            )
-
-            # Execute verifier via Fleet SDK (handles namespace setup, Environment type, etc.)
-            response = fleet_task.verify_detailed(fleet_env)
-
-            # Extract result from response
-            # response.success is bool, response.result is the verifier's return value (0.0 or 1.0)
-            if response.success and response.result is not None:
-                score = float(response.result)
-            elif response.success:
-                # Verifier succeeded but returned None - treat as success
-                score = 1.0
+            failure_reason = "no_orchestrator"
+        else:
+            # Get the Fleet env handle from the orchestrator
+            fleet_env = getattr(self._orch, "_fleet_env", None)
+            if not fleet_env:
+                logger.warning(
+                    f"Task {self.task_key}: no Fleet env handle, returning 0.0"
+                )
+                failure_reason = "no_fleet_env"
             else:
-                # Verifier failed (exception or explicit failure)
-                score = 0.0
+                try:
+                    # Use Fleet SDK's Task.verify_detailed() for proper verifier execution
+                    from fleet.tasks import Task as FleetTask
 
-            logger.info(
-                f"Task {self.task_key}: verifier returned success={response.success}, result={response.result}, score={score}"
-            )
-            fleet_info(
-                "fleet_rollout_completed",
-                step_count=self._step_count,
-                reward=score,
-                verifier_success=response.success,
-            )
-            return score
+                    # Create a Fleet SDK Task object with the verifier
+                    fleet_task = FleetTask(
+                        key=self.task_key,
+                        prompt=self.prompt,
+                        env_id=self.task.get("env_key", "unknown"),
+                        verifier_func=verifier_code,
+                    )
 
-        except ImportError as e:
-            logger.error(f"Fleet SDK not available for verifier execution: {e}")
-            return 0.0
-        except Exception as e:
-            logger.error(
-                f"Verifier execution failed for task {self.task_key}: {e}\n"
-                f"Verifier code:\n{verifier_code}"
-            )
-            fleet_exception(
-                "fleet_verifier_failed",
-                step_count=self._step_count,
-                verifier_code_snippet=verifier_code[:200] if verifier_code else "",
-            )
-            return 0.0
+                    # Execute verifier via Fleet SDK (handles namespace setup, Environment type, etc.)
+                    response = fleet_task.verify_detailed(fleet_env)
+
+                    # Extract result from response
+                    # response.success is bool, response.result is the verifier's return value (0.0 or 1.0)
+                    if response.success and response.result is not None:
+                        score = float(response.result)
+                    elif response.success:
+                        # Verifier succeeded but returned None - treat as success
+                        score = 1.0
+                    else:
+                        # Verifier failed (exception or explicit failure)
+                        score = 0.0
+
+                    verifier_success = response.success
+                    logger.info(
+                        f"Task {self.task_key}: verifier returned success={response.success}, result={response.result}, score={score}"
+                    )
+
+                except ImportError as e:
+                    logger.error(f"Fleet SDK not available for verifier execution: {e}")
+                    failure_reason = "import_error"
+                except Exception as e:
+                    logger.error(
+                        f"Verifier execution failed for task {self.task_key}: {e}\n"
+                        f"Verifier code:\n{verifier_code}"
+                    )
+                    fleet_exception(
+                        "fleet_verifier_failed",
+                        step_count=self._step_count,
+                        verifier_code_snippet=(
+                            verifier_code[:200] if verifier_code else ""
+                        ),
+                    )
+                    failure_reason = "verifier_exception"
+
+        # Always emit rollout completed event
+        fleet_info(
+            "fleet_rollout_completed",
+            step_count=self._step_count,
+            reward=score,
+            verifier_success=verifier_success,
+            failure_reason=failure_reason,
+        )
+        return score
 
     def close(self):
         """Close the environment and cleanup resources."""
-        if self._orch:
-            try:
-                self._orch.close()
-            except Exception:
-                fleet_exception(
-                    "fleet_env_close_failed",
-                    step_count=self._step_count,
-                )
+        try:
+            if self._orch:
+                try:
+                    self._orch.close()
+                except Exception:
+                    try:
+                        fleet_exception(
+                            "fleet_env_close_failed",
+                            step_count=self._step_count,
+                        )
+                    except Exception:
+                        pass  # Telemetry failure should not break cleanup
+        finally:
+            # Always cleanup state, even if telemetry fails
             self._orch = None
             self._tools = None
             self._tools_cache = None
             self._done = True
-        clear_task_context()
+            clear_task_context()
 
     def __enter__(self):
         return self

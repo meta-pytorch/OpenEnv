@@ -87,12 +87,6 @@ class FleetEnvClient(HTTPEnvClient[Action, Observation]):
         _logger.info(f"Creating Fleet instance: env_key={env_key}, ttl={ttl_seconds}s")
         start = time.time()
 
-        # Parse env_key to separate env and version (e.g., "github:v0.0.12" -> "github", "v0.0.12")
-        if ":" in env_key:
-            _env_name, _env_version = env_key.split(":", 1)
-        else:
-            _env_name, _env_version = env_key, "unknown"
-
         # Retry logic for transient Fleet API failures (e.g., health check failures)
         max_retries = 3
         retry_base_delay = 2.0  # seconds
