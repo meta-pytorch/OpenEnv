@@ -117,6 +117,14 @@ class FleetTaskEnv:
         self._done = False
         self._tools_cache: Optional[List[Dict]] = None
 
+        # Set telemetry context BEFORE Fleet.make() so init failures are tracked with full context
+        set_task_context(
+            env_key=self.env_key,
+            env_version=self.env_version,
+            task_key=self.task_key,
+            modality=self.modality,
+        )
+
         # Create Fleet environment instance (provisions cloud resources)
         env_spec = self._build_env_spec()
         # For computer_use tasks, use image_type='mcp' to select the MCP-enabled container
@@ -133,14 +141,6 @@ class FleetTaskEnv:
             image_type=image_type,
             ttl_seconds=self.ttl_seconds,
             request_timeout_s=self.request_timeout_s,
-        )
-
-        # Set telemetry context for this task (all events will include these attributes)
-        set_task_context(
-            env_key=self.env_key,
-            env_version=self.env_version,
-            task_key=self.task_key,
-            modality=self.modality,
         )
 
         # Tools are fetched in reset_async() to avoid asyncio.run() issues in __init__

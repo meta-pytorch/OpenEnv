@@ -81,6 +81,7 @@ class FleetEnvClient(HTTPEnvClient[Action, Observation]):
 
         import time
         import logging
+
         _logger = logging.getLogger(__name__)
 
         _logger.info(f"Creating Fleet instance: env_key={env_key}, ttl={ttl_seconds}s")
@@ -123,8 +124,6 @@ class FleetEnvClient(HTTPEnvClient[Action, Observation]):
                     )
                     fleet_warning(
                         "fleet_make_retry",
-                        env_key=_env_name,
-                        env_version=_env_version,
                         attempt=attempt + 1,
                         max_retries=max_retries,
                         error_type=type(e).__name__,
@@ -138,8 +137,6 @@ class FleetEnvClient(HTTPEnvClient[Action, Observation]):
                     )
                     fleet_error(
                         "fleet_make_failed",
-                        env_key=_env_name,
-                        env_version=_env_version,
                         attempt=attempt + 1,
                         max_retries=max_retries,
                         error_type=type(e).__name__,
@@ -152,8 +149,6 @@ class FleetEnvClient(HTTPEnvClient[Action, Observation]):
         _logger.info(f"Fleet instance ready in {elapsed:.1f}s: {instance_id}")
         fleet_info(
             "fleet_env_created",
-            env_key=_env_name,
-            env_version=_env_version,
             instance_id=instance_id,
             elapsed_s=round(elapsed, 1),
         )
@@ -219,5 +214,3 @@ class FleetEnvClient(HTTPEnvClient[Action, Observation]):
         if self._fleet_env:
             self._fleet_env.close()
         super().close()
-
-
