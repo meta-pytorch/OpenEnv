@@ -99,8 +99,6 @@ class FleetTaskEnv:
         request_timeout_s: float = 60.0,
         reset_timeout_s: float = 10.0,
     ):
-        import asyncio
-
         self.task = task_config
         self.api_key = api_key or os.environ.get("FLEET_API_KEY")
         self.ttl_seconds = ttl_seconds
@@ -117,7 +115,7 @@ class FleetTaskEnv:
         self._done = False
         self._tools_cache: Optional[List[Dict]] = None
 
-        # Set telemetry context BEFORE Fleet.make() so init failures are tracked with full context
+        # Set telemetry context so init failures are tracked with full context
         set_task_context(
             env_key=self.env_key,
             env_version=self.env_version,
@@ -125,25 +123,10 @@ class FleetTaskEnv:
             modality=self.modality,
         )
 
-        # Create Fleet environment instance (provisions cloud resources)
-        env_spec = self._build_env_spec()
-        # For computer_use tasks, use image_type='mcp' to select the MCP-enabled container
-        # image (e.g., famazon:mcp0.0.7 instead of famazon:0.0.7). The mcp images have:
-        # - scrot installed for screenshots
-        # - MCP server with 'computer' tool for mouse/keyboard control
-        image_type = "mcp" if self.modality == "computer_use" else None
-        self._orch, self._tools = FleetEnvClient.from_fleet(
-            api_key=self.api_key,
-            env_key=env_spec,
-            data_key=self._get_data_key(),
-            data_version=self._get_data_version(),
-            env_variables=self._get_env_variables(),
-            image_type=image_type,
-            ttl_seconds=self.ttl_seconds,
-            request_timeout_s=self.request_timeout_s,
-        )
-
-        # Tools are fetched in reset_async() to avoid asyncio.run() issues in __init__
+        # Provisioning is deferred to _ensure_provisioned() (called from reset_async)
+        # to avoid blocking the event loop with sync Fleet.make() calls.
+        self._orch = None
+        self._tools = None
 
     @property
     def task_key(self) -> str:
@@ -217,11 +200,34 @@ class FleetTaskEnv:
 
         return asyncio.run(self.reset_async(seed=seed))
 
+    async def _ensure_provisioned(self):
+        """Provision the Fleet environment instance if not already done.
+
+        Uses AsyncFleet.make() to avoid blocking the event loop. This allows
+        other async trajectories to progress while waiting for provisioning.
+        """
+        if self._orch is not None:
+            return
+
+        env_spec = self._build_env_spec()
+        # For computer_use tasks, use image_type='mcp' to select the MCP-enabled container
+        image_type = "mcp" if self.modality == "computer_use" else None
+        self._orch, self._tools = await FleetEnvClient.from_fleet_async(
+            api_key=self.api_key,
+            env_key=env_spec,
+            data_key=self._get_data_key(),
+            data_version=self._get_data_version(),
+            env_variables=self._get_env_variables(),
+            image_type=image_type,
+            ttl_seconds=self.ttl_seconds,
+            request_timeout_s=self.request_timeout_s,
+        )
+
     async def reset_async(self, seed: Optional[int] = None) -> Dict[str, Any]:
         """Reset episode state and return initial observation.
 
-        Environment is already initialized in __init__(). This method resets
-        the episode state and returns the observation with cached tools.
+        Provisions the Fleet environment on first call (async, non-blocking),
+        then resets episode state and returns the observation with tools.
 
         Args:
             seed: Optional random seed (currently unused)
@@ -236,6 +242,9 @@ class FleetTaskEnv:
         import logging
 
         logger = logging.getLogger(__name__)
+
+        # Provision Fleet env (async, non-blocking) on first call
+        await self._ensure_provisioned()
 
         # Reset episode state
         self._step_count = 0
