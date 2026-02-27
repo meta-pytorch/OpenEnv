@@ -17,7 +17,12 @@ from .exceptions import (
 )
 from .http_server import create_app, create_fastapi_app, HTTPEnvServer
 from .interfaces import Environment, Message, ModelTokenizer, Transform
-from .mcp_environment import MCPEnvironment
+
+try:
+    from .mcp_environment import MCPEnvironment
+except ModuleNotFoundError:
+    MCPEnvironment = None  # type: ignore[assignment]
+
 from .mcp_types import (
     CallToolAction,
     CallToolObservation,
@@ -64,7 +69,12 @@ from .types import (
     WSStateResponse,
     WSStepMessage,
 )
-from .web_interface import create_web_interface_app, WebInterfaceManager
+
+try:
+    from .web_interface import create_web_interface_app, WebInterfaceManager
+except ModuleNotFoundError:
+    create_web_interface_app = None  # type: ignore[assignment]
+    WebInterfaceManager = None  # type: ignore[assignment]
 
 __all__ = [
     # Core interfaces
