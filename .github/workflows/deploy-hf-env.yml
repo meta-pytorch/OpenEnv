@@ -1,0 +1,106 @@
+name: Deploy HF Environments
+
+on:
+  workflow_dispatch:
+    inputs:
+      envs_csv:
+        description: "Comma-separated env names (empty means all deployable envs)"
+        required: false
+        type: string
+        default: ""
+      openenv_version:
+        description: "Release version used for suffix and pinning (e.g. 0.2.1)"
+        required: false
+        type: string
+        default: "0.2.0"
+      hf_namespace:
+        description: "Hugging Face namespace"
+        required: false
+        type: string
+        default: "openenv"
+      private:
+        description: "Deploy version-suffixed spaces as private"
+        required: false
+        type: boolean
+        default: true
+      skip_collection:
+        description: "Skip collection updates"
+        required: false
+        type: boolean
+        default: false
+      dry_run:
+        description: "Run staging-only dry run"
+        required: false
+        type: boolean
+        default: false
+      collection_namespace:
+        description: "Collection owner namespace"
+        required: false
+        type: string
+        default: "openenv"
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install Hugging Face CLI
+        run: |
+          curl -LsSf https://hf.co/cli/install.sh | bash
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+      - name: Install collection manager dependency
+        run: |
+          python -m pip install --upgrade pip
+          pip install "huggingface-hub>=0.24.0"
+
+      - name: Deploy selected environments
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+        run: |
+          set -euo pipefail
+          chmod +x scripts/prepare_hf_deployment.sh
+
+          cmd=(scripts/prepare_hf_deployment.sh
+            --hf-namespace "${{ github.event.inputs.hf_namespace }}"
+            --openenv-version "${{ github.event.inputs.openenv_version }}"
+            --collection-namespace "${{ github.event.inputs.collection_namespace }}"
+          )
+
+          if [ "${{ github.event.inputs.private }}" = "true" ]; then
+            cmd+=(--private)
+          else
+            cmd+=(--public)
+          fi
+
+          if [ "${{ github.event.inputs.skip_collection }}" = "true" ]; then
+            cmd+=(--skip-collection)
+          fi
+
+          if [ "${{ github.event.inputs.dry_run }}" = "true" ]; then
+            cmd+=(--dry-run)
+          fi
+
+          if [ -n "${{ github.event.inputs.envs_csv }}" ]; then
+            IFS=',' read -r -a envs <<< "${{ github.event.inputs.envs_csv }}"
+            for env_name in "${envs[@]}"; do
+              trimmed="$(echo "$env_name" | xargs)"
+              if [ -n "$trimmed" ]; then
+                cmd+=(--env "$trimmed")
+              fi
+            done
+          else
+            cmd+=(--all)
+          fi
+
+          echo "Running: ${cmd[*]}"
+          "${cmd[@]}"
