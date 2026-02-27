@@ -431,18 +431,28 @@ class FleetTaskEnv:
                 is_error, error_msg = _is_tool_error(tool_result)
                 if is_error:
                     info["tool_error"] = error_msg
+                    logger.warning(
+                        f"[env={self.env_key}:{self.env_version}] step {self._step_count}/{self.max_steps} "
+                        f"tool_error: {tool_name}() -> {error_msg[:200] if error_msg else 'unknown'}"
+                    )
                     fleet_warning(
                         "fleet_mcp_tool_error",
                         step_count=self._step_count,
+                        max_steps=self.max_steps,
                         tool_name=tool_name,
                         error_message=error_msg[:500] if error_msg else None,
                     )
             except Exception as e:
                 info["tool_error"] = str(e)
                 tool_result = {"error": str(e)}
+                logger.warning(
+                    f"[env={self.env_key}:{self.env_version}] step {self._step_count}/{self.max_steps} "
+                    f"tool_call_failed: {tool_name}() -> {type(e).__name__}: {str(e)[:200]}"
+                )
                 fleet_exception(
                     "fleet_tool_call_failed",
                     step_count=self._step_count,
+                    max_steps=self.max_steps,
                     tool_name=tool_name,
                 )
 
