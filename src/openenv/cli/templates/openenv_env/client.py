@@ -16,7 +16,7 @@ from .models import __ENV_CLASS_NAME__Action, __ENV_CLASS_NAME__Observation
 
 
 class __ENV_CLASS_NAME__Env(
-    EnvClient[__ENV_CLASS_NAME__Action, __ENV_CLASS_NAME__Observation]
+    EnvClient[__ENV_CLASS_NAME__Action, __ENV_CLASS_NAME__Observation, State]
 ):
     """
     Client for the __ENV_TITLE_NAME__ Environment.
