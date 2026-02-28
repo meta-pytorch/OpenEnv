@@ -33,7 +33,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends git \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy environment code (context is the environment directory)
-COPY . /app/env
+COPY envs/openspiel_env/ /app/env
 
 # Install Python dependencies from pyproject.toml
 WORKDIR /app/env
@@ -42,7 +42,7 @@ RUN pip3 install --no-cache-dir .
 WORKDIR /app
 
 # Copy README for web interface documentation
-COPY README.md /app/README.md
+COPY envs/openspiel_env/README.md /app/README.md
 
 # Python path configuration
 # - /repo and /repo/build/python: OpenSpiel paths from base image

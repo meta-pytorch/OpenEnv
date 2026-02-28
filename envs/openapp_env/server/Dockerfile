@@ -69,7 +69,7 @@ WORKDIR /app/env
 # Context is always the env directory (envs/openapp_env/)
 # - GitHub Actions: uses context: envs/openapp_env
 # - HuggingFace: openenv push uploads env dir as context
-COPY . /app/env
+COPY envs/openapp_env/ /app/env
 
 # Install OpenApps FIRST to establish openai<2 (required by agentlab)
 # This must happen before openenv-core to avoid version conflict
@@ -100,7 +100,7 @@ RUN playwright install chromium
 
 # Copy startup script
 WORKDIR /app/env
-COPY server/start.sh /app/start.sh
+COPY envs/openapp_env/server/start.sh /app/start.sh
 RUN chmod +x /app/start.sh
 
 # OpenApp-specific environment variables (can be overridden at runtime)

@@ -34,7 +34,7 @@ RUN pip install --no-cache-dir \
     sumo-rl>=1.4.5
 
 # Copy OpenEnv core (base image already set WORKDIR=/app)
-COPY src/core/ /app/src/core/
+COPY src/openenv/core/ /app/src/core/
 
 # Copy SUMO-RL environment code (includes nets/)
 COPY envs/sumo_rl_env/ /app/envs/sumo_rl_env/
