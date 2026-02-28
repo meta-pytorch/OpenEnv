@@ -495,3 +495,47 @@ class TestFleetTaskEnvInitFetchesTools:
         assert "tools" in obs
         assert len(obs["tools"]) == 1
         assert obs["tools"][0]["function"]["name"] == "bash"
+
+    def test_init_failure_emits_rollout_completed(self, monkeypatch):
+        """Init failure should emit fleet_rollout_started AND fleet_rollout_completed."""
+        from unittest.mock import patch
+
+        # Mock from_fleet_async to raise (simulates health check failure)
+        async def mock_from_fleet_async(**kwargs):
+            raise RuntimeError("health check failed")
+
+        monkeypatch.setattr(
+            "envs.fleet_env.task_env.FleetEnvClient.from_fleet_async",
+            mock_from_fleet_async,
+        )
+
+        from envs.fleet_env.task_env import FleetTaskEnv
+
+        task_config = {
+            "task_key": "test-task",
+            "prompt": "Test prompt",
+            "env_key": "fostgres",
+            "task_modality": "tool_use",
+        }
+
+        env = FleetTaskEnv(task_config, api_key="test-key")
+
+        telemetry_events = []
+
+        def capture_info(msg, **attrs):
+            telemetry_events.append((msg, attrs))
+
+        with patch("envs.fleet_env.task_env.fleet_info", capture_info):
+            with pytest.raises(RuntimeError, match="health check"):
+                env.reset()
+
+        # Should have emitted both started and completed
+        event_names = [e[0] for e in telemetry_events]
+        assert "fleet_rollout_started" in event_names
+        assert "fleet_rollout_completed" in event_names
+
+        # fleet_rollout_completed should have failure_reason="init_error"
+        completed = next(e for e in telemetry_events if e[0] == "fleet_rollout_completed")
+        assert completed[1]["failure_reason"] == "init_error"
+        assert completed[1]["reward"] == 0.0
+        assert completed[1]["step_count"] == 0

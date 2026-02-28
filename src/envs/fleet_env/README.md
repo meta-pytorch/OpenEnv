@@ -147,19 +147,17 @@ All events include these base attributes (set automatically via task context):
 
 | Event | Level | Description |
 |-------|-------|-------------|
-| `fleet_env_created` | info | Successful `Fleet.make()` |
-| `fleet_rollout_started` | info | Rollout reset completed, tools loaded |
-| `fleet_rollout_completed` | info | Rollout done, includes `reward` and `step_count` |
+| `fleet_rollout_started` | info | Rollout attempt started (emitted before provisioning, counts init failures too) |
+| `fleet_rollout_completed` | info | Rollout terminated: includes `reward`, `step_count`, `failure_reason` |
 | `fleet_make_retry` | warning | Transient `Fleet.make()` failure, retrying |
 | `fleet_make_failed` | error | `Fleet.make()` permanently failed |
-| `fleet_env_reset_failed` | exception | Env reset threw |
+| `fleet_env_reset_failed` | warning | Env reset threw (non-fatal, continues with empty observation) |
 | `fleet_tools_list_failed` | exception | Tool listing threw |
 | `fleet_computer_tool_missing` | warning | computer_use mode but no computer tool |
 | `fleet_screenshot_failed` | exception | Initial screenshot threw |
-| `fleet_tool_call_failed` | exception | Agent tool call threw (Python exception) |
-| `fleet_mcp_tool_error` | warning | MCP server returned error in tool result |
-| `fleet_verifier_failed` | exception | Verifier execution threw |
-| `fleet_env_close_failed` | exception | Env close threw |
+| `fleet_tool_call_failed` | exception | Agent tool call threw (Python exception after retries exhausted) |
+| `fleet_mcp_tool_error` | warning | MCP server returned error in tool result (tool ran but failed) |
+| `fleet_verifier_failed` | exception | Verifier **code** threw an exception (not model failure — model getting wrong answer = reward 0.0 without verifier_error) |
 | `fleet_list_tools_partial` | warning | Some MCP endpoints failed |
 | `fleet_list_tools_retry` | warning | list_tools retrying |
 | `fleet_list_tools_exhausted` | error | list_tools retries exhausted |
@@ -174,15 +172,31 @@ SELECT
     attributes->>'env_key' as env,
     attributes->>'env_version' as version,
     attributes->>'modality' as modality,
-    COUNT(*) FILTER (WHERE message = 'fleet_rollout_started') as num_rollouts,
+    COUNT(*) FILTER (WHERE message = 'fleet_rollout_started') as total_rollouts,
     COUNT(*) FILTER (WHERE message = 'fleet_rollout_completed') as completed,
-    COUNT(*) FILTER (WHERE message IN ('fleet_tool_call_failed', 'fleet_mcp_tool_error')) as tool_errors,
+    COUNT(*) FILTER (WHERE message = 'fleet_rollout_completed'
+        AND attributes->>'failure_reason' = 'init_error') as init_errors,
+    COALESCE(SUM(CAST(attributes->>'step_count' AS INT))
+        FILTER (WHERE message = 'fleet_rollout_completed'), 0) as total_steps,
+    COUNT(*) FILTER (WHERE message IN (
+        'fleet_tool_call_failed', 'fleet_mcp_tool_error')) as tool_errors,
     COUNT(*) FILTER (WHERE message = 'fleet_verifier_failed') as verifier_errors
 FROM records
 WHERE service_name = 'openenv-fleet'
 GROUP BY 1, 2, 3
-ORDER BY num_rollouts DESC;
+ORDER BY total_rollouts DESC;
 ```
+
+**Column definitions:**
+
+| Column | Meaning |
+|--------|---------|
+| `total_rollouts` | All rollout attempts (including init failures) |
+| `completed` | Rollouts that reached a terminal state (should equal `total_rollouts` when all done) |
+| `init_errors` | Provisioning failures (e.g., health check failures) — subset of `completed` |
+| `total_steps` | Sum of steps across all completed rollouts |
+| `tool_errors` | MCP tool failures: server errors (`fleet_mcp_tool_error`) + Python exceptions (`fleet_tool_call_failed`) |
+| `verifier_errors` | Verifier **code** exceptions (not model failures — model getting wrong answer = reward 0.0 with no verifier_error) |
 
 ### TODOs
 

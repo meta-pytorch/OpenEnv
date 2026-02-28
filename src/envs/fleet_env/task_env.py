@@ -243,8 +243,23 @@ class FleetTaskEnv:
 
         logger = logging.getLogger(__name__)
 
+        # Count this rollout attempt immediately — even if provisioning fails,
+        # it's still a rollout attempt (e.g., fostgres health check failures).
+        fleet_info("fleet_rollout_started")
+
         # Provision Fleet env (async, non-blocking) on first call
-        await self._ensure_provisioned()
+        try:
+            await self._ensure_provisioned()
+        except Exception:
+            # Emit rollout_completed so init failures are tracked in dashboards
+            fleet_info(
+                "fleet_rollout_completed",
+                step_count=0,
+                reward=0.0,
+                verifier_success=False,
+                failure_reason="init_error",
+            )
+            raise
 
         # Reset episode state
         self._step_count = 0
@@ -363,12 +378,6 @@ class FleetTaskEnv:
                     "fleet_screenshot_failed",
                     step_count=self._step_count,
                 )
-
-        # Log successful rollout start
-        fleet_info(
-            "fleet_rollout_started",
-            num_tools=len(self._tools_cache) if self._tools_cache else 0,
-        )
 
         return obs
 
@@ -567,6 +576,7 @@ class FleetTaskEnv:
         fleet_info(
             "fleet_rollout_completed",
             step_count=self._step_count,
+            max_steps=self.max_steps,
             reward=score,
             verifier_success=verifier_success,
             failure_reason=failure_reason,
