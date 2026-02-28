@@ -56,6 +56,9 @@ daytona = [
     "daytona>=0.136.0",
     "pyyaml>=6.0",
 ]
+inspect = [
+    "inspect-ai>=0.3.0",
+]
 
 [project.scripts]
 openenv = "openenv.cli.__main__:main"

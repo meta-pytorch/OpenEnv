@@ -111,4 +111,4 @@ class OpenAIClient(LLMClient):
             temperature=kwargs.get("temperature", self.temperature),
             max_tokens=kwargs.get("max_tokens", self.max_tokens),
         )
-        return response.choices[0].message.content
+        return response.choices[0].message.content or ""
