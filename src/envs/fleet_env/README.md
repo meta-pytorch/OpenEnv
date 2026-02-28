@@ -149,6 +149,7 @@ All events include these base attributes (set automatically via task context):
 |-------|-------|-------------|
 | `fleet_rollout_started` | info | Rollout attempt started (emitted before provisioning, counts init failures too) |
 | `fleet_rollout_completed` | info | Rollout terminated: includes `reward`, `step_count`, `failure_reason` |
+| `fleet_provisioning_completed` | info | Instance provisioned: includes `provisioning_time_s` (queue delay + create time) |
 | `fleet_make_retry` | warning | Transient `Fleet.make()` failure, retrying |
 | `fleet_make_failed` | error | `Fleet.make()` permanently failed |
 | `fleet_env_reset_failed` | warning | Env reset threw (non-fatal, continues with empty observation) |
@@ -197,6 +198,21 @@ ORDER BY total_rollouts DESC;
 | `total_steps` | Sum of steps across all completed rollouts |
 | `tool_errors` | MCP tool failures: server errors (`fleet_mcp_tool_error`) + Python exceptions (`fleet_tool_call_failed`) |
 | `verifier_errors` | Verifier **code** exceptions (not model failures — model getting wrong answer = reward 0.0 with no verifier_error) |
+
+```sql
+-- Provisioning latency by env (detects Fleet queue serialization)
+SELECT
+    attributes->>'env_key' as env,
+    COUNT(*) as instances,
+    ROUND(AVG(CAST(attributes->>'provisioning_time_s' AS FLOAT)), 1) as avg_provision_s,
+    MAX(CAST(attributes->>'provisioning_time_s' AS FLOAT)) as max_provision_s,
+    MIN(CAST(attributes->>'provisioning_time_s' AS FLOAT)) as min_provision_s
+FROM records
+WHERE service_name = 'openenv-fleet'
+    AND message = 'fleet_provisioning_completed'
+GROUP BY 1
+ORDER BY avg_provision_s DESC;
+```
 
 ### TODOs
 

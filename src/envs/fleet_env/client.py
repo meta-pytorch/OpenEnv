@@ -255,6 +255,11 @@ class FleetEnvClient(HTTPEnvClient[Action, Observation]):
         elapsed = time.time() - start
         instance_id = getattr(async_env, "instance_id", "unknown")
         _logger.info(f"Fleet instance ready (async) in {elapsed:.1f}s: {instance_id}")
+        fleet_info(
+            "fleet_provisioning_completed",
+            provisioning_time_s=round(elapsed, 1),
+            instance_id=instance_id,
+        )
 
         # Get a sync env handle for close() and verify_detailed() compatibility.
         # This is a fast GET request (~100ms), not a provisioning call.
