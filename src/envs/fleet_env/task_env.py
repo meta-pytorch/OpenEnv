@@ -267,10 +267,12 @@ class FleetTaskEnv:
                 logger.warning(
                     f"[env={self.env_key}] Fleet env reset failed (timeout={self.reset_timeout_s}s), continuing with empty observation: {e}"
                 )
-                fleet_exception(
+                fleet_warning(
                     "fleet_env_reset_failed",
                     step_count=self._step_count,
                     timeout_s=self.reset_timeout_s,
+                    error_type=type(e).__name__,
+                    error_message=str(e)[:200],
                 )
 
         # Fetch tools on every reset
@@ -578,13 +580,7 @@ class FleetTaskEnv:
                 try:
                     self._orch.close()
                 except Exception:
-                    try:
-                        fleet_exception(
-                            "fleet_env_close_failed",
-                            step_count=self._step_count,
-                        )
-                    except Exception:
-                        pass  # Telemetry failure should not break cleanup
+                    pass  # Expected when instance TTL expired
         finally:
             # Always cleanup state, even if telemetry fails
             self._orch = None

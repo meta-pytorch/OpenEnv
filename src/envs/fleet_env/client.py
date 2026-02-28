@@ -141,11 +141,6 @@ class FleetEnvClient(HTTPEnvClient[Action, Observation]):
         elapsed = time.time() - start
         instance_id = getattr(env, "instance_id", "unknown")
         _logger.info(f"Fleet instance ready in {elapsed:.1f}s: {instance_id}")
-        fleet_info(
-            "fleet_env_created",
-            instance_id=instance_id,
-            elapsed_s=round(elapsed, 1),
-        )
 
         root = env.urls.root
         # Fleet currently exposes multiple MCP endpoints. Prefer /api/v1/mcp first.
@@ -260,11 +255,6 @@ class FleetEnvClient(HTTPEnvClient[Action, Observation]):
         elapsed = time.time() - start
         instance_id = getattr(async_env, "instance_id", "unknown")
         _logger.info(f"Fleet instance ready (async) in {elapsed:.1f}s: {instance_id}")
-        fleet_info(
-            "fleet_env_created",
-            instance_id=instance_id,
-            elapsed_s=round(elapsed, 1),
-        )
 
         # Get a sync env handle for close() and verify_detailed() compatibility.
         # This is a fast GET request (~100ms), not a provisioning call.
