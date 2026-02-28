@@ -27,7 +27,7 @@ from __future__ import annotations
 
 from typing import Any, Dict, Generic, TYPE_CHECKING, TypeVar
 
-from .client_types import StepResult, StateT
+from .client_types import StateT, StepResult
 from .utils import run_async_safely
 
 if TYPE_CHECKING:

@@ -9,7 +9,6 @@
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-
 from openenv.core.llm_client import LLMClient, OpenAIClient
 
 

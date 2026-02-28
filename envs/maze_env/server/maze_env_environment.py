@@ -18,14 +18,16 @@ try:
     # In-repo imports (when running from OpenEnv repository)
     from openenv.core.env_server.interfaces import Environment
     from openenv.core.env_server.types import State
+
     from ..models import MazeAction, MazeObservation, MazeState
 except ImportError:
+    from models import MazeAction, MazeObservation, MazeState
+
     # Standalone imports (when environment is standalone with openenv-core from pip)
     from openenv_core.env_server.interfaces import Environment
     from openenv_core.env_server.types import State
-    from models import MazeAction, MazeObservation, MazeState
 
-from .maze import Maze, Status, Render
+from .maze import Maze, Render, Status
 
 try:
     import numpy as np
@@ -79,7 +81,9 @@ class MazeEnvironment(Environment[MazeAction, MazeObservation, MazeState]):
 
         self._start_cell = (int(start_cell[0]), int(start_cell[1]))
         self._exit_cell = (
-            (ncols - 1, nrows - 1) if exit_cell is None else (int(exit_cell[0]), int(exit_cell[1]))
+            (ncols - 1, nrows - 1)
+            if exit_cell is None
+            else (int(exit_cell[0]), int(exit_cell[1]))
         )
 
         self.env = Maze(
@@ -144,7 +148,6 @@ class MazeEnvironment(Environment[MazeAction, MazeObservation, MazeState]):
         self._sync_state(done=done)
 
         return self._build_observation(reward=reward, done=done, status=status)
-
 
     def _build_observation(
         self, reward: float, done: bool, status: Status

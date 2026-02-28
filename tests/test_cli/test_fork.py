@@ -8,9 +8,8 @@
 
 from unittest.mock import MagicMock, patch
 
-from typer.testing import CliRunner
-
 from openenv.cli.__main__ import app
+from typer.testing import CliRunner
 
 runner = CliRunner()
 

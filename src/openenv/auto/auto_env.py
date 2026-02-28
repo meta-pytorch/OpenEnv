@@ -36,11 +36,12 @@ import os
 import shutil
 import subprocess
 import sys
-import requests
-from typing import Any, Optional, TYPE_CHECKING, Dict
+from typing import Any, Dict, Optional, TYPE_CHECKING
 
-from ._discovery import get_discovery, _is_hub_url
+import requests
 from openenv.core.utils import run_async_safely
+
+from ._discovery import _is_hub_url, get_discovery
 
 
 if TYPE_CHECKING:

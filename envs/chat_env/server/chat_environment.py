@@ -11,8 +11,12 @@ A chat-based environment for LLMs, designed as a blank canvas for conversation a
 """
 
 import torch
-
-from openenv.core.env_server.interfaces import Environment, Message, ModelTokenizer, Transform
+from openenv.core.env_server.interfaces import (
+    Environment,
+    Message,
+    ModelTokenizer,
+    Transform,
+)
 
 from ..models import ChatAction, ChatObservation, ChatState
 
@@ -55,7 +59,9 @@ class ChatEnvironment(Environment):
             self._state.history_messages.append(system_message)
             # Tokenize the system message
             system_tokens = self.tokenizer.apply_chat_template(
-                conversation=[system_message], tokenize=True, return_tensors="pt"  # type: ignore
+                conversation=[system_message],
+                tokenize=True,
+                return_tensors="pt",  # type: ignore
             )
             self._state.history_tokens.append(system_tokens)
 
@@ -75,7 +81,9 @@ class ChatEnvironment(Environment):
             self._state.history_messages = [system_message]
             # Tokenize the system message
             system_tokens = self.tokenizer.apply_chat_template(
-                conversation=[system_message], tokenize=True, return_tensors="pt"  # type: ignore
+                conversation=[system_message],
+                tokenize=True,
+                return_tensors="pt",  # type: ignore
             )
             self._state.history_tokens = [system_tokens]
 
@@ -166,7 +174,9 @@ class ChatEnvironment(Environment):
 
         # Tokenize the single message
         tokens = self.tokenizer.apply_chat_template(
-            conversation=[message], tokenize=True, return_tensors="pt"  # type: ignore
+            conversation=[message],
+            tokenize=True,
+            return_tensors="pt",  # type: ignore
         )
 
         return ChatAction(tokens=tokens)

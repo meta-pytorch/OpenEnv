@@ -187,11 +187,13 @@ PYTHONPATH=src:envs uv run pytest tests/ -v --tb=short
 # Run a single test file
 PYTHONPATH=src:envs uv run pytest tests/envs/test_echo_environment.py -v
 
-# Lint check (format + rules)
+# Lint check (import sort + format + rules)
+uv run usort check src/ tests/
 uv run ruff format src/ tests/ --check
 uv run ruff check src/ tests/
 
-# Auto-format code
+# Auto-format code (import sort + ruff — matches arc f pipeline)
+uv run usort format src/ tests/
 uv run ruff format src/ tests/
 
 # Build documentation locally
