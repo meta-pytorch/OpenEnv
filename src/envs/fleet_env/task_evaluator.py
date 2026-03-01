@@ -23,7 +23,7 @@ from typing import Any, Dict, List, Optional
 logger = logging.getLogger(__name__)
 
 # Default models for evaluation (must match Fleet models table IDs)
-DEFAULT_MODELS = ["claude-sonnet-4.5"]
+DEFAULT_MODELS = ["anthropic/claude-sonnet-4.5"]
 
 
 @dataclass
