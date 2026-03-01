@@ -12,6 +12,7 @@ This is the inner loop of the task generation RL pipeline:
     4. Results feed into reward computation (variance + separation)
 """
 
+import asyncio
 import json
 import logging
 import os
@@ -177,7 +178,7 @@ class TaskEvaluator:
             )
 
             # 4. Poll for job completion
-            job_status = self._poll_job(fleet, job_id)
+            job_status = await self._poll_job(fleet, job_id)
             if job_status not in ("completed",):
                 logger.warning(
                     f"[{task_key}] Job {job_id} ended with status: {job_status}"
@@ -217,8 +218,11 @@ class TaskEvaluator:
         result.total_duration_s = time.time() - start_time
         return result.to_dict()
 
-    def _poll_job(self, fleet, job_id: str) -> str:
+    async def _poll_job(self, fleet, job_id: str) -> str:
         """Poll Fleet job until completion or timeout.
+
+        Uses asyncio.sleep to avoid blocking the event loop, allowing
+        trajectory timeouts to properly cancel evaluations.
 
         Returns:
             Final job status string.
@@ -233,7 +237,7 @@ class TaskEvaluator:
             except Exception as e:
                 logger.warning(f"Error polling job {job_id}: {e}")
 
-            time.sleep(self.poll_interval_s)
+            await asyncio.sleep(self.poll_interval_s)
 
         logger.error(f"Job {job_id} timed out after {self.max_poll_time_s}s")
         return "timeout"
