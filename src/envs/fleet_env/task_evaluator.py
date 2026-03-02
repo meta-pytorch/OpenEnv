@@ -89,6 +89,25 @@ class TaskEvaluator:
         # Initialize Fleet SDK client
         self._fleet_client = None
 
+    def _match_model_id(self, session_model_id: str) -> Optional[str]:
+        """Match a session model ID to one of our configured model IDs.
+
+        Fleet may return model IDs without provider prefix (e.g., 'claude-sonnet-4.5')
+        while we configure them with prefix (e.g., 'anthropic/claude-sonnet-4.5'),
+        or vice versa.
+        """
+        if session_model_id in self.models:
+            return session_model_id
+
+        # Strip provider prefix and compare bare model names
+        session_bare = session_model_id.split("/", 1)[-1] if "/" in session_model_id else session_model_id
+        for configured_id in self.models:
+            configured_bare = configured_id.split("/", 1)[-1] if "/" in configured_id else configured_id
+            if configured_bare == session_bare:
+                return configured_id
+
+        return None
+
     def _get_fleet_client(self):
         """Lazy-init Fleet SDK client."""
         if self._fleet_client is None:
@@ -191,17 +210,19 @@ class TaskEvaluator:
             sessions_response = fleet.list_job_sessions(job_id)
             for task_group in sessions_response.tasks:
                 for session in task_group.sessions:
-                    model_id = session.model
+                    # Normalize model ID: Fleet may return "claude-sonnet-4.5"
+                    # while we configured "anthropic/claude-sonnet-4.5"
+                    matched_id = self._match_model_id(session.model) or session.model
                     score = 0.0
                     if session.verifier_execution and session.verifier_execution.score is not None:
                         score = float(session.verifier_execution.score)
                     elif session.verifier_execution and session.verifier_execution.success:
                         score = 1.0
 
-                    if model_id in result.results_per_model:
-                        result.results_per_model[model_id].append(score)
+                    if matched_id in result.results_per_model:
+                        result.results_per_model[matched_id].append(score)
                     else:
-                        result.results_per_model[model_id] = [score]
+                        result.results_per_model[matched_id] = [score]
 
                     result.num_sessions += 1
 
