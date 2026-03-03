@@ -7,17 +7,21 @@ over HTTP and WebSocket endpoints, compatible with EnvClient.
 """
 
 import os
-
+from pathlib import Path
 from openenv.core.env_server import create_app
 
 from ..models import DIPGAction, DIPGObservation
 from .dipg_environment import DIPGEnvironment
 
-# Get the dataset path from an environment variable.
-# If it's not set, raise an error so the server fails fast.
-DATASET_PATH = os.environ.get("DIPG_DATASET_PATH")
-if not DATASET_PATH:
-    raise ValueError("The DIPG_DATASET_PATH environment variable must be set.")
+# Get dataset path from environment, falling back to the bundled sample dataset.
+DEFAULT_DATASET_PATH = (
+    Path(__file__).resolve().parent.parent / "data" / "sample_dataset.jsonl"
+)
+DATASET_PATH = os.environ.get("DIPG_DATASET_PATH", str(DEFAULT_DATASET_PATH))
+if not Path(DATASET_PATH).is_file():
+    raise ValueError(
+        f"DIPG dataset not found at '{DATASET_PATH}'. Set DIPG_DATASET_PATH to a valid file."
+    )
 
 # Get the configurable rewards from environment variables.
 # ==================================================================================
@@ -74,16 +78,27 @@ def create_dipg_environment():
     """Factory function that creates DIPGEnvironment with config."""
     return DIPGEnvironment(
         dataset_path=DATASET_PATH,
+        # V1
         conflict_reward=CONFLICT_REWARD,
-        conflict_penalty=CONFLICT_PENALTY,
         abstain_reward=ABSTAIN_REWARD,
-        abstain_penalty=ABSTAIN_PENALTY,
-        format_mismatch_penalty=FORMAT_MISMATCH_PENALTY,
-        exact_format_reward=EXACT_FORMAT_REWARD,
         hallucination_penalty=HALLUCINATION_PENALTY,
-        no_hallucination_reward=NO_HALLUCINATION_REWARD,
         missing_answer_penalty=MISSING_ANSWER_PENALTY,
+        # V2
+        hallucinated_trace_penalty=HALLUCINATED_TRACE_PENALTY,
+        proof_inconsistency_penalty=PROOF_INCONSISTENCY_PENALTY,
+        incorrect_answer_penalty=INCORRECT_ANSWER_PENALTY,
+        conflict_penalty=CONFLICT_PENALTY,
+        abstain_penalty=ABSTAIN_PENALTY,
+        missing_trace_penalty=MISSING_TRACE_PENALTY,
+        correct_abstention_reward=CORRECT_ABSTENTION_REWARD,
+        verifiable_trace_reward=VERIFIABLE_TRACE_REWARD,
+        correct_synthesis_reward=CORRECT_SYNTHESIS_REWARD,
+        exact_format_reward=EXACT_FORMAT_REWARD,
+        format_mismatch_penalty=FORMAT_MISMATCH_PENALTY,
+        no_hallucination_reward=NO_HALLUCINATION_REWARD,
+        # Channels
         analysis_channel_start=ANALYSIS_CHANNEL_START,
+        proof_channel_start=PROOF_CHANNEL_START,
         final_channel_start=FINAL_CHANNEL_START,
         channel_end=CHANNEL_END,
     )
