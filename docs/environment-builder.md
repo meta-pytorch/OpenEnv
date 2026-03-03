@@ -304,6 +304,11 @@ Example runtime output:
   "validation_type": "running_environment",
   "standard_version": "1.0.0",
   "passed": true,
+  "summary": {
+    "passed_count": 6,
+    "total_count": 6,
+    "failed_criteria": []
+  },
   "criteria": [
     {"id": "health_endpoint", "passed": true},
     {"id": "metadata_endpoint", "passed": true},

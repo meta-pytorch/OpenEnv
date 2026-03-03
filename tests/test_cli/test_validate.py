@@ -106,6 +106,9 @@ def test_validate_running_environment_success() -> None:
     assert report["standard_version"] == "1.0.0"
     assert report["mode"] == "simulation"
     assert report["validation_type"] == "running_environment"
+    assert report["summary"]["passed_count"] == 6
+    assert report["summary"]["total_count"] == 6
+    assert report["summary"]["failed_criteria"] == []
 
 
 def test_validate_running_environment_failure() -> None:
@@ -156,6 +159,9 @@ def test_validate_running_environment_failure() -> None:
     metadata_checks = [c for c in report["criteria"] if c["id"] == "metadata_endpoint"]
     assert metadata_checks
     assert metadata_checks[0]["passed"] is False
+    assert report["summary"]["passed_count"] == 5
+    assert report["summary"]["total_count"] == 6
+    assert report["summary"]["failed_criteria"] == ["metadata_endpoint"]
 
 
 def test_validate_command_runtime_target_outputs_json() -> None:
@@ -201,6 +207,9 @@ def test_validate_command_local_json_output(tmp_path: Path) -> None:
     payload = json.loads(result.output)
     assert payload["validation_type"] == "local_environment"
     assert payload["passed"] is True
+    assert payload["summary"]["passed_count"] == 1
+    assert payload["summary"]["total_count"] == 1
+    assert payload["summary"]["failed_criteria"] == []
 
 
 def test_validate_command_rejects_mixed_path_and_url(tmp_path: Path) -> None:

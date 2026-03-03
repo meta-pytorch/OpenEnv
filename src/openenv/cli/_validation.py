@@ -72,6 +72,32 @@ def _runtime_standard_profile(api_version: str) -> str:
     return "openenv-http/unknown"
 
 
+def _build_summary(criteria: list[dict[str, Any]]) -> dict[str, Any]:
+    """Build a compact pass/fail summary for a criteria list."""
+    total_count = len(criteria)
+    passed_count = sum(1 for criterion in criteria if criterion.get("passed", False))
+    failed_criteria = [
+        criterion.get("id", "unknown")
+        for criterion in criteria
+        if not criterion.get("passed", False)
+    ]
+    required_criteria = [
+        criterion for criterion in criteria if criterion.get("required", True)
+    ]
+    required_total_count = len(required_criteria)
+    required_passed_count = sum(
+        1 for criterion in required_criteria if criterion.get("passed", False)
+    )
+
+    return {
+        "passed_count": passed_count,
+        "total_count": total_count,
+        "failed_criteria": failed_criteria,
+        "required_passed_count": required_passed_count,
+        "required_total_count": required_total_count,
+    }
+
+
 def validate_running_environment(
     base_url: str, timeout_s: float = 5.0
 ) -> dict[str, Any]:
@@ -91,6 +117,7 @@ def validate_running_environment(
         "standard_profile": "openenv-http/unknown",
         "mode": "unknown",
         "passed": False,
+        "summary": {},
         "criteria": criteria,
     }
 
@@ -395,6 +422,7 @@ def validate_running_environment(
     report["passed"] = all(
         criterion["passed"] for criterion in criteria if criterion.get("required", True)
     )
+    report["summary"] = _build_summary(criteria)
     return report
 
 
@@ -559,6 +587,7 @@ def build_local_validation_json_report(
         "standard_version": "local",
         "standard_profile": "openenv-local",
         "passed": is_valid,
+        "summary": _build_summary(criteria),
         "criteria": criteria,
         "issues": issues,
         "deployment_modes": deployment_modes or {},
