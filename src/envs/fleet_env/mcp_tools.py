@@ -189,7 +189,7 @@ class FleetMCPTools:
                 last_error = e
                 error_msg = _unwrap_exception(e)
                 if attempt < self.max_retries - 1:
-                    delay = self.retry_base_delay * (2**attempt)
+                    delay = min(2 ** attempt, self.max_backoff)
                     logger.warning(
                         f"call_tool({tool_name}) attempt {attempt + 1}/{self.max_retries} failed: {error_msg}. "
                         f"Retrying in {delay:.1f}s..."
