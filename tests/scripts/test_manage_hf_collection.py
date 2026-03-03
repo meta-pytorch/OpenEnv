@@ -324,7 +324,7 @@ class TestAddSpacesToCollection:
         assert calls[0][1]["collection_slug"] == "openenv/environment-hub-test"
         assert calls[0][1]["item_id"] == "owner1/space1"
         assert calls[0][1]["item_type"] == "space"
-        assert calls[0][1]["note"] == "OpenEnv release v2.1.0"
+        assert calls[0][1]["note"] == "OpenEnv release 2.1.0"
 
     def test_add_spaces_duplicate_conflict(self):
         """Test handling of duplicate space (409 conflict)."""
