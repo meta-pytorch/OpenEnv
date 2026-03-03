@@ -20,14 +20,16 @@ Deployment options:
   --base-sha <sha|tag>             openenv-base image ref suffix (default: latest)
   --hf-namespace <user|org>        HF namespace to deploy to (default: HF_NAMESPACE or openenv)
   --space-suffix <suffix>          Suffix appended to each space name
-                                   (default: -<openenv-version>, e.g. -v2-1-0)
-  --private                        Create spaces as private
+                                   (default: -<openenv-version>, e.g. -0.2.1)
+  --private                        Create/update spaces as private (default)
+  --public                         Create/update spaces as public
   --dry-run                        Prepare and print actions without uploading
   --staging-dir <path>             Staging root directory (default: hf-staging)
   --hub-tag <tag>                  Hub tag for generated README metadata (default: openenv)
 
 Version pinning:
-  --openenv-version <ref>          Pin OpenEnv git refs to this tag/ref (default: v2.1.0)
+  --openenv-version <ref>          Pin OpenEnv git refs to this tag/ref
+                                   (default: project version from pyproject.toml)
 
 Collection update:
   --collection-namespace <owner>   Collection owner namespace (default: openenv)
@@ -90,10 +92,14 @@ HF_NAMESPACE="${HF_NAMESPACE:-}"
 SPACE_SUFFIX="${SPACE_SUFFIX:-}"
 STAGING_DIR="hf-staging"
 HUB_TAG="openenv"
-OPENENV_VERSION="v2.1.0"
+DEFAULT_OPENENV_VERSION=$(awk -F'"' '/^[[:space:]]*version[[:space:]]*=[[:space:]]*"/ { print $2; exit }' pyproject.toml 2>/dev/null || true)
+if [ -z "$DEFAULT_OPENENV_VERSION" ]; then
+    DEFAULT_OPENENV_VERSION="0.2.0"
+fi
+OPENENV_VERSION="${OPENENV_VERSION:-$DEFAULT_OPENENV_VERSION}"
 COLLECTION_NAMESPACE="${COLLECTION_NAMESPACE:-openenv}"
 COLLECTION_SLUG="${COLLECTION_SLUG:-}"
-PRIVATE=false
+PRIVATE=true
 DRY_RUN=false
 DEPLOY_ALL=true
 SKIP_COLLECTION=false
@@ -107,7 +113,8 @@ TOKEN_ARGS=()
 normalized_version_suffix() {
     local raw_version="$1"
     local normalized=""
-    normalized=$(printf "%s" "$raw_version" | tr -cs '[:alnum:]' '-')
+    raw_version="${raw_version#v}"
+    normalized=$(printf "%s" "$raw_version" | tr -cs '[:alnum:].' '-')
     normalized="${normalized#-}"
     normalized="${normalized%-}"
 
@@ -144,6 +151,10 @@ while [[ $# -gt 0 ]]; do
             ;;
         --private)
             PRIVATE=true
+            shift
+            ;;
+        --public)
+            PRIVATE=false
             shift
             ;;
         --dry-run)
@@ -365,6 +376,97 @@ create_environment_dockerfile() {
     fi
 }
 
+ensure_readme_front_matter_tags() {
+    local readme_file="$1"
+
+    [ -f "$readme_file" ] || return 0
+
+    if ! head -n 1 "$readme_file" | grep -q '^---$'; then
+        return 0
+    fi
+
+    local closing_line
+    closing_line=$(grep -n '^---$' "$readme_file" | sed -n '2p' | cut -d: -f1)
+    if [ -z "$closing_line" ]; then
+        return 0
+    fi
+
+    local front_matter
+    front_matter=$(sed -n "1,${closing_line}p" "$readme_file")
+
+    local required_tags=()
+    required_tags+=("openenv")
+    if [ "$HUB_TAG" != "openenv" ]; then
+        required_tags+=("$HUB_TAG")
+    fi
+    required_tags+=("openenv-$OPENENV_VERSION")
+
+    local missing_tags=()
+    local required_tag
+    for required_tag in "${required_tags[@]}"; do
+        if ! printf "%s\n" "$front_matter" | awk -v wanted="$required_tag" '
+            BEGIN { found = 0 }
+            /^[[:space:]]*-[[:space:]]*/ {
+                candidate = $0
+                sub(/^[[:space:]]*-[[:space:]]*/, "", candidate)
+                gsub(/[[:space:]]+$/, "", candidate)
+                if (candidate == wanted) {
+                    found = 1
+                }
+            }
+            END { exit found ? 0 : 1 }
+        '; then
+            missing_tags+=("$required_tag")
+        fi
+    done
+
+    if [ ${#missing_tags[@]} -eq 0 ]; then
+        return 0
+    fi
+
+    local missing_csv
+    missing_csv=$(IFS=,; echo "${missing_tags[*]}")
+    local tmp_file="${readme_file}.tmp"
+
+    awk \
+        -v close_line="$closing_line" \
+        -v missing_csv="$missing_csv" \
+        '
+        BEGIN {
+            missing_count = split(missing_csv, missing_tags, ",")
+            inserted = 0
+            saw_tags_key = 0
+        }
+        {
+            if (NR < close_line && $0 ~ /^[[:space:]]*tags:[[:space:]]*$/ && inserted == 0) {
+                saw_tags_key = 1
+                print $0
+                for (i = 1; i <= missing_count; i++) {
+                    if (length(missing_tags[i]) > 0) {
+                        print "  - " missing_tags[i]
+                    }
+                }
+                inserted = 1
+                next
+            }
+
+            if (NR == close_line && saw_tags_key == 0 && inserted == 0) {
+                print "tags:"
+                for (i = 1; i <= missing_count; i++) {
+                    if (length(missing_tags[i]) > 0) {
+                        print "  - " missing_tags[i]
+                    }
+                }
+                inserted = 1
+            }
+
+            print $0
+        }
+        ' "$readme_file" > "$tmp_file"
+
+    mv "$tmp_file" "$readme_file"
+}
+
 create_readme() {
     local env_name="$1"
     local stage_dir="$2"
@@ -437,6 +539,10 @@ README_EOF
     if grep -q '^[[:space:]]*colorTo:' "$output_readme"; then
         sed_inplace "s|^[[:space:]]*colorTo:.*$|colorTo: green|g" "$output_readme"
     fi
+
+    # Global collection sync relies on this tag, so enforce it for every
+    # generated README even when source front matter omits tags.
+    ensure_readme_front_matter_tags "$output_readme"
 }
 
 prepare_stage() {
@@ -497,6 +603,11 @@ deploy_env() {
     if [ "$DRY_RUN" = true ]; then
         log "[dry-run] Would create/update space: $space_repo"
         log "[dry-run] Would upload folder: $stage_dir"
+        if [ "$PRIVATE" = true ]; then
+            log "[dry-run] Would set space visibility to private: $space_repo"
+        else
+            log "[dry-run] Would set space visibility to public: $space_repo"
+        fi
         DEPLOYED_SPACES+=("$space_repo")
         return 0
     fi
@@ -519,6 +630,17 @@ deploy_env() {
         "$space_repo" \
         "$stage_dir" \
         . || return 1
+
+    # Ensure visibility is applied even when repo already existed.
+    local privacy_flag="--private"
+    if [ "$PRIVATE" = false ]; then
+        privacy_flag="--no-private"
+    fi
+    if [ ${#TOKEN_ARGS[@]} -gt 0 ]; then
+        hf repo settings --repo-type space "$privacy_flag" "${TOKEN_ARGS[@]}" "$space_repo" || return 1
+    else
+        hf repo settings --repo-type space "$privacy_flag" "$space_repo" || return 1
+    fi
 
     DEPLOYED_SPACES+=("$space_repo")
     log "Uploaded https://huggingface.co/spaces/$space_repo"
@@ -555,7 +677,13 @@ update_collection() {
         return 0
     fi
 
-    local cmd=("$python_bin" scripts/manage_hf_collection.py --version "$OPENENV_VERSION" --collection-namespace "$COLLECTION_NAMESPACE")
+    local cmd=(
+        "$python_bin"
+        scripts/manage_hf_collection.py
+        --version "$OPENENV_VERSION"
+        --collection-namespace "$COLLECTION_NAMESPACE"
+        --global-scope tagged
+    )
     if [ -n "$COLLECTION_SLUG" ]; then
         cmd+=(--collection-slug "$COLLECTION_SLUG")
     fi
