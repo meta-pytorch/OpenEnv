@@ -72,7 +72,8 @@ class FleetTaskEnv:
             - verifier_code: Python code for verification
             - task_modality: "tool_use" or "computer_use"
         api_key: Fleet API key (defaults to FLEET_API_KEY env var)
-        ttl_seconds: Instance TTL in seconds (default: 600)
+        ttl_seconds: Instance TTL in seconds. If None, auto-selects based on
+            modality: 1800s (30 min) for computer_use, 600s (10 min) for tool_use.
         max_steps: Maximum steps per episode (default: 50)
         request_timeout_s: HTTP request timeout in seconds (default: 60.0)
 
@@ -94,14 +95,20 @@ class FleetTaskEnv:
         self,
         task_config: Dict[str, Any],
         api_key: Optional[str] = None,
-        ttl_seconds: int = 600,
+        ttl_seconds: Optional[int] = None,
         max_steps: int = 50,
         request_timeout_s: float = 60.0,
         reset_timeout_s: float = 10.0,
     ):
         self.task = task_config
         self.api_key = api_key or os.environ.get("FLEET_API_KEY")
-        self.ttl_seconds = ttl_seconds
+        # Auto-select TTL based on modality if not explicitly provided
+        if ttl_seconds is not None:
+            self.ttl_seconds = ttl_seconds
+        elif self.modality == "computer_use":
+            self.ttl_seconds = 1800  # 30 min — CUA rollouts are slow (browser + inference)
+        else:
+            self.ttl_seconds = 600   # 10 min — tool_use rollouts are fast (API calls only)
         self.max_steps = max_steps
         self.request_timeout_s = request_timeout_s
         self.reset_timeout_s = reset_timeout_s
