@@ -21,6 +21,8 @@ Usage:
     python -m server.app
 """
 
+import inspect
+
 try:
     from openenv_core.env_server.http_server import create_app
 except Exception as e:  # pragma: no cover
@@ -30,19 +32,31 @@ except Exception as e:  # pragma: no cover
     ) from e
 
 from models import WebSearchAction, WebSearchObservation
-
 from .web_search_environment import WebSearchEnvironment
 
-# Create the environment instance
-env = WebSearchEnvironment()
 
-# Create the app with web interface and README integration
-app = create_app(
-    env,
-    WebSearchAction,
-    WebSearchObservation,
-    env_name="websearch_env",
-)
+def _create_websearch_app():
+    """Build app across create_app variants that may expect a factory or an instance."""
+    try:
+        first_param = next(iter(inspect.signature(create_app).parameters.values()))
+        annotation_text = str(first_param.annotation)
+    except (StopIteration, TypeError, ValueError):
+        annotation_text = "typing.Callable"
+
+    expects_instance = (
+        "Environment" in annotation_text and "Callable" not in annotation_text
+    )
+    env_arg = WebSearchEnvironment() if expects_instance else WebSearchEnvironment
+    return create_app(
+        env_arg,
+        WebSearchAction,
+        WebSearchObservation,
+        env_name="websearch_env",
+    )
+
+
+# Create the app with web interface and README integration.
+app = _create_websearch_app()
 
 
 def main(host: str = "0.0.0.0", port: int = 8000):

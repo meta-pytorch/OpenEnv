@@ -18,10 +18,9 @@ from pydantic import Field
 
 # Support both in-repo and standalone imports
 try:
-    # In-repo imports (when running from OpenEnv repository)
-    from openenv.core.env_server.types import Action, Observation
+    from openenv_core.env_server.types import Action, Observation
 except ImportError:
-    # Standalone imports (when environment is standalone with openenv-core from pip)
+    # Fallback for in-repo layouts that only expose openenv.*
     from openenv.core.env_server.types import Action, Observation
 
 

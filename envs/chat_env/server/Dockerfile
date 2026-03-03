@@ -24,6 +24,7 @@ ENV TRANSFORMERS_CACHE=/.cache
 # Environment variables that can be overridden at runtime
 ENV TOKENIZER_NAME=gpt2
 ENV SYSTEM_PROMPT="You are a helpful AI assistant."
+ENV ENABLE_WEB_INTERFACE=false
 
 # Copy only what's needed for this environment
 COPY src/core/ /app/src/core/
