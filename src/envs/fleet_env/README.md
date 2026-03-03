@@ -5,7 +5,7 @@ This integration lets you run Fleet environments through OpenEnv, simplifying th
 - **Orchestration (HTTP)**: reset / step / state (episode + lifecycle control)
 - **Agent actions (MCP)**: tools/list + tools/call (what the agent can do)
 
-That boundary matches **RFC 001** (split planes) and lines up with **RFC 003**’s “tool-call actions”.
+That boundary matches **RFC 001** (split planes) and lines up with **RFC 003**'s "tool-call actions".
 If you want the longer-form design background, see:
 
 - **RFC 001**: [`rfcs/001-abstractions.md`](../../../rfcs/001-abstractions.md)
@@ -13,8 +13,8 @@ If you want the longer-form design background, see:
 
 ### What this is *not* (container/provider abstraction)
 
-This Fleet integration is intentionally **not yet** a “container runtime” abstraction (no Docker provider, no local container lifecycle).
-In particular, there is **no local Dockerized setup** where you spin up an “env server” container alongside an “env” container; Fleet hosts the runtime remotely (HTTP env server + MCP service), and the client connects to it.
+This Fleet integration is intentionally **not yet** a "container runtime" abstraction (no Docker provider, no local container lifecycle).
+In particular, there is **no local Dockerized setup** where you spin up an "env server" container alongside an "env" container; Fleet hosts the runtime remotely (HTTP env server + MCP service), and the client connects to it.
 
 Fleet provisions and runs the environment remotely; on the client side we just hold two handles:
 
@@ -33,45 +33,110 @@ flowchart TB
 
   subgraph Runtime["Fleet runtime (remote)"]
     HTTP["Instance Manager HTTP API"]
-    MCP["MCP service"]
+    MCP3003["Per-env MCP server (port 3003)"]
+    MCP8081["MCP Aggregator (port 8081)"]
   end
 
   Orch -- reset/step/state --> HTTP
   Agent -- list_tools/call_tool --> Tools
-  Tools <-- streamable HTTP --> MCP
+  Tools -- "tool_use: /mcp" --> MCP3003
+  Tools -- "computer_use: /api/v1/mcp" --> MCP8081
 ```
 
-### What FleetMCPTools
+### MCP Endpoint Routing by Modality
 
-Fleet currently exposes **more than one MCP endpoint** (commonly `api/v1/mcp` and `mcp` - Later we will abstarct this to the Fleet server).
-`FleetMCPTools` handles that so your agent code doesn’t need to care:
+Fleet exposes two MCP endpoints per instance, on different ports:
 
-- **Union tools**: `await tools.list_tools()` returns a `ListToolsAction` where `.tools` is the union of tools across endpoints.
-- **OpenAI-friendly format**: `.tools` is already in OpenAI “tools” dict format (via `convert_tool_format()`).
-- **Route calls**: `await tools.call_tool(name, args)` routes to the endpoint that owns `name` (cached after discovery).
+| Modality | Endpoint | Port | What it serves |
+|----------|----------|------|----------------|
+| `tool_use` | `{root}/mcp` | 3003 | Per-env API tools only |
+| `computer_use` | `{root}/api/v1/mcp` | 8081 | `computer` tool + aggregated API tools |
 
+`FleetEnvClient.from_fleet()` / `from_fleet_async()` selects the correct endpoint based on `image_type`:
+- `image_type="mcp"` (computer_use) → `/api/v1/mcp`
+- `image_type="standard"` (tool_use) → `/mcp`
+
+This eliminates partial failure ambiguity — each modality talks to exactly one endpoint.
+
+### Sequence: SkyRL → OpenEnv (training rollout)
+
+```
+SkyRL Generator                    SkyRL FleetTaskEnv (env.py)         OpenEnv FleetTaskEnv (task_env.py)    FleetEnvClient (client.py)         FleetMCPTools (mcp_tools.py)       Fleet Runtime
+      |                                    |                                    |                                    |                                    |                                    |
+      |-- _env_init(env, prompt) --------->|                                    |                                    |                                    |                                    |
+      |                                    |-- init_async(prompt) ------------->|                                    |                                    |                                    |
+      |                                    |                                    |-- fleet_rollout_started            |                                    |                                    |
+      |                                    |                                    |                                    |                                    |                                    |
+      |                                    |                                    |-- _ensure_provisioned() ---------->|                                    |                                    |
+      |                                    |                                    |   image_type = "mcp" | "standard"  |-- from_fleet_async() ------------->|                                    |
+      |                                    |                                    |                                    |   sdk_image_type = "mcp" | None    |                                    |
+      |                                    |                                    |                                    |-- async_fleet.make() --------------------------------------------->| provision instance
+      |                                    |                                    |                                    |<-- env handle + urls -----------------------------------------------|
+      |                                    |                                    |                                    |                                    |                                    |
+      |                                    |                                    |                                    |   if mcp: url = /api/v1/mcp        |                                    |
+      |                                    |                                    |                                    |   else:   url = /mcp               |                                    |
+      |                                    |                                    |                                    |-- FleetMCPTools(url) ------------->|                                    |
+      |                                    |                                    |<-- (orch, tools) ------------------|                                    |                                    |
+      |                                    |                                    |                                    |                                    |                                    |
+      |                                    |                                    |-- reset() (swallowed on failure)   |                                    |                                    |
+      |                                    |                                    |                                    |                                    |                                    |
+      |                                    |                                    |-- tools.list_tools() -------------------------------------------->|-- list_tools() ---------------------->| MCP endpoint
+      |                                    |                                    |   FATAL if fails or empty          |                                    |<-- tools[] --------------------------|
+      |                                    |                                    |                                    |                                    |                                    |
+      |                                    |                                    |   filter by modality:              |                                    |                                    |
+      |                                    |                                    |     computer_use → keep "computer" |                                    |                                    |
+      |                                    |                                    |     tool_use → exclude "computer"  |                                    |                                    |
+      |                                    |                                    |   FATAL if no tools after filter   |                                    |                                    |
+      |                                    |                                    |                                    |                                    |                                    |
+      |                                    |                                    |   (computer_use) screenshot ------------------------------------------------>| call_tool("computer", screenshot)-->|
+      |                                    |                                    |                                    |                                    |                                    |
+      |                                    |<-- obs {prompt, tools, screenshot} |                                    |                                    |                                    |
+      |                                    |                                    |                                    |                                    |                                    |
+      |                                    |   self.tools = obs["tools"]        |                                    |                                    |                                    |
+      |                                    |   FATAL if empty                   |                                    |                                    |                                    |
+      |                                    |   build system prompt + tools_json |                                    |                                    |                                    |
+      |<-- (prompt, info) -----------------|                                    |                                    |                                    |                                    |
+      |                                    |                                    |                                    |                                    |                                    |
+      |== AGENT LOOP (per turn) ===========|====================================|====================================|====================================|====================================|
+      |                                    |                                    |                                    |                                    |                                    |
+      |-- step_async(action) ------------->|                                    |                                    |                                    |                                    |
+      |                                    |-- step_async(action) ------------->|                                    |                                    |                                    |
+      |                                    |                                    |-- tools.call_tool(name, args) ------------------------------------------->| call_tool(name, args) ------------->|
+      |                                    |                                    |<-- result -----------------------------------------------------------------|<-- result --------------------------|
+      |                                    |                                    |                                    |                                    |                                    |
+      |                                    |                                    |   if done: _compute_reward()       |                                    |                                    |
+      |                                    |                                    |     fleet_rollout_completed        |                                    |                                    |
+      |                                    |<-- (obs, reward, done, info) ------|                                    |                                    |                                    |
+      |<-- (obs, reward, done, info) ------|                                    |                                    |                                    |                                    |
+```
+
+**Failure handling:**
+- `_ensure_provisioned()` fails → `fleet_rollout_completed(failure_reason="init_error")` → raise
+- `list_tools()` fails or empty → `fleet_rollout_completed(failure_reason="tools_error")` → raise
+- No `computer` tool for computer_use → `fleet_rollout_completed(failure_reason="computer_tool_missing")` → raise
+- `reset()` fails → warning only, continues with empty observation (non-fatal)
+- `screenshot` fails → warning only, continues without screenshot (non-fatal)
 
 ### Pseudocode
-
 
 ```python
 class FleetEnvClient(HTTPEnvClient):
     @classmethod
-    def from_fleet(cls, api_key: str, env_key: str, **kwargs):
+    def from_fleet(cls, api_key, env_key, data_key, data_version, image_type, **kwargs):
         # 1) Provision a remote instance via Fleet SDK
-        env = Fleet(api_key=api_key).make(env_key=env_key, image_type="mcp", **kwargs)
-        
-        # 2) Orchestrator handle talks to the Instance Manager (HTTP)
-        orch = cls(
-            base_url=env.urls.manager.api,
-            default_headers={"Authorization": f"Bearer {api_key}"},
+        sdk_image_type = image_type if image_type == "mcp" else None
+        env = Fleet(api_key=api_key).make(
+            env_key=env_key, image_type=sdk_image_type, data_key=f"{data_key}:{data_version}", **kwargs
         )
 
-        # 3) Agent handle talks to MCP (may be multiple endpoints today)
-        mcp_urls = (
-            f"{env.urls.root}api/v1/mcp",
-            f"{env.urls.root}mcp",
-        )
+        # 2) Orchestrator handle talks to the Instance Manager (HTTP)
+        orch = cls(base_url=env.urls.manager.api, ...)
+
+        # 3) Pick MCP endpoint based on modality
+        if image_type == "mcp":
+            mcp_urls = (f"{env.urls.root}api/v1/mcp",)  # aggregator (port 8081)
+        else:
+            mcp_urls = (f"{env.urls.root}mcp",)          # per-env server (port 3003)
         tools = FleetMCPTools(api_key=api_key, mcp_urls=mcp_urls)
 
         return orch, tools
@@ -95,9 +160,9 @@ See `examples/fleet_env_example.py`.
    - `listed = await tools.list_tools()`
    - `tool_defs = listed.tools`
    - Each entry in `tool_defs` has `{"type": "function", "function": {"name": ..., "parameters": ...}}`
-4. **Call a tool** (the example picks a “safe” action from the schema and calls `computer`)
+4. **Call a tool** (the example picks a "safe" action from the schema and calls `computer`)
 
-Here’s a real run (trimmed) so you know what “healthy” looks like:
+Here's a real run (trimmed) so you know what "healthy" looks like:
 
 ```text
 Provisioning Fleet environment: amazon...
@@ -153,17 +218,22 @@ All events include these base attributes (set automatically via task context):
 | `fleet_make_retry` | warning | Transient `Fleet.make()` failure, retrying |
 | `fleet_make_failed` | error | `Fleet.make()` permanently failed |
 | `fleet_env_reset_failed` | warning | Env reset threw (non-fatal, continues with empty observation) |
-| `fleet_tools_list_failed` | exception | Tool listing threw |
-| `fleet_computer_tool_missing` | warning | computer_use mode but no computer tool |
 | `fleet_screenshot_failed` | exception | Initial screenshot threw |
 | `fleet_tool_call_failed` | exception | Agent tool call threw (Python exception after retries exhausted) |
 | `fleet_mcp_tool_error` | warning | MCP server returned error in tool result (tool ran but failed) |
 | `fleet_verifier_failed` | exception | Verifier **code** threw an exception (not model failure — model getting wrong answer = reward 0.0 without verifier_error) |
-| `fleet_list_tools_partial` | warning | Some MCP endpoints failed |
 | `fleet_list_tools_retry` | warning | list_tools retrying |
 | `fleet_list_tools_exhausted` | error | list_tools retries exhausted |
 | `fleet_call_tool_retry` | warning | call_tool retrying |
 | `fleet_call_tool_exhausted` | error | call_tool retries exhausted |
+
+**Failure reasons in `fleet_rollout_completed`:**
+
+| `failure_reason` | Meaning |
+|------------------|---------|
+| `init_error` | Provisioning failed (`_ensure_provisioned()`) |
+| `tools_error` | `list_tools()` MCP call failed or returned no tools |
+| `computer_tool_missing` | Tools listed but no `computer` tool for computer_use modality (MCP image config issue) |
 
 **Example Logfire SQL Query:**
 
@@ -177,6 +247,10 @@ SELECT
     COUNT(*) FILTER (WHERE message = 'fleet_rollout_completed') as completed,
     COUNT(*) FILTER (WHERE message = 'fleet_rollout_completed'
         AND attributes->>'failure_reason' = 'init_error') as init_errors,
+    COUNT(*) FILTER (WHERE message = 'fleet_rollout_completed'
+        AND attributes->>'failure_reason' = 'tools_error') as tools_errors,
+    COUNT(*) FILTER (WHERE message = 'fleet_rollout_completed'
+        AND attributes->>'failure_reason' = 'computer_tool_missing') as computer_missing,
     COALESCE(SUM(CAST(attributes->>'step_count' AS INT))
         FILTER (WHERE message = 'fleet_rollout_completed'), 0) as total_steps,
     COUNT(*) FILTER (WHERE message IN (
@@ -187,17 +261,6 @@ WHERE service_name = 'openenv-fleet'
 GROUP BY 1, 2, 3
 ORDER BY total_rollouts DESC;
 ```
-
-**Column definitions:**
-
-| Column | Meaning |
-|--------|---------|
-| `total_rollouts` | All rollout attempts (including init failures) |
-| `completed` | Rollouts that reached a terminal state (should equal `total_rollouts` when all done) |
-| `init_errors` | Provisioning failures (e.g., health check failures) — subset of `completed` |
-| `total_steps` | Sum of steps across all completed rollouts |
-| `tool_errors` | MCP tool failures: server errors (`fleet_mcp_tool_error`) + Python exceptions (`fleet_tool_call_failed`) |
-| `verifier_errors` | Verifier **code** exceptions (not model failures — model getting wrong answer = reward 0.0 with no verifier_error) |
 
 ```sql
 -- Provisioning latency by env (detects Fleet queue serialization)
@@ -216,8 +279,6 @@ ORDER BY avg_provision_s DESC;
 
 ### TODOs
 
-- **MCP endpoint abstraction**: stop hardcoding `("api/v1/mcp", "mcp")` and discover endpoints (or accept a single unified endpoint when Fleet provides one).
-- **Reset inconsistencies**: some env keys don’t behave consistently on `/reset` (needs better error reporting + a compatibility note per env type).
+- **Reset inconsistencies**: some env keys don't behave consistently on `/reset` (needs better error reporting + a compatibility note per env type).
 - **Support for all OpenEnv environments**: Starting with OpenEnv, we want to support any backend to run environments at scale.
-- **Retries / backoff**: MCP list/call should have bounded retries and clearer failure modes when one endpoint is down.
-- **GA access**: GA the Fleet platform. 
+- **GA access**: GA the Fleet platform.

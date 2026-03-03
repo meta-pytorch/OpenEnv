@@ -210,8 +210,9 @@ class FleetTaskEnv:
             return
 
         env_spec = self._build_env_spec()
-        # For computer_use tasks, use image_type='mcp' to select the MCP-enabled container
-        image_type = "mcp" if self.modality == "computer_use" else None
+        # computer_use: MCP-enabled container with browser infra (port 8081 aggregator)
+        # tool_use: standard container with per-env MCP server (port 3003)
+        image_type = "mcp" if self.modality == "computer_use" else "standard"
         self._orch, self._tools = await FleetEnvClient.from_fleet_async(
             api_key=self.api_key,
             env_key=env_spec,
@@ -266,6 +267,7 @@ class FleetTaskEnv:
         self._done = False
 
         # Reset the environment (use short timeout to avoid blocking on broken manager APIs)
+        # reset() failure is non-fatal — env is up, just the manager API timed out
         reset_metadata = {}
         if self._orch:
             try:
@@ -290,24 +292,28 @@ class FleetTaskEnv:
                     error_message=str(e)[:200],
                 )
 
-        # Fetch tools on every reset
-        if self._tools:
-            try:
+        # Fetch tools — fatal if MCP call fails (no tools = dead rollout)
+        try:
+            if self._tools:
                 tools_result = await self._tools.list_tools()
                 self._tools_cache = tools_result.tools
-            except Exception as e:
-                logger.warning(f"[env={self.env_key}] Failed to fetch tools: {e}")
-                fleet_exception(
-                    "fleet_tools_list_failed",
-                    step_count=self._step_count,
-                )
-                self._tools_cache = []
+            if not self._tools_cache:
+                raise RuntimeError("list_tools returned no tools")
+        except Exception as e:
+            fleet_info(
+                "fleet_rollout_completed",
+                step_count=0,
+                reward=0.0,
+                verifier_success=False,
+                failure_reason="tools_error",
+                error_message=str(e)[:200],
+            )
+            raise
 
         # Filter tools based on modality:
         # - computer_use: keep ONLY the 'computer' tool
         # - tool_use: EXCLUDE the 'computer' tool (should only use API tools)
-        if self._tools_cache and self.modality == "tool_use":
-            # Exclude computer tool for tool_use tasks
+        if self.modality == "tool_use":
             self._tools_cache = [
                 t
                 for t in self._tools_cache
@@ -316,36 +322,42 @@ class FleetTaskEnv:
             ]
 
         # For computer_use, filter to only the 'computer' tool
-        # IMPORTANT: Always apply filter for computer_use modality to prevent
-        # the model from using API tools instead of mouse/keyboard control
-        if self.modality == "computer_use" and self._tools_cache:
+        if self.modality == "computer_use":
             computer_tools = [
                 t
                 for t in self._tools_cache
                 if t.get("name") == "computer"
                 or t.get("function", {}).get("name") == "computer"
             ]
-            if computer_tools:
-                self._tools_cache = computer_tools
-            else:
-                # No computer tool found - this is a configuration error
-                # The MCP image should expose the 'computer' tool for computer_use tasks
+            if not computer_tools:
                 available = [
                     t.get("name") or t.get("function", {}).get("name")
                     for t in self._tools_cache
                 ]
-                logger.warning(
-                    f"[env={self.env_key}] Task {self.task_key}: computer_use modality but no 'computer' tool found. "
-                    f"Available tools: {available}. "
-                    f"Check MCP image configuration."
-                )
-                fleet_warning(
-                    "fleet_computer_tool_missing",
-                    step_count=self._step_count,
+                fleet_info(
+                    "fleet_rollout_completed",
+                    step_count=0,
+                    reward=0.0,
+                    verifier_success=False,
+                    failure_reason="computer_tool_missing",
                     available_tools=available,
                 )
-                # Clear tools to prevent model from using API tools
-                self._tools_cache = []
+                raise RuntimeError(
+                    f"computer_use modality but no 'computer' tool found. "
+                    f"Available tools: {available}. Check MCP image configuration."
+                )
+            self._tools_cache = computer_tools
+
+        if not self._tools_cache:
+            fleet_info(
+                "fleet_rollout_completed",
+                step_count=0,
+                reward=0.0,
+                verifier_success=False,
+                failure_reason="tools_error",
+                error_message="No tools available after modality filtering",
+            )
+            raise RuntimeError("No tools available after filtering")
 
         # Build observation with cached tools
         obs = {
@@ -354,10 +366,8 @@ class FleetTaskEnv:
             "step": 0,
             "task_key": self.task_key,
             "modality": self.modality,
+            "tools": self._tools_cache,
         }
-
-        if self._tools_cache:
-            obs["tools"] = self._tools_cache
 
         # For computer_use, take initial screenshot so VL model can see the screen
         # This is critical for VL models - without visual input they're blind
@@ -366,8 +376,6 @@ class FleetTaskEnv:
                 screenshot_result = await self._tools.call_tool(
                     "computer", {"action": "screenshot"}
                 )
-                # screenshot_result is in OpenAI-compatible format:
-                # [{"type": "text", "text": "..."}, {"type": "image_url", "image_url": {"url": "data:..."}}]
                 obs["initial_screenshot"] = screenshot_result
                 logger.info(f"Task {self.task_key}: captured initial screenshot")
             except Exception as e:

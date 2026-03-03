@@ -38,8 +38,9 @@ class FleetMCPTools:
 
     api_key: str
     mcp_urls: Sequence[str]
-    max_retries: int = 3
-    retry_base_delay: float = 2.0
+    max_retries: int = 8
+    initial_wait: float = 8.0
+    max_backoff: float = 5.0
     _clients: Optional[List[FleetMCPClient]] = field(default=None, repr=False)
     _tool_owner: Optional[Dict[str, FleetMCPClient]] = field(default=None, repr=False)
 
@@ -95,8 +96,14 @@ class FleetMCPTools:
         The returned `.tools` payload is in OpenAI "tools" dict format
         (see `convert_tool_format`), derived from MCP `Tool.inputSchema`.
 
-        Retries with exponential backoff if all clients fail.
+        Matches the orchestrator harness: 8s initial wait for MCP services to
+        start, then 8 retries with exponential backoff capped at 5s.
         """
+        # Wait for MCP services to initialize (matches harness initial_wait=8)
+        if self.initial_wait > 0:
+            logger.info(f"Waiting {self.initial_wait:.0f}s for MCP services to initialize...")
+            await asyncio.sleep(self.initial_wait)
+
         last_error = None
 
         for attempt in range(self.max_retries):
@@ -110,7 +117,7 @@ class FleetMCPTools:
                 last_error = e
                 error_msg = _unwrap_exception(e)
                 if attempt < self.max_retries - 1:
-                    delay = self.retry_base_delay * (2 ** attempt)
+                    delay = min(2 ** attempt, self.max_backoff)
                     logger.warning(
                         f"list_tools attempt {attempt + 1}/{self.max_retries} failed: {error_msg}. "
                         f"Retrying in {delay:.1f}s..."

@@ -51,12 +51,12 @@ class FleetEnvClient(HTTPEnvClient[Action, Observation]):
         cls: Type["FleetEnvClient"],
         api_key: str,
         env_key: str,
+        data_key: str,
+        data_version: str,
+        image_type: str,
         region: Optional[str] = None,
         ttl_seconds: Optional[int] = 3600,
         env_variables: Optional[Dict[str, Any]] = None,
-        image_type: Optional[str] = None,
-        data_key: Optional[str] = None,
-        data_version: Optional[str] = None,
         **kwargs: Any,
     ) -> Tuple["FleetEnvClient", FleetMCPTools]:
         try:
@@ -94,12 +94,14 @@ class FleetEnvClient(HTTPEnvClient[Action, Observation]):
 
         for attempt in range(max_retries):
             try:
+                # Fleet SDK expects image_type=None for standard images
+                sdk_image_type = image_type if image_type == "mcp" else None
                 env = fleet.make(
                     env_key=env_key,
                     region=region,
                     ttl_seconds=ttl_seconds,
                     env_variables=env_variables,
-                    image_type=image_type,
+                    image_type=sdk_image_type,
                     data_key=data_key_spec,
                 )
                 break  # Success
@@ -143,8 +145,13 @@ class FleetEnvClient(HTTPEnvClient[Action, Observation]):
         _logger.info(f"Fleet instance ready in {elapsed:.1f}s: {instance_id}")
 
         root = env.urls.root
-        # Fleet currently exposes multiple MCP endpoints. Prefer /api/v1/mcp first.
-        mcp_urls = (f"{root}api/v1/mcp", f"{root}mcp")
+        # Pick MCP endpoint based on modality:
+        # - computer_use: aggregator on port 8081 (has computer tool + API tools)
+        # - tool_use: per-env MCP server on port 3003 (API tools only)
+        if image_type == "mcp":
+            mcp_urls = (f"{root}api/v1/mcp",)
+        else:
+            mcp_urls = (f"{root}mcp",)
 
         orch = cls(
             base_url=env.urls.manager.api,
@@ -161,12 +168,12 @@ class FleetEnvClient(HTTPEnvClient[Action, Observation]):
         cls: Type["FleetEnvClient"],
         api_key: str,
         env_key: str,
+        data_key: str,
+        data_version: str,
+        image_type: str,
         region: Optional[str] = None,
         ttl_seconds: Optional[int] = 3600,
         env_variables: Optional[Dict[str, Any]] = None,
-        image_type: Optional[str] = None,
-        data_key: Optional[str] = None,
-        data_version: Optional[str] = None,
         **kwargs: Any,
     ) -> Tuple["FleetEnvClient", FleetMCPTools]:
         """Async version of from_fleet() — does not block the event loop.
@@ -208,12 +215,14 @@ class FleetEnvClient(HTTPEnvClient[Action, Observation]):
 
         for attempt in range(max_retries):
             try:
+                # Fleet SDK expects image_type=None for standard images
+                sdk_image_type = image_type if image_type == "mcp" else None
                 async_env = await async_fleet.make(
                     env_key=env_key,
                     region=region,
                     ttl_seconds=ttl_seconds,
                     env_variables=env_variables,
-                    image_type=image_type,
+                    image_type=sdk_image_type,
                     data_key=data_key_spec,
                 )
                 break  # Success
@@ -276,8 +285,13 @@ class FleetEnvClient(HTTPEnvClient[Action, Observation]):
             raise
 
         root = async_env.urls.root
-        # Fleet currently exposes multiple MCP endpoints. Prefer /api/v1/mcp first.
-        mcp_urls = (f"{root}api/v1/mcp", f"{root}mcp")
+        # Pick MCP endpoint based on modality:
+        # - computer_use (image_type="mcp"): aggregator on port 8081 (has computer tool + API tools)
+        # - tool_use: per-env MCP server on port 3003 (API tools only)
+        if image_type == "mcp":
+            mcp_urls = (f"{root}api/v1/mcp",)
+        else:
+            mcp_urls = (f"{root}mcp",)
 
         orch = cls(
             base_url=async_env.urls.manager.api,
