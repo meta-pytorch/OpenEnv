@@ -12,7 +12,6 @@ import sys
 from typing import Any, Dict, Iterable, List, Optional
 from uuid import uuid4
 
-import nltk
 from openenv.core.env_server.interfaces import Environment
 
 try:
@@ -45,6 +44,13 @@ def _ensure_nltk_data() -> None:
     global _NLTK_DOWNLOADED
     if _NLTK_DOWNLOADED:
         return
+    try:
+        import nltk
+    except ImportError as exc:
+        raise RuntimeError(
+            "NLTK is required for TextArena environments. "
+            "Install textarena_env dependencies (including nltk)."
+        ) from exc
     nltk.download("words", quiet=True)
     nltk.download("averaged_perceptron_tagger_eng", quiet=True)
     _NLTK_DOWNLOADED = True

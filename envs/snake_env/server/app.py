@@ -21,6 +21,8 @@ Usage:
     uv run --project . server
 """
 
+import inspect
+
 # Support both in-repo and standalone imports
 try:
     # In-repo imports (when running from OpenEnv repository)
@@ -35,11 +37,23 @@ except ImportError:
     from openenv_core.env_server.http_server import create_app
     from server.snake_environment import SnakeEnvironment
 
-# Create the environment instance
-env = SnakeEnvironment()
+def _create_snake_app():
+    """Build app across create_app variants that may expect a factory or an instance."""
+    try:
+        first_param = next(iter(inspect.signature(create_app).parameters.values()))
+        annotation_text = str(first_param.annotation)
+    except (StopIteration, TypeError, ValueError):
+        annotation_text = "typing.Callable"
 
-# Create the app with web interface and README integration
-app = create_app(env, SnakeAction, SnakeObservation, env_name="snake_env")
+    expects_instance = (
+        "Environment" in annotation_text and "Callable" not in annotation_text
+    )
+    env_arg = SnakeEnvironment() if expects_instance else SnakeEnvironment
+    return create_app(env_arg, SnakeAction, SnakeObservation, env_name="snake_env")
+
+
+# Create the app with web interface and README integration.
+app = _create_snake_app()
 
 
 def main():
