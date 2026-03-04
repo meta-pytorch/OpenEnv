@@ -37,6 +37,7 @@ except ImportError:
     from openenv_core.env_server.http_server import create_app
     from server.snake_environment import SnakeEnvironment
 
+
 def _create_snake_app():
     """Build app across create_app variants that may expect a factory or an instance."""
     try:

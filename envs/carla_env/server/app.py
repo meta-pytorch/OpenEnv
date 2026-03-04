@@ -11,7 +11,9 @@ Exposes OpenEnv-compatible HTTP/WebSocket endpoints.
 """
 
 import os
+
 from openenv.core.env_server import create_app
+
 from ..models import CarlaAction, CarlaObservation
 from .carla_environment import CarlaEnvironment
 
@@ -53,6 +55,7 @@ def main():
         openenv serve carla_env
     """
     import uvicorn
+
     uvicorn.run(app, host="0.0.0.0", port=8000)
 
 

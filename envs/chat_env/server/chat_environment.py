@@ -68,7 +68,9 @@ class ChatEnvironment(Environment):
         """Tokenize a conversation with a chat-template fallback for base tokenizers."""
         try:
             tokens = self.tokenizer.apply_chat_template(
-                conversation=conversation, tokenize=True, return_tensors="pt"  # type: ignore[arg-type]
+                conversation=conversation,
+                tokenize=True,
+                return_tensors="pt",  # type: ignore[arg-type]
             )
         except Exception:
             # Some tokenizers (e.g. gpt2) do not define `chat_template`.
