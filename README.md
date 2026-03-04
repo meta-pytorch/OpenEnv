@@ -294,6 +294,25 @@ Supporters include: Meta-PyTorch, Hugging Face, [Patronus AI](https://patronus.a
 
 And we'd also like to acknowledge the team at Farama Foundation as the OpenEnv API was heavily inspired by the work you all have done on Gymnasium. Cheers!
 
+## Fleet Telemetry
+
+`FleetTaskEnv` emits Logfire events to track rollout lifecycle. Every `fleet_rollout_started` gets a matching `fleet_rollout_completed` with a `failure_reason`:
+
+```
+started = completed + init_err + tools_err + no_computer + max_steps + abandoned
+```
+
+| `failure_reason` | When |
+|---|---|
+| *(null)* | Rollout completed normally (verifier ran) |
+| `init_error` | Fleet provisioning failed |
+| `tools_error` | `list_tools()` MCP call failed |
+| `computer_tool_missing` | CUA modality but no `computer` tool |
+| `max_steps` | Caller hit turn limit without running verifier |
+| `abandoned` | Caller stopped early (context overflow, job cancelled, crash) |
+
+Set `LOGFIRE_TOKEN` to enable. Events include `step_count`, `reward`, `verifier_success`, and task context (env_key, version, modality).
+
 ## License
 
 BSD 3-Clause License (see [LICENSE](./LICENSE) file)
