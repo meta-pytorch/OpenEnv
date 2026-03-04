@@ -77,6 +77,8 @@ cd .worktrees/add-feature
 /simplify           →  Refactor (optional)
     ↓
 /pre-submit-pr      →  Validate before PR
+    ↓
+/watch-pr           →  Monitor CI + review (optional)
 ```
 
 ### Skills vs Agents
@@ -106,6 +108,7 @@ Skills are defined in `.claude/skills/` and run inline:
 | [`implement`](.claude/skills/implement/SKILL.md) | "/implement" | Make tests pass (Green phase) |
 | [`update-docs`](.claude/skills/update-docs/SKILL.md) | "/update-docs" | Fix stale docs after API changes |
 | [`simplify`](.claude/skills/simplify/SKILL.md) | "/simplify" | Refactor after tests pass |
+| [`watch-pr`](.claude/skills/watch-pr/SKILL.md) | "/watch-pr" | Monitor CI + Greptile review after PR |
 
 ### Available Subagents
 
@@ -213,6 +216,7 @@ bash .claude/hooks/lint.sh          # Run ruff format check
 bash .claude/hooks/test.sh          # Run pytest (excludes special envs)
 bash .claude/hooks/check-debug.sh   # Find debug code (print, breakpoint, TODO)
 bash .claude/hooks/post-push-pr.sh  # Validate PR after push (freshness, CI, conflicts)
+bash .claude/hooks/ci-wait.sh <PR>  # Poll CI until checks complete or timeout
 ```
 
 These are automatically invoked by `/alignment-review` and `/pre-submit-pr` skills.
