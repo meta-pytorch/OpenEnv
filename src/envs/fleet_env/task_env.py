@@ -8,6 +8,7 @@ This module provides a task-oriented wrapper around FleetEnvClient that:
 4. Executes verifier for reward on episode completion
 """
 
+import asyncio
 import logging
 import os
 from typing import Any, Dict, List, Optional, Tuple
@@ -286,7 +287,7 @@ class FleetTaskEnv:
                 saved_timeout = self._orch._timeout
                 self._orch._timeout = self.reset_timeout_s
                 try:
-                    reset_result = self._orch.reset()
+                    reset_result = await self._orch.reset_async()
                     reset_metadata = (
                         reset_result.observation.metadata if reset_result else {}
                     )
@@ -559,8 +560,9 @@ class FleetTaskEnv:
                         verifier_func=verifier_code,
                     )
 
-                    # Execute verifier via Fleet SDK (handles namespace setup, Environment type, etc.)
-                    response = fleet_task.verify_detailed(fleet_env)
+                    # Execute verifier in a thread to avoid blocking the event loop.
+                    # verify_detailed() does sync HTTP calls internally.
+                    response = await asyncio.to_thread(fleet_task.verify_detailed, fleet_env)
 
                     # Extract result from response
                     # response.success is bool, response.result is the verifier's return value (0.0 or 1.0)
@@ -637,6 +639,34 @@ class FleetTaskEnv:
                     pass  # Expected when instance TTL expired
         finally:
             # Always cleanup state, even if telemetry fails
+            self._orch = None
+            self._tools = None
+            self._tools_cache = None
+            self._done = True
+            self._rollout_started = False
+            clear_task_context()
+
+    async def close_async(self):
+        """Async close — avoids blocking the event loop on Fleet instance termination."""
+        try:
+            if self._rollout_started and not self._rollout_completed_emitted:
+                stop_reason = "max_steps" if self._step_count >= self.max_steps else "abandoned"
+                fleet_info(
+                    "fleet_rollout_completed",
+                    step_count=self._step_count,
+                    max_steps=self.max_steps,
+                    reward=0.0,
+                    verifier_success=False,
+                    failure_reason=stop_reason,
+                )
+                self._rollout_completed_emitted = True
+
+            if self._orch:
+                try:
+                    await self._orch.close_async()
+                except Exception:
+                    pass  # Expected when instance TTL expired
+        finally:
             self._orch = None
             self._tools = None
             self._tools_cache = None

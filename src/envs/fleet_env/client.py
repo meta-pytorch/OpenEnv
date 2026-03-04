@@ -178,18 +178,18 @@ class FleetEnvClient(HTTPEnvClient[Action, Observation]):
     ) -> Tuple["FleetEnvClient", FleetMCPTools]:
         """Async version of from_fleet() — does not block the event loop.
 
-        Runs sync Fleet.make() in a thread pool via asyncio.to_thread() to
-        guarantee non-blocking behavior regardless of Fleet SDK internals.
+        Uses AsyncFleet.make() for provisioning and asyncio.sleep() for retries,
+        allowing other async trajectories to progress while waiting.
         """
         try:
-            from fleet import Fleet
+            from fleet._async import AsyncFleet
         except ImportError as e:
             raise ImportError(
                 "Fleet support requires the optional dependency set. "
                 "Install with `pip install openenv[fleet]`."
             ) from e
 
-        fleet = Fleet(api_key=api_key)
+        async_fleet = AsyncFleet(api_key=api_key)
 
         # Fleet SDK expects data_key in "key:version" format
         data_key_spec = None
@@ -217,10 +217,7 @@ class FleetEnvClient(HTTPEnvClient[Action, Observation]):
 
         for attempt in range(max_retries):
             try:
-                # Run sync Fleet.make() in a thread to avoid blocking the event loop.
-                # AsyncFleet.make() was not truly non-blocking (confirmed via diagnostics).
-                env = await asyncio.to_thread(
-                    fleet.make,
+                env = await async_fleet.make(
                     env_key=env_key,
                     region=region,
                     ttl_seconds=ttl_seconds,
@@ -239,7 +236,7 @@ class FleetEnvClient(HTTPEnvClient[Action, Observation]):
                 if attempt < max_retries - 1 and is_transient:
                     delay = retry_base_delay * (2**attempt)
                     _logger.warning(
-                        f"[env={env_key}] Fleet.make() failed (attempt {attempt + 1}/{max_retries}): {e}. "
+                        f"[env={env_key}] AsyncFleet.make() failed (attempt {attempt + 1}/{max_retries}): {e}. "
                         f"Retrying in {delay:.1f}s..."
                     )
                     fleet_warning(
@@ -253,7 +250,7 @@ class FleetEnvClient(HTTPEnvClient[Action, Observation]):
                     await asyncio.sleep(delay)
                 else:
                     _logger.error(
-                        f"[env={env_key}] Fleet.make() failed after {attempt + 1} attempt(s): {e}"
+                        f"[env={env_key}] AsyncFleet.make() failed after {attempt + 1} attempt(s): {e}"
                     )
                     fleet_error(
                         "fleet_make_failed",
@@ -339,3 +336,13 @@ class FleetEnvClient(HTTPEnvClient[Action, Observation]):
         if self._fleet_env:
             self._fleet_env.close()
         super().close()
+
+    async def close_async(self) -> None:
+        """Async close — runs sync Fleet close in a thread to avoid blocking the event loop."""
+        if self._fleet_env:
+            await asyncio.to_thread(self._fleet_env.close)
+        super().close()
+
+    async def reset_async(self) -> "StepResult":
+        """Async reset — runs sync HTTP reset in a thread to avoid blocking the event loop."""
+        return await asyncio.to_thread(self.reset)
