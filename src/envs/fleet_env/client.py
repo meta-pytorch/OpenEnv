@@ -8,7 +8,6 @@
 
 import asyncio
 import dataclasses
-import os
 from contextlib import suppress
 from typing import Any, Dict, Optional, Tuple, Type
 
@@ -220,40 +219,20 @@ class FleetEnvClient(HTTPEnvClient[Action, Observation]):
                 # Fleet SDK expects image_type=None for standard images
                 sdk_image_type = image_type if image_type == "mcp" else None
 
-                # --- DEBUG MODE (simple) ---
-                # Set FLEET_DEBUG_MAKE_HEARTBEAT=1 to print a line every 10s while awaiting make().
-                debug_heartbeat = os.environ.get("FLEET_DEBUG_MAKE_HEARTBEAT", "") == "1"
-                hb_interval_s = float(os.environ.get("FLEET_DEBUG_HEARTBEAT_INTERVAL_S", "10"))
-                hb_max_ticks = int(os.environ.get("FLEET_DEBUG_HEARTBEAT_MAX_TICKS", "120"))
-
-                async def _debug_tick_loop(tag: str) -> None:
-                    # Keep this minimal: no extra imports, just sleep + log.
-                    for tick in range(1, hb_max_ticks + 1):
-                        await asyncio.sleep(hb_interval_s)
+                # THROWAWAY DEBUG: do NOT call AsyncFleet.make(). Just print every 10s.
+                # If these logs stop, your event loop / process is blocked.
+                async def _tick_forever() -> None:
+                    tick = 0
+                    while True:
+                        tick += 1
                         _logger.info(
-                            f"{tag}: tick={tick} interval_s={hb_interval_s} "
+                            f"debug_make_disabled tick={tick} "
                             f"env_key={env_key} region={region} ttl_seconds={ttl_seconds} image_type={image_type} "
                             f"data_key={data_key_spec} attempt={attempt + 1}/{max_retries}"
                         )
+                        await asyncio.sleep(10)
 
-                hb_task: Optional[asyncio.Task] = None
-                try:
-                    if debug_heartbeat:
-                        _logger.info(
-                            "FLEET_DEBUG_MAKE_HEARTBEAT=1: AsyncFleet.make() is disabled on this debug branch; "
-                            f"printing every {hb_interval_s}s for up to {hb_max_ticks} ticks"
-                        )
-                        hb_task = asyncio.create_task(_debug_tick_loop("fleet.make(heartbeat)"))
-
-                    # NOTE: AsyncFleet.make() intentionally removed on this throwaway debug branch.
-                    # We only run the heartbeat to verify that the event loop is not blocked.
-                    await _debug_tick_loop("fleet.make(disabled)")
-                    raise RuntimeError("AsyncFleet.make() disabled for debugging (throwaway branch)")
-                finally:
-                    if hb_task is not None:
-                        hb_task.cancel()
-                        with suppress(asyncio.CancelledError):
-                            await hb_task
+                await _tick_forever()
                 break  # Success
             except Exception as e:
                 error_msg = str(e)
