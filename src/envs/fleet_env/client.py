@@ -221,9 +221,7 @@ class FleetEnvClient(HTTPEnvClient[Action, Observation]):
                 sdk_image_type = image_type if image_type == "mcp" else None
 
                 # --- DEBUG MODE (simple) ---
-                # Set FLEET_DEBUG_SKIP_MAKE=1 to completely skip calling async_fleet.make().
                 # Set FLEET_DEBUG_MAKE_HEARTBEAT=1 to print a line every 10s while awaiting make().
-                debug_skip_make = os.environ.get("FLEET_DEBUG_SKIP_MAKE", "") == "1"
                 debug_heartbeat = os.environ.get("FLEET_DEBUG_MAKE_HEARTBEAT", "") == "1"
                 hb_interval_s = float(os.environ.get("FLEET_DEBUG_HEARTBEAT_INTERVAL_S", "10"))
                 hb_max_ticks = int(os.environ.get("FLEET_DEBUG_HEARTBEAT_MAX_TICKS", "120"))
@@ -238,32 +236,19 @@ class FleetEnvClient(HTTPEnvClient[Action, Observation]):
                             f"data_key={data_key_spec} attempt={attempt + 1}/{max_retries}"
                         )
 
-                if debug_skip_make:
-                    _logger.warning(
-                        "FLEET_DEBUG_SKIP_MAKE=1: NOT calling AsyncFleet.make(); "
-                        f"printing every {hb_interval_s}s for up to {hb_max_ticks} ticks"
-                    )
-                    await _debug_tick_loop("fleet.make(skipped)")
-                    raise RuntimeError(
-                        "FLEET_DEBUG_SKIP_MAKE=1: completed tick loop; make() was intentionally skipped"
-                    )
-
                 hb_task: Optional[asyncio.Task] = None
                 try:
                     if debug_heartbeat:
                         _logger.info(
-                            f"FLEET_DEBUG_MAKE_HEARTBEAT=1: starting {hb_interval_s}s heartbeat while awaiting AsyncFleet.make()"
+                            "FLEET_DEBUG_MAKE_HEARTBEAT=1: AsyncFleet.make() is disabled on this debug branch; "
+                            f"printing every {hb_interval_s}s for up to {hb_max_ticks} ticks"
                         )
                         hb_task = asyncio.create_task(_debug_tick_loop("fleet.make(heartbeat)"))
 
-                    async_env = await async_fleet.make(
-                        env_key=env_key,
-                        region=region,
-                        ttl_seconds=ttl_seconds,
-                        env_variables=env_variables,
-                        image_type=sdk_image_type,
-                        data_key=data_key_spec,
-                    )
+                    # NOTE: AsyncFleet.make() intentionally removed on this throwaway debug branch.
+                    # We only run the heartbeat to verify that the event loop is not blocked.
+                    await _debug_tick_loop("fleet.make(disabled)")
+                    raise RuntimeError("AsyncFleet.make() disabled for debugging (throwaway branch)")
                 finally:
                     if hb_task is not None:
                         hb_task.cancel()
