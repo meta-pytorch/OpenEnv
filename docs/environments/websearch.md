@@ -1,2 +1,2 @@
---8<-- "../../envs/websearch_env/README.md"
-
+```{include} ../../../envs/websearch_env/README.md
+```
