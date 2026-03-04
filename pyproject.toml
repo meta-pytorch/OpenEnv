@@ -26,7 +26,7 @@ dependencies = [
     "tomli-w>=1.2.0",
     "websockets>=15.0.1",
     # MCP support
-    "fastmcp>=2.0.0",
+    "fastmcp>=3.0.0",
     # Web UI dependencies
     "gradio>=4.0.0",
 ]
