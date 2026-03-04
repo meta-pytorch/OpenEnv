@@ -73,7 +73,7 @@ class FleetTaskEnv:
             - task_modality: "tool_use" or "computer_use"
         api_key: Fleet API key (defaults to FLEET_API_KEY env var)
         ttl_seconds: Instance TTL in seconds. If None, auto-selects based on
-            modality: 1800s (30 min) for computer_use, 600s (10 min) for tool_use.
+            modality: 1800s (30 min) for computer_use, 900s (15 min) for tool_use.
         max_steps: Maximum steps per episode (default: 50)
         request_timeout_s: HTTP request timeout in seconds (default: 60.0)
 
@@ -108,7 +108,7 @@ class FleetTaskEnv:
         elif self.modality == "computer_use":
             self.ttl_seconds = 1800  # 30 min — CUA rollouts are slow (browser + inference)
         else:
-            self.ttl_seconds = 600   # 10 min — tool_use rollouts are fast (API calls only)
+            self.ttl_seconds = 900   # 15 min — tool_use rollouts need headroom for retries
         self.max_steps = max_steps
         self.request_timeout_s = request_timeout_s
         self.reset_timeout_s = reset_timeout_s
