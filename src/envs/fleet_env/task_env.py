@@ -122,7 +122,6 @@ class FleetTaskEnv:
         self._done = False
         self._rollout_completed_emitted = False
         self._rollout_started = False
-        self._last_tool_error: Optional[str] = None
         self._tools_cache: Optional[List[Dict]] = None
 
         # Set telemetry context so init failures are tracked with full context
@@ -259,7 +258,6 @@ class FleetTaskEnv:
         fleet_info("fleet_rollout_started")
         self._rollout_started = True
         self._rollout_completed_emitted = False
-        self._last_tool_error = None
 
         # Provision Fleet env (async, non-blocking) on first call
         try:
@@ -481,7 +479,6 @@ class FleetTaskEnv:
             except Exception as e:
                 info["tool_error"] = str(e)
                 tool_result = {"error": str(e)}
-                self._last_tool_error = str(e)[:200]
                 logger.warning(
                     f"[env={self.env_key}:{self.env_version}] step {self._step_count}/{self.max_steps} "
                     f"tool_call_failed: {tool_name}() -> {type(e).__name__}: {str(e)[:200]}"
@@ -618,17 +615,11 @@ class FleetTaskEnv:
         context overflow, job cancellation, TTL expiry).
         """
         try:
-            # Emit rollout_completed for orphaned rollouts (started but never completed)
+            # Emit rollout_completed for orphaned rollouts (started but never completed).
+            # This happens when the caller (SkyRL) stops without telling us why:
+            # max_turns hit, context overflow, job cancellation, etc.
             if self._rollout_started and not self._rollout_completed_emitted:
-                # Infer stop reason from state
-                if self._step_count >= self.max_steps:
-                    stop_reason = "max_steps"
-                elif self._last_tool_error:
-                    stop_reason = "tool_error"
-                elif self._step_count > 0:
-                    stop_reason = "caller_stopped"
-                else:
-                    stop_reason = "cancelled"
+                stop_reason = "max_steps" if self._step_count >= self.max_steps else "abandoned"
                 fleet_info(
                     "fleet_rollout_completed",
                     step_count=self._step_count,
@@ -636,7 +627,6 @@ class FleetTaskEnv:
                     reward=0.0,
                     verifier_success=False,
                     failure_reason=stop_reason,
-                    error_message=self._last_tool_error,
                 )
                 self._rollout_completed_emitted = True
 
