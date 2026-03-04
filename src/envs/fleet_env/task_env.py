@@ -120,6 +120,9 @@ class FleetTaskEnv:
 
         self._step_count = 0
         self._done = False
+        self._rollout_completed_emitted = False
+        self._rollout_started = False
+        self._last_tool_error: Optional[str] = None
         self._tools_cache: Optional[List[Dict]] = None
 
         # Set telemetry context so init failures are tracked with full context
@@ -254,6 +257,9 @@ class FleetTaskEnv:
         # Count this rollout attempt immediately — even if provisioning fails,
         # it's still a rollout attempt (e.g., fostgres health check failures).
         fleet_info("fleet_rollout_started")
+        self._rollout_started = True
+        self._rollout_completed_emitted = False
+        self._last_tool_error = None
 
         # Provision Fleet env (async, non-blocking) on first call
         try:
@@ -267,6 +273,7 @@ class FleetTaskEnv:
                 verifier_success=False,
                 failure_reason="init_error",
             )
+            self._rollout_completed_emitted = True
             raise
 
         # Reset episode state
@@ -315,6 +322,7 @@ class FleetTaskEnv:
                 failure_reason="tools_error",
                 error_message=str(e)[:200],
             )
+            self._rollout_completed_emitted = True
             raise
 
         # Filter tools based on modality:
@@ -349,6 +357,7 @@ class FleetTaskEnv:
                     failure_reason="computer_tool_missing",
                     available_tools=available,
                 )
+                self._rollout_completed_emitted = True
                 raise RuntimeError(
                     f"computer_use modality but no 'computer' tool found. "
                     f"Available tools: {available}. Check MCP image configuration."
@@ -364,6 +373,7 @@ class FleetTaskEnv:
                 failure_reason="tools_error",
                 error_message="No tools available after modality filtering",
             )
+            self._rollout_completed_emitted = True
             raise RuntimeError("No tools available after filtering")
 
         # Build observation with cached tools
@@ -471,6 +481,7 @@ class FleetTaskEnv:
             except Exception as e:
                 info["tool_error"] = str(e)
                 tool_result = {"error": str(e)}
+                self._last_tool_error = str(e)[:200]
                 logger.warning(
                     f"[env={self.env_key}:{self.env_version}] step {self._step_count}/{self.max_steps} "
                     f"tool_call_failed: {tool_name}() -> {type(e).__name__}: {str(e)[:200]}"
@@ -596,11 +607,39 @@ class FleetTaskEnv:
             verifier_success=verifier_success,
             failure_reason=failure_reason,
         )
+        self._rollout_completed_emitted = True
         return score
 
     def close(self):
-        """Close the environment and cleanup resources."""
+        """Close the environment and cleanup resources.
+
+        Emits fleet_rollout_completed if a rollout was started but never
+        completed (e.g., caller hit max_turns and stopped without telling us,
+        context overflow, job cancellation, TTL expiry).
+        """
         try:
+            # Emit rollout_completed for orphaned rollouts (started but never completed)
+            if self._rollout_started and not self._rollout_completed_emitted:
+                # Infer stop reason from state
+                if self._step_count >= self.max_steps:
+                    stop_reason = "max_steps"
+                elif self._last_tool_error:
+                    stop_reason = "tool_error"
+                elif self._step_count > 0:
+                    stop_reason = "caller_stopped"
+                else:
+                    stop_reason = "cancelled"
+                fleet_info(
+                    "fleet_rollout_completed",
+                    step_count=self._step_count,
+                    max_steps=self.max_steps,
+                    reward=0.0,
+                    verifier_success=False,
+                    failure_reason=stop_reason,
+                    error_message=self._last_tool_error,
+                )
+                self._rollout_completed_emitted = True
+
             if self._orch:
                 try:
                     self._orch.close()
@@ -612,6 +651,7 @@ class FleetTaskEnv:
             self._tools = None
             self._tools_cache = None
             self._done = True
+            self._rollout_started = False
             clear_task_context()
 
     def __enter__(self):
