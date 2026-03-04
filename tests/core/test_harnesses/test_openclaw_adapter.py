@@ -11,7 +11,6 @@ import json
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-
 from openenv.core.harnesses import HarnessConfig, HarnessEventType, HarnessTransport
 from openenv.core.harnesses.adapters.openclaw import OpenClawAdapter
 

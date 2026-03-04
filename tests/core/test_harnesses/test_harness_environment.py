@@ -10,7 +10,7 @@ import time
 from typing import AsyncIterator, List
 
 import pytest
-
+from openenv.core.env_server.types import Observation
 from openenv.core.harnesses import (
     HarnessAction,
     HarnessAdapter,
@@ -19,7 +19,6 @@ from openenv.core.harnesses import (
     HarnessEventType,
     HarnessResponse,
 )
-from openenv.core.env_server.types import Observation
 
 
 # =============================================================================
@@ -115,8 +114,8 @@ class TestHarnessEnvironmentImport:
         assert HarnessEnvironment is not None
 
     def test_inherits_from_environment(self):
-        from openenv.core.harnesses import HarnessEnvironment
         from openenv.core.env_server.interfaces import Environment
+        from openenv.core.harnesses import HarnessEnvironment
 
         assert issubclass(HarnessEnvironment, Environment)
 

@@ -9,17 +9,17 @@
 See RFC 005 for full design: rfcs/005-agentic-harnesses.md
 """
 
-from openenv.core.harnesses.types import (
-    HarnessTransport,
-    HarnessEventType,
-    HarnessEvent,
-    HarnessResponse,
-    HarnessConfig,
-    HarnessAction,
-)
 from openenv.core.harnesses.adapter import HarnessAdapter
 from openenv.core.harnesses.environment import HarnessEnvironment
 from openenv.core.harnesses.tools import resolve_tool_conflicts
+from openenv.core.harnesses.types import (
+    HarnessAction,
+    HarnessConfig,
+    HarnessEvent,
+    HarnessEventType,
+    HarnessResponse,
+    HarnessTransport,
+)
 
 __all__ = [
     # Enums

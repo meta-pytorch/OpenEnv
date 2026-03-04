@@ -128,9 +128,9 @@ class TestHarnessResponse:
 
     def test_creation_with_events(self):
         from openenv.core.harnesses import (
-            HarnessResponse,
             HarnessEvent,
             HarnessEventType,
+            HarnessResponse,
         )
 
         events = [
@@ -246,8 +246,8 @@ class TestHarnessAction:
         assert action.message == "Fix the bug in auth.py"
 
     def test_inherits_from_action(self):
-        from openenv.core.harnesses import HarnessAction
         from openenv.core.env_server.types import Action
+        from openenv.core.harnesses import HarnessAction
 
         action = HarnessAction(message="hello")
         assert isinstance(action, Action)
@@ -275,8 +275,8 @@ class TestToolConflictResolution:
     """Tests for resolve_tool_conflicts utility."""
 
     def test_no_conflicts(self):
-        from openenv.core.harnesses import resolve_tool_conflicts
         from openenv.core.env_server.mcp_types import Tool
+        from openenv.core.harnesses import resolve_tool_conflicts
 
         env_tools = [
             Tool(name="query_db", description="Query DB", input_schema={}),
@@ -286,8 +286,8 @@ class TestToolConflictResolution:
         assert resolved[0].name == "query_db"
 
     def test_conflict_adds_prefix(self):
-        from openenv.core.harnesses import resolve_tool_conflicts
         from openenv.core.env_server.mcp_types import Tool
+        from openenv.core.harnesses import resolve_tool_conflicts
 
         env_tools = [
             Tool(name="read_file", description="Read a file", input_schema={}),
@@ -297,8 +297,8 @@ class TestToolConflictResolution:
         assert resolved[0].name == "env_read_file"
 
     def test_mixed_conflicts(self):
-        from openenv.core.harnesses import resolve_tool_conflicts
         from openenv.core.env_server.mcp_types import Tool
+        from openenv.core.harnesses import resolve_tool_conflicts
 
         env_tools = [
             Tool(name="read_file", description="Read", input_schema={}),
@@ -320,8 +320,8 @@ class TestToolConflictResolution:
         assert resolved == []
 
     def test_empty_builtin_tools(self):
-        from openenv.core.harnesses import resolve_tool_conflicts
         from openenv.core.env_server.mcp_types import Tool
+        from openenv.core.harnesses import resolve_tool_conflicts
 
         env_tools = [
             Tool(name="my_tool", description="Test", input_schema={}),
@@ -351,13 +351,14 @@ class TestHarnessAdapterABC:
             IncompleteAdapter(config=config)
 
     def test_concrete_subclass_works(self):
+        from typing import AsyncIterator
+
         from openenv.core.harnesses import (
             HarnessAdapter,
             HarnessConfig,
-            HarnessResponse,
             HarnessEvent,
+            HarnessResponse,
         )
-        from typing import AsyncIterator
 
         class MockAdapter(HarnessAdapter):
             async def start(self, working_directory: str) -> None:
