@@ -178,11 +178,10 @@ class FleetEnvClient(HTTPEnvClient[Action, Observation]):
     ) -> Tuple["FleetEnvClient", FleetMCPTools]:
         """Async version of from_fleet() — does not block the event loop.
 
-        Uses AsyncFleet.make() for provisioning and asyncio.sleep() for retries,
-        allowing other async trajectories to progress while waiting.
+        Runs sync Fleet.make() in a thread pool via asyncio.to_thread() to
+        guarantee non-blocking behavior regardless of Fleet SDK internals.
         """
         try:
-            from fleet._async import AsyncFleet
             from fleet import Fleet
         except ImportError as e:
             raise ImportError(
@@ -190,7 +189,7 @@ class FleetEnvClient(HTTPEnvClient[Action, Observation]):
                 "Install with `pip install openenv[fleet]`."
             ) from e
 
-        async_fleet = AsyncFleet(api_key=api_key)
+        fleet = Fleet(api_key=api_key)
 
         # Fleet SDK expects data_key in "key:version" format
         data_key_spec = None
@@ -211,13 +210,17 @@ class FleetEnvClient(HTTPEnvClient[Action, Observation]):
         # Retry logic with async sleep (non-blocking)
         max_retries = 3
         retry_base_delay = 2.0  # seconds
-        async_env = None
+        env = None
+
+        # Fleet SDK expects image_type=None for standard images
+        sdk_image_type = image_type if image_type == "mcp" else None
 
         for attempt in range(max_retries):
             try:
-                # Fleet SDK expects image_type=None for standard images
-                sdk_image_type = image_type if image_type == "mcp" else None
-                async_env = await async_fleet.make(
+                # Run sync Fleet.make() in a thread to avoid blocking the event loop.
+                # AsyncFleet.make() was not truly non-blocking (confirmed via diagnostics).
+                env = await asyncio.to_thread(
+                    fleet.make,
                     env_key=env_key,
                     region=region,
                     ttl_seconds=ttl_seconds,
@@ -236,7 +239,7 @@ class FleetEnvClient(HTTPEnvClient[Action, Observation]):
                 if attempt < max_retries - 1 and is_transient:
                     delay = retry_base_delay * (2**attempt)
                     _logger.warning(
-                        f"[env={env_key}] AsyncFleet.make() failed (attempt {attempt + 1}/{max_retries}): {e}. "
+                        f"[env={env_key}] Fleet.make() failed (attempt {attempt + 1}/{max_retries}): {e}. "
                         f"Retrying in {delay:.1f}s..."
                     )
                     fleet_warning(
@@ -250,7 +253,7 @@ class FleetEnvClient(HTTPEnvClient[Action, Observation]):
                     await asyncio.sleep(delay)
                 else:
                     _logger.error(
-                        f"[env={env_key}] AsyncFleet.make() failed after {attempt + 1} attempt(s): {e}"
+                        f"[env={env_key}] Fleet.make() failed after {attempt + 1} attempt(s): {e}"
                     )
                     fleet_error(
                         "fleet_make_failed",
@@ -262,7 +265,7 @@ class FleetEnvClient(HTTPEnvClient[Action, Observation]):
                     raise
 
         elapsed = time.time() - start
-        instance_id = getattr(async_env, "instance_id", "unknown")
+        instance_id = getattr(env, "instance_id", "unknown")
         _logger.info(f"Fleet instance ready (async) in {elapsed:.1f}s: {instance_id}")
         fleet_info(
             "fleet_provisioning_completed",
@@ -270,21 +273,7 @@ class FleetEnvClient(HTTPEnvClient[Action, Observation]):
             instance_id=instance_id,
         )
 
-        # Get a sync env handle for close() and verify_detailed() compatibility.
-        # This is a fast GET request (~100ms), not a provisioning call.
-        try:
-            sync_fleet = Fleet(api_key=api_key)
-            sync_env = sync_fleet.instance(instance_id)
-        except Exception as e:
-            # Clean up the async instance we just created
-            _logger.error(f"[env={env_key}] Failed to get sync handle for {instance_id}: {e}")
-            try:
-                await async_env.close()
-            except Exception:
-                pass
-            raise
-
-        root = async_env.urls.root
+        root = env.urls.root
         # Pick MCP endpoint based on modality:
         # - computer_use (image_type="mcp"): aggregator on port 8081 (has computer tool + API tools)
         # - tool_use: per-env MCP server on port 3003 (API tools only)
@@ -294,8 +283,8 @@ class FleetEnvClient(HTTPEnvClient[Action, Observation]):
             mcp_urls = (f"{root}mcp",)
 
         orch = cls(
-            base_url=async_env.urls.manager.api,
-            fleet_env_handle=sync_env,
+            base_url=env.urls.manager.api,
+            fleet_env_handle=env,
             api_key=api_key,
             mcp_urls=mcp_urls,
             **kwargs,
