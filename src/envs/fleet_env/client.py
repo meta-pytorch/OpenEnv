@@ -8,6 +8,8 @@
 
 import asyncio
 import dataclasses
+import os
+from contextlib import suppress
 from typing import Any, Dict, Optional, Tuple, Type
 
 try:
@@ -217,14 +219,67 @@ class FleetEnvClient(HTTPEnvClient[Action, Observation]):
             try:
                 # Fleet SDK expects image_type=None for standard images
                 sdk_image_type = image_type if image_type == "mcp" else None
-                async_env = await async_fleet.make(
-                    env_key=env_key,
-                    region=region,
-                    ttl_seconds=ttl_seconds,
-                    env_variables=env_variables,
-                    image_type=sdk_image_type,
-                    data_key=data_key_spec,
+
+                # Debug instrumentation: heartbeat while (potentially) waiting in AsyncFleet.make().
+                # If the heartbeat stops printing, something on the call path is blocking the event loop.
+                debug_heartbeat = os.environ.get("FLEET_DEBUG_MAKE_HEARTBEAT", "") == "1"
+                debug_skip_make = os.environ.get("FLEET_DEBUG_SKIP_MAKE", "") == "1"
+                hb_interval_s = float(
+                    os.environ.get("FLEET_DEBUG_MAKE_HEARTBEAT_INTERVAL_S", "10")
                 )
+                hb_max_ticks = int(
+                    os.environ.get("FLEET_DEBUG_MAKE_HEARTBEAT_MAX_TICKS", "120")
+                )
+
+                hb_task: Optional[asyncio.Task] = None
+
+                async def _heartbeat() -> None:
+                    import time
+
+                    start_mono = time.monotonic()
+                    tick = 0
+                    # Emit immediately so we always see at least one line
+                    _logger.info(
+                        "fleet.make heartbeat: tick=0 "
+                        f"elapsed_s=0 env_key={env_key} region={region} ttl_seconds={ttl_seconds} "
+                        f"image_type={image_type} data_key={data_key_spec} attempt={attempt + 1}/{max_retries}"
+                    )
+                    while tick < hb_max_ticks:
+                        await asyncio.sleep(hb_interval_s)
+                        tick += 1
+                        elapsed = time.monotonic() - start_mono
+                        _logger.info(
+                            f"fleet.make heartbeat: tick={tick} "
+                            f"elapsed_s={elapsed:.1f} env_key={env_key} region={region} ttl_seconds={ttl_seconds} "
+                            f"image_type={image_type} data_key={data_key_spec} attempt={attempt + 1}/{max_retries}"
+                        )
+
+                try:
+                    if debug_heartbeat:
+                        hb_task = asyncio.create_task(_heartbeat())
+
+                    if debug_skip_make:
+                        # Intentionally skip the provisioning request and just run the heartbeat
+                        # to prove logs arrive every N seconds without blocking.
+                        if not debug_heartbeat:
+                            await _heartbeat()
+                        raise RuntimeError(
+                            "FLEET_DEBUG_SKIP_MAKE=1: skipping AsyncFleet.make() for debugging"
+                        )
+
+                    async_env = await async_fleet.make(
+                        env_key=env_key,
+                        region=region,
+                        ttl_seconds=ttl_seconds,
+                        env_variables=env_variables,
+                        image_type=sdk_image_type,
+                        data_key=data_key_spec,
+                    )
+                finally:
+                    if hb_task is not None:
+                        hb_task.cancel()
+                        with suppress(asyncio.CancelledError):
+                            await hb_task
                 break  # Success
             except Exception as e:
                 error_msg = str(e)
