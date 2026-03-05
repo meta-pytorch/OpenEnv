@@ -38,9 +38,9 @@ while true; do
     if [[ "$CHECK_COUNT" -eq 0 ]]; then
         echo "[$(date +%H:%M:%S)] No CI checks found yet. Waiting..."
     else
-        PENDING=$(echo "$PR_JSON" | jq '[.statusCheckRollup[] | select(.status != "COMPLETED")] | length')
-        FAILED_CHECKS=$(echo "$PR_JSON" | jq '[.statusCheckRollup[] | select(.conclusion == "FAILURE")] | length')
-        PASSED_CHECKS=$(echo "$PR_JSON" | jq '[.statusCheckRollup[] | select(.conclusion == "SUCCESS")] | length')
+        PENDING=$(echo "$PR_JSON" | jq '[.statusCheckRollup[] | select(.status != "COMPLETED")] | length' 2>/dev/null || echo "0")
+        FAILED_CHECKS=$(echo "$PR_JSON" | jq '[.statusCheckRollup[] | select(.conclusion == "FAILURE")] | length' 2>/dev/null || echo "0")
+        PASSED_CHECKS=$(echo "$PR_JSON" | jq '[.statusCheckRollup[] | select(.conclusion == "SUCCESS")] | length' 2>/dev/null || echo "0")
 
         echo "[$(date +%H:%M:%S)] Checks: $PASSED_CHECKS passed, $FAILED_CHECKS failed, $PENDING pending (of $CHECK_COUNT)"
 
@@ -54,6 +54,15 @@ while true; do
                 echo ""
                 echo "Failed checks:"
                 echo "$PR_JSON" | jq -r '.statusCheckRollup[] | select(.conclusion == "FAILURE") | "  - \(.name)"'
+                echo ""
+                exit 1
+            elif [[ "$PASSED_CHECKS" -ne "$CHECK_COUNT" ]]; then
+                echo "==================================================================="
+                echo "  CI INCOMPLETE: $((CHECK_COUNT - PASSED_CHECKS - FAILED_CHECKS)) check(s) cancelled/skipped"
+                echo "==================================================================="
+                echo ""
+                echo "Non-success checks:"
+                echo "$PR_JSON" | jq -r '.statusCheckRollup[] | select(.conclusion != "SUCCESS" and .conclusion != null) | "  - \(.name): \(.conclusion)"'
                 echo ""
                 exit 1
             else

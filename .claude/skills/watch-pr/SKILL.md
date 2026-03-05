@@ -123,33 +123,33 @@ After pushing the fix, CI will re-run. Go back to Step 1.
 
 All CI checks have passed. Now wait for Greptile's code review.
 
-Poll every 120 seconds for up to 30 minutes (max 15 polls). On each poll:
+Poll every 120 seconds for up to 3 hours (max 90 polls). On each poll:
 
 ```bash
-# Check for reviews from greptile-apps
+# Check for reviews from greptile-apps[bot]
 REVIEW_COUNT=$(gh api repos/<REPO>/pulls/<PR_NUMBER>/reviews \
-  --jq '[.[] | select(.user.login == "greptile-apps")] | length')
+  --jq '[.[] | select(.user.login == "greptile-apps[bot]")] | length')
 ```
 
 ```bash
-# Check for line-level comments from greptile-apps
+# Check for line-level comments from greptile-apps[bot]
 COMMENT_COUNT=$(gh api repos/<REPO>/pulls/<PR_NUMBER>/comments \
-  --jq '[.[] | select(.user.login == "greptile-apps")] | length')
+  --jq '[.[] | select(.user.login == "greptile-apps[bot]")] | length')
 ```
 
 **Decision logic:**
 
-- If both counts are 0: print "Waiting for Greptile review... (poll N/15)", sleep 120 seconds, and poll again.
-- If 30-minute timeout reached with no review: go to **Step 5 (DONE)** with note "Greptile review did not arrive within 30 minutes."
+- If both counts are 0: print "Waiting for Greptile review... (poll N/90)", sleep 120 seconds, and poll again.
+- If 3-hour timeout reached with no review: go to **Step 5 (DONE)** with note "Greptile review did not arrive within 3 hours."
 - If review exists, check if actionable:
-  - **Actionable** (go to Step 4): The latest review state is `CHANGES_REQUESTED`, OR there are line-level comments from `greptile-apps`.
+  - **Actionable** (go to Step 4): The latest review state is `CHANGES_REQUESTED`, OR there are line-level comments from `greptile-apps[bot]`.
   - **Not actionable** (go to Step 5): Review state is `APPROVED` or `COMMENTED` with no line-level comments.
 
 To check review state:
 
 ```bash
 gh api repos/<REPO>/pulls/<PR_NUMBER>/reviews \
-  --jq '[.[] | select(.user.login == "greptile-apps")] | last | .state'
+  --jq '[.[] | select(.user.login == "greptile-apps[bot]")] | last | .state'
 ```
 
 ---
@@ -167,14 +167,14 @@ PR: https://github.com/<REPO>/pull/<PR_NUMBER>
 
 ```bash
 gh api repos/<REPO>/pulls/<PR_NUMBER>/reviews \
-  --jq '[.[] | select(.user.login == "greptile-apps")] | last | .body'
+  --jq '[.[] | select(.user.login == "greptile-apps[bot]")] | last | .body'
 ```
 
 **4b. Fetch all line-level comments:**
 
 ```bash
 gh api repos/<REPO>/pulls/<PR_NUMBER>/comments \
-  --jq '[.[] | select(.user.login == "greptile-apps")] | .[] | {id: .id, path: .path, line: .line, body: .body}'
+  --jq '[.[] | select(.user.login == "greptile-apps[bot]")] | .[] | {id: .id, path: .path, line: .line, body: .body}'
 ```
 
 **4c. Address each comment:**
@@ -194,7 +194,27 @@ For each line-level comment:
      -f body="Fixed in latest push."
    ```
 
-**4d. Verify, commit, and push:**
+**4d. Human approval checkpoint:**
+
+Before committing review fixes, present a summary to the user for approval:
+
+```
+## Greptile Review Changes Summary
+
+| # | Comment | Action | File |
+|---|---------|--------|------|
+| 1 | <brief description> | Applied / Declined | <path> |
+| 2 | ... | ... | ... |
+
+Approve these changes before pushing? (y/n)
+```
+
+Use the AskUserQuestion tool to get explicit approval. If the user declines,
+stop and let them handle the review manually.
+
+**4e. Verify, commit, and push:**
+
+After user approval:
 
 ```bash
 bash .claude/hooks/lint.sh && bash .claude/hooks/test.sh
@@ -208,7 +228,7 @@ git commit -m "fix: address Greptile review comments"
 git push
 ```
 
-**4e. Return to Step 1 (WAITING_CI).**
+**4f. Return to Step 1 (WAITING_CI).**
 
 CI will re-run after the push. Go back to Step 1.
 
@@ -252,7 +272,7 @@ If final status is NEEDS ATTENTION (hit iteration limits), explain what remains.
 | Limit | Value | Behavior when exceeded |
 |-------|-------|----------------------|
 | CI fix iterations | 5 | Stop, report failures, ask user |
-| Greptile wait timeout | 30 minutes | Continue without review |
+| Greptile wait timeout | 3 hours | Continue without review |
 | Review fix iterations | 3 | Stop, report outstanding comments |
 
 ## When to Use
