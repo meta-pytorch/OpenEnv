@@ -24,8 +24,8 @@ class InspectAIHarness(EvalHarness):
     message is raised at call time if the dependency is missing.
 
     Args:
-        log_dir: Directory for evaluation log output. Defaults to None.
-        save_results: Whether to persist evaluation logs. Defaults to False.
+        log_dir: Directory for evaluation log output. Defaults to None
+            (Inspect AI writes logs to its default location).
 
     ``eval_parameters`` keys accepted by :meth:`run`:
 
@@ -49,10 +49,8 @@ class InspectAIHarness(EvalHarness):
         self,
         *,
         log_dir: Optional[str] = None,
-        save_results: bool = False,
     ):
         self.log_dir = log_dir
-        self.save_results = save_results
 
     def run(
         self,
@@ -126,6 +124,11 @@ class InspectAIHarness(EvalHarness):
         logs = inspect_eval(task, model=model, **eval_kwargs)
 
         # Extract results from the first log
+        if not logs:
+            raise RuntimeError(
+                "Inspect AI evaluation returned no logs. "
+                "Check that the task and model arguments are valid."
+            )
         log = logs[0]
         if log.status != "success":
             raise RuntimeError(
@@ -137,6 +140,9 @@ class InspectAIHarness(EvalHarness):
     def _extract_scores(self, log: Any) -> Dict[str, Any]:
         """Parse an EvalLog's results into a flat score dictionary.
 
+        Iterates over ``log.results.scores`` (a list of ``EvalScore``),
+        flattening each scorer's ``metrics`` dict into a single output dict.
+
         Args:
             log: An ``inspect_ai`` ``EvalLog`` object.
 
@@ -147,7 +153,8 @@ class InspectAIHarness(EvalHarness):
         if log.results is None:
             return scores
 
-        for metric in log.results.metrics:
-            scores[metric.name] = metric.value
+        for eval_score in log.results.scores:
+            for metric_name, metric in eval_score.metrics.items():
+                scores[metric_name] = metric.value
 
         return scores

@@ -21,11 +21,25 @@ from openenv.core.evals.inspect_harness import InspectAIHarness
 
 
 def _make_mock_metric(name, value):
-    """Build a mock metric object with name and value attributes."""
+    """Build a mock EvalMetric with name and value attributes."""
     metric = MagicMock()
     metric.name = name
     metric.value = value
     return metric
+
+
+def _make_mock_eval_score(metrics):
+    """Build a mock EvalScore with a metrics dict.
+
+    Args:
+        metrics: List of (name, value) tuples.
+
+    Returns:
+        Mock EvalScore with metrics as ``dict[str, EvalMetric]``.
+    """
+    score = MagicMock()
+    score.metrics = {name: _make_mock_metric(name, val) for name, val in metrics}
+    return score
 
 
 def _make_mock_eval_log(*, status="success", metrics=None, results=None):
@@ -33,7 +47,7 @@ def _make_mock_eval_log(*, status="success", metrics=None, results=None):
 
     Args:
         status: Log status string ("success" or "error").
-        metrics: List of (name, value) tuples for metrics.
+        metrics: List of (name, value) tuples for a single scorer.
         results: Override results object (if None, built from metrics).
     """
     log = MagicMock()
@@ -43,7 +57,7 @@ def _make_mock_eval_log(*, status="success", metrics=None, results=None):
         log.results = results
     elif metrics is not None:
         mock_results = MagicMock()
-        mock_results.metrics = [_make_mock_metric(n, v) for n, v in metrics]
+        mock_results.scores = [_make_mock_eval_score(metrics)]
         log.results = mock_results
     else:
         log.results = None
@@ -82,12 +96,10 @@ class TestInspectAIHarnessConstruction:
     def test_default_construction(self):
         harness = InspectAIHarness()
         assert harness.log_dir is None
-        assert harness.save_results is False
 
     def test_custom_construction(self):
-        harness = InspectAIHarness(log_dir="/tmp/logs", save_results=True)
+        harness = InspectAIHarness(log_dir="/tmp/logs")
         assert harness.log_dir == "/tmp/logs"
-        assert harness.save_results is True
 
     def test_name_property(self):
         harness = InspectAIHarness()
@@ -244,6 +256,18 @@ class TestInspectAIHarnessRun:
                     eval_parameters={"model": "openai/gpt-4o"},
                 )
 
+    def test_empty_logs_raises_runtime_error(self):
+        harness = InspectAIHarness()
+        mock_modules, _ = _make_mock_inspect_modules(eval_return=[])
+        with patch.dict(sys.modules, mock_modules):
+            with pytest.raises(RuntimeError, match="returned no logs"):
+                harness.run(
+                    harness_version="0.3.0",
+                    library_versions={},
+                    dataset="mmlu",
+                    eval_parameters={"model": "openai/gpt-4o"},
+                )
+
 
 class TestInspectAIHarnessScoreExtraction:
     """Test _extract_scores() parses EvalLog.results."""
@@ -271,6 +295,7 @@ class TestInspectAIHarnessScoreExtraction:
 
     def test_returns_empty_dict_when_no_metrics(self):
         harness = InspectAIHarness()
+        # An EvalScore with an empty metrics dict
         log = _make_mock_eval_log(metrics=[])
         scores = harness._extract_scores(log)
         assert scores == {}
