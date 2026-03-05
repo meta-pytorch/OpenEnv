@@ -26,16 +26,19 @@ from .grid_world_environment import GridWorldEnvironment
 
 # Create the FastAPI app
 app = create_app(
-    GridWorldEnvironment, 
-    GridWorldAction, 
+    GridWorldEnvironment,
+    GridWorldAction,
     GridWorldObservation,
-    env_name="grid_world_env"
+    env_name="grid_world_env",
 )
 
-#--- 3. Add Entry Point ---
+
+# --- 3. Add Entry Point ---
 def main():
-  import uvicorn
-  uvicorn.run(app, host="0.0.0.0", port=8000)
+    import uvicorn
+
+    uvicorn.run(app, host="0.0.0.0", port=8000)
+
 
 if __name__ == "__main__":
-  main()
+    main()

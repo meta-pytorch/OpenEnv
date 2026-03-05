@@ -13,9 +13,9 @@ This test file verifies that the Rubric base class supports async operations:
 - Integration with async environments
 """
 
-import pytest
 from typing import Any
 
+import pytest
 from openenv.core.rubrics.base import Rubric
 
 

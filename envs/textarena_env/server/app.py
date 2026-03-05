@@ -22,6 +22,7 @@ try:
 except ImportError:
     # When running uvicorn directly from textarena_env/
     from models import TextArenaAction, TextArenaObservation
+
     from .environment import TextArenaEnvironment
     from .gradio_ui import build_textarena_gradio_app
 

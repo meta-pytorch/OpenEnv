@@ -9,7 +9,6 @@
 from typing import Any
 
 import pytest
-
 from openenv.core.llm_client import LLMClient
 from openenv.core.rubrics.base import Rubric
 from openenv.core.rubrics.containers import WeightedSum

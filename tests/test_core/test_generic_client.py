@@ -19,13 +19,12 @@ Tests cover:
 8. AutoAction with skip_install parameter
 """
 
-from unittest.mock import Mock, patch, MagicMock, AsyncMock
+from unittest.mock import AsyncMock, MagicMock, Mock, patch
 
 import pytest
-
-from openenv.core.generic_client import GenericEnvClient, GenericAction
-from openenv.core.sync_client import SyncEnvClient
 from openenv.core.client_types import StepResult
+from openenv.core.generic_client import GenericAction, GenericEnvClient
+from openenv.core.sync_client import SyncEnvClient
 
 
 # ============================================================================
@@ -359,8 +358,8 @@ class TestAutoEnvSkipInstall:
 
     def test_skip_install_false_still_works(self):
         """Test that skip_install=False (default) still works as before."""
-        from openenv.auto.auto_env import AutoEnv
         from openenv.auto._discovery import EnvironmentInfo, reset_discovery
+        from openenv.auto.auto_env import AutoEnv
 
         reset_discovery()
 
@@ -878,8 +877,8 @@ class TestAutoActionSkipInstall:
 
     def test_skip_install_false_still_works(self):
         """Test that skip_install=False (default) still works as before."""
-        from openenv.auto.auto_action import AutoAction
         from openenv.auto._discovery import EnvironmentInfo, reset_discovery
+        from openenv.auto.auto_action import AutoAction
 
         reset_discovery()
 
@@ -924,8 +923,8 @@ class TestAutoEnvAutoActionSkipInstallIntegration:
 
     def test_both_skip_install_returns_generic_types(self):
         """Test that both AutoEnv and AutoAction with skip_install work together."""
-        from openenv.auto.auto_env import AutoEnv
         from openenv.auto.auto_action import AutoAction
+        from openenv.auto.auto_env import AutoEnv
 
         with patch.object(AutoEnv, "_check_server_availability", return_value=True):
             # Get client without installing package
@@ -954,10 +953,11 @@ class TestAutoEnvAutoActionSkipInstallIntegration:
         This documents the expected behavior - if user uses skip_install
         on AutoEnv but not on AutoAction, AutoAction will try to install.
         """
-        from openenv.auto.auto_env import AutoEnv
-        from openenv.auto.auto_action import AutoAction
-        from openenv.auto._discovery import reset_discovery
         import os
+
+        from openenv.auto._discovery import reset_discovery
+        from openenv.auto.auto_action import AutoAction
+        from openenv.auto.auto_env import AutoEnv
 
         reset_discovery()
 

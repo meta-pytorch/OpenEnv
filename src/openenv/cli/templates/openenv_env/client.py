@@ -8,9 +8,9 @@
 
 from typing import Dict
 
+from openenv.core import EnvClient
 from openenv.core.client_types import StepResult
 from openenv.core.env_server.types import State
-from openenv.core import EnvClient
 
 from .models import __ENV_CLASS_NAME__Action, __ENV_CLASS_NAME__Observation
 

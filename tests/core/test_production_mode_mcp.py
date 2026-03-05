@@ -24,8 +24,8 @@ Test coverage:
 - MCP JSON-RPC format compliance
 """
 
-import sys
 import json
+import sys
 from pathlib import Path
 
 import pytest
@@ -36,14 +36,11 @@ from fastapi.testclient import TestClient
 sys.path.insert(0, str(Path(__file__).parent.parent.parent / "src"))
 sys.path.insert(0, str(Path(__file__).parent.parent.parent / "envs"))
 
+from fastmcp import FastMCP
 from openenv.core.env_server.http_server import HTTPEnvServer
 from openenv.core.env_server.mcp_environment import MCPEnvironment
+from openenv.core.env_server.mcp_types import CallToolAction, CallToolObservation
 from openenv.core.env_server.types import Action, Observation, State
-from openenv.core.env_server.mcp_types import (
-    CallToolAction,
-    CallToolObservation,
-)
-from fastmcp import FastMCP
 
 
 # ============================================================================

@@ -13,8 +13,14 @@ Wraps FinRL's StockTradingEnv to conform to the OpenEnv interface.
 from uuid import uuid4
 
 import numpy as np
-from openenv.core.env_server.interfaces import Environment
-from openenv.core.env_server.types import State
+
+try:
+    # Prefer legacy /app/src/core import path in staged HF deployments.
+    from core.env_server.interfaces import Environment
+    from core.env_server.types import State
+except ImportError:
+    from openenv.core.env_server.interfaces import Environment
+    from openenv.core.env_server.types import State
 
 from ..models import FinRLAction, FinRLObservation
 
@@ -181,9 +187,7 @@ class FinRLEnvironment(Environment):
             return 0.0
 
         # First element is usually cash balance
-        state_array = (
-            state if isinstance(state, np.ndarray) else np.array(state)
-        )
+        state_array = state if isinstance(state, np.ndarray) else np.array(state)
 
         # Get stock dimension
         stock_dim = self.finrl_env_config.get("stock_dim", 1)

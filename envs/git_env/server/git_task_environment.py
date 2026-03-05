@@ -13,7 +13,7 @@ This module provides an optimized Git environment for scenarios where:
 import uuid
 
 from openenv.core.env_server import Action, Environment, Observation
-from openenv.core.tools import GitServerClient
+from openenv.core.tools.git_server_client import GitServerClient
 
 from ..models import GitAction, GitObservation, GitState
 
@@ -136,7 +136,9 @@ class GitTaskEnvironment(Environment):
                 else:
                     # Slower path: clone fresh
                     self._git_client.clone_to_workspace(repo_name, commit=commit)
-                    message = f"Initialized task '{task_id}' (repo: {repo_name}@{commit})"
+                    message = (
+                        f"Initialized task '{task_id}' (repo: {repo_name}@{commit})"
+                    )
 
                 current_commit = self._git_client.get_current_commit(repo_name)
 
@@ -206,10 +208,7 @@ class GitTaskEnvironment(Environment):
             commit = "main"  # Default
 
             # If this repo is part of current task config, use that commit
-            if (
-                self._current_task_id
-                and self._current_task_id in self.task_repos
-            ):
+            if self._current_task_id and self._current_task_id in self.task_repos:
                 task_repo, task_commit = self.task_repos[self._current_task_id]
                 if task_repo == action.repo_name:
                     commit = task_commit

@@ -16,7 +16,6 @@ import random
 import uuid
 
 import chess
-
 from moonfish.lib import search_move
 from moonfish.psqt import board_evaluation
 from openenv.core.env_server import Environment

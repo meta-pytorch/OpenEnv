@@ -27,43 +27,14 @@ from fastapi import (
     FastAPI,
     HTTPException,
     Request,
+    status,
     WebSocket,
     WebSocketDisconnect,
-    status,
 )
 from pydantic import ValidationError
 
 from .interfaces import Environment
-from .route_config import (
-    GetEndpointConfig,
-    register_get_endpoints,
-)
-from .serialization import deserialize_action, serialize_observation
-from .types import (
-    Action,
-    Observation,
-    ResetRequest,
-    ResetResponse,
-    State,
-    StepRequest,
-    StepResponse,
-    EnvironmentMetadata,
-    SchemaResponse,
-    HealthResponse,
-    HealthStatus,
-    ServerMode,
-    WSErrorCode,
-    WSResetMessage,
-    WSStepMessage,
-    WSStateMessage,
-    WSCloseMessage,
-    WSObservationResponse,
-    WSStateResponse,
-    WSErrorResponse,
-    ConcurrencyConfig,
-    ServerCapacityStatus,
-    SessionInfo,
-)
+from .mcp_environment import get_server_tools
 from .mcp_types import (
     JsonRpcErrorCode,
     JsonRpcRequest,
@@ -72,7 +43,33 @@ from .mcp_types import (
     WSMCPMessage,
     WSMCPResponse,
 )
-from .mcp_environment import get_server_tools
+from .route_config import GetEndpointConfig, register_get_endpoints
+from .serialization import deserialize_action, serialize_observation
+from .types import (
+    Action,
+    ConcurrencyConfig,
+    EnvironmentMetadata,
+    HealthResponse,
+    HealthStatus,
+    Observation,
+    ResetRequest,
+    ResetResponse,
+    SchemaResponse,
+    ServerCapacityStatus,
+    ServerMode,
+    SessionInfo,
+    State,
+    StepRequest,
+    StepResponse,
+    WSCloseMessage,
+    WSErrorCode,
+    WSErrorResponse,
+    WSObservationResponse,
+    WSResetMessage,
+    WSStateMessage,
+    WSStateResponse,
+    WSStepMessage,
+)
 
 
 def _make_json_serializable(obj: Any) -> Any:
@@ -107,8 +104,8 @@ def _make_json_serializable(obj: Any) -> Any:
 
 from .exceptions import (
     ConcurrencyConfigurationError,
-    SessionCapacityError,
     EnvironmentFactoryError,
+    SessionCapacityError,
 )
 
 

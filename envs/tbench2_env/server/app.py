@@ -39,11 +39,14 @@ try:
 
     from .tbench2_env_environment import Tbench2DockerEnvironment, Tbench2Environment
 except Exception as e:  # pragma: no cover
+    from models import Tbench2Action, Tbench2Observation
+
     # Standalone imports (when environment is standalone with openenv from pip)
     from openenv.core.env_server.http_server import create_app
-    from server.tbench2_env_environment import Tbench2DockerEnvironment, Tbench2Environment
-
-    from models import Tbench2Action, Tbench2Observation
+    from server.tbench2_env_environment import (
+        Tbench2DockerEnvironment,
+        Tbench2Environment,
+    )
 
     _IMPORT_ERROR = e
 

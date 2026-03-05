@@ -1,1 +1,2 @@
---8<-- "../../envs/browsergym_env/README.md"
+```{include} ../../../envs/browsergym_env/README.md
+```
