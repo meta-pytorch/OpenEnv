@@ -7,7 +7,8 @@
 """Pydantic models for eval configuration and results."""
 
 from typing import Any, Dict
-from pydantic import BaseModel, Field, ConfigDict
+
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class EvalConfig(BaseModel):

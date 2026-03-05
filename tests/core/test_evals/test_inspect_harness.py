@@ -11,7 +11,6 @@ from types import ModuleType
 from unittest.mock import MagicMock, patch
 
 import pytest
-
 from openenv.core.evals import EvalConfig, EvalResult
 from openenv.core.evals.inspect_harness import InspectAIHarness
 

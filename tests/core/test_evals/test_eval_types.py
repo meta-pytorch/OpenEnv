@@ -7,9 +7,8 @@
 """Tests for EvalConfig and EvalResult Pydantic models."""
 
 import pytest
-from pydantic import ValidationError
-
 from openenv.core.evals import EvalConfig, EvalResult
+from pydantic import ValidationError
 
 
 class TestEvalConfig:

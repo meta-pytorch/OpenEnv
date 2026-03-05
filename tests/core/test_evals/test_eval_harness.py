@@ -6,10 +6,10 @@
 
 """Tests for EvalHarness ABC."""
 
-import pytest
 from typing import Any
 
-from openenv.core.evals import EvalHarness, EvalConfig, EvalResult
+import pytest
+from openenv.core.evals import EvalConfig, EvalHarness, EvalResult
 
 
 class ConcreteEvalHarness(EvalHarness):
