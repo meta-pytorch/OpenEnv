@@ -89,6 +89,12 @@ For a detailed quick start, check out the [docs page](https://meta-pytorch.org/O
 | [kernrl](envs/kernrl/README.md) | Systems | GPU kernel optimization (CUDA/Triton) |
 | [DIPG Safety](envs/dipg_safety_env/README.md) | Safety | Medical AI safety evaluation |
 | [Wildfire](envs/wildfire_env/README.md) | Simulation | Wildfire spread simulation |
+| [Connect4](envs/connect4_env/README.md) | Games | Connect Four board game |
+| [REPL](envs/repl_env/README.md) | Code execution | Python REPL for RLM-style recursive code execution |
+| [Snake](envs/snake_env/README.md) | Games | Classic snake game (single-agent via marlenv) |
+| [SUMO-RL](envs/sumo_rl_env/README.md) | Simulation | Traffic signal control via SUMO |
+| [TBench2](envs/tbench2_env/README.md) | Terminal | Terminal-Bench 2 tasks (local or Docker) |
+| [Unity](envs/unity_env/README.md) | Simulation | Unity ML-Agents environments (PushBlock, 3DBall, etc.) |
 
 See [`envs/README.md`](envs/README.md) for the full guide on building environments.
 
