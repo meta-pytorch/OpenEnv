@@ -268,9 +268,7 @@ class AnthropicClient(LLMClient):
             create_kwargs["system"] = self.system_prompt
 
         response = await self._client.messages.create(**create_kwargs)
-        return "".join(
-            block.text for block in response.content if block.type == "text"
-        )
+        return "".join(block.text for block in response.content if block.type == "text")
 
     async def complete_with_tools(
         self,
@@ -323,6 +321,7 @@ def create_llm_client(
     model: str,
     api_key: str,
     *,
+    system_prompt: str | None = None,
     temperature: float = 0.0,
     max_tokens: int = 4096,
 ) -> LLMClient:
@@ -332,6 +331,7 @@ def create_llm_client(
         provider: Provider name ("openai" or "anthropic").
         model: Model identifier.
         api_key: API key for the provider.
+        system_prompt: Optional system message prepended to every request.
         temperature: Sampling temperature.
         max_tokens: Maximum tokens in the response.
 
@@ -350,6 +350,7 @@ def create_llm_client(
         port,
         model,
         api_key=api_key,
+        system_prompt=system_prompt,
         temperature=temperature,
         max_tokens=max_tokens,
     )
@@ -364,6 +365,9 @@ def _clean_mcp_schema(schema: dict[str, Any]) -> dict[str, Any]:
     """Normalize an MCP tool ``inputSchema`` for LLM function-calling APIs."""
     if not isinstance(schema, dict):
         return {"type": "object", "properties": {}, "required": []}
+
+    # Shallow copy to avoid mutating the caller's schema dict.
+    schema = dict(schema)
 
     if "oneOf" in schema:
         for option in schema["oneOf"]:

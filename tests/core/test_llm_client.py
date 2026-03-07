@@ -455,6 +455,14 @@ class TestCreateLLMClient:
         assert client.temperature == 0.5
         assert client.max_tokens == 1024
 
+    @patch("openenv.core.llm_client.AsyncOpenAI")
+    def test_system_prompt_forwarded(self, mock_openai_cls):
+        """system_prompt is forwarded to the client."""
+        client = create_llm_client(
+            "openai", "gpt-4", "sk-key", system_prompt="You are a judge."
+        )
+        assert client.system_prompt == "You are a judge."
+
 
 # ---------------------------------------------------------------------------
 # MCP schema helpers
@@ -511,6 +519,13 @@ class TestCleanMCPSchema:
     def test_sets_default_type(self):
         result = _clean_mcp_schema({"properties": {"a": {"type": "string"}}})
         assert result["type"] == "object"
+
+    def test_does_not_mutate_input(self):
+        """_clean_mcp_schema must not modify the caller's dict."""
+        original = {"type": "object"}
+        _clean_mcp_schema(original)
+        # Should not have added "properties" to the original dict.
+        assert "properties" not in original
 
 
 class TestMCPToolsToOpenAI:

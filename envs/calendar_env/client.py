@@ -770,8 +770,12 @@ class ScenarioRunner:
                     }
                 )
 
-        last_msg = messages[-1] if messages else {}
-        final_response = last_msg.get("content", "") if last_msg else ""
+        # Find the last assistant message (not a tool result).
+        final_response = ""
+        for msg in reversed(messages):
+            if msg.get("role") == "assistant":
+                final_response = msg.get("content", "")
+                break
         return {
             "final_response": final_response,
             "conversation_flow": conversation_flow,
