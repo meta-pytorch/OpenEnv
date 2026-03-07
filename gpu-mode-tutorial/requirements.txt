@@ -1,0 +1,19 @@
+# OpenEnv Walkthrough Dependencies
+# Install with: pip install -r requirements.txt
+
+# Core OpenEnv
+openenv-core
+
+# For scaling tests
+httpx>=0.25.0
+
+# For TRL training examples
+trl>=0.14.0
+transformers>=4.40.0
+datasets>=2.18.0
+
+# Optional: WebSocket support for advanced scaling
+websockets>=12.0
+
+
+
