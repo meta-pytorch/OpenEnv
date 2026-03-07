@@ -223,11 +223,6 @@ class AWMEnvironment(Environment):
             f"session_dir={self._session_dir} "
             f"db={self._db_path} initial_db={self._initial_db_path}"
         )
-        print(
-            f"[AWM reset] scenario={scenario_key} task_idx={task_idx} "
-            f"session_dir={self._session_dir}",
-            flush=True,
-        )
 
         try:
             db_schema = self._data_loader.get_db_schema(scenario_key)
@@ -631,7 +626,7 @@ class AWMEnvironment(Environment):
                         indent=2,
                         ensure_ascii=False,
                     )
-                print(f"[AWM done] trajectory saved: {trajectory_path}", flush=True)
+                logger.info(f"[AWM done] trajectory saved: {trajectory_path}")
             except Exception as e:
                 logger.warning(f"Failed to save trajectory: {e}")
                 trajectory_path = None
@@ -640,10 +635,7 @@ class AWMEnvironment(Environment):
         self._process.stop()
 
         if keep_session and self._session_dir:
-            print(
-                f"[AWM done] keeping session dir: {self._session_dir}",
-                flush=True,
-            )
+            logger.info(f"[AWM done] keeping session dir: {self._session_dir}")
             self._keep_session = True
         else:
             self._keep_session = False

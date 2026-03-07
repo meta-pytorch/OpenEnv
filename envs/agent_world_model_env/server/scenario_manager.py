@@ -17,14 +17,9 @@ import textwrap
 import time
 from typing import Any
 
-from mcp_agent.config import (
-    LoggerSettings,
-    MCPServerSettings,
-    MCPSettings,
-    Settings,
-)
 from mcp_agent.agents.agent import Agent
 from mcp_agent.app import MCPApp
+from mcp_agent.config import LoggerSettings, MCPServerSettings, MCPSettings, Settings
 
 
 logger = logging.getLogger(__name__)
@@ -163,10 +158,7 @@ class ScenarioProcess:
             )
 
         logger.info(f"Sub-env ready on port {self._port}, log={self._log_path}")
-        print(
-            f"[AWM sub-env] ready port={self._port} log={self._log_path}",
-            flush=True,
-        )
+        logger.info(f"[AWM sub-env] ready port={self._port} log={self._log_path}")
         return self.mcp_url
 
     def _wait_for_ready(self) -> bool:
