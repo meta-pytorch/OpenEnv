@@ -17,8 +17,10 @@
 FROM envtorch-base:latest
 
 # Install FinRL and its dependencies with pinned versions for reproducibility
+# Note: finrl 0.3.6 has PyPI metadata bug (reports 0.3.5), 0.3.7 can cause runtime errors.
+# Using 0.3.5 for stable Docker builds (see https://github.com/meta-pytorch/OpenEnv/issues/73)
 RUN pip install --no-cache-dir \
-    finrl==0.3.7 \
+    finrl==0.3.5 \
     alpaca-trade-api>=3.0.0 \
     exchange_calendars>=4.5 \
     wrds>=3.2.0 \
