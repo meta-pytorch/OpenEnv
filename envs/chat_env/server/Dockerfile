@@ -27,7 +27,7 @@ ENV SYSTEM_PROMPT="You are a helpful AI assistant."
 ENV ENABLE_WEB_INTERFACE=false
 
 # Copy only what's needed for this environment
-COPY src/core/ /app/src/core/
+COPY src/openenv/core/ /app/src/core/
 COPY envs/chat_env/ /app/envs/chat_env/
 
 # Copy README for web interface documentation

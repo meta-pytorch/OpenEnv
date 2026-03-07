@@ -20,7 +20,7 @@ WORKDIR /app
 ENV PYTHONPATH="/app/src"
 
 # Copy all the application source code into the container
-COPY src/core/ /app/src/core/
+COPY src/openenv/core/ /app/src/core/
 COPY envs/dipg_safety_env/ /app/envs/dipg_safety_env/
 
 # Expose the port the server will run on
