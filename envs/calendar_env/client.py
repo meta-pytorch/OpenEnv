@@ -24,9 +24,12 @@ import time
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, Generic, List, Optional, TypeVar
+from typing import Any, Dict, Generic, List, Optional, TYPE_CHECKING, TypeVar
 
 import httpx
+
+if TYPE_CHECKING:
+    from openenv.core.llm_client import LLMClient
 
 try:
     from .models import CalendarAction, CalendarObservation
@@ -337,129 +340,11 @@ class ScenarioConfig:
     output_dir: Path = DEFAULT_OUTPUT_DIR
 
 
-class LLMClient:
-    def __init__(
-        self,
-        provider: str,
-        model: str,
-        api_key: str,
-        temperature: float = 0.0,
-        max_tokens: int = 4096,
-    ):
-        self.provider = provider.lower()
-        self.model = model
-        self.api_key = api_key
-        self.temperature = temperature
-        self.max_tokens = max_tokens
-        self.llm = None
-        self._initialize_llm()
-
-    def _initialize_llm(self) -> None:
-        try:
-            if self.provider == "anthropic":
-                from langchain_anthropic import ChatAnthropic
-
-                self.llm = ChatAnthropic(
-                    model=self.model,
-                    anthropic_api_key=self.api_key,
-                    temperature=self.temperature,
-                    max_tokens=self.max_tokens,
-                )
-            elif self.provider == "openai":
-                from langchain_openai import ChatOpenAI
-
-                self.llm = ChatOpenAI(
-                    model=self.model,
-                    openai_api_key=self.api_key,
-                    temperature=self.temperature,
-                    max_tokens=self.max_tokens,
-                )
-            elif self.provider == "google":
-                from langchain_google_genai import ChatGoogleGenerativeAI
-
-                self.llm = ChatGoogleGenerativeAI(
-                    model=self.model,
-                    google_api_key=self.api_key,
-                    temperature=self.temperature,
-                    max_tokens=self.max_tokens,
-                )
-            else:
-                raise ValueError(f"Unsupported LLM provider: {self.provider}")
-        except ImportError as exc:
-            raise ImportError(
-                f"Missing LangChain provider for {self.provider}. "
-                "Install requirements-client.txt to use scenario runs."
-            ) from exc
-
-    def _clean_json_schema(self, schema: Dict[str, Any]) -> Dict[str, Any]:
-        if not isinstance(schema, dict):
-            return {"type": "object", "properties": {}, "required": []}
-
-        if "oneOf" in schema:
-            for option in schema["oneOf"]:
-                if isinstance(option, dict) and option.get("type") == "object":
-                    schema = option
-                    break
-            else:
-                return {"type": "object", "properties": {}, "required": []}
-
-        if "allOf" in schema:
-            merged_schema = {"type": "object", "properties": {}, "required": []}
-            for sub_schema in schema["allOf"]:
-                if isinstance(sub_schema, dict):
-                    if "properties" in sub_schema:
-                        merged_schema["properties"].update(sub_schema["properties"])
-                    if "required" in sub_schema:
-                        merged_schema["required"].extend(sub_schema["required"])
-            schema = merged_schema
-
-        if "anyOf" in schema:
-            for option in schema["anyOf"]:
-                if isinstance(option, dict) and option.get("type") == "object":
-                    schema = option
-                    break
-            else:
-                return {"type": "object", "properties": {}, "required": []}
-
-        schema.setdefault("type", "object")
-        if schema.get("type") == "object" and "properties" not in schema:
-            schema["properties"] = {}
-        return schema
-
-    def _convert_mcp_tools_to_langchain(
-        self, mcp_tools: List[Dict[str, Any]]
-    ) -> List[Dict[str, Any]]:
-        langchain_tools = []
-        for tool in mcp_tools:
-            input_schema = tool.get(
-                "inputSchema", {"type": "object", "properties": {}, "required": []}
-            )
-            cleaned_schema = self._clean_json_schema(input_schema)
-            langchain_tools.append(
-                {
-                    "type": "function",
-                    "function": {
-                        "name": tool["name"],
-                        "description": tool.get("description", ""),
-                        "parameters": cleaned_schema,
-                    },
-                }
-            )
-        return langchain_tools
-
-    async def invoke_with_tools(
-        self, messages: List[Any], tools: List[Dict[str, Any]]
-    ) -> Any:
-        langchain_tools = self._convert_mcp_tools_to_langchain(tools)
-        llm_with_tools = self.llm.bind_tools(langchain_tools)
-        return await llm_with_tools.ainvoke(messages)
-
-
 class VerifierEngine:
     def __init__(
         self,
         client: CalendarEnv,
-        llm_client: LLMClient,
+        llm_client: "LLMClient",
         execution_mode: str = "openenv",
     ):
         self.client = client
@@ -653,8 +538,6 @@ class VerifierEngine:
         comparison_prompt: str,
         minimum_score: int,
     ) -> Dict[str, Any]:
-        from langchain_core.messages import HumanMessage, SystemMessage
-
         system_prompt = (
             "You are an evaluator comparing database results with an assistant response. "
             "Return only JSON in this format: "
@@ -668,16 +551,16 @@ class VerifierEngine:
             f"Comparison task:\n{comparison_prompt}"
         )
 
-        response = await self.llm_client.invoke_with_tools(
-            [SystemMessage(content=system_prompt), HumanMessage(content=user_prompt)],
+        response = await self.llm_client.complete_with_tools(
+            [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt},
+            ],
             [],
         )
 
         try:
-            content = response.content
-            if isinstance(content, list):
-                content = "".join(str(item) for item in content)
-            response_text = str(content)
+            response_text = response.content
             if "```json" in response_text:
                 response_text = (
                     response_text.split("```json")[1].split("```")[0].strip()
@@ -695,6 +578,8 @@ class VerifierEngine:
 
 class ScenarioRunner:
     def __init__(self, config: ScenarioConfig):
+        from openenv.core.llm_client import create_llm_client
+
         self.config = config
         self.client = CalendarEnv(
             base_url=config.gym_enviornment_url,
@@ -702,7 +587,7 @@ class ScenarioRunner:
             access_token=config.access_token,
             context=config.context,
         )
-        self.llm_client = LLMClient(
+        self.llm_client = create_llm_client(
             config.llm_provider,
             config.llm_model,
             config.llm_api_key,
@@ -816,11 +701,9 @@ class ScenarioRunner:
         }
 
     async def _execute_task(self) -> Dict[str, Any]:
-        from langchain_core.messages import HumanMessage, SystemMessage, ToolMessage
-
-        messages = [
-            SystemMessage(content=self.config.system_prompt),
-            HumanMessage(content=self.config.user_prompt),
+        messages: List[Dict[str, Any]] = [
+            {"role": "system", "content": self.config.system_prompt},
+            {"role": "user", "content": self.config.user_prompt},
         ]
 
         conversation_flow: List[Dict[str, Any]] = []
@@ -828,16 +711,19 @@ class ScenarioRunner:
         tool_results: List[Dict[str, Any]] = []
 
         for iteration in range(self.config.max_iterations):
-            response = await self.llm_client.invoke_with_tools(
+            response = await self.llm_client.complete_with_tools(
                 messages, self.available_tools
             )
-            messages.append(response)
+            messages.append(response.to_message_dict())
 
-            tool_calls = self._normalize_tool_calls(response)
+            tool_calls = [
+                {"id": tc.id, "name": tc.name, "args": tc.args}
+                for tc in response.tool_calls
+            ]
             conversation_flow.append(
                 {
                     "type": "ai_message",
-                    "content": self._normalize_content(response.content),
+                    "content": response.content,
                     "tool_calls": tool_calls,
                 }
             )
@@ -868,11 +754,13 @@ class ScenarioRunner:
                     }
                 )
 
-                tool_message = ToolMessage(
-                    content=json.dumps(tool_result.get("result", {})),
-                    tool_call_id=tool_call.get("id", ""),
+                messages.append(
+                    {
+                        "role": "tool",
+                        "content": json.dumps(tool_result.get("result", {})),
+                        "tool_call_id": tool_call.get("id", ""),
+                    }
                 )
-                messages.append(tool_message)
 
                 conversation_flow.append(
                     {
@@ -882,9 +770,12 @@ class ScenarioRunner:
                     }
                 )
 
-        final_response = (
-            self._normalize_content(messages[-1].content) if messages else ""
-        )
+        # Find the last assistant message (not a tool result).
+        final_response = ""
+        for msg in reversed(messages):
+            if msg.get("role") == "assistant":
+                final_response = msg.get("content", "")
+                break
         return {
             "final_response": final_response,
             "conversation_flow": conversation_flow,
@@ -911,33 +802,6 @@ class ScenarioRunner:
             )
 
         return verification_results
-
-    def _normalize_tool_calls(self, response: Any) -> List[Dict[str, Any]]:
-        raw_calls = getattr(response, "tool_calls", None) or []
-        normalized = []
-        for call in raw_calls:
-            if isinstance(call, dict):
-                name = call.get("name")
-                args = call.get("args", {})
-                call_id = call.get("id", "")
-            else:
-                name = getattr(call, "name", None)
-                args = getattr(call, "args", {})
-                call_id = getattr(call, "id", "")
-
-            if isinstance(args, str):
-                try:
-                    args = json.loads(args)
-                except json.JSONDecodeError:
-                    args = {}
-
-            normalized.append({"id": call_id, "name": name, "args": args})
-        return normalized
-
-    def _normalize_content(self, content: Any) -> str:
-        if isinstance(content, list):
-            return "".join(str(item) for item in content)
-        return str(content)
 
     def _calculate_statistics(self, runs: List[Dict[str, Any]]) -> Dict[str, Any]:
         successful_runs = [r for r in runs if r.get("overall_success")]
