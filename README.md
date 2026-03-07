@@ -62,6 +62,36 @@ with EchoEnv(base_url="https://openenv-echo-env.hf.space").sync() as client:
 
 For a detailed quick start, check out the [docs page](https://meta-pytorch.org/OpenEnv/quickstart/).
 
+## Environments
+
+| Environment | Domain | Description |
+|-------------|--------|-------------|
+| [Echo](envs/echo_env/README.md) | Testing | Simple echo-back environment for testing APIs and learning the framework |
+| [Coding](envs/coding_env/README.md) | Code execution | Sandboxed Python code execution with smolagents |
+| [BrowserGym](envs/browsergym_env/README.md) | Web automation | Web agent tasks via Playwright (MiniWoB++, WebArena) |
+| [OpenSpiel](envs/openspiel_env/README.md) | Games | Classic game environments (chess, Go, poker, etc.) |
+| [Atari](envs/atari_env/README.md) | Games | Arcade game environments via Gymnasium |
+| [Chess](envs/chess_env/README.md) | Games | Chess RL with configurable opponents (moonfish engine) |
+| [CARLA](envs/carla_env/README.md) | Simulation | Autonomous driving simulation |
+| [OpenApp](envs/openapp_env/README.md) | Web | Real browser automation for web app interaction |
+| [Git](envs/git_env/README.md) | Version control | Isolated Git operations via Gitea for task-based RL |
+| [FinRL](envs/finrl_env/README.md) | Finance | Stock trading RL via FinRL |
+| [FinQA](envs/finqa_env/README.md) | Finance | Financial reasoning and QA |
+| [Julia](envs/julia_env/README.md) | Code execution | Julia code execution with test tracking |
+| [dm_control](envs/dm_control_env/README.md) | Robotics | Continuous control tasks (DeepMind) |
+| [Reasoning Gym](envs/reasoning_gym_env/README.md) | Reasoning | Benchmark for chain-of-thought reasoning |
+| [Text Arena](envs/textarena_env/README.md) | NLP | Text-based games and NLP tasks |
+| [Web Search](envs/websearch_env/README.md) | Web | Web search and information retrieval |
+| [Calendar](envs/calendar_env/README.md) | Productivity | Calendar management tasks |
+| [Chat](envs/chat_env/README.md) | Dialogue | Conversational agent tasks |
+| [Maze](envs/maze_env/README.md) | Navigation | Maze navigation and pathfinding |
+| [Grid World](envs/grid_world_env/README.md) | Navigation | Classic grid world RL |
+| [kernrl](envs/kernrl/README.md) | Systems | GPU kernel optimization (CUDA/Triton) |
+| [DIPG Safety](envs/dipg_safety_env/README.md) | Safety | Medical AI safety evaluation |
+| [Wildfire](envs/wildfire_env/README.md) | Simulation | Wildfire spread simulation |
+
+See [`envs/README.md`](envs/README.md) for the full guide on building environments.
+
 ## OpenEnv on partner platforms:
 
 - [Lightning AI Studio](https://lightning.ai/environments?section=featured)
