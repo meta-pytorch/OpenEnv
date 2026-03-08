@@ -145,11 +145,12 @@ async def main():
         MAX_ITERATIONS = 5
         TEMPERATURE = 1.0
         MAX_TOKENS = 2048
-        model = "gpt-5.1"
+        model = os.environ.get("AZURE_OPENAI_MODEL", "gpt-5.1")
 
         llm = AsyncAzureOpenAI(
-            azure_endpoint=os.environ["ENDPOINT_URL"],
+            azure_endpoint=os.environ["AZURE_OPENAI_ENDPOINT"],
             api_key=os.environ["AZURE_OPENAI_API_KEY"],
+            api_version=os.environ.get("OPENAI_API_VERSION", "2025-04-01-preview"),
         )
 
         messages: list[dict] = [

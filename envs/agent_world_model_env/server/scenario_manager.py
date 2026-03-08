@@ -56,6 +56,13 @@ def _patch_env_code(full_code: str, db_path: str, host: str, port: int) -> str:
 
         if "uvicorn.run(app" in line:
             mcp_inject = textwrap.dedent("""\
+                import traceback as _tb
+                from starlette.requests import Request as _Req
+                from starlette.responses import JSONResponse as _JR
+                @app.exception_handler(Exception)
+                async def _debug_exc(_req: _Req, exc: Exception):
+                    _tb.print_exc()
+                    return _JR(status_code=500, content={"detail": str(exc)})
                 from fastapi_mcp import FastApiMCP
                 mcp = FastApiMCP(app)
                 mcp.mount_http()
