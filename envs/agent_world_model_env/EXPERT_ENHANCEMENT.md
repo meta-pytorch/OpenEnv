@@ -345,6 +345,8 @@ Train across diverse environments so the agent learns a general "when to ask for
 agent_world_model_env/
 ├── run_awm_task.py                      # Single-model runner (no expert)
 ├── run_awm_task_dynamic_expert.py       # Dynamic expert benchmark runner
+├── train_grpo_awm.py                   # Minimal GRPO training script (TRL + OpenEnv)
+├── train_grpo_awm.ipynb               # Colab notebook for training
 ├── EXPERT_ENHANCEMENT.md               # This file
 └── assets/
     ├── awm_overview.png                # Environment architecture overview
@@ -363,25 +365,36 @@ agent_world_model_env/
 
 ## Quick Start
 
+### Try it in Colab
+
+Open [`train_grpo_awm.ipynb`](train_grpo_awm.ipynb) to train a model in Google Colab with a single GPU.
+
+### Train locally with the script
+
 ```bash
-# Set credentials
-export AZURE_OPENAI_ENDPOINT="https://your-endpoint.openai.azure.com/"
-export AZURE_OPENAI_API_KEY="your-key"
+# Install dependencies
+pip install "trl[vllm]" "openenv-core[core]>=0.2.1" openai datasets
 
 # Start the AWM server
 uvicorn agent_world_model_env.server.app:app --host 127.0.0.1 --port 8899
 
-# Run benchmark: baseline vs dynamic expert
-python run_awm_task_dynamic_expert.py workflow_automation_1
+# Train with GRPO (single GPU, colocate vLLM)
+python train_grpo_awm.py --model Qwen/Qwen3-0.6B --max-steps 50
 
-# Run with a different model
-python run_awm_task_dynamic_expert.py workflow_automation_1 --model gpt-5.1
+# Train with expert tool enabled
+export AZURE_OPENAI_API_KEY="your-key"
+export AZURE_OPENAI_ENDPOINT="https://your-endpoint.openai.azure.com/"
+python train_grpo_awm.py --model Qwen/Qwen3-0.6B --use-expert --max-steps 50
+```
+
+### Run inference benchmark
+
+```bash
+# Baseline vs dynamic expert comparison
+python run_awm_task_dynamic_expert.py workflow_automation_1
 
 # Expert mode only
 python run_awm_task_dynamic_expert.py workflow_automation_1 --expert-only
-
-# Baseline only
-python run_awm_task_dynamic_expert.py workflow_automation_1 --baseline-only
 ```
 
 ---
