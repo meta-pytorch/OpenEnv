@@ -63,14 +63,15 @@ sequenceDiagram
     Verifier->>Expert: Success criteria (pre-analyzed)
     Agent->>Env: list_tools
     Env-->>Agent: tool schemas
-    Agent->>Expert: ask_expert(task, tools, context)
-    Expert-->>Agent: Precise plan with exact tool names/args
-    loop Follow plan + adapt
+    Note over Agent: Try first — attempt the task independently
+    loop Try tools independently
         Agent->>Env: call_tool
         Env-->>Agent: result
-        alt Error or stall
+        alt Error or stuck
             Agent->>Expert: ask_expert(task, tools, error_context)
-            Expert-->>Agent: Revised plan
+            Expert-->>Agent: Recovery plan with exact tool names/args
+            Agent->>Env: call_tool (follow plan)
+            Env-->>Agent: result
         end
     end
     Agent->>Env: verify(mode=code)
@@ -81,9 +82,10 @@ sequenceDiagram
 
 1. **Verifier analysis**: Before the task begins, the expert LLM analyzes the Python verifier code and extracts the exact success criteria — table names, column values, JSON field contents, and record relationships the verifier checks.
 2. **Tool discovery**: The agent calls `list_tools` to get the full MCP tool catalog. The expert receives these schemas with parameter names, types, and descriptions.
-3. **On-demand consultation**: The agent calls `ask_expert` with the task description, available tools, and any context (errors, partial progress). The expert returns a precise plan.
-4. **Adaptive execution**: The agent follows the plan using `call_tool`. If a step fails, the system nudges the agent to re-consult the expert with the error details.
-5. **Verification**: After completing tool calls, the code verifier checks the final database state.
+3. **Try first**: The agent attempts the task independently using `call_tool`, reading tool descriptions and reasoning about arguments on its own.
+4. **Ask if stuck**: If the agent encounters an error, gets stuck, or is unsure about a tool's arguments, it calls `ask_expert` with the error context. The expert returns a precise recovery plan.
+5. **Adaptive execution**: The agent follows the expert's plan using `call_tool`. If another step fails, it can re-consult the expert (up to 3 times).
+6. **Verification**: After completing tool calls, the code verifier checks the final database state.
 
 ### Key Features
 
