@@ -1,18 +1,17 @@
 """Dynamic expert-in-the-loop runner for AWM environments.
 
-Unlike the static expert (run_awm_task_with_expert.py) which loads a baseline
-log and gives one-shot advice *before* the agent starts, this runner exposes
-the expert as a callable **tool** that the agent invokes *during* the task.
+Exposes the expert as a callable **tool** (`ask_expert`) that the agent
+invokes on-demand *during* the task whenever it needs guidance.
 
-The expert is "verifier-informed": it analyzes the Python verification code to
-understand the exact DB state required for success, then combines that with
-the full tool schemas to produce precise guidance.
+The expert is "verifier-informed": it analyzes the Python verification code
+to understand the exact DB state required for success, then combines that
+with the full MCP tool schemas to produce precise guidance.
 
-Key differences from the static approach:
-  - Agent decides WHEN to call the expert (dynamic, not forced upfront)
+Key capabilities:
+  - Agent decides WHEN to call the expert (0 to N times per task)
   - Expert has real-time context (errors, partial progress)
   - System nudges the agent to consult the expert after errors or stalls
-  - Multiple expert consultations per task are possible
+  - No prior baseline data needed — works from the first run
 
 Usage:
     # Start AWM server first
