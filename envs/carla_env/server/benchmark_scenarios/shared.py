@@ -14,7 +14,7 @@ https://github.com/SinatrasC/carla-env
 from __future__ import annotations
 
 from enum import Enum
-from typing import TYPE_CHECKING, Any, Dict, List
+from typing import Any, Dict, List, TYPE_CHECKING
 
 if TYPE_CHECKING:
     import carla

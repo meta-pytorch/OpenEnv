@@ -1,1 +1,2 @@
---8<-- "../../envs/repl_env/README.md"
+```{include} ../../../envs/repl_env/README.md
+```

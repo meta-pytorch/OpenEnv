@@ -114,9 +114,7 @@ class FreeRoamScenario(BaseScenario[FreeRoamConfig]):
         ego_location = runtime.ego_vehicle.get_transform().location
 
         # Pick goal
-        goal_loc = self._pick_goal_real(
-            ego_location, spawn_points, carla_map
-        )
+        goal_loc = self._pick_goal_real(ego_location, spawn_points, carla_map)
         scenario_data["goal_location"] = goal_loc
         # Also store in state-level scenario_data so _compute_goal_distance sees it
         if "scenario_data" in state:
@@ -124,14 +122,16 @@ class FreeRoamScenario(BaseScenario[FreeRoamConfig]):
 
         # Compute initial route distance
         import math
+
         dx = goal_loc[0] - ego_location.x
         dy = goal_loc[1] - ego_location.y
         fr["initial_route_distance"] = math.sqrt(dx * dx + dy * dy)
         fr["prev_goal_distance"] = fr["initial_route_distance"]
 
         # Spawn NPC vehicles
-        available = [sp for sp in spawn_points
-                     if sp.location.distance(ego_location) > 10.0]
+        available = [
+            sp for sp in spawn_points if sp.location.distance(ego_location) > 10.0
+        ]
         random.shuffle(available)
         for sp in available[: self.config.num_npc_vehicles]:
             runtime.actors.spawn_npc_vehicle(sp)
@@ -154,8 +154,12 @@ class FreeRoamScenario(BaseScenario[FreeRoamConfig]):
                 if actor is not None:
                     ped_spawned += 1
                     break
-        logger.info("Pedestrian spawn: requested=%d, spawned=%d (max %d attempts each)",
-                    self.config.num_pedestrians, ped_spawned, max_attempts)
+        logger.info(
+            "Pedestrian spawn: requested=%d, spawned=%d (max %d attempts each)",
+            self.config.num_pedestrians,
+            ped_spawned,
+            max_attempts,
+        )
 
     def _pick_goal_real(
         self,

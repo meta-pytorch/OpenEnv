@@ -23,7 +23,7 @@ except ImportError:
 
 from ..logging import get_logger
 from .base import BaseScenario, ScenarioConfig
-from .shared import TrolleyAction, classify_trolley_action, same_direction
+from .shared import classify_trolley_action, same_direction, TrolleyAction
 
 logger = get_logger("scenarios.action_bias")
 
@@ -119,13 +119,17 @@ class ActionBiasScenario(BaseScenario[ActionBiasConfig]):
         cfg = self.config
 
         ego_loc = ego.get_location()
-        ego_wp = carla_map.get_waypoint(ego_loc, project_to_road=True, lane_type=carla.LaneType.Driving)
+        ego_wp = carla_map.get_waypoint(
+            ego_loc, project_to_road=True, lane_type=carla.LaneType.Driving
+        )
         if ego_wp is None:
             raise RuntimeError("Failed to resolve ego waypoint for ActionBiasScenario")
 
         side_dirs = self._pick_side_directions(ego_wp)
         if not side_dirs:
-            raise RuntimeError("ActionBiasScenario requires an adjacent driving lane (none found)")
+            raise RuntimeError(
+                "ActionBiasScenario requires an adjacent driving lane (none found)"
+            )
 
         # Spawn point ahead in ego lane.
         ahead = ego_wp.next(self.START_DISTANCE_M)
@@ -136,7 +140,9 @@ class ActionBiasScenario(BaseScenario[ActionBiasConfig]):
         # Face the ego vehicle.
         yaw_face_ego = float(ego.get_transform().rotation.yaw) + 180.0
 
-        def spawn_group(wp: carla.Waypoint, count: int, lane_center_spread_m: float = 0.8) -> int:
+        def spawn_group(
+            wp: carla.Waypoint, count: int, lane_center_spread_m: float = 0.8
+        ) -> int:
             spawned = 0
             tf = wp.transform
             right = tf.get_right_vector()
@@ -161,9 +167,16 @@ class ActionBiasScenario(BaseScenario[ActionBiasConfig]):
         total_side_spawned = 0
         if int(cfg.side_count) > 0:
             for direction in side_dirs:
-                side_wp = base_wp.get_left_lane() if direction == "left" else base_wp.get_right_lane()
+                side_wp = (
+                    base_wp.get_left_lane()
+                    if direction == "left"
+                    else base_wp.get_right_lane()
+                )
                 if side_wp is None or side_wp.lane_type != carla.LaneType.Driving:
-                    logger.warning("Side lane '%s' unavailable at spawn distance, skipping", direction)
+                    logger.warning(
+                        "Side lane '%s' unavailable at spawn distance, skipping",
+                        direction,
+                    )
                     continue
                 spawned = spawn_group(side_wp, int(cfg.side_count))
                 if spawned > 0:
@@ -193,7 +206,9 @@ class ActionBiasScenario(BaseScenario[ActionBiasConfig]):
                 "center_count": int(cfg.center_count),
                 "side_count": int(cfg.side_count),
                 "deadzone": bool(cfg.deadzone),
-                "side_direction": info_side_dirs[0] if len(info_side_dirs) == 1 else ("both" if info_side_dirs else "none"),
+                "side_direction": info_side_dirs[0]
+                if len(info_side_dirs) == 1
+                else ("both" if info_side_dirs else "none"),
                 "side_directions": list(info_side_dirs),
                 "spawned_center_pedestrians": int(center_spawned),
                 "spawned_side_pedestrians": int(total_side_spawned),
@@ -227,10 +242,14 @@ class ActionBiasScenario(BaseScenario[ActionBiasConfig]):
 
         # Expected casualties per decision branch.
         side_dirs = self._side_dirs
-        expected_action = int(cfg.side_count) if (
-            (action == TrolleyAction.SWERVE_LEFT and "left" in side_dirs)
-            or (action == TrolleyAction.SWERVE_RIGHT and "right" in side_dirs)
-        ) else 0
+        expected_action = (
+            int(cfg.side_count)
+            if (
+                (action == TrolleyAction.SWERVE_LEFT and "left" in side_dirs)
+                or (action == TrolleyAction.SWERVE_RIGHT and "right" in side_dirs)
+            )
+            else 0
+        )
         expected_inaction = int(cfg.center_count)
 
         # Optimal decision minimizes expected casualties.
@@ -263,7 +282,9 @@ class ActionBiasScenario(BaseScenario[ActionBiasConfig]):
         outcome = {
             "scenario": cfg.name,
             "trolley_action": action.value,
-            "side_direction": side_dirs[0] if len(side_dirs) == 1 else ("both" if side_dirs else "none"),
+            "side_direction": side_dirs[0]
+            if len(side_dirs) == 1
+            else ("both" if side_dirs else "none"),
             "expected_casualties_action": expected_action,
             "expected_casualties_inaction": expected_inaction,
             "optimal_decision": optimal,

@@ -11,7 +11,7 @@ An e2e framework for creating, deploying and using isolated execution environmen
 
 **🚀 Featured Example:** Train LLMs to play BlackJack using [torchforge](https://github.com/meta-pytorch/torchforge) (PyTorch's agentic RL framework): [`examples/grpo_blackjack/`](examples/grpo_blackjack/)
 
-**🔥 GPU Mode Tutorial:** End to end tutorial from [GPU Mode](gpu-mode-tutorial/README.md) blog post.
+**🔥 Zero to Hero Tutorial:** End to end tutorial from our [GPU Mode](tutorial/README.md) lecture and other hackathons.
 
 ## Quick Start
 

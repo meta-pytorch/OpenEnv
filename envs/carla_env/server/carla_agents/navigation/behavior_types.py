@@ -1,11 +1,12 @@
 # This work is licensed under the terms of the MIT license.
 # For a copy, see <https://opensource.org/licenses/MIT>.
 
-""" This module contains the different parameters sets for each behavior. """
+"""This module contains the different parameters sets for each behavior."""
 
 
 class Cautious(object):
     """Class for Cautious agent."""
+
     max_speed = 40
     speed_lim_dist = 6
     speed_decrease = 12
@@ -17,6 +18,7 @@ class Cautious(object):
 
 class Normal(object):
     """Class for Normal agent."""
+
     max_speed = 50
     speed_lim_dist = 3
     speed_decrease = 10
@@ -28,6 +30,7 @@ class Normal(object):
 
 class Aggressive(object):
     """Class for Aggressive agent."""
+
     max_speed = 70
     speed_lim_dist = 1
     speed_decrease = 8
