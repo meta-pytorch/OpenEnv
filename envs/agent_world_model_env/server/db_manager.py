@@ -66,6 +66,43 @@ def _create_schema(conn: sqlite3.Connection, db_schema: dict) -> None:
                     logger.warning(f"Failed to create index: {e}\n  Index: {idx_stmt}")
 
 
+def _fix_escaped_quotes(sql: str) -> str:
+    """Fix backslash-escaped single quotes inside SQL string literals.
+
+    The AWM dataset sometimes contains \\' inside VALUES strings (e.g. JSON
+    with \\\'high\\\').  SQLite does not recognise \\' as an escape — the
+    standard way to embed a single quote inside a SQL string literal is to
+    double it ('').  This function walks the SQL, finds each '...'-delimited
+    literal, and replaces any \\' sequences inside with ''.
+    """
+    parts: list[str] = []
+    i = 0
+    while i < len(sql):
+        if sql[i] == "'":
+            j = i + 1
+            literal_chars: list[str] = ["'"]
+            while j < len(sql):
+                if sql[j] == "\\" and j + 1 < len(sql) and sql[j + 1] == "'":
+                    literal_chars.append("''")
+                    j += 2
+                elif sql[j] == "'" and j + 1 < len(sql) and sql[j + 1] == "'":
+                    literal_chars.append("''")
+                    j += 2
+                elif sql[j] == "'":
+                    literal_chars.append("'")
+                    j += 1
+                    break
+                else:
+                    literal_chars.append(sql[j])
+                    j += 1
+            parts.append("".join(literal_chars))
+            i = j
+        else:
+            parts.append(sql[i])
+            i += 1
+    return "".join(parts)
+
+
 def _insert_sample_data(
     conn: sqlite3.Connection, db_path: str, sample_data: Any
 ) -> None:
@@ -90,17 +127,25 @@ def _insert_sample_data(
                     if stmt:
                         try:
                             cursor.execute(stmt)
-                        except sqlite3.Error as e:
-                            logger.warning(
-                                f"Failed to insert into {table_name}: {e}\n  SQL: {stmt}"
-                            )
+                        except sqlite3.Error:
+                            fixed = _fix_escaped_quotes(stmt)
+                            try:
+                                cursor.execute(fixed)
+                            except sqlite3.Error as e2:
+                                logger.warning(
+                                    f"Failed to insert into {table_name}: {e2}\n  SQL: {stmt}"
+                                )
             elif isinstance(item, str):
                 item = item.strip()
                 if item:
                     try:
                         cursor.execute(item)
-                    except sqlite3.Error as e:
-                        logger.warning(f"Failed to execute SQL: {e}\n  SQL: {item}")
+                    except sqlite3.Error:
+                        fixed = _fix_escaped_quotes(item)
+                        try:
+                            cursor.execute(fixed)
+                        except sqlite3.Error as e2:
+                            logger.warning(f"Failed to execute SQL: {e2}\n  SQL: {item}")
 
 
 def save_snapshot(db_path: str, snapshot_path: str) -> str:
