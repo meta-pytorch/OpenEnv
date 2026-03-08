@@ -10,6 +10,36 @@ from typing import Any, Dict, List, Optional
 logger = logging.getLogger(__name__)
 
 
+def _convert_image_block(block: Dict[str, Any]) -> Dict[str, Any]:
+    """Convert an OpenAI image_url block to Fleet ingest image format.
+
+    Fleet ingest API expects: {"type": "image", "mime_type": "image/png", "data": "<base64>"}
+    It then uploads base64 to S3 and replaces with URL for the UI to render.
+    """
+    url = block.get("image_url", {}).get("url", "")
+    if url.startswith("data:"):
+        # data:image/png;base64,ABC... -> extract mime_type and base64 data
+        header, base64_data = url.split(",", 1)
+        mime_type = header.split(":")[1].split(";")[0] if ":" in header else "image/png"
+        return {"type": "image", "mime_type": mime_type, "data": base64_data}
+    else:
+        # HTTPS URL - pass as text since ingest API expects base64 for images
+        return {"type": "text", "text": url}
+
+
+def _convert_content(content: Any) -> Any:
+    """Convert OpenAI-format content blocks to Anthropic format for Fleet UI."""
+    if not isinstance(content, list):
+        return content
+    converted = []
+    for block in content:
+        if isinstance(block, dict) and block.get("type") == "image_url":
+            converted.append(_convert_image_block(block))
+        else:
+            converted.append(block)
+    return converted
+
+
 async def create_trace_job(api_key: str, name: str) -> str:
     """Create a Fleet trace job for grouping eval traces.
 
@@ -61,9 +91,12 @@ async def upload_trace(
         fleet = AsyncFleet(api_key=api_key)
 
         # Convert chat_history to ingest message format.
-        # Fleet's SessionIngestMessage accepts content: Any, so OpenAI-format
-        # messages (including structured content with image_url) pass through directly.
-        messages = [{"role": msg["role"], "content": msg.get("content")} for msg in chat_history]
+        # Fleet UI expects Anthropic content block format, so we convert
+        # OpenAI image_url blocks to Anthropic image blocks.
+        messages = [
+            {"role": msg["role"], "content": _convert_content(msg.get("content"))}
+            for msg in chat_history
+        ]
 
         status = "completed" if reward > 0 else "failed"
 
