@@ -135,18 +135,126 @@ The expert's biggest impact was on Task 8, where o4-mini solo failed but the exp
 
 Task 5 fails across all models and configurations. The agent appears to perform the correct actions, but the code verifier does not recognize the result as correct. This highlights the importance of verifier validation when benchmarking agent performance.
 
+## Two Expert Architectures
+
+This environment now supports **two** expert integration strategies, enabling comparison of static vs. dynamic approaches:
+
+### 1. Static Expert (Expert-as-Workflow)
+
+**File**: `run_awm_task_with_expert.py`
+
+The expert loads a baseline run log and gives **one-shot advice before** the agent starts each task. The agent then operates independently.
+
+```mermaid
+sequenceDiagram
+    participant Log as Baseline Log
+    participant Expert as Expert Model
+    participant Agent as Agent Model
+    participant Env as AWM Environment
+
+    Log->>Expert: Full run history
+    Expert->>Agent: Pre-task advice (one-shot)
+    loop Independent tool-calling
+        Agent->>Env: call_tool
+        Env-->>Agent: result
+    end
+```
+
+- Requires a previous baseline run log
+- 1 expert call per task (fixed)
+- No error recovery from expert
+
+### 2. Dynamic Expert (Expert-as-Tool)
+
+**File**: `run_awm_task_dynamic_expert.py`
+
+The expert is exposed as a callable **tool** (`ask_expert`) that the agent invokes **during** the task whenever it needs guidance. The expert is "verifier-informed": it analyzes the Python verifier code to extract exact success criteria, and has access to full tool schemas.
+
+```mermaid
+sequenceDiagram
+    participant Agent as Agent Model
+    participant Expert as Expert (verifier-informed)
+    participant Env as AWM Environment
+    participant Verifier as Verifier Code
+
+    Verifier->>Expert: Success criteria (pre-analyzed)
+    Agent->>Env: list_tools
+    Env-->>Agent: tool schemas
+    Agent->>Expert: ask_expert(task, tools, context)
+    Expert-->>Agent: Precise plan with exact tool names/args
+    loop Follow plan + adapt
+        Agent->>Env: call_tool
+        Env-->>Agent: result
+        alt Error or stall
+            Agent->>Expert: ask_expert(task, tools, error_context)
+            Expert-->>Agent: Revised plan
+        end
+    end
+```
+
+Key features:
+- **Agent-initiated**: The agent decides when to call the expert
+- **Verifier-informed**: Expert pre-analyzes the Python verifier to know exact DB state requirements
+- **Schema-aware**: Expert receives full MCP tool schemas (parameter names, types, descriptions)
+- **Error recovery**: System nudges the agent to consult expert after errors or stalls
+- **Multiple consultations**: Agent can call expert multiple times per task
+
+### Architecture Comparison
+
+| Dimension | Static Expert | Dynamic Expert |
+|-----------|--------------|----------------|
+| When consulted | Once, before task starts | On-demand during task |
+| Context | Baseline run logs (historical) | Real-time errors + partial progress |
+| Expert calls/task | Exactly 1 | 0 to N (agent decides) |
+| Requires baseline log | Yes | No |
+| Error recovery | None (advice is fixed) | Re-consult with error context |
+| Verifier analysis | No | Yes (pre-analyzes verification code) |
+| Tool schema awareness | No | Yes (full parameter schemas) |
+| Cost model | Predictable (1 call/task) | Variable (more calls on hard tasks) |
+
+## Benchmark Results
+
+### Static Expert Results
+
+Scenario: `workflow_automation_1` (10 tasks)
+
+| Task | gpt-5.1 (baseline) | o4-mini (solo) | o4-mini + static expert |
+|------|---------------------|----------------|--------------------------|
+| 0    | 4 steps, PASS       | 4 steps, PASS  | 4 steps, PASS            |
+| 1    | 5 steps, PASS       | 5 steps, PASS  | 5 steps, PASS            |
+| 2    | 8 steps, PASS       | 9 steps, PASS  | 10 steps, PASS           |
+| 3    | 3 steps, PASS       | 7 steps, PASS  | 5 steps, PASS            |
+| 4    | 3 steps, PASS       | 6 steps, PASS  | 5 steps, PASS            |
+| 5    | 4 steps, FAIL       | 4 steps, FAIL  | 3 steps, FAIL            |
+| 6    | 4 steps, PASS       | 4 steps, PASS  | 4 steps, PASS            |
+| 7    | 6 steps, PASS       | 6 steps, PASS  | 6 steps, PASS            |
+| 8    | 9 steps, PASS       | 7 steps, FAIL  | 9 steps, PASS            |
+| 9    | 4 steps, PASS       | 7 steps, PASS  | 6 steps, PASS            |
+| **Total** | **9/10 (90%)** | **8/10 (80%)** | **9/10 (90%)**           |
+
+### Dynamic Expert Results
+
+Scenario: `workflow_automation_1` (10 tasks), gpt-5.1 model for both agent and expert
+
+| Metric               | Baseline (no expert) | Dynamic Expert     | Delta    |
+|----------------------|---------------------|--------------------|----------|
+| Avg reward           | 0.500               | 0.800              | +0.300   |
+| Complete tasks       | 5/10                | 8/10               | +3       |
+| Avg steps/task       | varies              | varies             | —        |
+
 ## File Structure
 
 ```
 agent_world_model_env/
-├── run_awm_task.py                 # Multi-task runner (single model)
-├── run_awm_task_with_expert.py     # Expert-advised runner (two models)
+├── run_awm_task.py                      # Multi-task runner (single model)
+├── run_awm_task_with_expert.py          # Static expert (one-shot advice from log)
+├── run_awm_task_dynamic_expert.py       # Dynamic expert (on-demand, verifier-informed)
 ├── results/
 │   ├── awm_workflow_automation_1_output_v4.txt          # Baseline: gpt-5.1, 9/10
 │   ├── awm_workflow_automation_1_o4mini_output.txt      # o4-mini solo, 8/10
-│   ├── awm_workflow_automation_1_expert_output_v2.txt   # o4-mini + expert, 9/10
+│   ├── awm_workflow_automation_1_expert_output_v2.txt   # o4-mini + static expert, 9/10
 │   └── awm_workflow_automation_1_expert_results.json    # Structured results
-└── EXPERT_ENHANCEMENT.md           # This file
+└── EXPERT_ENHANCEMENT.md               # This file
 ```
 
 ## Usage
@@ -166,12 +274,28 @@ uvicorn agent_world_model_env.server.app:app --host 127.0.0.1 --port 8899
 python run_awm_task.py workflow_automation_1
 ```
 
-### Expert-Advised Runner
+### Static Expert-Advised Runner
 
 ```bash
-# Run with expert guidance (uses baseline log for advice)
+# Run with static expert (requires baseline log)
 python run_awm_task_with_expert.py workflow_automation_1 \
   --baseline-log results/awm_workflow_automation_1_output_v4.txt \
   --agent-model o4-mini \
   --expert-model gpt-5.1
+```
+
+### Dynamic Expert Runner
+
+```bash
+# Run benchmark: baseline vs dynamic expert (no baseline log needed)
+python run_awm_task_dynamic_expert.py workflow_automation_1
+
+# Run with different model
+python run_awm_task_dynamic_expert.py workflow_automation_1 --model gpt-5.1
+
+# Run only the expert mode (skip baseline)
+python run_awm_task_dynamic_expert.py workflow_automation_1 --expert-only
+
+# Run only baseline (skip expert)
+python run_awm_task_dynamic_expert.py workflow_automation_1 --baseline-only
 ```
