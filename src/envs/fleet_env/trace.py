@@ -86,30 +86,35 @@ async def upload_trace(
         The session_id string, or None if upload failed.
     """
     try:
-        from fleet._async import AsyncFleet
-
-        fleet = AsyncFleet(api_key=api_key)
+        import httpx
 
         # Convert chat_history to ingest message format.
-        # Fleet UI expects Anthropic content block format, so we convert
-        # OpenAI image_url blocks to Anthropic image blocks.
+        # Fleet ingest API expects image blocks as: {"type": "image", "mime_type": ..., "data": ...}
         messages = [
             {"role": msg["role"], "content": _convert_content(msg.get("content"))}
             for msg in chat_history
         ]
 
-        status = "completed" if reward > 0 else "failed"
+        payload: Dict[str, Any] = {
+            "messages": messages,
+            "job_id": job_id,
+            "task_key": task_key,
+            "model": model,
+            "score": reward,
+        }
+        if instance_id:
+            payload["instance_id"] = instance_id
+        if metadata:
+            payload["metadata"] = metadata
 
-        response = await fleet._ingest(
-            messages=messages,
-            job_id=job_id,
-            task_key=task_key,
-            model=model,
-            instance_id=instance_id,
-            status=status,
-            metadata=metadata,
-        )
-        return response.session_id
+        async with httpx.AsyncClient(timeout=60) as client:
+            response = await client.post(
+                "https://orchestrator.fleetai.com/v1/sessions/ingest",
+                json=payload,
+                headers={"Authorization": f"Bearer {api_key}"},
+            )
+            response.raise_for_status()
+            return response.json().get("session_id")
     except Exception as e:
         logger.warning(f"Failed to upload trace for {task_key}: {e}")
         return None
