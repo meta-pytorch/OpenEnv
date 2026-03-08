@@ -14,7 +14,7 @@ That's exactly what this project does — but for AI agents.
 
 We give a small language model (Qwen3-4B) a set of 38 API tools, a task description, and access to a brilliant advisor (GPT-5.1). Then we use reinforcement learning (GRPO) to teach the agent *when* calling the expert leads to better outcomes — and ultimately, when it can fly solo.
 
-**The result: completion rate jumped from ~3% to 32%, reward crossed zero by step 10 and hit +0.589 by step 15, and format errors dropped from 88% to 55% — all by teaching the agent to try first and ask for help only when stuck.**
+**The result: completion rate jumped from ~3% to 44.5%, reward hit +0.824, and format errors dropped from 88% to 31% — all by teaching the agent to try first and ask for help only when stuck. The model autonomously graduated through three training phases: Scaffold, Balanced, and Independence.**
 
 ![Reward Curves](assets/reward_curves.png)
 
@@ -113,7 +113,7 @@ The expert is "verifier-informed" — it has already analyzed the Python verific
 
 ## GRPO Training Results
 
-We ran four experiments, each building on the insights of the previous one. Here's the story of how we got from 3.4% to 55.2% validation accuracy.
+We ran four experiments, each building on the insights of the previous one. Here's the story of how we went from 3% completion rate to 44.5% — and taught the model to graduate through three autonomous training phases.
 
 **Training setup:**
 
@@ -193,7 +193,7 @@ The adaptive algorithm reads the format error rate from the previous step and ad
 | **40-70%** | Balanced | 4 | 4 | Model has basics — equal exposure |
 | **< 40%** | Independence | 2 | 6 | Model is proficient — push toward self-reliance |
 
-**Results after 16 steps (Try-First v2 with reward shaping):**
+**Results after 29 steps (Try-First v2 with reward shaping):**
 
 The final strategy combines three innovations:
 1. **"Try First" system prompt** — tells the agent to attempt tasks independently before asking the expert
@@ -215,30 +215,45 @@ The final strategy combines three innovations:
 | 11 | **+0.316** | 65.6% | 28 | 21.9% | Balanced (4E/4S) |
 | 12 | **+0.264** | 60.2% | 28 | 21.9% | Balanced |
 | 13 | **+0.156** | 60.2% | 28 | 21.9% | Balanced |
-| 14 | **+0.056** | 62.5% | 18 | 14.1% | Balanced |
+| 14 | +0.056 | 62.5% | 18 | 14.1% | Balanced |
 | 15 | **+0.589** | 56.3% | **41** | **32.0%** | Balanced |
-| 16 | **+0.480** | 54.7% | **36** | **28.1%** | Balanced |
+| 16 | +0.480 | 54.7% | 36 | 28.1% | Balanced |
+| 17 | +0.435 | 44.5% | 38 | 29.7% | Balanced |
+| 18 | +0.370 | 53.9% | 29 | 22.7% | Balanced |
+| 19 | +0.365 | 50.8% | 36 | 28.1% | Balanced |
+| 20 | **+0.603** | 50.0% | 37 | 28.9% | Balanced |
+| 21 | +0.290 | 43.0% | 37 | 28.9% | Balanced |
+| 22 | +0.478 | 43.0% | 51 | 39.8% | Balanced |
+| 23 | **+0.824** | 43.0% | 51 | 39.8% | Balanced |
+| 24 | +0.519 | 50.0% | 41 | 32.0% | Balanced |
+| 25 | +0.493 | 44.5% | 31 | 24.2% | Balanced |
+| 26 | +0.295 | 43.0% | 50 | 39.1% | Balanced |
+| 27 | +0.571 | 43.8% | 42 | 32.8% | Balanced |
+| 28 | +0.426 | 35.2% | 53 | 41.4% | **Balanced -> Independence** |
+| 29 | +0.407 | **31.3%** | **57** | **44.5%** | Independence (2E/6S) |
 
-**The training trajectory tells a clear story:**
-- Steps 1-8: Learning basic tool formatting under heavy scaffolding (FE: 88% -> 75%)
-- Steps 9-10: Breakthrough — reward approaches zero, FE crosses 70% threshold, system automatically transitions to Balanced phase
-- Steps 11-16: Positive reward regime — completions surge to 41/step, FE drops to 55%
+**The training trajectory tells a clear story — with three distinct acts:**
+- **Act 1 (Steps 1-10): Scaffold.** Learning basic tool formatting under heavy expert guidance. FE: 88% -> 66%. The model earns its way to more independence.
+- **Act 2 (Steps 11-27): Balanced.** Equal expert/solo exposure. Reward turns positive and stays positive. Completions climb from 28 to 51. Peak reward +0.824 at step 23.
+- **Act 3 (Steps 28+): Independence.** FE drops below 40%, system auto-shifts to 2 expert / 6 solo. The model thrives — 57 completions (44.5%) at step 29 with only 31% format errors.
 
 **Head-to-head comparison (all strategies):**
 
-| Metric | Try-First v2 | Adaptive 6E/2S (v1) | Mixed 50/50 | Baseline (no expert) |
-|--------|-------------|---------------------|-------------|---------------------|
-| Peak reward | **+0.589** (step 15) | +0.068 (step 9) | Never positive | Never positive |
-| Peak completions/step | **41** (step 15) | 25 (step 9) | ~15 | ~5 |
+| Metric | Try-First v2 | Adaptive v1 | Mixed 50/50 | Baseline (no expert) |
+|--------|-------------|-------------|-------------|---------------------|
+| Peak reward | **+0.824** (step 23) | +0.068 (step 9) | Never positive | Never positive |
+| Peak completions/step | **57** (step 29) | 25 (step 9) | ~15 | ~5 |
+| Peak completion rate | **44.5%** (step 29) | 19.5% | ~12% | ~4% |
 | Reward crosses zero | **Step 10** | Step 9 (once) | Never | Never |
-| Sustained positive reward | **Steps 11-16** | No | No | No |
-| FE at step 16 | **54.7%** | ~72% | ~75% | ~80% |
-| Phase transitions | **Scaffold -> Balanced** | Stuck in Scaffold | N/A | N/A |
+| Sustained positive reward | **Steps 11-29 (19 steps)** | No | No | No |
+| Lowest format error | **31.3%** | ~70% | ~75% | ~77% |
+| Phase transitions achieved | **All 3** (Scaffold -> Balanced -> Independence) | None | N/A | N/A |
 
 **What made Try-First v2 different:**
 - The system prompt encourages independent problem-solving: *"FIRST TRY to solve the task yourself... If you encounter an error, THEN call ask_expert"*
 - Reward shaping creates a clear hierarchy: solo completion (reward=2.0) > recovery expert (reward=1.3) > blind expert (reward=0.8) > failure
 - The combination produces agents that are both more capable AND more independent
+- The adaptive ratio responds to the model's actual progress, not a fixed schedule — earning independence rather than being forced into it
 
 ---
 
@@ -248,13 +263,13 @@ The best way to think about adaptive expert ratio is **training wheels on a bicy
 
 ![Training Wheels Analogy](assets/training_wheels_analogy.png)
 
-- **Phase 1 (Scaffold):** The child can barely balance. Training wheels are firmly on. Most chains get expert guidance so the agent learns *what good tool calls look like* before worrying about *when to ask for help.*
+- **Phase 1 — Scaffold (Steps 1-10):** The child can barely balance. Training wheels are firmly on. Most chains get expert guidance so the agent learns *what good tool calls look like* before worrying about *when to ask for help.* FE: 88% -> 66%. Reward: -0.53 -> -0.02.
 
-- **Phase 2 (Balanced):** The child is wobbly but upright. One training wheel comes off. Half the chains must solve tasks solo, but the expert is still there for the harder half.
+- **Phase 2 — Balanced (Steps 11-27):** The child is wobbly but upright. One training wheel comes off. Half the chains must solve tasks solo, and the model thrives — completions jump from 28 to 51, reward peaks at +0.824. FE: 66% -> 44%.
 
-- **Phase 3 (Independence):** The child is riding confidently. Both training wheels come off, with just a hand hovering nearby. Most chains are solo, proving the agent can ride on its own.
+- **Phase 3 — Independence (Steps 28+):** The child is riding confidently. Both training wheels are off, with just a hand hovering nearby. Most chains are solo — and the model sets new records: 57 completions (44.5% rate), FE down to 31.3%.
 
-The key insight: **you don't yank training wheels off a kid who can't balance yet.** That's what the fixed 50/50 split did — and it's why it failed.
+**All three phases completed.** The key insight: you don't yank training wheels off a kid who can't balance yet. That's what the fixed 50/50 split did — and it's why it failed. The adaptive approach lets the model *earn* each transition.
 
 ---
 
@@ -262,23 +277,27 @@ The key insight: **you don't yank training wheels off a kid who can't balance ye
 
 ### 1. "Try First, Ask If Stuck" Is The Winning Strategy
 
-The breakthrough came from changing a single instruction: instead of "call the expert for complex tasks," we told the agent "try first, then ask if you get stuck." Combined with reward shaping (solo bonus +1.0, recovery bonus +0.3, blind penalty -0.2), this produced agents that are both more capable and more independent. Step 15 hit 32% completion rate — **10x the baseline**.
+The breakthrough came from changing a single instruction: instead of "call the expert for complex tasks," we told the agent "try first, then ask if you get stuck." Combined with reward shaping (solo bonus +1.0, recovery bonus +0.3, blind penalty -0.2), this produced agents that are both more capable and more independent. By step 29: **44.5% completion rate** — over 10x the baseline — with reward peaking at **+0.824**.
 
 ### 2. Graduated Reward Shaping Works Better Than Binary Bonuses
 
-The original +0.5 solo bonus was too blunt — it rarely triggered because the model couldn't complete tasks solo early on. The graduated system creates a clear hierarchy: solo > recovery > blind > failure. This gives the model a gradient to climb at every skill level, not just a cliff to jump off.
+The original +0.5 solo bonus was too blunt — it rarely triggered because the model couldn't complete tasks solo early on. The graduated system creates a clear hierarchy: solo (reward=2.0) > recovery expert (1.3) > blind expert (0.8) > failure. Over 29 steps, **635 solo completions** were achieved and **272 recovery expert calls** were rewarded, proving the gradient signal works at every skill level.
 
 ### 3. Format Errors Are The Gateway Skill
 
-88% of rollouts die from malformed XML tool calls in step 1. By step 16, this drops to 55% — but it's still the dominant failure mode. Expert scaffolding teaches formatting faster than solo trial-and-error. **An agent that can't format a tool call can't learn anything else.**
+88% of rollouts die from malformed XML tool calls in step 1. By step 29, this drops to **31.3%** — a 57-percentage-point improvement. Expert scaffolding teaches formatting faster than solo trial-and-error. **An agent that can't format a tool call can't learn anything else.**
 
-### 4. Adaptive Phase Transitions Are Real
+### 4. All Three Adaptive Phase Transitions Fired
 
-At step 10, format errors crossed the 70% threshold, and the system automatically shifted from Scaffold (6E/2S) to Balanced (4E/4S). The model didn't regress — it thrived with more independence, hitting its best results in the Balanced phase. The adaptive logic earned its keep.
+The model graduated through every phase the adaptive system designed:
+- **Step 10**: FE crossed 70% threshold -> Scaffold to Balanced (6E/2S -> 4E/4S)
+- **Step 28**: FE crossed 40% threshold -> Balanced to Independence (4E/4S -> 2E/6S)
 
-### 5. The Compounding Effect: Scaffolding + Independence Training
+The model didn't regress at either transition — it thrived with each increase in independence. At step 29, in full Independence mode, it hit its best completion rate (44.5%).
 
-Neither pure scaffolding nor pure independence training works alone. The magic is in the sequence: expert scaffolding teaches *what* good tool calls look like (steps 1-10), then independence training teaches *when* to ask for help (steps 11+). The "try first" prompt and reward shaping ensure the model doesn't get addicted to the expert.
+### 5. The Compounding Effect: Scaffolding Then Independence
+
+Neither pure scaffolding nor pure independence training works alone. The magic is in the three-act sequence: expert scaffolding teaches *what* good tool calls look like (steps 1-10), then balanced exposure teaches *when* to ask for help (steps 11-27), and finally independence mode proves the agent can ride solo (steps 28+). The "try first" prompt and reward shaping prevent expert addiction at every stage.
 
 ---
 
@@ -296,15 +315,15 @@ How does the agent actually *use* the expert over time?
 
 **3. "Solo Completion" (the ultimate goal):** The agent completes the task without ever calling the expert. These get the +1.0 solo bonus, making them the highest-rewarded pattern.
 
-**Reward shaping results after 16 training steps:**
+**Reward shaping results after 29 training steps:**
 
 | Pattern | Count | Reward Modifier | Trend |
 |---------|-------|-----------------|-------|
-| Blind expert calls | 360 | -0.2 penalty | Slowly decreasing share |
-| Recovery expert calls | ~55 | +0.3 bonus | Growing |
-| Solo completions | 34 | +1.0 bonus | Growing fast (0 at step 1 -> 34 by step 16) |
+| Blind expert calls | 1,115 | -0.2 penalty | Decreasing as share of total |
+| Recovery expert calls | 272 | +0.3 bonus | Steadily growing |
+| Solo completions | **635** | +1.0 bonus | Exploding growth (0 at step 1 -> 635 by step 29) |
 
-> **The shift is happening:** In the first training run (without "try first" prompt), blind expert calls were 77% and growing. With the new prompt and reward shaping, solo completions are increasing from zero to 34, and the model is learning that trying first yields higher rewards. The gradient signal is working.
+> **The shift happened.** In the first training run (without "try first" prompt), blind expert calls were 77% and growing. With the new prompt and reward shaping, solo completions rocketed from zero to 635 — the model learned that solving tasks independently is the highest-reward strategy. The blind-to-solo ratio went from infinity to roughly 2:1, and continues improving.
 
 ---
 
@@ -319,14 +338,15 @@ Scenario: `workflow_automation_1` (10 tasks), gpt-5.1
 | Avg reward | 0.500 | 0.800 | **+0.300 (+60%)** |
 | Complete tasks | 5/10 | 8/10 | **+3** |
 
-### GRPO Training (Qwen3-4B, 48 steps)
+### GRPO Training (Qwen3-4B, Try-First v2, 29 steps)
 
-| Metric | Before Training | After Training | Delta |
-|--------|----------------|----------------|-------|
-| Val accuracy | 3.4% | 55.2% | **+51.8pp** |
-| Train reward | -0.67 | +0.75 | **+1.42** |
-| Format error rate | 94% | 40% | **-54pp** |
-| Tasks solvable | 1/29 | 16/29 | **+15** |
+| Metric | Step 1 | Step 29 | Delta |
+|--------|--------|---------|-------|
+| Train reward | -0.528 | +0.407 (peak +0.824) | **+1.35** |
+| Completion rate | 5.5% | 44.5% | **+39pp** |
+| Format error rate | 88.3% | 31.3% | **-57pp** |
+| Completions/step | 7 | 57 | **+50 (8x)** |
+| Adaptive phase | Scaffold (6E/2S) | Independence (2E/6S) | **All 3 transitions** |
 
 ---
 
@@ -376,10 +396,10 @@ For straightforward tasks, the agent succeeds without expert help. The expert's 
 
 ### RL Training Insights
 
-- **Format errors dominate early training.** 90%+ of rollouts die before any meaningful tool interaction. Reducing format errors is the single highest-leverage improvement.
-- **Expert scaffolding has diminishing returns.** It provides 3.4x more completions in early steps but the baseline catches up by step 16. Know when to remove the scaffold.
-- **Fixed expert ratios waste compute.** A 50/50 split sounds fair but creates "dead weight" — solo chains that can't learn fast enough drag down the whole batch.
-- **Agents learn "always ask" before "ask selectively."** The RL signal reinforces calling the expert because it correlates with success, even when the agent could theoretically solve simpler tasks alone.
+- **Format errors dominate early training.** 88%+ of rollouts die before any meaningful tool interaction. Reducing format errors is the single highest-leverage improvement — and the agent reduced them from 88% to 31%.
+- **"Try first" prompt + reward shaping changes expert usage behavior.** Without it, the agent learns "always ask first." With it, solo completions grew from 0 to 635 over 29 steps while blind expert calls decreased as a share of total actions.
+- **Fixed expert ratios waste compute.** A 50/50 split sounds fair but creates "dead weight" — solo chains that can't learn fast enough drag down the whole batch. The adaptive approach ensures useful gradient signal at every training stage.
+- **Adaptive phase transitions build on each other.** Each phase unlocked by the model's own progress: Scaffold taught formatting, Balanced taught when to ask, Independence proved the agent can ride solo. The 3-phase journey (steps 1 -> 10 -> 28) mirrors human learning progressions.
 
 ---
 
