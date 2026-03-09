@@ -293,7 +293,7 @@ class TestProtocolWebSocketClient:
         """Test client can connect and reset via WebSocket."""
         from envs.echo_env.client import EchoEnv
 
-        with EchoEnv(base_url=echo_server) as client:
+        with EchoEnv(base_url=echo_server).sync() as client:
             result = client.reset()
             assert result is not None
             assert result.observation is not None
@@ -302,7 +302,7 @@ class TestProtocolWebSocketClient:
         """Test client can step via WebSocket."""
         from envs.echo_env.client import EchoEnv
 
-        with EchoEnv(base_url=echo_server) as client:
+        with EchoEnv(base_url=echo_server).sync() as client:
             client.reset()
             result = client.call_tool("echo_message", message="Hello")
             assert result is not None
@@ -312,7 +312,7 @@ class TestProtocolWebSocketClient:
         """Test client can get state via WebSocket."""
         from envs.echo_env.client import EchoEnv
 
-        with EchoEnv(base_url=echo_server) as client:
+        with EchoEnv(base_url=echo_server).sync() as client:
             client.reset()
             client.call_tool("echo_message", message="Test")
 
@@ -324,7 +324,7 @@ class TestProtocolWebSocketClient:
         """Test client can run multiple episodes."""
         from envs.echo_env.client import EchoEnv
 
-        with EchoEnv(base_url=echo_server) as client:
+        with EchoEnv(base_url=echo_server).sync() as client:
             # Episode 1
             client.reset()
             client.call_tool("echo_message", message="E1S1")
@@ -375,8 +375,8 @@ class TestConcurrencyMultipleSessions:
         """Test that two clients can run independently."""
         from envs.echo_env.client import EchoEnv
 
-        with EchoEnv(base_url=echo_server_concurrent) as client1:
-            with EchoEnv(base_url=echo_server_concurrent) as client2:
+        with EchoEnv(base_url=echo_server_concurrent).sync() as client1:
+            with EchoEnv(base_url=echo_server_concurrent).sync() as client2:
                 # Both reset
                 client1.reset()
                 client2.reset()
@@ -402,11 +402,11 @@ class TestConcurrencyMultipleSessions:
         """Test that session state is isolated between clients."""
         from envs.echo_env.client import EchoEnv
 
-        with EchoEnv(base_url=echo_server_concurrent) as client1:
+        with EchoEnv(base_url=echo_server_concurrent).sync() as client1:
             client1.reset()
             result1 = client1.call_tool("echo_message", message="Secret from C1")
 
-            with EchoEnv(base_url=echo_server_concurrent) as client2:
+            with EchoEnv(base_url=echo_server_concurrent).sync() as client2:
                 client2.reset()
                 result2 = client2.call_tool("echo_message", message="Secret from C2")
 
@@ -433,7 +433,7 @@ class TestEchoEnvironment:
         """Test that messages are echoed correctly."""
         from envs.echo_env.client import EchoEnv
 
-        with EchoEnv(base_url=server) as client:
+        with EchoEnv(base_url=server).sync() as client:
             client.reset()
             result = client.call_tool("echo_message", message="Hello World!")
             assert result == "Hello World!"
@@ -442,7 +442,7 @@ class TestEchoEnvironment:
         """Test that echo_with_length returns message and length."""
         from envs.echo_env.client import EchoEnv
 
-        with EchoEnv(base_url=server) as client:
+        with EchoEnv(base_url=server).sync() as client:
             client.reset()
             result = client.call_tool("echo_with_length", message="Hello World!")
             assert result["message"] == "Hello World!"
@@ -462,7 +462,7 @@ class TestConnect4Environment:
         """Test that initial board is empty."""
         from envs.connect4_env.client import Connect4Env
 
-        with Connect4Env(base_url=server) as client:
+        with Connect4Env(base_url=server).sync() as client:
             result = client.reset()
 
             # Board should be 6x7 and empty (all zeros)
@@ -474,7 +474,7 @@ class TestConnect4Environment:
         """Test that all columns are legal initially."""
         from envs.connect4_env.client import Connect4Env
 
-        with Connect4Env(base_url=server) as client:
+        with Connect4Env(base_url=server).sync() as client:
             result = client.reset()
 
             # All 7 columns should be legal

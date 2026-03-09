@@ -30,4 +30,3 @@ def load_json(name: str) -> Dict[str, Any]:
 
 def load_trolley_micro_benchmarks() -> Dict[str, Any]:
     return load_json("trolley_micro_benchmarks.json")
-

@@ -14,19 +14,21 @@ Supports two modes:
 The environment wraps CARLA scenarios and provides OpenEnv-compatible API.
 """
 
-import uuid
 import math
-from typing import Optional, Dict, Any, List
+import uuid
+from typing import Any, Dict, List, Optional
+
 from openenv.core.env_server import Environment
+
 from .logging import get_logger
 
 logger = get_logger("environment")
 
 from ..models import CarlaAction, CarlaObservation, CarlaState
 from .benchmark_scenarios import BaseScenario, get_scenario
-from .benchmark_scenarios.trolley_micro import TrolleyMicroScenario
 from .benchmark_scenarios.action_bias import ActionBiasScenario
-from .rubrics import CarlaTrolleyRubric, CarlaNavigationRubric
+from .benchmark_scenarios.trolley_micro import TrolleyMicroScenario
+from .rubrics import CarlaNavigationRubric, CarlaTrolleyRubric
 
 
 def _rubric_for_scenario(scenario: BaseScenario):
@@ -35,9 +37,11 @@ def _rubric_for_scenario(scenario: BaseScenario):
         return CarlaTrolleyRubric(gamma=0.99)
     return CarlaNavigationRubric()
 
+
 # Try to import CARLA, but don't fail if not available
 try:
     import carla
+
     CARLA_AVAILABLE = True
 except ImportError:
     CARLA_AVAILABLE = False
@@ -55,9 +59,11 @@ class CollisionSensor:
 
     def setup(self):
         """Create and configure the collision sensor."""
-        blueprint = self._world.get_blueprint_library().find('sensor.other.collision')
+        blueprint = self._world.get_blueprint_library().find("sensor.other.collision")
         transform = carla.Transform(carla.Location(x=0.0, y=0.0, z=0.0))
-        self._sensor = self._world.try_spawn_actor(blueprint, transform, attach_to=self._vehicle)
+        self._sensor = self._world.try_spawn_actor(
+            blueprint, transform, attach_to=self._vehicle
+        )
 
         if self._sensor is None:
             raise RuntimeError("Failed to spawn collision sensor")
@@ -76,7 +82,11 @@ class CollisionSensor:
 
     def count_unique_by_prefix(self, prefix: str) -> int:
         """Count unique actors hit that match prefix (e.g., 'walker.')."""
-        return sum(1 for type_id in self._collided_actors.values() if type_id.startswith(prefix))
+        return sum(
+            1
+            for type_id in self._collided_actors.values()
+            if type_id.startswith(prefix)
+        )
 
     @property
     def collision_count(self) -> int:
@@ -129,7 +139,7 @@ class ActorsHelper:
         """Spawn a pedestrian at the given transform."""
         try:
             blueprint_library = self.world.get_blueprint_library()
-            pedestrian_bps = blueprint_library.filter('walker.pedestrian.*')
+            pedestrian_bps = blueprint_library.filter("walker.pedestrian.*")
             if not pedestrian_bps:
                 return None
 
@@ -160,7 +170,8 @@ class ActorsHelper:
         try:
             blueprint_library = self.world.get_blueprint_library()
             import random
-            vehicle_bps = blueprint_library.filter('vehicle.*')
+
+            vehicle_bps = blueprint_library.filter("vehicle.*")
             if not vehicle_bps:
                 return None
             vehicle_bp = random.choice(vehicle_bps)
@@ -360,7 +371,11 @@ class CarlaEnvironment(Environment):
             prev_speed = self._get_current_speed()
         else:
             prev_location = None
-            prev_speed = self.mock_state.get("speed_kmh", 0.0) if hasattr(self, "mock_state") else 0.0
+            prev_speed = (
+                self.mock_state.get("speed_kmh", 0.0)
+                if hasattr(self, "mock_state")
+                else 0.0
+            )
 
         # Execute action
         if self.mode == "real":
@@ -382,19 +397,23 @@ class CarlaEnvironment(Environment):
             # Update average speed (running average)
             if self._state.num_turns > 0:
                 self._state.average_speed = (
-                    (self._state.average_speed * (self._state.num_turns - 1) + current_speed)
-                    / self._state.num_turns
-                )
+                    self._state.average_speed * (self._state.num_turns - 1)
+                    + current_speed
+                ) / self._state.num_turns
         else:
             # Mock mode tracking
-            current_speed = self.mock_state.get("speed_kmh", 0.0) if hasattr(self, "mock_state") else 0.0
+            current_speed = (
+                self.mock_state.get("speed_kmh", 0.0)
+                if hasattr(self, "mock_state")
+                else 0.0
+            )
             self._state.max_speed = max(self._state.max_speed, current_speed)
 
             if self._state.num_turns > 0:
                 self._state.average_speed = (
-                    (self._state.average_speed * (self._state.num_turns - 1) + current_speed)
-                    / self._state.num_turns
-                )
+                    self._state.average_speed * (self._state.num_turns - 1)
+                    + current_speed
+                ) / self._state.num_turns
 
         # Sync runtime state for scenario logic
         if self._runtime_state and "tool_calls" in self._runtime_state:
@@ -414,7 +433,9 @@ class CarlaEnvironment(Environment):
             self._runtime_state["step_count"] = self._state.step_count
             if self.mode == "mock":
                 self._runtime_state["speed_kmh"] = self.mock_state.get("speed_kmh", 0.0)
-                self._runtime_state["collision_detected"] = len(self.mock_state.get("collisions", [])) > 0
+                self._runtime_state["collision_detected"] = (
+                    len(self.mock_state.get("collisions", [])) > 0
+                )
                 self._runtime_state["goal_distance"] = self._compute_goal_distance()
 
         # Get observation
@@ -475,7 +496,11 @@ class CarlaEnvironment(Environment):
 
         def _has_adjacent(check_wp, direction: str) -> bool:
             """Check a waypoint has a same-direction driving lane."""
-            adj = check_wp.get_left_lane() if direction == "left" else check_wp.get_right_lane()
+            adj = (
+                check_wp.get_left_lane()
+                if direction == "left"
+                else check_wp.get_right_lane()
+            )
             if adj is None or adj.lane_type != carla.LaneType.Driving:
                 return False
             return same_direction(check_wp, adj)
@@ -558,6 +583,7 @@ class CarlaEnvironment(Environment):
         # This avoids always selecting the same spawn point which may have
         # undesirable road features (e.g. speed bumps).
         import random
+
         random.shuffle(candidates)
         return candidates[0][1]
 
@@ -599,15 +625,15 @@ class CarlaEnvironment(Environment):
             self.world = self.client.get_world()
 
         # Clean up previous actors if they exist
-        if hasattr(self, 'actors_helper') and self.actors_helper is not None:
+        if hasattr(self, "actors_helper") and self.actors_helper is not None:
             self.actors_helper.cleanup()
             self.actors_helper = None
 
-        if hasattr(self, 'collision_sensor') and self.collision_sensor is not None:
+        if hasattr(self, "collision_sensor") and self.collision_sensor is not None:
             self.collision_sensor.destroy()
             self.collision_sensor = None
 
-        if hasattr(self, 'camera_sensor') and self.camera_sensor is not None:
+        if hasattr(self, "camera_sensor") and self.camera_sensor is not None:
             try:
                 if self.camera_sensor.is_alive:
                     self.camera_sensor.stop()
@@ -623,12 +649,12 @@ class CarlaEnvironment(Environment):
         # Destroy ALL remaining walkers and NPC vehicles in the world to prevent
         # accumulation across episodes (e.g. from crashed resets, timeouts, or
         # prior instances that disconnected without proper cleanup).
-        for actor in self.world.get_actors().filter('walker.*'):
+        for actor in self.world.get_actors().filter("walker.*"):
             try:
                 actor.destroy()
             except Exception:
                 pass
-        for actor in self.world.get_actors().filter('vehicle.*'):
+        for actor in self.world.get_actors().filter("vehicle.*"):
             try:
                 actor.destroy()
             except Exception:
@@ -666,7 +692,8 @@ class CarlaEnvironment(Environment):
         spawn_points = carla_map.get_spawn_points()
         if spawn_points:
             transform = self._find_best_spawn_point(
-                spawn_points, carla_map,
+                spawn_points,
+                carla_map,
                 min_forward_m=min_forward_m,
                 require_left=require_left,
                 require_right=require_right,
@@ -674,10 +701,13 @@ class CarlaEnvironment(Environment):
                 adjacent_check_distance_m=adjacent_check_distance_m,
             )
 
-            if transform is None and (require_left or require_right or require_any_adjacent):
+            if transform is None and (
+                require_left or require_right or require_any_adjacent
+            ):
                 # Relax: keep lane requirements but drop adjacent_check_distance
                 transform = self._find_best_spawn_point(
-                    spawn_points, carla_map,
+                    spawn_points,
+                    carla_map,
                     min_forward_m=min_forward_m,
                     require_left=require_left,
                     require_right=require_right,
@@ -687,7 +717,8 @@ class CarlaEnvironment(Environment):
             if transform is None:
                 # Final relax: drop all lane requirements
                 transform = self._find_best_spawn_point(
-                    spawn_points, carla_map,
+                    spawn_points,
+                    carla_map,
                     min_forward_m=min_forward_m,
                 )
 
@@ -718,13 +749,15 @@ class CarlaEnvironment(Environment):
         self.camera_sensor = None
         self.latest_camera_image = None
         try:
-            camera_bp = self.world.get_blueprint_library().find('sensor.camera.rgb')
-            camera_bp.set_attribute('image_size_x', str(cfg.camera_width))
-            camera_bp.set_attribute('image_size_y', str(cfg.camera_height))
-            camera_bp.set_attribute('fov', str(cfg.camera_fov))
+            camera_bp = self.world.get_blueprint_library().find("sensor.camera.rgb")
+            camera_bp.set_attribute("image_size_x", str(cfg.camera_width))
+            camera_bp.set_attribute("image_size_y", str(cfg.camera_height))
+            camera_bp.set_attribute("fov", str(cfg.camera_fov))
             self._jpeg_quality = cfg.jpeg_quality
             camera_transform = carla.Transform(carla.Location(x=2.5, z=1.0))
-            self.camera_sensor = self.world.try_spawn_actor(camera_bp, camera_transform, attach_to=self.vehicle)
+            self.camera_sensor = self.world.try_spawn_actor(
+                camera_bp, camera_transform, attach_to=self.vehicle
+            )
             if self.camera_sensor:
                 self.camera_sensor.listen(lambda image: self._on_camera_image(image))
         except Exception:
@@ -835,19 +868,20 @@ class CarlaEnvironment(Environment):
         elif action.action_type == "brake_vehicle":
             # Brake with specific intensity
             # Adapted from SinatrasC/carla-env tools/vehicle.py:brake_vehicle()
-            intensity = action.brake_intensity if action.brake_intensity is not None else 1.0
+            intensity = (
+                action.brake_intensity if action.brake_intensity is not None else 1.0
+            )
             intensity = max(0.0, min(1.0, float(intensity)))  # Clamp [0.0, 1.0]
             control = carla.VehicleControl(
-                throttle=0.0,
-                steer=0.0,
-                brake=intensity,
-                hand_brake=False
+                throttle=0.0, steer=0.0, brake=intensity, hand_brake=False
             )
             self.vehicle.apply_control(control)
 
         elif action.action_type == "maintain_speed":
             # Maintain target speed with simple PID-like control
-            target_speed = action.target_speed_kmh if action.target_speed_kmh is not None else 30.0
+            target_speed = (
+                action.target_speed_kmh if action.target_speed_kmh is not None else 30.0
+            )
             current_speed = self._get_current_speed()
 
             # Simple proportional control
@@ -863,9 +897,7 @@ class CarlaEnvironment(Environment):
                 brake_val = 0.0
 
             control = carla.VehicleControl(
-                throttle=throttle,
-                steer=0.0,
-                brake=brake_val
+                throttle=throttle, steer=0.0, brake=brake_val
             )
             self.vehicle.apply_control(control)
 
@@ -875,13 +907,19 @@ class CarlaEnvironment(Environment):
             if action.target_lane_id:
                 # New way: use target_lane_id (e.g., "lane_1", "lane_0")
                 # For now, simple implementation: steer based on lane number
-                current_lane = self.current_lane if hasattr(self, 'current_lane') else "lane_0"
+                current_lane = (
+                    self.current_lane if hasattr(self, "current_lane") else "lane_0"
+                )
                 target_lane = action.target_lane_id
 
                 # Extract lane numbers (assuming format "lane_N")
                 try:
-                    current_num = int(current_lane.split('_')[1]) if '_' in current_lane else 0
-                    target_num = int(target_lane.split('_')[1]) if '_' in target_lane else 0
+                    current_num = (
+                        int(current_lane.split("_")[1]) if "_" in current_lane else 0
+                    )
+                    target_num = (
+                        int(target_lane.split("_")[1]) if "_" in target_lane else 0
+                    )
                     lane_diff = target_num - current_num
 
                     # Steer proportional to lane difference
@@ -902,11 +940,16 @@ class CarlaEnvironment(Environment):
 
         elif action.action_type == "init_navigation_agent":
             # Initialize navigation agent
-            behavior = action.navigation_behavior if action.navigation_behavior else "normal"
+            behavior = (
+                action.navigation_behavior if action.navigation_behavior else "normal"
+            )
+
+            from carla_env.server.carla_agents.navigation.basic_agent import BasicAgent
 
             # Import agents (lazy import - only when needed)
-            from carla_env.server.carla_agents.navigation.behavior_agent import BehaviorAgent
-            from carla_env.server.carla_agents.navigation.basic_agent import BasicAgent
+            from carla_env.server.carla_agents.navigation.behavior_agent import (
+                BehaviorAgent,
+            )
 
             # Create agent based on behavior
             if behavior == "normal":
@@ -921,16 +964,17 @@ class CarlaEnvironment(Environment):
             # Set destination for navigation agent
             if self.nav_agent is None:
                 # Auto-initialize with normal behavior if not initialized
-                from carla_env.server.carla_agents.navigation.behavior_agent import BehaviorAgent
+                from carla_env.server.carla_agents.navigation.behavior_agent import (
+                    BehaviorAgent,
+                )
+
                 self.nav_agent = BehaviorAgent(self.vehicle, behavior="normal")
 
             # Set destination
             if action.destination_x is not None and action.destination_y is not None:
                 z = action.destination_z if action.destination_z is not None else 0.0
                 destination = carla.Location(
-                    x=action.destination_x,
-                    y=action.destination_y,
-                    z=z
+                    x=action.destination_x, y=action.destination_y, z=z
                 )
                 self.nav_agent.set_destination(destination)
 
@@ -956,12 +1000,17 @@ class CarlaEnvironment(Environment):
             self.world.tick()
 
         # Update collision state after tick
-        if hasattr(self, 'collision_sensor') and self.collision_sensor is not None:
-            if hasattr(self.collision_sensor, '_collided_actors'):
+        if hasattr(self, "collision_sensor") and self.collision_sensor is not None:
+            if hasattr(self.collision_sensor, "_collided_actors"):
                 # Add new collisions to state.collisions
-                for actor_id, actor_type in self.collision_sensor._collided_actors.items():
+                for (
+                    actor_id,
+                    actor_type,
+                ) in self.collision_sensor._collided_actors.items():
                     # Check if this collision is already recorded
-                    existing = any(c.get("actor_id") == actor_id for c in self._state.collisions)
+                    existing = any(
+                        c.get("actor_id") == actor_id for c in self._state.collisions
+                    )
                     if not existing:
                         collision = {
                             "frame": self._state.step_count,
@@ -971,7 +1020,9 @@ class CarlaEnvironment(Environment):
                         }
                         self._state.collisions.append(collision)
                         self._state.collisions_count += 1
-                        self._state.collision_intensity_total += self._get_current_speed()
+                        self._state.collision_intensity_total += (
+                            self._get_current_speed()
+                        )
 
     def _step_mock_mode(self, action: CarlaAction) -> None:
         """Execute action in mock simulation mode."""
@@ -1004,7 +1055,9 @@ class CarlaEnvironment(Environment):
 
         elif action.action_type == "brake_vehicle":
             # Brake with specific intensity
-            intensity = action.brake_intensity if action.brake_intensity is not None else 1.0
+            intensity = (
+                action.brake_intensity if action.brake_intensity is not None else 1.0
+            )
             intensity = max(0.0, min(1.0, float(intensity)))
             # Apply deceleration proportional to intensity
             decel = intensity * 8.0  # m/s^2
@@ -1014,7 +1067,9 @@ class CarlaEnvironment(Environment):
 
         elif action.action_type == "maintain_speed":
             # Maintain target speed
-            target_speed = action.target_speed_kmh if action.target_speed_kmh is not None else 30.0
+            target_speed = (
+                action.target_speed_kmh if action.target_speed_kmh is not None else 30.0
+            )
             current_speed = self.mock_state["speed_kmh"]
             speed_error = target_speed - current_speed
 
@@ -1052,7 +1107,9 @@ class CarlaEnvironment(Environment):
         elif action.action_type == "init_navigation_agent":
             # Mock navigation agent initialization
             # Store navigation config in mock state
-            behavior = action.navigation_behavior if action.navigation_behavior else "normal"
+            behavior = (
+                action.navigation_behavior if action.navigation_behavior else "normal"
+            )
             self.mock_state["nav_agent"] = {
                 "initialized": True,
                 "behavior": behavior,
@@ -1073,20 +1130,23 @@ class CarlaEnvironment(Environment):
                 self.mock_state["nav_agent"]["destination"] = (
                     action.destination_x,
                     action.destination_y,
-                    z
+                    z,
                 )
 
         elif action.action_type == "follow_route":
             # Mock follow route
             # Simple simulation: move towards destination
-            if "nav_agent" in self.mock_state and self.mock_state["nav_agent"]["destination"]:
+            if (
+                "nav_agent" in self.mock_state
+                and self.mock_state["nav_agent"]["destination"]
+            ):
                 dest = self.mock_state["nav_agent"]["destination"]
                 current = self.mock_state["location"]
 
                 # Compute direction to destination
                 dx = dest[0] - current[0]
                 dy = dest[1] - current[1]
-                distance = math.sqrt(dx*dx + dy*dy)
+                distance = math.sqrt(dx * dx + dy * dy)
 
                 if distance > 1.0:
                     # Move towards destination
@@ -1128,7 +1188,9 @@ class CarlaEnvironment(Environment):
                 actor_lateral_offset = actor.get("lane_offset", 0.0)
 
                 # Vehicle has traveled forward
-                distance_traveled = self.mock_state["speed_kmh"] / 3.6 * self.mock_state["time"]
+                distance_traveled = (
+                    self.mock_state["speed_kmh"] / 3.6 * self.mock_state["time"]
+                )
 
                 # Simple collision check
                 if abs(distance_traveled - actor_distance) < 2.0:
@@ -1144,7 +1206,9 @@ class CarlaEnvironment(Environment):
 
                         # Track collision metrics
                         self._state.collisions_count += 1
-                        self._state.collision_intensity_total += self.mock_state["speed_kmh"]
+                        self._state.collision_intensity_total += self.mock_state[
+                            "speed_kmh"
+                        ]
 
     def _get_observation(self) -> CarlaObservation:
         """Generate observation from current state."""
@@ -1191,13 +1255,15 @@ class CarlaEnvironment(Environment):
         # Check collision sensor if it exists
         collision_detected = False
         collided_with = None
-        if hasattr(self, 'collision_sensor') and self.collision_sensor is not None:
+        if hasattr(self, "collision_sensor") and self.collision_sensor is not None:
             # Check if any collisions occurred (_collided_actors is now a dict: actor_id -> type_id)
-            if hasattr(self.collision_sensor, '_collided_actors'):
+            if hasattr(self.collision_sensor, "_collided_actors"):
                 collision_detected = len(self.collision_sensor._collided_actors) > 0
                 if collision_detected:
                     # Return first collided actor type (from dict values)
-                    collided_with = list(self.collision_sensor._collided_actors.values())[0]
+                    collided_with = list(
+                        self.collision_sensor._collided_actors.values()
+                    )[0]
 
         # Compute goal info if goal is set
         goal_dist = self._compute_goal_distance()
@@ -1206,7 +1272,11 @@ class CarlaEnvironment(Environment):
         return CarlaObservation(
             speed_kmh=speed_kmh,
             location=(transform.location.x, transform.location.y, transform.location.z),
-            rotation=(transform.rotation.pitch, transform.rotation.yaw, transform.rotation.roll),
+            rotation=(
+                transform.rotation.pitch,
+                transform.rotation.yaw,
+                transform.rotation.roll,
+            ),
             current_lane="lane_0",  # Simplified
             nearby_actors=self._get_nearby_actors_real(),
             collision_detected=collision_detected,
@@ -1253,7 +1323,10 @@ class CarlaEnvironment(Environment):
 
                 # Only include pedestrians and vehicles
                 actor_type = actor.type_id
-                if not (actor_type.startswith('walker.') or actor_type.startswith('vehicle.')):
+                if not (
+                    actor_type.startswith("walker.")
+                    or actor_type.startswith("vehicle.")
+                ):
                     continue
 
                 # Calculate distance and position relative to ego
@@ -1276,12 +1349,14 @@ class CarlaEnvironment(Environment):
                 else:
                     position = "behind"
 
-                nearby.append({
-                    "type": actor_type,
-                    "id": actor.id,
-                    "distance": distance,
-                    "position": position,
-                })
+                nearby.append(
+                    {
+                        "type": actor_type,
+                        "id": actor.id,
+                        "distance": distance,
+                        "position": position,
+                    }
+                )
 
             return nearby
 
@@ -1299,12 +1374,14 @@ class CarlaEnvironment(Environment):
             relative_distance = actor["distance"] - distance_traveled
 
             if relative_distance > -5.0 and relative_distance < 50.0:
-                nearby.append({
-                    "type": actor["type"],
-                    "id": actor["id"],
-                    "distance": max(0.0, relative_distance),
-                    "position": actor["position"],
-                })
+                nearby.append(
+                    {
+                        "type": actor["type"],
+                        "id": actor["id"],
+                        "distance": max(0.0, relative_distance),
+                        "position": actor["position"],
+                    }
+                )
 
         return nearby
 
@@ -1322,7 +1399,7 @@ class CarlaEnvironment(Environment):
 
         dx = goal[0] - current[0]
         dy = goal[1] - current[1]
-        return math.sqrt(dx*dx + dy*dy)
+        return math.sqrt(dx * dx + dy * dy)
 
     def _compute_goal_direction(self) -> str:
         """Compute cardinal direction to goal."""
@@ -1353,6 +1430,7 @@ class CarlaEnvironment(Environment):
     def _on_camera_image(self, image):
         """Callback for camera sensor - stores latest image."""
         import numpy as np
+
         # Convert CARLA image to numpy array
         array = np.frombuffer(image.raw_data, dtype=np.dtype("uint8"))
         array = np.reshape(array, (image.height, image.width, 4))  # BGRA
@@ -1374,6 +1452,7 @@ class CarlaEnvironment(Environment):
         # Give the camera sensor time to deliver at least one frame.
         if self.latest_camera_image is None:
             import time
+
             for _ in range(5):
                 self.world.tick()
                 time.sleep(0.1)
@@ -1383,31 +1462,32 @@ class CarlaEnvironment(Environment):
         if self.latest_camera_image is None:
             return None
 
-        import io
         import base64
+        import io
+
         from PIL import Image
 
         img = Image.fromarray(self.latest_camera_image)
         buffer = io.BytesIO()
-        img.save(buffer, format='JPEG', quality=getattr(self, '_jpeg_quality', 75))
+        img.save(buffer, format="JPEG", quality=getattr(self, "_jpeg_quality", 75))
         buffer.seek(0)
-        return base64.b64encode(buffer.read()).decode('utf-8')
+        return base64.b64encode(buffer.read()).decode("utf-8")
 
     def close(self) -> None:
         """Cleanup resources."""
         if self.mode == "real":
             # Cleanup spawned actors
-            if hasattr(self, 'actors_helper') and self.actors_helper is not None:
+            if hasattr(self, "actors_helper") and self.actors_helper is not None:
                 self.actors_helper.cleanup()
                 self.actors_helper = None
 
             # Cleanup collision sensor if exists
-            if hasattr(self, 'collision_sensor') and self.collision_sensor is not None:
+            if hasattr(self, "collision_sensor") and self.collision_sensor is not None:
                 self.collision_sensor.destroy()
                 self.collision_sensor = None
 
             # Cleanup camera sensor if exists
-            if hasattr(self, 'camera_sensor') and self.camera_sensor is not None:
+            if hasattr(self, "camera_sensor") and self.camera_sensor is not None:
                 try:
                     if self.camera_sensor.is_alive:
                         self.camera_sensor.stop()
@@ -1423,7 +1503,7 @@ class CarlaEnvironment(Environment):
 
             # Restore asynchronous mode so the CARLA server is not left frozen
             # waiting for world.tick() calls that will never come.
-            if hasattr(self, 'world') and self.world is not None:
+            if hasattr(self, "world") and self.world is not None:
                 try:
                     settings = self.world.get_settings()
                     settings.synchronous_mode = False
