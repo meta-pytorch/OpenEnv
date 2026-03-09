@@ -69,7 +69,9 @@ def create_atari_environment():
 
 # Create the FastAPI app with web interface and README integration
 # Pass the factory function instead of an instance for WebSocket session support
-app = create_app(create_atari_environment, AtariAction, AtariObservation, env_name="atari_env")
+app = create_app(
+    create_atari_environment, AtariAction, AtariObservation, env_name="atari_env"
+)
 
 
 if __name__ == "__main__":

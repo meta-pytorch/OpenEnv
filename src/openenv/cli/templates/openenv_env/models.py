@@ -10,9 +10,8 @@ Data models for the __ENV_TITLE_NAME__ Environment.
 The __ENV_NAME__ environment is a simple test environment that echoes back messages.
 """
 
-from pydantic import Field
-
 from openenv.core.env_server.types import Action, Observation
+from pydantic import Field
 
 
 class __ENV_CLASS_NAME__Action(Action):

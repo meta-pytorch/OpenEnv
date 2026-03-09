@@ -11,7 +11,6 @@ Proper unit tests with assertions to verify correct behavior.
 """
 
 import torch
-
 from openenv.core.env_server.interfaces import Message
 
 from ..models import ChatAction
@@ -64,9 +63,9 @@ def test_tokenization_consistency():
     action2 = env.message_to_action(message2)
 
     # Verify tokens are identical
-    assert torch.equal(
-        action1.tokens, action2.tokens
-    ), "Same message should produce identical tokens"
+    assert torch.equal(action1.tokens, action2.tokens), (
+        "Same message should produce identical tokens"
+    )
 
     # Verify tokens are not empty
     assert action1.tokens.numel() > 0, "Tokens should not be empty"
@@ -128,9 +127,9 @@ def test_system_prompt_preserved():
     obs = env.reset()
     assert len(obs.messages) == 1, "Should have exactly one message (system prompt)"
     assert obs.messages[0]["role"] == "system", "First message should have system role"
-    assert (
-        obs.messages[0]["content"] == system_prompt
-    ), "System prompt content should match"
+    assert obs.messages[0]["content"] == system_prompt, (
+        "System prompt content should match"
+    )
 
     # Add some messages
     action = env.message_to_action({"role": "user", "content": "Hello"})
@@ -139,9 +138,9 @@ def test_system_prompt_preserved():
     # Reset and verify system prompt is still there
     obs = env.reset()
     assert len(obs.messages) == 1, "After reset, should only have system prompt"
-    assert (
-        obs.messages[0]["content"] == system_prompt
-    ), "System prompt should be preserved after reset"
+    assert obs.messages[0]["content"] == system_prompt, (
+        "System prompt should be preserved after reset"
+    )
 
     print("✓ test_system_prompt_preserved passed")
 
@@ -170,15 +169,15 @@ def test_token_history_accumulation():
     token_count_2 = obs2.tokens.numel()
 
     # Tokens should continue to accumulate
-    assert (
-        token_count_2 > token_count_1
-    ), "Token count should keep increasing with more messages"
+    assert token_count_2 > token_count_1, (
+        "Token count should keep increasing with more messages"
+    )
 
     # Verify tokens are the concatenation of both messages
     expected_tokens = torch.cat([action1.tokens.flatten(), action2.tokens.flatten()])
-    assert torch.equal(
-        obs2.tokens, expected_tokens
-    ), "Tokens should be concatenation of all actions"
+    assert torch.equal(obs2.tokens, expected_tokens), (
+        "Tokens should be concatenation of all actions"
+    )
 
     print("✓ test_token_history_accumulation passed")
 
@@ -202,9 +201,9 @@ def test_direct_token_action():
     assert obs.messages[0]["role"] == "assistant", "Should default to assistant role"
 
     # Verify tokens match what we sent (flattened)
-    assert torch.equal(
-        obs.tokens, raw_tokens.flatten()
-    ), "Observation tokens should match input tokens"
+    assert torch.equal(obs.tokens, raw_tokens.flatten()), (
+        "Observation tokens should match input tokens"
+    )
 
     print("✓ test_direct_token_action passed")
 
@@ -262,20 +261,18 @@ def test_reset_clears_history():
     obs2 = env.step(action)
 
     # Verify message was added
-    assert (
-        len(obs2.messages) > initial_messages
-    ), "Message should be added after step"
+    assert len(obs2.messages) > initial_messages, "Message should be added after step"
 
     # Reset
     obs3 = env.reset()
 
     # Verify we're back to just the system prompt
-    assert (
-        len(obs3.messages) == initial_messages
-    ), "Reset should clear history back to initial state"
-    assert (
-        obs3.messages[0]["content"] == "System message"
-    ), "System prompt should be preserved"
+    assert len(obs3.messages) == initial_messages, (
+        "Reset should clear history back to initial state"
+    )
+    assert obs3.messages[0]["content"] == "System message", (
+        "System prompt should be preserved"
+    )
 
     print("✓ test_reset_clears_history passed")
 

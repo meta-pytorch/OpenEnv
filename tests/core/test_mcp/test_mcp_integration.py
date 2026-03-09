@@ -18,7 +18,6 @@ from typing import Any, Optional
 
 import pytest
 from fastmcp import FastMCP
-
 from openenv.core.env_server.mcp_environment import MCPEnvironment
 from openenv.core.env_server.mcp_types import (
     CallToolAction,
@@ -296,11 +295,11 @@ class TestWebSocketMCP:
     def app(self):
         """Create a FastAPI app with EchoEnvironment for WebSocket testing."""
         from echo_env.server.echo_environment import EchoEnvironment
+        from openenv.core.env_server.http_server import create_fastapi_app
         from openenv.core.env_server.mcp_types import (
             CallToolAction,
             CallToolObservation,
         )
-        from openenv.core.env_server.http_server import create_fastapi_app
 
         return create_fastapi_app(
             env=EchoEnvironment,

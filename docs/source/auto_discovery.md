@@ -1,0 +1,2 @@
+```{include} ../auto-discovery.md
+```

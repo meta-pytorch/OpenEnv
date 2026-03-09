@@ -84,6 +84,25 @@ MCP_TOOL_CALL_TIMEOUT = 30.0
 VALID_MODES = {"production", "simulation"}
 
 
+def get_server_tools(mcp_server: Any) -> Dict[str, Any]:
+    """
+    Get tools from a FastMCP server, compatible with both 2.x and 3.x.
+
+    Returns:
+        Dictionary mapping tool names to tool objects.
+    """
+    # FastMCP 2.x: get_tools() returns dict {name: Tool}
+    if hasattr(mcp_server, "get_tools"):
+        result = run_async_safely(mcp_server.get_tools())
+        if isinstance(result, dict):
+            return result
+    # FastMCP 3.x: list_tools() returns list of Tool objects
+    if hasattr(mcp_server, "list_tools"):
+        tools_list = run_async_safely(mcp_server.list_tools())
+        return {t.name: t for t in tools_list}
+    return {}
+
+
 class MCPEnvironment(Environment):
     """
     Base class for environments that expose tools via MCP (Model Context Protocol).
@@ -150,6 +169,15 @@ class MCPEnvironment(Environment):
         """Check if this environment supports code mode (execute_code)."""
         return True
 
+    def _get_server_tools(self, mcp_server: Any) -> Dict[str, Any]:
+        """
+        Get tools from a FastMCP server, compatible with both 2.x and 3.x.
+
+        Returns:
+            Dictionary mapping tool names to tool objects.
+        """
+        return get_server_tools(mcp_server)
+
     def get_callables(self) -> Dict[str, Callable]:
         """
         Get callable functions for code mode.
@@ -164,15 +192,10 @@ class MCPEnvironment(Environment):
         callables: Dict[str, Callable] = {}
         current_mode = getattr(self, "_mode", None)
 
-        # Extract callables from FastMCP server's tool manager
-        if (
-            hasattr(self.mcp_server, "_tool_manager")
-            and hasattr(self.mcp_server._tool_manager, "_tools")
-            and isinstance(getattr(self.mcp_server._tool_manager, "_tools", None), dict)
-        ):
-            for tool_name, tool in self.mcp_server._tool_manager._tools.items():
-                if hasattr(tool, "fn") and callable(tool.fn):
-                    callables[tool_name] = tool.fn
+        # Extract callables from FastMCP server using public API
+        for tool_name, tool in self._get_server_tools(self.mcp_server).items():
+            if hasattr(tool, "fn") and callable(tool.fn):
+                callables[tool_name] = tool.fn
 
         # Add mode-specific tools available in current mode
         for tool_name, mode_funcs in self._mode_tools.items():
@@ -229,24 +252,15 @@ class MCPEnvironment(Environment):
         Raises:
             ValueError: If any tool uses a reserved name.
         """
-        # FastMCP stores tools in _tool_manager._tools dict
-        if hasattr(mcp_server, "_tool_manager"):
-            tool_manager = mcp_server._tool_manager
-            # Check both possible attribute names for tools storage
-            tools_dict = None
-            if hasattr(tool_manager, "_tools"):
-                tools_dict = tool_manager._tools
-            elif hasattr(tool_manager, "tools"):
-                tools_dict = tool_manager.tools
-
-            if tools_dict:
-                tool_names = set(tools_dict.keys())
-                conflicts = tool_names & RESERVED_TOOL_NAMES
-                if conflicts:
-                    raise ValueError(
-                        f"MCP tools cannot use reserved names: {sorted(conflicts)}. "
-                        f"Reserved names are: {sorted(RESERVED_TOOL_NAMES)}"
-                    )
+        tools_dict = self._get_server_tools(mcp_server)
+        if tools_dict:
+            tool_names = set(tools_dict.keys())
+            conflicts = tool_names & RESERVED_TOOL_NAMES
+            if conflicts:
+                raise ValueError(
+                    f"MCP tools cannot use reserved names: {sorted(conflicts)}. "
+                    f"Reserved names are: {sorted(RESERVED_TOOL_NAMES)}"
+                )
 
     def tool(self, mode: Optional[str] = None) -> Callable:
         """

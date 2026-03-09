@@ -5,8 +5,9 @@
 # LICENSE file in the root directory of this source tree.
 
 from enum import Enum
-from typing import Any, Dict, Optional, Union, Literal, Annotated
-from pydantic import BaseModel, Field, ConfigDict, model_validator
+from typing import Annotated, Any, Dict, Literal, Optional, Union
+
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
 # Type aliases

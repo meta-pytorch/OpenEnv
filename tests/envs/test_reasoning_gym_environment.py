@@ -334,8 +334,8 @@ class TestReasoningGymEnvClient:
 
     def test_parse_result(self):
         """Test _parse_result parses server response."""
-        from reasoning_gym_env import ReasoningGymEnv
         from openenv.core.client_types import StepResult
+        from reasoning_gym_env import ReasoningGymEnv
 
         env = ReasoningGymEnv(base_url="http://localhost:8000")
 
@@ -364,8 +364,8 @@ class TestReasoningGymEnvClient:
 
     def test_parse_state(self):
         """Test _parse_state parses state response."""
-        from reasoning_gym_env import ReasoningGymEnv
         from openenv.core.env_server.types import State
+        from reasoning_gym_env import ReasoningGymEnv
 
         env = ReasoningGymEnv(base_url="http://localhost:8000")
 

@@ -13,9 +13,9 @@ This test file verifies that rubrics work with async environments:
 - Async rubric hooks during environment step
 """
 
-import pytest
 from typing import Any, Optional
 
+import pytest
 from openenv.core.env_server.interfaces import Environment
 from openenv.core.env_server.types import Action, Observation, State
 from openenv.core.rubrics import Rubric

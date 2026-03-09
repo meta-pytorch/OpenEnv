@@ -27,43 +27,14 @@ from fastapi import (
     FastAPI,
     HTTPException,
     Request,
+    status,
     WebSocket,
     WebSocketDisconnect,
-    status,
 )
 from pydantic import ValidationError
 
 from .interfaces import Environment
-from .route_config import (
-    GetEndpointConfig,
-    register_get_endpoints,
-)
-from .serialization import deserialize_action, serialize_observation
-from .types import (
-    Action,
-    Observation,
-    ResetRequest,
-    ResetResponse,
-    State,
-    StepRequest,
-    StepResponse,
-    EnvironmentMetadata,
-    SchemaResponse,
-    HealthResponse,
-    HealthStatus,
-    ServerMode,
-    WSErrorCode,
-    WSResetMessage,
-    WSStepMessage,
-    WSStateMessage,
-    WSCloseMessage,
-    WSObservationResponse,
-    WSStateResponse,
-    WSErrorResponse,
-    ConcurrencyConfig,
-    ServerCapacityStatus,
-    SessionInfo,
-)
+from .mcp_environment import get_server_tools
 from .mcp_types import (
     JsonRpcErrorCode,
     JsonRpcRequest,
@@ -71,6 +42,33 @@ from .mcp_types import (
     McpMethod,
     WSMCPMessage,
     WSMCPResponse,
+)
+from .route_config import GetEndpointConfig, register_get_endpoints
+from .serialization import deserialize_action, serialize_observation
+from .types import (
+    Action,
+    ConcurrencyConfig,
+    EnvironmentMetadata,
+    HealthResponse,
+    HealthStatus,
+    Observation,
+    ResetRequest,
+    ResetResponse,
+    SchemaResponse,
+    ServerCapacityStatus,
+    ServerMode,
+    SessionInfo,
+    State,
+    StepRequest,
+    StepResponse,
+    WSCloseMessage,
+    WSErrorCode,
+    WSErrorResponse,
+    WSObservationResponse,
+    WSResetMessage,
+    WSStateMessage,
+    WSStateResponse,
+    WSStepMessage,
 )
 
 
@@ -106,8 +104,8 @@ def _make_json_serializable(obj: Any) -> Any:
 
 from .exceptions import (
     ConcurrencyConfigurationError,
-    SessionCapacityError,
     EnvironmentFactoryError,
+    SessionCapacityError,
 )
 
 
@@ -968,16 +966,15 @@ all schema information needed to interact with the environment.
                     elif hasattr(_env, "mcp_server") and _env.mcp_server:
                         # Use server directly
                         tools = []
-                        if hasattr(_env.mcp_server, "_tool_manager"):
-                            tool_manager = _env.mcp_server._tool_manager
-                            if hasattr(tool_manager, "_tools"):
-                                for tool_name, tool in tool_manager._tools.items():
-                                    tool_dict = {
-                                        "name": tool.name,
-                                        "description": tool.description or "",
-                                        "inputSchema": tool.parameters or {},
-                                    }
-                                    tools.append(tool_dict)
+                        for tool_name, tool in get_server_tools(
+                            _env.mcp_server
+                        ).items():
+                            tool_dict = {
+                                "name": tool.name,
+                                "description": tool.description or "",
+                                "inputSchema": tool.parameters or {},
+                            }
+                            tools.append(tool_dict)
                         return JsonRpcResponse.success(
                             result={"tools": tools},
                             request_id=request_id,
@@ -1006,13 +1003,11 @@ all schema information needed to interact with the environment.
                             result = await _env.mcp_client.call_tool(
                                 name=tool_name, arguments=arguments
                             )
-                    elif hasattr(_env, "mcp_server") and hasattr(
-                        _env.mcp_server, "_tool_manager"
-                    ):
+                    elif hasattr(_env, "mcp_server") and _env.mcp_server:
                         # Call tool directly on FastMCP server
-                        tool_manager = _env.mcp_server._tool_manager
-                        if tool_name in tool_manager._tools:
-                            tool = tool_manager._tools[tool_name]
+                        server_tools = get_server_tools(_env.mcp_server)
+                        if tool_name in server_tools:
+                            tool = server_tools[tool_name]
                             result = tool.fn(**arguments)
                         else:
                             return JsonRpcResponse.error_response(

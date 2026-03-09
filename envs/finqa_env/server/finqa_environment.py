@@ -14,12 +14,11 @@ from typing import Any, Dict, List, Optional
 
 import pandas as pd
 from fastmcp import FastMCP
-
 from openenv.core.env_server.mcp_environment import MCPEnvironment
 from openenv.core.env_server.mcp_types import CallToolAction
 from openenv.core.env_server.types import Action, Observation
 
-from ..models import FinQAState, AVAILABLE_TOOLS
+from ..models import AVAILABLE_TOOLS, FinQAState
 from .rewards import compute_reward
 from .tools import FinQATools
 
@@ -135,7 +134,9 @@ class FinQAEnvironment(MCPEnvironment):
 
     def _load_questions(self) -> List[Dict[str, Any]]:
         """Load questions from the benchmark CSV."""
-        csv_path = os.path.join(self.data_path, "benchmark_questions", f"{self.task}.csv")
+        csv_path = os.path.join(
+            self.data_path, "benchmark_questions", f"{self.task}.csv"
+        )
 
         if not os.path.isfile(csv_path):
             raise FileNotFoundError(f"Benchmark file not found: {csv_path}")
@@ -144,15 +145,17 @@ class FinQAEnvironment(MCPEnvironment):
 
         questions = []
         for _, row in df.iterrows():
-            questions.append({
-                "id": str(row.get("id", "")),
-                "user_query": row["user_query"],
-                "company": row["company"],
-                "question": row["question"],
-                "answer": row["answer"],
-                "question_type": row.get("question_type", ""),
-                "explanation": row.get("explanation", ""),
-            })
+            questions.append(
+                {
+                    "id": str(row.get("id", "")),
+                    "user_query": row["user_query"],
+                    "company": row["company"],
+                    "question": row["question"],
+                    "answer": row["answer"],
+                    "question_type": row.get("question_type", ""),
+                    "explanation": row.get("explanation", ""),
+                }
+            )
 
         return questions
 
@@ -189,7 +192,9 @@ class FinQAEnvironment(MCPEnvironment):
         )
         self._history = []
 
-        logger.info(f"Reset episode {self._state.episode_id} with question: {question['question'][:200]}...")
+        logger.info(
+            f"Reset episode {self._state.episode_id} with question: {question['question'][:200]}..."
+        )
 
         return Observation(
             done=False,
@@ -259,7 +264,9 @@ class FinQAEnvironment(MCPEnvironment):
 
         # Check for max steps
         if self._state.step_count >= self.max_steps:
-            logger.info(f"Episode {self._state.episode_id} terminated: max steps reached")
+            logger.info(
+                f"Episode {self._state.episode_id} terminated: max steps reached"
+            )
             return Observation(
                 done=True,
                 reward=0.0,

@@ -25,17 +25,21 @@ Usage:
 try:
     # In-repo imports (when running from OpenEnv repository)
     from openenv.core.env_server.http_server import create_app
+
     from ..models import KernelAction, KernelObservation
     from .kernrl_environment import KernelOptEnvironment
 except ImportError:
+    from models import KernelAction, KernelObservation
+
     # Standalone imports (when environment is standalone with openenv from pip)
     from openenv.core.env_server.http_server import create_app
-    from models import KernelAction, KernelObservation
     from server.kernrl_environment import KernelOptEnvironment
 
 # Create the app with web interface and README integration
 # Pass the class (factory) instead of an instance for WebSocket session support
-app = create_app(KernelOptEnvironment, KernelAction, KernelObservation, env_name="kernrl")
+app = create_app(
+    KernelOptEnvironment, KernelAction, KernelObservation, env_name="kernrl"
+)
 
 
 def main():

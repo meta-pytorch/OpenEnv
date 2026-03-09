@@ -160,6 +160,8 @@ rfcs/
 │   │   └── SKILL.md              # Parallel multi-issue batch (Agent Teams)
 │   ├── update-docs/
 │   │   └── SKILL.md              # Fix stale docs after API changes
+│   ├── watch-pr/
+│   │   └── SKILL.md              # Monitor CI + Greptile review after PR
 │   ├── work-on-issue/
 │   │   └── SKILL.md              # Start TDD on a single issue
 │   └── write-tests/
@@ -191,6 +193,7 @@ rfcs/
     ├── delegate-todos.sh         # PostToolUse: TDD workflow reminder on TodoWrite
     ├── after-tester.sh           # SubagentStop: next steps after tester
     ├── after-implementer.sh      # SubagentStop: next steps after implementer
+    ├── ci-wait.sh                # CI polling: block until checks complete or timeout
     └── after-docs-updater.sh     # SubagentStop: next steps after docs-updater
 ```
 

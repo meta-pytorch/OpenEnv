@@ -1,22 +1,30 @@
-
 import os
 import random
 import uuid
 
 from openenv.core.env_server.interfaces import Environment
+
 from ..models import WildfireAction, WildfireObservation, WildfireState
 
 # Helpers
 DIRS_8 = {
-    "N":  (0, -1), "NE": (1, -1), "E":  (1, 0), "SE": (1, 1),
-    "S":  (0,  1), "SW": (-1, 1), "W":  (-1, 0), "NW": (-1, -1),
+    "N": (0, -1),
+    "NE": (1, -1),
+    "E": (1, 0),
+    "SE": (1, 1),
+    "S": (0, 1),
+    "SW": (-1, 1),
+    "W": (-1, 0),
+    "NW": (-1, -1),
     "CALM": (0, 0),
 }
+
 
 def idx(x: int, y: int, w: int) -> int:
     # Defensive type conversion to ensure all parameters are integers
     x, y, w = int(x), int(y), int(w)
     return y * w + x
+
 
 def in_bounds(x: int, y: int, w: int, h: int) -> bool:
     # Defensive type conversion to ensure all parameters are integers
@@ -46,21 +54,21 @@ class WildfireEnvironment(Environment):
         width: int = 32,
         height: int = 32,
         base_ignite_prob: float = 0.30,
-        wind_bias: float = 0.20,      # kept for compatibility (not directly used in B model)
-        diag_factor: float = 0.7,     # kept for compatibility (not directly used in B model)
+        wind_bias: float = 0.20,  # kept for compatibility (not directly used in B model)
+        diag_factor: float = 0.7,  # kept for compatibility (not directly used in B model)
         humidity: float = 0.25,
         init_sources: int = 2,
         seed: int = 3407,
         max_steps: int = 128,
-        water_capacity: int = 8,      # ↓ encourage strategic water use
+        water_capacity: int = 8,  # ↓ encourage strategic water use
         break_capacity: int = 50,
     ):
         super().__init__()
 
         # --- Env-var overrides (optional) ---
-        width     = int(os.environ.get("WILDFIRE_WIDTH", width))
-        height    = int(os.environ.get("WILDFIRE_HEIGHT", height))
-        humidity  = float(os.environ.get("WILDFIRE_HUMIDITY", humidity))
+        width = int(os.environ.get("WILDFIRE_WIDTH", width))
+        height = int(os.environ.get("WILDFIRE_HEIGHT", height))
+        humidity = float(os.environ.get("WILDFIRE_HUMIDITY", humidity))
         forced_wind = os.environ.get("WILDFIRE_WIND", None)
 
         # Store config (ensure integers)
@@ -90,7 +98,7 @@ class WildfireEnvironment(Environment):
     def reset(self) -> WildfireObservation:
         # Ensure w and h are integers (defensive type conversion)
         w, h = int(self.w), int(self.h)
-        
+
         # Start with all fuel
         grid = [1] * (w * h)
 
@@ -101,7 +109,9 @@ class WildfireEnvironment(Environment):
             wind_dir = self.rng.choice(list(DIRS_8.keys()))
 
         # Humidity small variation around init
-        humidity = min(1.0, max(0.0, self.init_humidity + self.rng.uniform(-0.05, 0.05)))
+        humidity = min(
+            1.0, max(0.0, self.init_humidity + self.rng.uniform(-0.05, 0.05))
+        )
 
         # Place initial fires
         for _ in range(self.init_sources):
@@ -114,7 +124,7 @@ class WildfireEnvironment(Environment):
 
         # Initialize burn timers before creating state
         burn_timers = [0] * (w * h)
-        
+
         # Use model_construct to bypass Pydantic validation for dataclass/Pydantic compatibility
         self._state = WildfireState.model_construct(
             episode_id=str(uuid.uuid4()),
@@ -208,7 +218,6 @@ class WildfireEnvironment(Environment):
         obs.reward = reward
         return obs
 
-
     # --- Internal mechanics ---
 
     def _apply_water(self, x: int, y: int) -> float:
@@ -226,7 +235,7 @@ class WildfireEnvironment(Environment):
         # Safety check: ensure index is within grid bounds
         if i < 0 or i >= len(st.grid):
             return -0.05
-        
+
         reward = 0.0
 
         if st.grid[i] == 2:
@@ -258,7 +267,7 @@ class WildfireEnvironment(Environment):
         # Safety check: ensure index is within grid bounds
         if i < 0 or i >= len(st.grid):
             return -0.05
-        
+
         reward = 0.0
 
         if st.grid[i] in (1, 4):
@@ -294,12 +303,20 @@ class WildfireEnvironment(Environment):
         w, h = int(self.w), int(self.h)
 
         # 8-neighbor model
-        neighbors = [(-1, 0), (1, 0), (0, -1), (0, 1),
-                     (-1, -1), (1, -1), (-1, 1), (1, 1)]
+        neighbors = [
+            (-1, 0),
+            (1, 0),
+            (0, -1),
+            (0, 1),
+            (-1, -1),
+            (1, -1),
+            (-1, 1),
+            (1, 1),
+        ]
         wx, wy = DIRS_8.get(st.wind_dir, (0, 0))
 
         base = self.base_ignite_prob
-        humidity_factor = (1.0 - st.humidity)
+        humidity_factor = 1.0 - st.humidity
 
         ignite_flags = [False] * (w * h)
 
@@ -355,7 +372,7 @@ class WildfireEnvironment(Environment):
             # Safety check: ensure index is within bounds for all arrays
             if i < 0 or i >= len(new_grid) or i >= len(st.burn_timers):
                 continue
-            
+
             if cell == 2:
                 # burns for burn_lifetime ticks before turning to ash
                 if st.burn_timers[i] >= self.burn_lifetime:
@@ -369,7 +386,7 @@ class WildfireEnvironment(Environment):
             elif cell == 4:
                 # Water stays damp for several ticks before reverting to fuel
                 st.burn_timers[i] += 1
-                if st.burn_timers[i] >= 6:   # was 3; extend to make water useful
+                if st.burn_timers[i] >= 6:  # was 3; extend to make water useful
                     new_grid[i] = 1
 
         st.grid = new_grid
@@ -398,8 +415,8 @@ class WildfireEnvironment(Environment):
             wind_dir=st.wind_dir,
             humidity=st.humidity,
             burning_count=burning,
-            remaining_water=st.remaining_water,     # ✅ new
-            remaining_breaks=st.remaining_breaks,   # ✅ new
+            remaining_water=st.remaining_water,  # ✅ new
+            remaining_breaks=st.remaining_breaks,  # ✅ new
             burned_count=burned,
             reward_hint=reward_hint,
         )
@@ -427,4 +444,3 @@ class WildfireEnvironment(Environment):
                 burn_timers=[],
             )
         return self._state
-

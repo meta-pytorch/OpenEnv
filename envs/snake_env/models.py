@@ -11,8 +11,9 @@ The Snake environment is a multi-agent reinforcement learning environment
 based on marlenv's Snake-v1. Multiple snakes battle on a fixed size grid map.
 """
 
-from pydantic import Field
 from typing import Any, Dict, List, Optional
+
+from pydantic import Field
 
 # Support both in-repo and standalone imports
 try:
