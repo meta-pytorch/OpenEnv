@@ -15,6 +15,7 @@ from typing import Any, Dict, List, Optional, Sequence
 
 from .fleet_mcp_client import FleetMCPClient
 from .models import ListToolsAction, convert_tool_format
+from .telemetry import fleet_error, fleet_warning
 
 logger = logging.getLogger(__name__)
 
@@ -37,8 +38,9 @@ class FleetMCPTools:
 
     api_key: str
     mcp_urls: Sequence[str]
-    max_retries: int = 3
-    retry_base_delay: float = 2.0
+    max_retries: int = 8
+    initial_wait: float = 8.0
+    max_backoff: float = 5.0
     _clients: Optional[List[FleetMCPClient]] = field(default=None, repr=False)
     _tool_owner: Optional[Dict[str, FleetMCPClient]] = field(default=None, repr=False)
 
@@ -81,6 +83,10 @@ class FleetMCPTools:
         if errors:
             # Some clients failed but we got tools from others
             logger.warning(f"Some MCP clients failed to list tools: {errors}")
+            fleet_warning(
+                "fleet_list_tools_partial",
+                error_message="; ".join(errors),
+            )
 
         return tools
 
@@ -90,8 +96,14 @@ class FleetMCPTools:
         The returned `.tools` payload is in OpenAI "tools" dict format
         (see `convert_tool_format`), derived from MCP `Tool.inputSchema`.
 
-        Retries with exponential backoff if all clients fail.
+        Matches the orchestrator harness: 8s initial wait for MCP services to
+        start, then 8 retries with exponential backoff capped at 5s.
         """
+        # Wait for MCP services to initialize (matches harness initial_wait=8)
+        if self.initial_wait > 0:
+            logger.info(f"Waiting {self.initial_wait:.0f}s for MCP services to initialize...")
+            await asyncio.sleep(self.initial_wait)
+
         last_error = None
 
         for attempt in range(self.max_retries):
@@ -105,14 +117,26 @@ class FleetMCPTools:
                 last_error = e
                 error_msg = _unwrap_exception(e)
                 if attempt < self.max_retries - 1:
-                    delay = self.retry_base_delay * (2 ** attempt)
+                    delay = min(2 ** attempt, self.max_backoff)
                     logger.warning(
                         f"list_tools attempt {attempt + 1}/{self.max_retries} failed: {error_msg}. "
                         f"Retrying in {delay:.1f}s..."
                     )
+                    fleet_warning(
+                        "fleet_list_tools_retry",
+                        attempt=attempt + 1,
+                        max_retries=self.max_retries,
+                        error_message=error_msg,
+                    )
                     await asyncio.sleep(delay)
 
         logger.error(f"list_tools failed after {self.max_retries} attempts: {_unwrap_exception(last_error)}")
+        fleet_error(
+            "fleet_list_tools_exhausted",
+            attempt=self.max_retries,
+            max_retries=self.max_retries,
+            error_message=_unwrap_exception(last_error),
+        )
         raise RuntimeError(
             f"list_tools failed after {self.max_retries} attempts"
         ) from last_error
@@ -165,15 +189,29 @@ class FleetMCPTools:
                 last_error = e
                 error_msg = _unwrap_exception(e)
                 if attempt < self.max_retries - 1:
-                    delay = self.retry_base_delay * (2**attempt)
+                    delay = min(2 ** attempt, self.max_backoff)
                     logger.warning(
                         f"call_tool({tool_name}) attempt {attempt + 1}/{self.max_retries} failed: {error_msg}. "
                         f"Retrying in {delay:.1f}s..."
+                    )
+                    fleet_warning(
+                        "fleet_call_tool_retry",
+                        tool_name=tool_name,
+                        attempt=attempt + 1,
+                        max_retries=self.max_retries,
+                        error_message=error_msg,
                     )
                     await asyncio.sleep(delay)
 
         logger.error(
             f"call_tool({tool_name}) failed after {self.max_retries} attempts: {_unwrap_exception(last_error)}"
+        )
+        fleet_error(
+            "fleet_call_tool_exhausted",
+            tool_name=tool_name,
+            attempt=self.max_retries,
+            max_retries=self.max_retries,
+            error_message=_unwrap_exception(last_error),
         )
         raise RuntimeError(
             f"call_tool({tool_name}) failed after {self.max_retries} attempts"

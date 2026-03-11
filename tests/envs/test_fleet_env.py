@@ -391,27 +391,10 @@ class TestFleetMCPClientExtractToolResult:
 
 
 class TestFleetTaskEnvInitFetchesTools:
-    """Tests for FleetTaskEnv fetching tools during __init__()."""
+    """Tests for FleetTaskEnv provisioning and fetching tools during reset()."""
 
-    def test_init_fetches_tools(self, monkeypatch):
-        """__init__ should create env and fetch tools."""
-        from unittest.mock import MagicMock
-
-        mock_orch = MagicMock()
-        mock_tools = MagicMock()
-
-        # Create a proper coroutine for list_tools
-        async def mock_list_tools():
-            return MagicMock(tools=[{"type": "function", "function": {"name": "bash"}}])
-
-        mock_tools.list_tools = mock_list_tools
-
-        # Monkeypatch BEFORE importing/creating FleetTaskEnv
-        monkeypatch.setattr(
-            "envs.fleet_env.task_env.FleetEnvClient.from_fleet",
-            lambda **kwargs: (mock_orch, mock_tools),
-        )
-
+    def test_init_defers_provisioning(self, monkeypatch):
+        """__init__ should NOT provision — provisioning is deferred to reset_async()."""
         from envs.fleet_env.task_env import FleetTaskEnv
 
         task_config = {
@@ -421,35 +404,36 @@ class TestFleetTaskEnvInitFetchesTools:
             "task_modality": "tool_use",
         }
 
-        # Tools should be fetched during __init__
+        # __init__ should not call Fleet.make() — just store config
         env = FleetTaskEnv(task_config, api_key="test-key")
 
-        # Verify tools were cached
-        assert env._tools_cache is not None
-        assert len(env._tools_cache) == 1
-        assert env._tools_cache[0]["function"]["name"] == "bash"
+        # Not provisioned yet
+        assert env._orch is None
+        assert env._tools is None
+        assert env._tools_cache is None
 
-    def test_reset_returns_cached_tools(self, monkeypatch):
-        """reset() should return cached tools from __init__."""
+    def test_reset_provisions_and_returns_tools(self, monkeypatch):
+        """reset() should provision asynchronously and return tools."""
         from unittest.mock import MagicMock
 
         mock_orch = MagicMock()
         mock_tools = MagicMock()
-        list_tools_call_count = 0
 
-        # Create a proper coroutine for list_tools that tracks calls
+        # Create a proper coroutine for list_tools
         async def mock_list_tools():
-            nonlocal list_tools_call_count
-            list_tools_call_count += 1
             return MagicMock(
                 tools=[{"type": "function", "function": {"name": "search"}}]
             )
 
         mock_tools.list_tools = mock_list_tools
 
+        # Mock from_fleet_async (async classmethod)
+        async def mock_from_fleet_async(**kwargs):
+            return (mock_orch, mock_tools)
+
         monkeypatch.setattr(
-            "envs.fleet_env.task_env.FleetEnvClient.from_fleet",
-            lambda **kwargs: (mock_orch, mock_tools),
+            "envs.fleet_env.task_env.FleetEnvClient.from_fleet_async",
+            mock_from_fleet_async,
         )
 
         from envs.fleet_env.task_env import FleetTaskEnv
@@ -463,18 +447,15 @@ class TestFleetTaskEnvInitFetchesTools:
 
         env = FleetTaskEnv(task_config, api_key="test-key")
 
-        # reset should return cached tools (no new fetch)
+        # reset triggers provisioning + tool fetching
         obs = env.reset()
 
         assert "tools" in obs
         assert len(obs["tools"]) == 1
         assert obs["tools"][0]["function"]["name"] == "search"
 
-        # Verify list_tools was only called once (during __init__)
-        assert list_tools_call_count == 1
-
     def test_reset_sync_returns_cached_tools(self, monkeypatch):
-        """Sync reset() should return cached tools."""
+        """Sync reset() should provision and return tools."""
         from unittest.mock import MagicMock
 
         mock_orch = MagicMock()
@@ -483,14 +464,18 @@ class TestFleetTaskEnvInitFetchesTools:
         # Create a proper coroutine for list_tools
         async def mock_list_tools():
             return MagicMock(
-                tools=[{"type": "function", "function": {"name": "computer"}}]
+                tools=[{"type": "function", "function": {"name": "bash"}}]
             )
 
         mock_tools.list_tools = mock_list_tools
 
+        # Mock from_fleet_async (async classmethod)
+        async def mock_from_fleet_async(**kwargs):
+            return (mock_orch, mock_tools)
+
         monkeypatch.setattr(
-            "envs.fleet_env.task_env.FleetEnvClient.from_fleet",
-            lambda **kwargs: (mock_orch, mock_tools),
+            "envs.fleet_env.task_env.FleetEnvClient.from_fleet_async",
+            mock_from_fleet_async,
         )
 
         from envs.fleet_env.task_env import FleetTaskEnv
@@ -504,9 +489,53 @@ class TestFleetTaskEnvInitFetchesTools:
 
         env = FleetTaskEnv(task_config, api_key="test-key")
 
-        # Sync reset should return cached tools
+        # Sync reset should provision and return tools
         obs = env.reset()
 
         assert "tools" in obs
         assert len(obs["tools"]) == 1
-        assert obs["tools"][0]["function"]["name"] == "computer"
+        assert obs["tools"][0]["function"]["name"] == "bash"
+
+    def test_init_failure_emits_rollout_completed(self, monkeypatch):
+        """Init failure should emit fleet_rollout_started AND fleet_rollout_completed."""
+        from unittest.mock import patch
+
+        # Mock from_fleet_async to raise (simulates health check failure)
+        async def mock_from_fleet_async(**kwargs):
+            raise RuntimeError("health check failed")
+
+        monkeypatch.setattr(
+            "envs.fleet_env.task_env.FleetEnvClient.from_fleet_async",
+            mock_from_fleet_async,
+        )
+
+        from envs.fleet_env.task_env import FleetTaskEnv
+
+        task_config = {
+            "task_key": "test-task",
+            "prompt": "Test prompt",
+            "env_key": "fostgres",
+            "task_modality": "tool_use",
+        }
+
+        env = FleetTaskEnv(task_config, api_key="test-key")
+
+        telemetry_events = []
+
+        def capture_info(msg, **attrs):
+            telemetry_events.append((msg, attrs))
+
+        with patch("envs.fleet_env.task_env.fleet_info", capture_info):
+            with pytest.raises(RuntimeError, match="health check"):
+                env.reset()
+
+        # Should have emitted both started and completed
+        event_names = [e[0] for e in telemetry_events]
+        assert "fleet_rollout_started" in event_names
+        assert "fleet_rollout_completed" in event_names
+
+        # fleet_rollout_completed should have failure_reason="init_error"
+        completed = next(e for e in telemetry_events if e[0] == "fleet_rollout_completed")
+        assert completed[1]["failure_reason"] == "init_error"
+        assert completed[1]["reward"] == 0.0
+        assert completed[1]["step_count"] == 0
