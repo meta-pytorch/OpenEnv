@@ -143,7 +143,7 @@ class MCPClientBase(EnvClient[Any, Observation, State]):
                 "params": params or {},
                 "id": self._next_request_id(),
             },
-            timeout=self._message_timeout_s,
+            timeout=self._message_timeout,
         )
         response.raise_for_status()
         return response.json()
@@ -184,8 +184,9 @@ class MCPClientBase(EnvClient[Any, Observation, State]):
         if use_cache and self._tools_cache is not None:
             return self._tools_cache
 
-        # Use production mode HTTP endpoint if enabled
-        if self.use_production_mode:
+        # Use production mode HTTP endpoint if enabled.
+        # Some tests instantiate with __new__ and skip __init__, so default missing flag to False.
+        if getattr(self, "use_production_mode", False):
             try:
                 session_id = self._ensure_production_session()
                 data = self._production_mcp_request(
@@ -214,7 +215,12 @@ class MCPClientBase(EnvClient[Any, Observation, State]):
             return []
 
         result = await self.step(ListToolsAction())
-        self._tools_cache = result.observation.tools
+        if isinstance(result.observation, ListToolsObservation):
+            self._tools_cache = result.observation.tools
+            return self._tools_cache
+
+        # Unexpected observation type; keep API stable with an empty tool list.
+        self._tools_cache = []
         return self._tools_cache
 
     def _step_payload(self, action: Any) -> Dict[str, Any]:
@@ -374,7 +380,7 @@ class MCPToolClient(MCPClientBase):
             >>> result = await env.call_tool("greet", name="Claude")
             >>> print(result)  # "Hello, Claude!"
         """
-        if self.use_production_mode:
+        if getattr(self, "use_production_mode", False):
             session_id = self._ensure_production_session()
             data = self._production_mcp_request(
                 "tools/call",
