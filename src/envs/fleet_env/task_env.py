@@ -130,6 +130,8 @@ class FleetTaskEnv:
         self._rollout_completed_emitted = False
         self._rollout_started = False
         self._tools_cache: Optional[List[Dict]] = None
+        self._reward_computed = False
+        self.final_reward: Optional[float] = None
 
         # Set telemetry context so init failures are tracked with full context
         set_task_context(
@@ -284,6 +286,8 @@ class FleetTaskEnv:
         # Reset episode state
         self._step_count = 0
         self._done = False
+        self._reward_computed = False
+        self.final_reward = None
 
         # Reset the environment (use short timeout to avoid blocking on broken manager APIs)
         # reset() failure is non-fatal — env is up, just the manager API timed out
@@ -507,6 +511,7 @@ class FleetTaskEnv:
         reward = 0.0
         if self._done:
             reward = await self._compute_reward()
+            self._reward_computed = True
             info["reward_computed"] = True
 
         # Build observation
@@ -663,25 +668,31 @@ class FleetTaskEnv:
     def close(self):
         """Close the environment and cleanup resources.
 
-        Emits fleet_rollout_completed if a rollout was started but never
-        completed (e.g., caller hit max_turns and stopped without telling us,
-        context overflow, job cancellation, TTL expiry).
+        Runs the verifier for orphaned rollouts — trajectories where SkyRL
+        stopped early (context overflow, its own max_turns) without OpenEnv
+        computing the reward. This ensures the actual reward is available
+        via self.final_reward instead of defaulting to 0.0.
         """
         try:
-            # Emit rollout_completed for orphaned rollouts (started but never completed).
-            # This happens when the caller (SkyRL) stops without telling us why:
-            # max_turns hit, context overflow, job cancellation, etc.
+            # Run verifier for orphaned rollouts (started but never completed).
+            # _compute_reward() handles telemetry (fleet_rollout_completed).
             if self._rollout_started and not self._rollout_completed_emitted:
-                stop_reason = "max_steps" if self._step_count >= self.max_steps else "abandoned"
-                fleet_info(
-                    "fleet_rollout_completed",
-                    step_count=self._step_count,
-                    max_steps=self.max_steps,
-                    reward=0.0,
-                    verifier_success=False,
-                    failure_reason=stop_reason,
-                )
-                self._rollout_completed_emitted = True
+                try:
+                    self.final_reward = asyncio.run(self._compute_reward())
+                    self._reward_computed = True
+                except RuntimeError:
+                    # Already inside a running event loop — caller should use close_async()
+                    # Fall back to emitting telemetry without verifier
+                    stop_reason = "max_steps" if self._step_count >= self.max_steps else "abandoned"
+                    fleet_info(
+                        "fleet_rollout_completed",
+                        step_count=self._step_count,
+                        max_steps=self.max_steps,
+                        reward=0.0,
+                        verifier_success=False,
+                        failure_reason=stop_reason,
+                    )
+                    self._rollout_completed_emitted = True
 
             if self._orch:
                 try:
@@ -698,19 +709,18 @@ class FleetTaskEnv:
             clear_task_context()
 
     async def close_async(self):
-        """Async close — avoids blocking the event loop on Fleet instance termination."""
+        """Async close — runs verifier for orphaned rollouts and terminates instance.
+
+        If SkyRL ends the trajectory early (context overflow, its own max_turns),
+        the verifier never ran in step_async(). This runs it at close time so
+        the real reward is available via self.final_reward.
+        """
         try:
+            # Run verifier for orphaned rollouts (started but never completed).
+            # _compute_reward() handles telemetry (fleet_rollout_completed).
             if self._rollout_started and not self._rollout_completed_emitted:
-                stop_reason = "max_steps" if self._step_count >= self.max_steps else "abandoned"
-                fleet_info(
-                    "fleet_rollout_completed",
-                    step_count=self._step_count,
-                    max_steps=self.max_steps,
-                    reward=0.0,
-                    verifier_success=False,
-                    failure_reason=stop_reason,
-                )
-                self._rollout_completed_emitted = True
+                self.final_reward = await self._compute_reward()
+                self._reward_computed = True
 
             if self._orch:
                 try:
