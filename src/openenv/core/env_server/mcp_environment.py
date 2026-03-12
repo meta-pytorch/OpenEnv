@@ -58,6 +58,8 @@ from abc import abstractmethod
 from collections import defaultdict
 from typing import Any, Callable, Dict, Optional
 
+from contextlib import asynccontextmanager
+
 from fastmcp import Client
 from fastmcp.client.client import CallToolResult
 from mcp.types import TextContent
@@ -156,6 +158,7 @@ class MCPEnvironment(Environment):
 
         self.mcp_server = mcp_server
         self.mcp_client = Client(mcp_server)
+        self._mcp_connected = False
 
         # Track mode-specific tools: {tool_name: {mode: func}}
         # mode can be "production", "simulation", or None (available in all modes)
@@ -163,6 +166,23 @@ class MCPEnvironment(Environment):
 
         # Track tool schemas for list_tools: {tool_name: {mode: schema}}
         self._mode_tool_schemas = defaultdict(dict)
+
+    @asynccontextmanager
+    async def mcp_session(self):
+        """
+        Context manager for MCP client sessions.
+        Ensures the MCP client is connected for the duration of the context.
+        If already connected, it yields the existing client without reconnecting.
+        """
+        if self._mcp_connected:
+            yield self.mcp_client
+        else:
+            self._mcp_connected = True
+            try:
+                async with self.mcp_client:
+                    yield self.mcp_client
+            finally:
+                self._mcp_connected = False
 
     @property
     def supports_code_mode(self) -> bool:
@@ -444,7 +464,7 @@ class MCPEnvironment(Environment):
         Returns:
             List of tool objects from the MCP server.
         """
-        async with self.mcp_client:
+        async with self.mcp_session():
             return await self.mcp_client.list_tools()
 
     def _handle_call_tool(
@@ -584,7 +604,7 @@ class MCPEnvironment(Environment):
         Returns:
             The result from the tool execution.
         """
-        async with self.mcp_client:
+        async with self.mcp_session():
             return await self.mcp_client.call_tool(tool_name, arguments)
 
     @abstractmethod

@@ -554,8 +554,12 @@ class HTTPEnvServer:
                         )
 
                     # Use async context manager for MCP client
-                    async with _env.mcp_client:
-                        tools = await _env.mcp_client.list_tools()
+                    if hasattr(_env, "mcp_session"):
+                        async with _env.mcp_session():
+                            tools = await _env.mcp_client.list_tools()
+                    else:
+                        async with _env.mcp_client:
+                            tools = await _env.mcp_client.list_tools()
 
                     return JsonRpcResponse.success(
                         result={
@@ -587,10 +591,16 @@ class HTTPEnvServer:
                         )
 
                     # Use async context manager for MCP client
-                    async with _env.mcp_client:
-                        result = await _env.mcp_client.call_tool(
-                            name=tool_name, arguments=arguments
-                        )
+                    if hasattr(_env, "mcp_session"):
+                        async with _env.mcp_session():
+                            result = await _env.mcp_client.call_tool(
+                                name=tool_name, arguments=arguments
+                            )
+                    else:
+                        async with _env.mcp_client:
+                            result = await _env.mcp_client.call_tool(
+                                name=tool_name, arguments=arguments
+                            )
 
                     # Ensure result is JSON serializable
                     serializable_result = _make_json_serializable(result)
@@ -638,41 +648,48 @@ class HTTPEnvServer:
                 # Create session with dedicated environment
                 session_id, session_env = await self._create_session()
 
-                while True:
-                    # Receive message from client
-                    raw_message = await websocket.receive_text()
+                # If environment has an mcp_session context manager, hold it open 
+                # for the lifetime of the websocket connection
+                from contextlib import AsyncExitStack
+                async with AsyncExitStack() as stack:
+                    if hasattr(session_env, "mcp_session"):
+                        await stack.enter_async_context(session_env.mcp_session())
 
-                    try:
-                        jsonrpc_dict = json.loads(raw_message)
-                        jsonrpc_request = JsonRpcRequest(**jsonrpc_dict)
-                    except json.JSONDecodeError as e:
-                        error_resp = JsonRpcResponse.error_response(
-                            JsonRpcErrorCode.PARSE_ERROR,
-                            f"Parse error: {e}",
-                        )
-                        await websocket.send_text(error_resp.model_dump_json())
-                        continue
-                    except ValidationError as e:
-                        error_resp = JsonRpcResponse.error_response(
-                            JsonRpcErrorCode.INVALID_REQUEST,
-                            f"Invalid request: {e}",
-                        )
-                        await websocket.send_text(error_resp.model_dump_json())
-                        continue
+                    while True:
+                        # Receive message from client
+                        raw_message = await websocket.receive_text()
 
-                    try:
-                        # Call mcp_handler with session environment
-                        response = await mcp_handler(
-                            jsonrpc_request, session_env=session_env
-                        )
-                        await websocket.send_text(response.model_dump_json())
-                    except Exception as e:
-                        error_resp = JsonRpcResponse.error_response(
-                            JsonRpcErrorCode.INTERNAL_ERROR,
-                            str(e),
-                            request_id=jsonrpc_request.id,
-                        )
-                        await websocket.send_text(error_resp.model_dump_json())
+                        try:
+                            jsonrpc_dict = json.loads(raw_message)
+                            jsonrpc_request = JsonRpcRequest(**jsonrpc_dict)
+                        except json.JSONDecodeError as e:
+                            error_resp = JsonRpcResponse.error_response(
+                                JsonRpcErrorCode.PARSE_ERROR,
+                                f"Parse error: {e}",
+                            )
+                            await websocket.send_text(error_resp.model_dump_json())
+                            continue
+                        except ValidationError as e:
+                            error_resp = JsonRpcResponse.error_response(
+                                JsonRpcErrorCode.INVALID_REQUEST,
+                                f"Invalid request: {e}",
+                            )
+                            await websocket.send_text(error_resp.model_dump_json())
+                            continue
+
+                        try:
+                            # Call mcp_handler with session environment
+                            response = await mcp_handler(
+                                jsonrpc_request, session_env=session_env
+                            )
+                            await websocket.send_text(response.model_dump_json())
+                        except Exception as e:
+                            error_resp = JsonRpcResponse.error_response(
+                                JsonRpcErrorCode.INTERNAL_ERROR,
+                                str(e),
+                                request_id=jsonrpc_request.id,
+                            )
+                            await websocket.send_text(error_resp.model_dump_json())
 
             except WebSocketDisconnect:
                 pass
@@ -950,8 +967,12 @@ all schema information needed to interact with the environment.
                 if method == McpMethod.TOOLS_LIST:
                     # List tools from MCP server
                     if hasattr(_env, "mcp_client") and _env.mcp_client:
-                        async with _env.mcp_client:
-                            tools = await _env.mcp_client.list_tools()
+                        if hasattr(_env, "mcp_session"):
+                            async with _env.mcp_session():
+                                tools = await _env.mcp_client.list_tools()
+                        else:
+                            async with _env.mcp_client:
+                                tools = await _env.mcp_client.list_tools()
                         return JsonRpcResponse.success(
                             result={
                                 "tools": [
@@ -999,10 +1020,16 @@ all schema information needed to interact with the environment.
 
                     # Call tool via MCP
                     if hasattr(_env, "mcp_client") and _env.mcp_client:
-                        async with _env.mcp_client:
-                            result = await _env.mcp_client.call_tool(
-                                name=tool_name, arguments=arguments
-                            )
+                        if hasattr(_env, "mcp_session"):
+                            async with _env.mcp_session():
+                                result = await _env.mcp_client.call_tool(
+                                    name=tool_name, arguments=arguments
+                                )
+                        else:
+                            async with _env.mcp_client:
+                                result = await _env.mcp_client.call_tool(
+                                    name=tool_name, arguments=arguments
+                                )
                     elif hasattr(_env, "mcp_server") and _env.mcp_server:
                         # Call tool directly on FastMCP server
                         server_tools = get_server_tools(_env.mcp_server)
@@ -1067,134 +1094,140 @@ all schema information needed to interact with the environment.
                 # Create session with dedicated environment
                 session_id, session_env = await self._create_session()
 
-                while True:
-                    # Receive message from client
-                    raw_message = await websocket.receive_text()
+                # Keep MCP session open for entire websocket lifetime
+                # (avoids reconnect overhead on every message)
+                from contextlib import AsyncExitStack
+                async with AsyncExitStack() as stack:
+                    if hasattr(session_env, "mcp_session"):
+                        await stack.enter_async_context(session_env.mcp_session())
 
-                    try:
-                        message_dict = json.loads(raw_message)
-                    except json.JSONDecodeError as e:
-                        error_resp = WSErrorResponse(
-                            data={
-                                "message": f"Invalid JSON: {e}",
-                                "code": WSErrorCode.INVALID_JSON,
-                            }
-                        )
-                        await websocket.send_text(error_resp.model_dump_json())
-                        continue
+                    while True:
+                        # Receive message from client
+                        raw_message = await websocket.receive_text()
 
-                    msg_type = message_dict.get("type", "")
+                        try:
+                            message_dict = json.loads(raw_message)
+                        except json.JSONDecodeError as e:
+                            error_resp = WSErrorResponse(
+                                data={
+                                    "message": f"Invalid JSON: {e}",
+                                    "code": WSErrorCode.INVALID_JSON,
+                                }
+                            )
+                            await websocket.send_text(error_resp.model_dump_json())
+                            continue
 
-                    try:
-                        match msg_type:
-                            case "reset":
-                                msg = WSResetMessage(**message_dict)
+                        msg_type = message_dict.get("type", "")
 
-                                is_async = (
-                                    session_env.reset_async.__func__
-                                    is not Environment.reset_async
-                                )
+                        try:
+                            match msg_type:
+                                case "reset":
+                                    msg = WSResetMessage(**message_dict)
 
-                                if is_async:
-                                    sig = inspect.signature(session_env.reset_async)
-                                    valid_kwargs = self._get_valid_kwargs(sig, msg.data)
-                                    observation = await session_env.reset_async(
-                                        **valid_kwargs
-                                    )
-                                else:
-                                    sig = inspect.signature(session_env.reset)
-                                    valid_kwargs = self._get_valid_kwargs(sig, msg.data)
-                                    observation = await self._run_in_session_executor(
-                                        session_id, session_env.reset, **valid_kwargs
+                                    is_async = (
+                                        session_env.reset_async.__func__
+                                        is not Environment.reset_async
                                     )
 
-                                self._update_session_activity(session_id)
+                                    if is_async:
+                                        sig = inspect.signature(session_env.reset_async)
+                                        valid_kwargs = self._get_valid_kwargs(sig, msg.data)
+                                        observation = await session_env.reset_async(
+                                            **valid_kwargs
+                                        )
+                                    else:
+                                        sig = inspect.signature(session_env.reset)
+                                        valid_kwargs = self._get_valid_kwargs(sig, msg.data)
+                                        observation = await self._run_in_session_executor(
+                                            session_id, session_env.reset, **valid_kwargs
+                                        )
 
-                                response = WSObservationResponse(
-                                    data=serialize_observation(observation),
-                                )
+                                    self._update_session_activity(session_id)
 
-                            case "step":
-                                msg = WSStepMessage(**message_dict)
-                                action = deserialize_action(msg.data, self.action_cls)
-
-                                is_async = (
-                                    session_env.step_async.__func__
-                                    is not Environment.step_async
-                                )
-
-                                if is_async:
-                                    observation = await session_env.step_async(action)
-                                else:
-                                    observation = await self._run_in_session_executor(
-                                        session_id, session_env.step, action
+                                    response = WSObservationResponse(
+                                        data=serialize_observation(observation),
                                     )
 
-                                self._update_session_activity(
-                                    session_id, increment_step=True
-                                )
+                                case "step":
+                                    msg = WSStepMessage(**message_dict)
+                                    action = deserialize_action(msg.data, self.action_cls)
 
-                                response = WSObservationResponse(
-                                    data=serialize_observation(observation)
-                                )
-
-                            case "state":
-                                msg = WSStateMessage(**message_dict)
-                                state = session_env.state
-                                if hasattr(state, "model_dump"):
-                                    state_data = state.model_dump()
-                                else:
-                                    state_data = dict(state) if state else {}
-
-                                response = WSStateResponse(data=state_data)
-
-                            case "close":
-                                msg = WSCloseMessage(**message_dict)
-                                break
-
-                            case "mcp":
-                                msg = WSMCPMessage(**message_dict)
-                                try:
-                                    rpc_request = JsonRpcRequest(**msg.data)
-                                except (ValidationError, Exception) as e:
-                                    rpc_response = JsonRpcResponse.error_response(
-                                        JsonRpcErrorCode.INVALID_REQUEST,
-                                        f"Invalid request: {e}",
+                                    is_async = (
+                                        session_env.step_async.__func__
+                                        is not Environment.step_async
                                     )
-                                else:
-                                    rpc_response = await mcp_handler(
-                                        rpc_request,
-                                        session_env=session_env,
+
+                                    if is_async:
+                                        observation = await session_env.step_async(action)
+                                    else:
+                                        observation = await self._run_in_session_executor(
+                                            session_id, session_env.step, action
+                                        )
+
+                                    self._update_session_activity(
+                                        session_id, increment_step=True
                                     )
-                                response = WSMCPResponse(data=rpc_response.model_dump())
 
-                            case _:
-                                response = WSErrorResponse(
-                                    data={
-                                        "message": f"Unknown message type: {msg_type}",
-                                        "code": WSErrorCode.UNKNOWN_TYPE,
-                                    }
-                                )
+                                    response = WSObservationResponse(
+                                        data=serialize_observation(observation)
+                                    )
 
-                        await websocket.send_text(response.model_dump_json())
+                                case "state":
+                                    msg = WSStateMessage(**message_dict)
+                                    state = session_env.state
+                                    if hasattr(state, "model_dump"):
+                                        state_data = state.model_dump()
+                                    else:
+                                        state_data = dict(state) if state else {}
 
-                    except ValidationError as e:
-                        error_resp = WSErrorResponse(
-                            data={
-                                "message": "Invalid message",
-                                "code": WSErrorCode.VALIDATION_ERROR,
-                                "errors": e.errors(),
-                            }
-                        )
-                        await websocket.send_text(error_resp.model_dump_json())
-                    except Exception as e:
-                        error_resp = WSErrorResponse(
-                            data={
-                                "message": str(e),
-                                "code": WSErrorCode.EXECUTION_ERROR,
-                            }
-                        )
-                        await websocket.send_text(error_resp.model_dump_json())
+                                    response = WSStateResponse(data=state_data)
+
+                                case "close":
+                                    msg = WSCloseMessage(**message_dict)
+                                    break
+
+                                case "mcp":
+                                    msg = WSMCPMessage(**message_dict)
+                                    try:
+                                        rpc_request = JsonRpcRequest(**msg.data)
+                                    except (ValidationError, Exception) as e:
+                                        rpc_response = JsonRpcResponse.error_response(
+                                            JsonRpcErrorCode.INVALID_REQUEST,
+                                            f"Invalid request: {e}",
+                                        )
+                                    else:
+                                        rpc_response = await mcp_handler(
+                                            rpc_request,
+                                            session_env=session_env,
+                                        )
+                                    response = WSMCPResponse(data=rpc_response.model_dump())
+
+                                case _:
+                                    response = WSErrorResponse(
+                                        data={
+                                            "message": f"Unknown message type: {msg_type}",
+                                        }
+                                    )
+
+                            await websocket.send_text(response.model_dump_json())
+
+                        except ValidationError as e:
+                            error_resp = WSErrorResponse(
+                                data={
+                                    "message": "Invalid message",
+                                    "code": WSErrorCode.VALIDATION_ERROR,
+                                    "errors": e.errors(),
+                                }
+                            )
+                            await websocket.send_text(error_resp.model_dump_json())
+                        except Exception as e:
+                            error_resp = WSErrorResponse(
+                                data={
+                                    "message": str(e),
+                                    "code": WSErrorCode.EXECUTION_ERROR,
+                                }
+                            )
+                            await websocket.send_text(error_resp.model_dump_json())
 
             except WebSocketDisconnect:
                 pass
