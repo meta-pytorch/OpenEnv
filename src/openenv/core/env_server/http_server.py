@@ -20,7 +20,7 @@ import os
 import time
 import uuid
 from concurrent.futures import ThreadPoolExecutor
-from typing import Any, Callable, Dict, Optional, Type
+from typing import Any, AsyncContextManager, Callable, Dict, Optional, Type, cast
 
 from fastapi import (
     Body,
@@ -204,7 +204,7 @@ class HTTPEnvServer:
         self.observation_cls = observation_cls
 
         # Session management for WebSocket connections
-        self._sessions: Dict[str, Environment] = {}
+        self._sessions: Dict[str, Optional[Environment]] = {}
         self._session_executors: Dict[str, ThreadPoolExecutor] = {}
         self._session_info: Dict[str, SessionInfo] = {}
         self._session_lock = asyncio.Lock()
@@ -618,23 +618,30 @@ class HTTPEnvServer:
                 _env = self._env_factory()
                 should_close = True
             try:
+                mcp_client = getattr(_env, "mcp_client", None)
+                mcp_server = getattr(_env, "mcp_server", None)
+                mcp_session_factory = getattr(_env, "mcp_session", None)
+
                 if method == McpMethod.TOOLS_LIST:
                     # Check if environment is MCP-enabled
-                    if not hasattr(_env, "mcp_client") and not hasattr(_env, "mcp_server"):
+                    if mcp_client is None and mcp_server is None:
                         return JsonRpcResponse.error_response(
                             JsonRpcErrorCode.INTERNAL_ERROR,
                             "Environment does not support MCP",
                             request_id=request_id,
                         )
 
-                    if hasattr(_env, "mcp_client") and _env.mcp_client:
+                    if mcp_client:
                         # Use async context manager for MCP client
-                        if hasattr(_env, "mcp_session"):
-                            async with _env.mcp_session():
-                                tools = await _env.mcp_client.list_tools()
+                        if callable(mcp_session_factory):
+                            mcp_session_cm = cast(
+                                AsyncContextManager[Any], mcp_session_factory()
+                            )
+                            async with mcp_session_cm:
+                                tools = await mcp_client.list_tools()
                         else:
-                            async with _env.mcp_client:
-                                tools = await _env.mcp_client.list_tools()
+                            async with mcp_client:
+                                tools = await mcp_client.list_tools()
 
                         return JsonRpcResponse.success(
                             result={
@@ -648,9 +655,9 @@ class HTTPEnvServer:
                             request_id=request_id,
                         )
 
-                    if hasattr(_env, "mcp_server") and _env.mcp_server:
+                    if mcp_server:
                         tools = []
-                        for _tool_name, tool in get_server_tools(_env.mcp_server).items():
+                        for _tool_name, tool in get_server_tools(mcp_server).items():
                             tools.append(
                                 {
                                     "name": tool.name,
@@ -674,7 +681,7 @@ class HTTPEnvServer:
                     tool_name = params.get("name")
                     arguments = params.get("arguments", {})
 
-                    if not hasattr(_env, "mcp_client") and not hasattr(_env, "mcp_server"):
+                    if mcp_client is None and mcp_server is None:
                         return JsonRpcResponse.error_response(
                             JsonRpcErrorCode.INTERNAL_ERROR,
                             "Environment does not support MCP",
@@ -688,20 +695,23 @@ class HTTPEnvServer:
                             request_id=request_id,
                         )
 
-                    if hasattr(_env, "mcp_client") and _env.mcp_client:
+                    if mcp_client:
                         # Use async context manager for MCP client
-                        if hasattr(_env, "mcp_session"):
-                            async with _env.mcp_session():
-                                result = await _env.mcp_client.call_tool(
+                        if callable(mcp_session_factory):
+                            mcp_session_cm = cast(
+                                AsyncContextManager[Any], mcp_session_factory()
+                            )
+                            async with mcp_session_cm:
+                                result = await mcp_client.call_tool(
                                     name=tool_name, arguments=arguments
                                 )
                         else:
-                            async with _env.mcp_client:
-                                result = await _env.mcp_client.call_tool(
+                            async with mcp_client:
+                                result = await mcp_client.call_tool(
                                     name=tool_name, arguments=arguments
                                 )
-                    elif hasattr(_env, "mcp_server") and _env.mcp_server:
-                        server_tools = get_server_tools(_env.mcp_server)
+                    elif mcp_server:
+                        server_tools = get_server_tools(mcp_server)
                         if tool_name in server_tools:
                             tool = server_tools[tool_name]
                             result = tool.fn(**arguments)
@@ -768,13 +778,22 @@ class HTTPEnvServer:
             try:
                 # Create session with dedicated environment
                 session_id, session_env = await self._create_session()
+                if session_env is None:
+                    raise RuntimeError(
+                        "Session environment not initialized for MCP websocket"
+                    )
 
-                # If environment has an mcp_session context manager, hold it open 
+                # If environment has an mcp_session context manager, hold it open
                 # for the lifetime of the websocket connection
                 from contextlib import AsyncExitStack
+
                 async with AsyncExitStack() as stack:
-                    if hasattr(session_env, "mcp_session"):
-                        await stack.enter_async_context(session_env.mcp_session())
+                    mcp_session_factory = getattr(session_env, "mcp_session", None)
+                    if callable(mcp_session_factory):
+                        mcp_session_cm = cast(
+                            AsyncContextManager[Any], mcp_session_factory()
+                        )
+                        await stack.enter_async_context(mcp_session_cm)
 
                     while True:
                         # Receive message from client
@@ -1094,13 +1113,22 @@ all schema information needed to interact with the environment.
             try:
                 # Create session with dedicated environment
                 session_id, session_env = await self._create_session()
+                if session_env is None:
+                    raise RuntimeError(
+                        "Session environment not initialized for websocket"
+                    )
 
                 # Keep MCP session open for entire websocket lifetime
                 # (avoids reconnect overhead on every message)
                 from contextlib import AsyncExitStack
+
                 async with AsyncExitStack() as stack:
-                    if hasattr(session_env, "mcp_session"):
-                        await stack.enter_async_context(session_env.mcp_session())
+                    mcp_session_factory = getattr(session_env, "mcp_session", None)
+                    if callable(mcp_session_factory):
+                        mcp_session_cm = cast(
+                            AsyncContextManager[Any], mcp_session_factory()
+                        )
+                        await stack.enter_async_context(mcp_session_cm)
 
                     while True:
                         # Receive message from client
@@ -1132,15 +1160,23 @@ all schema information needed to interact with the environment.
 
                                     if is_async:
                                         sig = inspect.signature(session_env.reset_async)
-                                        valid_kwargs = self._get_valid_kwargs(sig, msg.data)
+                                        valid_kwargs = self._get_valid_kwargs(
+                                            sig, msg.data
+                                        )
                                         observation = await session_env.reset_async(
                                             **valid_kwargs
                                         )
                                     else:
                                         sig = inspect.signature(session_env.reset)
-                                        valid_kwargs = self._get_valid_kwargs(sig, msg.data)
-                                        observation = await self._run_in_session_executor(
-                                            session_id, session_env.reset, **valid_kwargs
+                                        valid_kwargs = self._get_valid_kwargs(
+                                            sig, msg.data
+                                        )
+                                        observation = (
+                                            await self._run_in_session_executor(
+                                                session_id,
+                                                session_env.reset,
+                                                **valid_kwargs,
+                                            )
                                         )
 
                                     self._update_session_activity(session_id)
@@ -1151,7 +1187,9 @@ all schema information needed to interact with the environment.
 
                                 case "step":
                                     msg = WSStepMessage(**message_dict)
-                                    action = deserialize_action(msg.data, self.action_cls)
+                                    action = deserialize_action(
+                                        msg.data, self.action_cls
+                                    )
 
                                     is_async = (
                                         session_env.step_async.__func__
@@ -1159,10 +1197,14 @@ all schema information needed to interact with the environment.
                                     )
 
                                     if is_async:
-                                        observation = await session_env.step_async(action)
+                                        observation = await session_env.step_async(
+                                            action
+                                        )
                                     else:
-                                        observation = await self._run_in_session_executor(
-                                            session_id, session_env.step, action
+                                        observation = (
+                                            await self._run_in_session_executor(
+                                                session_id, session_env.step, action
+                                            )
                                         )
 
                                     self._update_session_activity(
@@ -1202,7 +1244,9 @@ all schema information needed to interact with the environment.
                                             session_env=session_env,
                                             session_id=session_id,
                                         )
-                                    response = WSMCPResponse(data=rpc_response.model_dump())
+                                    response = WSMCPResponse(
+                                        data=rpc_response.model_dump()
+                                    )
 
                                 case _:
                                     response = WSErrorResponse(
@@ -1311,7 +1355,7 @@ def create_app(
         from .web_interface import create_web_interface_app
 
         return create_web_interface_app(
-            env,
+            cast(Any, env),
             action_cls,
             observation_cls,
             env_name,

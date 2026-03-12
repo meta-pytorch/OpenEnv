@@ -167,6 +167,18 @@ class MCPEnvironment(Environment):
         # Track tool schemas for list_tools: {tool_name: {mode: schema}}
         self._mode_tool_schemas = defaultdict(dict)
 
+    def _require_mcp_client(self) -> Any:
+        """Return MCP client or raise if environment has been closed."""
+        if self.mcp_client is None:
+            raise RuntimeError("MCP client is not available; environment is closed")
+        return self.mcp_client
+
+    def _require_mcp_server(self) -> Any:
+        """Return MCP server or raise if environment has been closed."""
+        if self.mcp_server is None:
+            raise RuntimeError("MCP server is not available; environment is closed")
+        return self.mcp_server
+
     @asynccontextmanager
     async def mcp_session(self):
         """
@@ -174,13 +186,14 @@ class MCPEnvironment(Environment):
         Ensures the MCP client is connected for the duration of the context.
         If already connected, it yields the existing client without reconnecting.
         """
+        client = self._require_mcp_client()
         if self._mcp_connected:
-            yield self.mcp_client
+            yield client
         else:
             self._mcp_connected = True
             try:
-                async with self.mcp_client:
-                    yield self.mcp_client
+                async with client:
+                    yield client
             finally:
                 self._mcp_connected = False
 
@@ -312,7 +325,8 @@ class MCPEnvironment(Environment):
 
             # If mode is None, register with FastMCP as usual
             if mode is None:
-                decorated_func = self.mcp_server.tool()(func)
+                mcp_server = self._require_mcp_server()
+                decorated_func = mcp_server.tool()(func)
                 self._mode_tools[tool_name][None] = func
                 return decorated_func
 
@@ -465,7 +479,8 @@ class MCPEnvironment(Environment):
             List of tool objects from the MCP server.
         """
         async with self.mcp_session():
-            return await self.mcp_client.list_tools()
+            client = self._require_mcp_client()
+            return await client.list_tools()
 
     def _handle_call_tool(
         self,
@@ -605,7 +620,8 @@ class MCPEnvironment(Environment):
             The result from the tool execution.
         """
         async with self.mcp_session():
-            return await self.mcp_client.call_tool(tool_name, arguments)
+            client = self._require_mcp_client()
+            return await client.call_tool(tool_name, arguments)
 
     @abstractmethod
     def _step_impl(
