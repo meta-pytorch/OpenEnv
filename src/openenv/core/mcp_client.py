@@ -118,6 +118,52 @@ class MCPClientBase(EnvClient[Any, Observation, State]):
         )
         self._tools_cache: Optional[List[Tool]] = None
         self.use_production_mode = False
+        self._production_session_id: Optional[str] = None
+        self._jsonrpc_request_id = 0
+
+    def _next_request_id(self) -> int:
+        """Generate a monotonically increasing JSON-RPC request id."""
+        self._jsonrpc_request_id += 1
+        return self._jsonrpc_request_id
+
+    def _production_mcp_url(self) -> str:
+        """Build HTTP MCP endpoint URL from the client's websocket URL."""
+        url = self._ws_url.replace("ws://", "http://").replace("wss://", "https://")
+        return url.rstrip("/ws").rstrip("/") + "/mcp"
+
+    def _production_mcp_request(self, method: str, params: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+        """Send a JSON-RPC request to HTTP /mcp and return parsed JSON response."""
+        import requests
+
+        response = requests.post(
+            self._production_mcp_url(),
+            json={
+                "jsonrpc": "2.0",
+                "method": method,
+                "params": params or {},
+                "id": self._next_request_id(),
+            },
+            timeout=self._message_timeout_s,
+        )
+        response.raise_for_status()
+        return response.json()
+
+    def _ensure_production_session(self) -> str:
+        """Create and cache a persistent HTTP MCP session id if needed."""
+        if self._production_session_id is not None:
+            return self._production_session_id
+
+        data = self._production_mcp_request("openenv/session/create")
+        if "error" in data:
+            message = data.get("error", {}).get("message", "unknown error")
+            raise RuntimeError(f"Failed to create MCP session: {message}")
+
+        session_id = data.get("result", {}).get("session_id")
+        if not session_id:
+            raise RuntimeError("Failed to create MCP session: missing session_id")
+
+        self._production_session_id = session_id
+        return session_id
 
     async def list_tools(self, use_cache: bool = True) -> List[Tool]:
         """
@@ -140,24 +186,15 @@ class MCPClientBase(EnvClient[Any, Observation, State]):
 
         # Use production mode HTTP endpoint if enabled
         if self.use_production_mode:
-            import requests
-
-            # Convert ws:// URL to http:// URL
-            url = self._ws_url.replace("ws://", "http://").replace("wss://", "https://")
-            # Remove /ws suffix if present and add /mcp
-            url = url.rstrip("/ws").rstrip("/") + "/mcp"
-
             try:
-                response = requests.post(
-                    url,
-                    json={
-                        "jsonrpc": "2.0",
-                        "method": "tools/list",
-                        "params": {},
-                        "id": 1,
-                    },
+                session_id = self._ensure_production_session()
+                data = self._production_mcp_request(
+                    "tools/list",
+                    {"session_id": session_id},
                 )
-                data = response.json()
+                if "error" in data:
+                    message = data.get("error", {}).get("message", "unknown error")
+                    raise RuntimeError(f"list_tools failed: {message}")
                 if "result" in data and "tools" in data["result"]:
                     tools = [
                         Tool(
@@ -251,6 +288,27 @@ class MCPClientBase(EnvClient[Any, Observation, State]):
             step_count=payload.get("step_count", 0),
         )
 
+    async def close(self) -> None:
+        """
+        Close client resources.
+
+        In production MCP mode, this also closes the server-side persistent
+        MCP session (best effort) before closing websocket/provider resources.
+        """
+        if self._production_session_id is not None:
+            try:
+                self._production_mcp_request(
+                    "openenv/session/close",
+                    {"session_id": self._production_session_id},
+                )
+            except Exception:
+                # Best effort cleanup - do not mask normal close behavior
+                pass
+            finally:
+                self._production_session_id = None
+
+        await super().close()
+
 
 class MCPToolClient(MCPClientBase):
     """
@@ -316,6 +374,26 @@ class MCPToolClient(MCPClientBase):
             >>> result = await env.call_tool("greet", name="Claude")
             >>> print(result)  # "Hello, Claude!"
         """
+        if self.use_production_mode:
+            session_id = self._ensure_production_session()
+            data = self._production_mcp_request(
+                "tools/call",
+                {
+                    "name": name,
+                    "arguments": kwargs,
+                    "session_id": session_id,
+                },
+            )
+
+            if "error" in data:
+                message = data.get("error", {}).get("message", "unknown error")
+                raise RuntimeError(f"Tool '{name}' failed: {message}")
+
+            result = data.get("result")
+            if isinstance(result, dict) and "data" in result:
+                return result["data"]
+            return result
+
         action = CallToolAction(tool_name=name, arguments=kwargs)
         result = await self.step(action)
         obs = result.observation

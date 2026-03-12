@@ -526,48 +526,146 @@ class HTTPEnvServer:
 
         # Helper function to handle MCP endpoint
         async def mcp_handler(
-            request: JsonRpcRequest, session_env: Optional[Environment] = None
+            request: JsonRpcRequest,
+            session_env: Optional[Environment] = None,
+            session_id: Optional[str] = None,
         ) -> JsonRpcResponse:
             """
             Handle MCP JSON-RPC requests.
 
-            Supports tools/list and tools/call methods in JSON-RPC 2.0 format.
+            Supports tools/list and tools/call methods in JSON-RPC 2.0 format,
+            plus OpenEnv session lifecycle methods for HTTP MCP:
+            - openenv/session/create
+            - openenv/session/close
             """
             method = request.method
             request_id = request.id
+            params = request.params
+            if not isinstance(params, dict):
+                return JsonRpcResponse.error_response(
+                    JsonRpcErrorCode.INVALID_PARAMS,
+                    "Params must be an object",
+                    request_id=request_id,
+                )
+
+            # OpenEnv extension methods for explicit MCP session management.
+            # This enables persistent MCP lifecycles over HTTP /mcp, matching WebSocket semantics.
+            if method == "openenv/session/create":
+                if session_env is not None and session_id is not None:
+                    return JsonRpcResponse.success(
+                        result={"session_id": session_id},
+                        request_id=request_id,
+                    )
+                created_session_id, _ = await self._create_session()
+                return JsonRpcResponse.success(
+                    result={"session_id": created_session_id},
+                    request_id=request_id,
+                )
+
+            if method == "openenv/session/close":
+                target_session_id = params.get("session_id")
+                if not target_session_id:
+                    return JsonRpcResponse.error_response(
+                        JsonRpcErrorCode.INVALID_PARAMS,
+                        "Invalid params - 'session_id' is required",
+                        request_id=request_id,
+                    )
+
+                if session_id is not None and target_session_id == session_id:
+                    return JsonRpcResponse.error_response(
+                        JsonRpcErrorCode.INVALID_REQUEST,
+                        "Cannot close active WebSocket-managed session via MCP method",
+                        request_id=request_id,
+                    )
+
+                async with self._session_lock:
+                    exists = target_session_id in self._sessions
+
+                if not exists:
+                    return JsonRpcResponse.error_response(
+                        JsonRpcErrorCode.INVALID_PARAMS,
+                        f"Unknown session_id: {target_session_id}",
+                        request_id=request_id,
+                    )
+
+                await self._destroy_session(target_session_id)
+                return JsonRpcResponse.success(
+                    result={"session_id": target_session_id, "closed": True},
+                    request_id=request_id,
+                )
+
+            requested_session_id = params.get("session_id")
+            managed_session_id = session_id
 
             # Use provided session environment or create temporary one
             if session_env is not None:
                 _env = session_env
                 should_close = False
+            elif requested_session_id:
+                async with self._session_lock:
+                    _env = self._sessions.get(requested_session_id)
+
+                if _env is None:
+                    return JsonRpcResponse.error_response(
+                        JsonRpcErrorCode.INVALID_PARAMS,
+                        f"Unknown session_id: {requested_session_id}",
+                        request_id=request_id,
+                    )
+
+                should_close = False
+                managed_session_id = requested_session_id
             else:
                 _env = self._env_factory()
                 should_close = True
             try:
                 if method == McpMethod.TOOLS_LIST:
                     # Check if environment is MCP-enabled
-                    if not hasattr(_env, "mcp_client"):
+                    if not hasattr(_env, "mcp_client") and not hasattr(_env, "mcp_server"):
                         return JsonRpcResponse.error_response(
                             JsonRpcErrorCode.INTERNAL_ERROR,
                             "Environment does not support MCP",
                             request_id=request_id,
                         )
 
-                    # Use async context manager for MCP client
-                    if hasattr(_env, "mcp_session"):
-                        async with _env.mcp_session():
-                            tools = await _env.mcp_client.list_tools()
-                    else:
-                        async with _env.mcp_client:
-                            tools = await _env.mcp_client.list_tools()
+                    if hasattr(_env, "mcp_client") and _env.mcp_client:
+                        # Use async context manager for MCP client
+                        if hasattr(_env, "mcp_session"):
+                            async with _env.mcp_session():
+                                tools = await _env.mcp_client.list_tools()
+                        else:
+                            async with _env.mcp_client:
+                                tools = await _env.mcp_client.list_tools()
 
-                    return JsonRpcResponse.success(
-                        result={
-                            "tools": [
-                                t.model_dump() if hasattr(t, "model_dump") else dict(t)
-                                for t in tools
-                            ]
-                        },
+                        return JsonRpcResponse.success(
+                            result={
+                                "tools": [
+                                    t.model_dump()
+                                    if hasattr(t, "model_dump")
+                                    else dict(t)
+                                    for t in tools
+                                ]
+                            },
+                            request_id=request_id,
+                        )
+
+                    if hasattr(_env, "mcp_server") and _env.mcp_server:
+                        tools = []
+                        for _tool_name, tool in get_server_tools(_env.mcp_server).items():
+                            tools.append(
+                                {
+                                    "name": tool.name,
+                                    "description": tool.description or "",
+                                    "inputSchema": tool.parameters or {},
+                                }
+                            )
+                        return JsonRpcResponse.success(
+                            result={"tools": tools},
+                            request_id=request_id,
+                        )
+
+                    return JsonRpcResponse.error_response(
+                        JsonRpcErrorCode.INTERNAL_ERROR,
+                        "MCP server not available",
                         request_id=request_id,
                     )
 
@@ -576,7 +674,7 @@ class HTTPEnvServer:
                     tool_name = params.get("name")
                     arguments = params.get("arguments", {})
 
-                    if not hasattr(_env, "mcp_client"):
+                    if not hasattr(_env, "mcp_client") and not hasattr(_env, "mcp_server"):
                         return JsonRpcResponse.error_response(
                             JsonRpcErrorCode.INTERNAL_ERROR,
                             "Environment does not support MCP",
@@ -590,17 +688,35 @@ class HTTPEnvServer:
                             request_id=request_id,
                         )
 
-                    # Use async context manager for MCP client
-                    if hasattr(_env, "mcp_session"):
-                        async with _env.mcp_session():
-                            result = await _env.mcp_client.call_tool(
-                                name=tool_name, arguments=arguments
+                    if hasattr(_env, "mcp_client") and _env.mcp_client:
+                        # Use async context manager for MCP client
+                        if hasattr(_env, "mcp_session"):
+                            async with _env.mcp_session():
+                                result = await _env.mcp_client.call_tool(
+                                    name=tool_name, arguments=arguments
+                                )
+                        else:
+                            async with _env.mcp_client:
+                                result = await _env.mcp_client.call_tool(
+                                    name=tool_name, arguments=arguments
+                                )
+                    elif hasattr(_env, "mcp_server") and _env.mcp_server:
+                        server_tools = get_server_tools(_env.mcp_server)
+                        if tool_name in server_tools:
+                            tool = server_tools[tool_name]
+                            result = tool.fn(**arguments)
+                        else:
+                            return JsonRpcResponse.error_response(
+                                JsonRpcErrorCode.INVALID_PARAMS,
+                                f"Tool not found: {tool_name}",
+                                request_id=request_id,
                             )
                     else:
-                        async with _env.mcp_client:
-                            result = await _env.mcp_client.call_tool(
-                                name=tool_name, arguments=arguments
-                            )
+                        return JsonRpcResponse.error_response(
+                            JsonRpcErrorCode.INTERNAL_ERROR,
+                            "MCP server not available",
+                            request_id=request_id,
+                        )
 
                     # Ensure result is JSON serializable
                     serializable_result = _make_json_serializable(result)
@@ -624,6 +740,11 @@ class HTTPEnvServer:
                     request_id=request_id,
                 )
             finally:
+                if managed_session_id:
+                    self._update_session_activity(
+                        managed_session_id,
+                        increment_step=(method == McpMethod.TOOLS_CALL),
+                    )
                 if should_close:
                     _env.close()
 
@@ -680,7 +801,9 @@ class HTTPEnvServer:
                         try:
                             # Call mcp_handler with session environment
                             response = await mcp_handler(
-                                jsonrpc_request, session_env=session_env
+                                jsonrpc_request,
+                                session_env=session_env,
+                                session_id=session_id,
                             )
                             await websocket.send_text(response.model_dump_json())
                         except Exception as e:
@@ -948,130 +1071,8 @@ all schema information needed to interact with the environment.
                     JsonRpcErrorCode.PARSE_ERROR
                 ).model_dump()
 
-            method = request.method
-            params = request.params
-            request_id = request.id
-
-            # Create a temporary environment for MCP access
-            _env = self._env_factory()
-
-            try:
-                # Check if environment supports MCP
-                if not hasattr(_env, "mcp_client") and not hasattr(_env, "mcp_server"):
-                    return JsonRpcResponse.error_response(
-                        JsonRpcErrorCode.INTERNAL_ERROR,
-                        "Environment does not support MCP",
-                        request_id=request_id,
-                    ).model_dump()
-
-                if method == McpMethod.TOOLS_LIST:
-                    # List tools from MCP server
-                    if hasattr(_env, "mcp_client") and _env.mcp_client:
-                        if hasattr(_env, "mcp_session"):
-                            async with _env.mcp_session():
-                                tools = await _env.mcp_client.list_tools()
-                        else:
-                            async with _env.mcp_client:
-                                tools = await _env.mcp_client.list_tools()
-                        return JsonRpcResponse.success(
-                            result={
-                                "tools": [
-                                    t.model_dump()
-                                    if hasattr(t, "model_dump")
-                                    else dict(t)
-                                    for t in tools
-                                ]
-                            },
-                            request_id=request_id,
-                        ).model_dump()
-                    elif hasattr(_env, "mcp_server") and _env.mcp_server:
-                        # Use server directly
-                        tools = []
-                        for tool_name, tool in get_server_tools(
-                            _env.mcp_server
-                        ).items():
-                            tool_dict = {
-                                "name": tool.name,
-                                "description": tool.description or "",
-                                "inputSchema": tool.parameters or {},
-                            }
-                            tools.append(tool_dict)
-                        return JsonRpcResponse.success(
-                            result={"tools": tools},
-                            request_id=request_id,
-                        ).model_dump()
-                    else:
-                        return JsonRpcResponse.error_response(
-                            JsonRpcErrorCode.INTERNAL_ERROR,
-                            "MCP server not available",
-                            request_id=request_id,
-                        ).model_dump()
-
-                elif method == McpMethod.TOOLS_CALL:
-                    tool_name = params.get("name")
-                    arguments = params.get("arguments", {})
-
-                    if not tool_name:
-                        return JsonRpcResponse.error_response(
-                            JsonRpcErrorCode.INVALID_PARAMS,
-                            "Invalid params - 'name' is required",
-                            request_id=request_id,
-                        ).model_dump()
-
-                    # Call tool via MCP
-                    if hasattr(_env, "mcp_client") and _env.mcp_client:
-                        if hasattr(_env, "mcp_session"):
-                            async with _env.mcp_session():
-                                result = await _env.mcp_client.call_tool(
-                                    name=tool_name, arguments=arguments
-                                )
-                        else:
-                            async with _env.mcp_client:
-                                result = await _env.mcp_client.call_tool(
-                                    name=tool_name, arguments=arguments
-                                )
-                    elif hasattr(_env, "mcp_server") and _env.mcp_server:
-                        # Call tool directly on FastMCP server
-                        server_tools = get_server_tools(_env.mcp_server)
-                        if tool_name in server_tools:
-                            tool = server_tools[tool_name]
-                            result = tool.fn(**arguments)
-                        else:
-                            return JsonRpcResponse.error_response(
-                                JsonRpcErrorCode.INVALID_PARAMS,
-                                f"Tool not found: {tool_name}",
-                                request_id=request_id,
-                            ).model_dump()
-                    else:
-                        return JsonRpcResponse.error_response(
-                            JsonRpcErrorCode.INTERNAL_ERROR,
-                            "MCP server not available",
-                            request_id=request_id,
-                        ).model_dump()
-
-                    # Make result JSON serializable
-                    serializable_result = _make_json_serializable(result)
-
-                    return JsonRpcResponse.success(
-                        result=serializable_result,
-                        request_id=request_id,
-                    ).model_dump()
-
-                else:
-                    return JsonRpcResponse.error_response(
-                        JsonRpcErrorCode.METHOD_NOT_FOUND,
-                        f"Method not found: {method}",
-                        request_id=request_id,
-                    ).model_dump()
-
-            except Exception as e:
-                return JsonRpcResponse.error_response(
-                    JsonRpcErrorCode.INTERNAL_ERROR,
-                    str(e),
-                    request_id=request_id,
-                ).model_dump()
-            finally:
-                _env.close()
+            response = await mcp_handler(request)
+            return response.model_dump()
 
         # Register WebSocket endpoint for persistent sessions
         @app.websocket("/ws")
@@ -1199,6 +1200,7 @@ all schema information needed to interact with the environment.
                                         rpc_response = await mcp_handler(
                                             rpc_request,
                                             session_env=session_env,
+                                            session_id=session_id,
                                         )
                                     response = WSMCPResponse(data=rpc_response.model_dump())
 
