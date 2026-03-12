@@ -690,7 +690,7 @@ class HTTPEnvServer:
 
                     if not tool_name:
                         return JsonRpcResponse.error_response(
-                            JsonRpcErrorCode.INVALID_REQUEST,
+                            JsonRpcErrorCode.INVALID_PARAMS,
                             "Missing 'name' in params",
                             request_id=request_id,
                         )

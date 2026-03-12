@@ -131,7 +131,9 @@ class MCPClientBase(EnvClient[Any, Observation, State]):
         url = self._ws_url.replace("ws://", "http://").replace("wss://", "https://")
         return url.rstrip("/ws").rstrip("/") + "/mcp"
 
-    def _production_mcp_request(self, method: str, params: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    def _production_mcp_request(
+        self, method: str, params: Optional[Dict[str, Any]] = None
+    ) -> Dict[str, Any]:
         """Send a JSON-RPC request to HTTP /mcp and return parsed JSON response."""
         import requests
 
