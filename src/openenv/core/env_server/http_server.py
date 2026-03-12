@@ -20,7 +20,10 @@ import os
 import time
 import uuid
 from concurrent.futures import ThreadPoolExecutor
+from contextlib import AsyncExitStack
 from typing import Any, AsyncContextManager, Callable, Dict, Optional, Type, cast
+
+_MISSING = object()
 
 from fastapi import (
     Body,
@@ -603,12 +606,19 @@ class HTTPEnvServer:
                 should_close = False
             elif requested_session_id:
                 async with self._session_lock:
-                    _env = self._sessions.get(requested_session_id)
+                    _env = self._sessions.get(requested_session_id, _MISSING)
 
-                if _env is None:
+                if _env is _MISSING:
                     return JsonRpcResponse.error_response(
                         JsonRpcErrorCode.INVALID_PARAMS,
                         f"Unknown session_id: {requested_session_id}",
+                        request_id=request_id,
+                    )
+
+                if _env is None:
+                    return JsonRpcResponse.error_response(
+                        JsonRpcErrorCode.INVALID_REQUEST,
+                        f"Session {requested_session_id} is still initializing; retry shortly",
                         request_id=request_id,
                     )
 
@@ -785,7 +795,6 @@ class HTTPEnvServer:
 
                 # If environment has an mcp_session context manager, hold it open
                 # for the lifetime of the websocket connection
-                from contextlib import AsyncExitStack
 
                 async with AsyncExitStack() as stack:
                     mcp_session_factory = getattr(session_env, "mcp_session", None)
@@ -1120,7 +1129,6 @@ all schema information needed to interact with the environment.
 
                 # Keep MCP session open for entire websocket lifetime
                 # (avoids reconnect overhead on every message)
-                from contextlib import AsyncExitStack
 
                 async with AsyncExitStack() as stack:
                     mcp_session_factory = getattr(session_env, "mcp_session", None)

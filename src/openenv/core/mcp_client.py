@@ -131,31 +131,32 @@ class MCPClientBase(EnvClient[Any, Observation, State]):
         url = self._ws_url.replace("ws://", "http://").replace("wss://", "https://")
         return url.rstrip("/ws").rstrip("/") + "/mcp"
 
-    def _production_mcp_request(
+    async def _production_mcp_request(
         self, method: str, params: Optional[Dict[str, Any]] = None
     ) -> Dict[str, Any]:
         """Send a JSON-RPC request to HTTP /mcp and return parsed JSON response."""
-        import requests
+        import httpx
 
-        response = requests.post(
-            self._production_mcp_url(),
-            json={
-                "jsonrpc": "2.0",
-                "method": method,
-                "params": params or {},
-                "id": self._next_request_id(),
-            },
-            timeout=self._message_timeout,
-        )
-        response.raise_for_status()
-        return response.json()
+        async with httpx.AsyncClient() as client:
+            response = await client.post(
+                self._production_mcp_url(),
+                json={
+                    "jsonrpc": "2.0",
+                    "method": method,
+                    "params": params or {},
+                    "id": self._next_request_id(),
+                },
+                timeout=self._message_timeout,
+            )
+            response.raise_for_status()
+            return response.json()
 
-    def _ensure_production_session(self) -> str:
+    async def _ensure_production_session(self) -> str:
         """Create and cache a persistent HTTP MCP session id if needed."""
         if self._production_session_id is not None:
             return self._production_session_id
 
-        data = self._production_mcp_request("openenv/session/create")
+        data = await self._production_mcp_request("openenv/session/create")
         if "error" in data:
             message = data.get("error", {}).get("message", "unknown error")
             raise RuntimeError(f"Failed to create MCP session: {message}")
@@ -190,8 +191,8 @@ class MCPClientBase(EnvClient[Any, Observation, State]):
         # Some tests instantiate with __new__ and skip __init__, so default missing flag to False.
         if getattr(self, "use_production_mode", False):
             try:
-                session_id = self._ensure_production_session()
-                data = self._production_mcp_request(
+                session_id = await self._ensure_production_session()
+                data = await self._production_mcp_request(
                     "tools/list",
                     {"session_id": session_id},
                 )
@@ -305,7 +306,7 @@ class MCPClientBase(EnvClient[Any, Observation, State]):
         """
         if self._production_session_id is not None:
             try:
-                self._production_mcp_request(
+                await self._production_mcp_request(
                     "openenv/session/close",
                     {"session_id": self._production_session_id},
                 )
@@ -383,8 +384,8 @@ class MCPToolClient(MCPClientBase):
             >>> print(result)  # "Hello, Claude!"
         """
         if getattr(self, "use_production_mode", False):
-            session_id = self._ensure_production_session()
-            data = self._production_mcp_request(
+            session_id = await self._ensure_production_session()
+            data = await self._production_mcp_request(
                 "tools/call",
                 {
                     "name": name,
