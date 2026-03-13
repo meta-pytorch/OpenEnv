@@ -27,6 +27,31 @@ from .telemetry import (
     clear_task_context,
 )
 
+# Synthetic tool injected by the harness (not from MCP).
+# Mirrors orchestrator/temporal/workflows/constants.py → ANSWER_SUBMISSION_TOOL.
+SUBMIT_FINAL_ANSWER_TOOL = {
+    "type": "function",
+    "function": {
+        "name": "submit_final_answer",
+        "description": (
+            "Submit your final answer to complete the task. Use this when you "
+            "have finished the task and want to provide your answer for "
+            "verification. If the requested answer asks for json, then write "
+            "your response in the answer field using json brackets."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "answer": {
+                    "type": "string",
+                    "description": "Your final answer",
+                }
+            },
+            "required": ["answer"],
+        },
+    },
+}
+
 
 def _is_tool_error(result: Any) -> Tuple[bool, Optional[str]]:
     """Check if a tool result indicates an error.
@@ -132,6 +157,7 @@ class FleetTaskEnv:
         self._tools_cache: Optional[List[Dict]] = None
         self._reward_computed = False
         self.final_reward: Optional[float] = None
+        self._submitted_answer: Optional[str] = None
 
         # Set telemetry context so init failures are tracked with full context
         set_task_context(
@@ -288,6 +314,7 @@ class FleetTaskEnv:
         self._done = False
         self._reward_computed = False
         self.final_reward = None
+        self._submitted_answer = None
 
         # Reset the environment (use short timeout to avoid blocking on broken manager APIs)
         # reset() failure is non-fatal — env is up, just the manager API timed out
@@ -385,6 +412,13 @@ class FleetTaskEnv:
             self._rollout_completed_emitted = True
             raise RuntimeError("No tools available after filtering")
 
+        # Inject submit_final_answer synthetic tool for tool_use tasks whose
+        # prompt references it.  This mirrors the harness's ANSWER_SUBMISSION_TOOL
+        # so that models can submit answers during SkyRL training exactly as
+        # they would in a Fleet harness session.
+        if self.modality == "tool_use" and "submit_final_answer" in self.prompt:
+            self._tools_cache.append(SUBMIT_FINAL_ANSWER_TOOL)
+
         # Build observation with cached tools
         obs = {
             "prompt": self.prompt,
@@ -467,7 +501,14 @@ class FleetTaskEnv:
         tool_params = action.get("params", {})
         tool_result = None
 
-        if tool_name:
+        if tool_name == "submit_final_answer":
+            # Synthetic tool — handled locally, not routed to MCP.
+            self._submitted_answer = tool_params.get("answer", "")
+            tool_result = {"status": "submitted", "message": "Answer recorded. Ending session."}
+            info["tool_result"] = tool_result
+            info["submitted_answer"] = self._submitted_answer
+            agent_done = True  # Force episode end, same as harness behaviour
+        elif tool_name:
             try:
                 tool_result = await self._tools.call_tool(tool_name, tool_params)
                 info["tool_result"] = tool_result
@@ -603,7 +644,12 @@ class FleetTaskEnv:
 
                     # Execute verifier in a thread to avoid blocking the event loop.
                     # verify_detailed() does sync HTTP calls internally.
-                    response = await asyncio.to_thread(fleet_task.verify_detailed, fleet_env)
+                    # Pass final_answer when model used submit_final_answer,
+                    # mirroring how the harness routes the answer to the verifier.
+                    verify_kwargs = {}
+                    if self._submitted_answer is not None:
+                        verify_kwargs["final_answer"] = self._submitted_answer
+                    response = await asyncio.to_thread(fleet_task.verify_detailed, fleet_env, **verify_kwargs)
 
                     # Extract result from response
                     # response.success is bool, response.result is the verifier's return value (0.0 or 1.0)

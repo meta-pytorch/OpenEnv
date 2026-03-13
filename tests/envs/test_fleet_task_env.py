@@ -520,3 +520,67 @@ class TestFleetTaskEnvComputerUseFiltering:
         # Should only have computer tool
         assert len(env._tools_cache) == 1
         assert env._tools_cache[0]["function"]["name"] == "computer"
+
+
+class TestSubmitFinalAnswer:
+    """Tests for synthetic submit_final_answer tool injection."""
+
+    def test_submit_final_answer_tool_definition(self, mock_fleet_env_client):
+        """SUBMIT_FINAL_ANSWER_TOOL has correct schema."""
+        from envs.fleet_env.task_env import SUBMIT_FINAL_ANSWER_TOOL
+
+        func = SUBMIT_FINAL_ANSWER_TOOL["function"]
+        assert func["name"] == "submit_final_answer"
+        assert "answer" in func["parameters"]["properties"]
+        assert func["parameters"]["required"] == ["answer"]
+
+    def test_submitted_answer_init(self, sample_task_config, mock_fleet_env_client):
+        """_submitted_answer should be None on init."""
+        from envs.fleet_env.task_env import FleetTaskEnv
+
+        env = FleetTaskEnv(sample_task_config, api_key="test")
+        assert env._submitted_answer is None
+
+    @pytest.mark.anyio
+    async def test_step_submit_final_answer_stores_answer(
+        self, sample_task_config, mock_fleet_env_client
+    ):
+        """Calling submit_final_answer should store the answer and mark done."""
+        from envs.fleet_env.task_env import FleetTaskEnv
+
+        mock_orch, _ = mock_fleet_env_client
+        env = FleetTaskEnv(sample_task_config, api_key="test")
+        env._orch = mock_orch
+        env._tools = MagicMock()
+        env._tools_cache = [{"type": "function", "function": {"name": "bash"}}]
+        env._done = False
+        env._rollout_started = True
+
+        action = {"tool": "submit_final_answer", "params": {"answer": '["row1", "row2"]'}}
+        obs, reward, done, info = await env.step_async(action)
+
+        assert env._submitted_answer == '["row1", "row2"]'
+        assert done is True
+        assert info["submitted_answer"] == '["row1", "row2"]'
+        assert info["tool_result"]["status"] == "submitted"
+
+    @pytest.mark.anyio
+    async def test_step_submit_final_answer_not_routed_to_mcp(
+        self, sample_task_config, mock_fleet_env_client
+    ):
+        """submit_final_answer should NOT call MCP tools.call_tool."""
+        from envs.fleet_env.task_env import FleetTaskEnv
+
+        mock_orch, _ = mock_fleet_env_client
+        mock_tools = AsyncMock()
+        env = FleetTaskEnv(sample_task_config, api_key="test")
+        env._orch = mock_orch
+        env._tools = mock_tools
+        env._tools_cache = [{"type": "function", "function": {"name": "bash"}}]
+        env._done = False
+        env._rollout_started = True
+
+        action = {"tool": "submit_final_answer", "params": {"answer": "42"}}
+        await env.step_async(action)
+
+        mock_tools.call_tool.assert_not_called()
