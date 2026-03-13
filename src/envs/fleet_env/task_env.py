@@ -155,6 +155,7 @@ class FleetTaskEnv:
         self._rollout_completed_emitted = False
         self._rollout_started = False
         self._tools_cache: Optional[List[Dict]] = None
+        self._reward_computed = False
         self.final_reward: Optional[float] = None
         self._submitted_answer: Optional[str] = None
 
@@ -311,6 +312,7 @@ class FleetTaskEnv:
         # Reset episode state
         self._step_count = 0
         self._done = False
+        self._reward_computed = False
         self.final_reward = None
         self._submitted_answer = None
 
@@ -550,6 +552,7 @@ class FleetTaskEnv:
         reward = 0.0
         if self._done:
             reward = await self._compute_reward()
+            self._reward_computed = True
             info["reward_computed"] = True
 
         # Build observation
@@ -711,18 +714,21 @@ class FleetTaskEnv:
     def close(self):
         """Close the environment and cleanup resources.
 
-        Runs the verifier if a rollout was started but never completed
-        (e.g., caller hit max_turns and stopped without telling us,
-        context overflow, job cancellation, TTL expiry).
+        Runs the verifier for orphaned rollouts — trajectories where SkyRL
+        stopped early (context overflow, its own max_turns) without OpenEnv
+        computing the reward. This ensures the actual reward is available
+        via self.final_reward instead of defaulting to 0.0.
         """
         try:
             # Run verifier for orphaned rollouts (started but never completed).
-            # This gets the real reward instead of defaulting to 0.0.
+            # _compute_reward() handles telemetry (fleet_rollout_completed).
             if self._rollout_started and not self._rollout_completed_emitted:
                 try:
                     self.final_reward = asyncio.run(self._compute_reward())
+                    self._reward_computed = True
                 except RuntimeError:
                     # Already inside a running event loop — caller should use close_async()
+                    # Fall back to emitting telemetry without verifier
                     stop_reason = "max_steps" if self._step_count >= self.max_steps else "abandoned"
                     fleet_info(
                         "fleet_rollout_completed",
@@ -749,12 +755,18 @@ class FleetTaskEnv:
             clear_task_context()
 
     async def close_async(self):
-        """Async close — runs verifier for orphaned rollouts and terminates instance."""
+        """Async close — runs verifier for orphaned rollouts and terminates instance.
+
+        If SkyRL ends the trajectory early (context overflow, its own max_turns),
+        the verifier never ran in step_async(). This runs it at close time so
+        the real reward is available via self.final_reward.
+        """
         try:
             # Run verifier for orphaned rollouts (started but never completed).
-            # This gets the real reward instead of defaulting to 0.0.
+            # _compute_reward() handles telemetry (fleet_rollout_completed).
             if self._rollout_started and not self._rollout_completed_emitted:
                 self.final_reward = await self._compute_reward()
+                self._reward_computed = True
 
             if self._orch:
                 try:
