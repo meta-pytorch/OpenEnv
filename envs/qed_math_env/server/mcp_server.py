@@ -17,3 +17,36 @@ Reference:
     training/pipelinerl/domains/math/verifier_api.py - Proof verification logic
     envs/echo_env/server/echo_environment.py - MCP tool registration pattern
 """
+
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
+from fastmcp import FastMCP
+
+if TYPE_CHECKING:
+    from .qed_math_environment import QEDMathEnvironment
+
+
+def register_mcp_tools(mcp: FastMCP, env: "QEDMathEnvironment") -> None:
+    """Register QED-Math MCP tools on a FastMCP instance.
+
+    Args:
+        mcp: FastMCP server instance to register tools on.
+        env: QEDMathEnvironment instance that serves tool requests.
+    """
+
+    @mcp.tool
+    def get_problem() -> dict:
+        """Get the current problem statement and associated metadata."""
+        return env.get_problem_payload()
+
+    @mcp.tool
+    def submit_proof(proof: str) -> dict:
+        """Submit a proof attempt and return grading output."""
+        return env.submit_proof_payload(proof)
+
+    @mcp.tool
+    def get_grading_guidelines() -> dict:
+        """Get grading rubric text for the current problem."""
+        return env.get_grading_guidelines_payload()
