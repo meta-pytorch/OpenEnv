@@ -24,6 +24,23 @@ class MathProofRubric:
     the score to a [0, 1] reward.
     """
 
+    def __init__(
+        self,
+        grader_model: str = "gemini-2.0-flash",
+        prompt_template: str = "",
+        custom_threshold: bool = False,
+    ):
+        """Initialize rubric configuration.
+
+        Args:
+            grader_model: Model identifier to use for grading.
+            prompt_template: Prompt template for the grader.
+            custom_threshold: Whether custom thresholding is enabled.
+        """
+        self.grader_model = grader_model
+        self.prompt_template = prompt_template
+        self.custom_threshold = custom_threshold
+
     def grade(self, proof: str, problem: str, reference_solution: str) -> tuple:
         """
         Grade a proof submission.
