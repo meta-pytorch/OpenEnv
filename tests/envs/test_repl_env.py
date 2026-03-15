@@ -261,6 +261,16 @@ class TestREPLEnvironment:
         obs = env.step(REPLAction(code="results = llm_batch(['A', 'B'])"))
         assert obs.result.success
 
+        # Test documented aliases and helper surface
+        obs = env.step(REPLAction(code="deep = rlm_query('Hello again')"))
+        assert obs.result.success
+        obs = env.step(REPLAction(code="batched = rlm_query_batched(['X', 'Y'])"))
+        assert obs.result.success
+        obs = env.step(REPLAction(code="vars_now = SHOW_VARS()"))
+        assert obs.result.success
+        obs = env.step(REPLAction(code="print(vars_now)"))
+        assert "deep" in obs.result.stdout
+
 
 class TestModels:
     """Tests for the data models."""
@@ -325,14 +335,14 @@ class TestModels:
         assert state.context == "hello"
 
 
-class TestREPLEnvUnifiedClient:
-    """Tests for the unified REPLEnv client (local mode)."""
+class TestLocalREPLEnv:
+    """Tests for the explicit local REPL helper."""
 
     def test_local_mode_basic(self):
         """Test basic local mode execution."""
-        from repl_env import REPLEnv
+        from repl_env import LocalREPLEnv
 
-        with REPLEnv() as env:
+        with LocalREPLEnv() as env:
             result = env.reset()
             assert not result.done
             assert result.observation.iteration == 0
@@ -346,9 +356,9 @@ class TestREPLEnvUnifiedClient:
 
     def test_local_mode_with_context(self):
         """Test local mode with context."""
-        from repl_env import REPLEnv
+        from repl_env import LocalREPLEnv
 
-        with REPLEnv() as env:
+        with LocalREPLEnv() as env:
             result = env.reset(context="Hello World", task_prompt="Count chars")
             assert result.observation.context_length == 11
             assert "context" in result.observation.available_variables
@@ -358,7 +368,7 @@ class TestREPLEnvUnifiedClient:
 
     def test_local_mode_with_llm_functions(self):
         """Test local mode with LLM functions."""
-        from repl_env import REPLEnv
+        from repl_env import LocalREPLEnv
 
         def mock_query(prompt):
             return f"Response: {prompt[:20]}"
@@ -366,10 +376,11 @@ class TestREPLEnvUnifiedClient:
         def mock_batch(prompts):
             return [mock_query(p) for p in prompts]
 
-        with REPLEnv(llm_query_fn=mock_query, llm_batch_fn=mock_batch) as env:
+        with LocalREPLEnv(llm_query_fn=mock_query, llm_batch_fn=mock_batch) as env:
             result = env.reset(context="Test")
             assert "llm_query" in result.observation.available_variables
             assert "llm_batch" in result.observation.available_variables
+            assert "SHOW_VARS" in result.observation.available_variables
 
             result = env.execute("r = llm_query('Hello')")
             assert result.observation.result.success
@@ -377,11 +388,20 @@ class TestREPLEnvUnifiedClient:
             result = env.execute("print(r)")
             assert "Response: Hello" in result.observation.result.stdout
 
+            result = env.execute("r2 = rlm_query('World')")
+            assert result.observation.result.success
+
+            result = env.execute("vars_now = SHOW_VARS()")
+            assert result.observation.result.success
+
+            result = env.execute("print(vars_now)")
+            assert "r2" in result.observation.result.stdout
+
     def test_local_mode_max_iterations(self):
         """Test local mode max iterations."""
-        from repl_env import REPLEnv
+        from repl_env import LocalREPLEnv
 
-        with REPLEnv() as env:
+        with LocalREPLEnv() as env:
             result = env.reset(max_iterations=2)
 
             result = env.execute("x = 1")
@@ -393,9 +413,9 @@ class TestREPLEnvUnifiedClient:
 
     def test_local_mode_rewards(self):
         """Test local mode reward configuration."""
-        from repl_env import REPLEnv
+        from repl_env import LocalREPLEnv
 
-        with REPLEnv(reward_on_success=1.0, reward_on_error=-0.5) as env:
+        with LocalREPLEnv(reward_on_success=1.0, reward_on_error=-0.5) as env:
             env.reset()
 
             # Error should give negative reward
@@ -408,18 +428,18 @@ class TestREPLEnvUnifiedClient:
 
     def test_execute_convenience_method(self):
         """Test execute() convenience method."""
-        from repl_env import REPLEnv
+        from repl_env import LocalREPLEnv
 
-        with REPLEnv() as env:
+        with LocalREPLEnv() as env:
             env.reset()
             result = env.execute("x = 1 + 1")
             assert result.observation.result.success
 
     def test_submit_final_answer(self):
         """Test submit_final_answer() method."""
-        from repl_env import REPLEnv
+        from repl_env import LocalREPLEnv
 
-        with REPLEnv() as env:
+        with LocalREPLEnv() as env:
             env.reset()
             result = env.submit_final_answer("my answer")
             assert result.done
@@ -427,9 +447,9 @@ class TestREPLEnvUnifiedClient:
 
     def test_state_method(self):
         """Test state() method."""
-        from repl_env import REPLEnv
+        from repl_env import LocalREPLEnv
 
-        with REPLEnv() as env:
+        with LocalREPLEnv() as env:
             env.reset(context="test", task_prompt="do something")
             state = env.state()
             assert state.context == "test"
@@ -437,9 +457,9 @@ class TestREPLEnvUnifiedClient:
 
     def test_list_variables(self):
         """Test list_variables() method."""
-        from repl_env import REPLEnv
+        from repl_env import LocalREPLEnv
 
-        with REPLEnv() as env:
+        with LocalREPLEnv() as env:
             env.reset()
             env.execute("my_var = 123")
             variables = env.list_variables()
@@ -447,14 +467,188 @@ class TestREPLEnvUnifiedClient:
 
     def test_context_manager(self):
         """Test context manager properly closes."""
-        from repl_env import REPLEnv
+        from repl_env import LocalREPLEnv
 
-        env = REPLEnv()
+        env = LocalREPLEnv()
         with env:
             env.reset()
             env.execute("x = 1")
-        # After exiting context, internal state should be cleaned up
-        assert env._local_env is None
+        with pytest.raises(RuntimeError):
+            env.state()
+
+
+class TestREPLEnvRemoteClient:
+    """Tests for the async OpenEnv REPL client."""
+
+    @pytest.mark.asyncio
+    async def test_async_execute_and_state(self, monkeypatch):
+        from repl_env import REPLEnv
+
+        env = REPLEnv(base_url="http://localhost:8000")
+
+        async def fake_send_and_receive(message):
+            if message["type"] == "reset":
+                return {
+                    "data": {
+                        "observation": {
+                            "result": {
+                                "stdout": "ready",
+                                "stderr": "",
+                                "locals_snapshot": {},
+                                "execution_time": 0.0,
+                                "success": True,
+                                "exception": None,
+                            },
+                            "context_preview": "Hello",
+                            "context_length": 5,
+                            "available_variables": ["answer", "context"],
+                            "iteration": 0,
+                            "max_iterations": 30,
+                            "metadata": {"message": "Environment ready."},
+                        },
+                        "reward": 0.0,
+                        "done": False,
+                    }
+                }
+            if message["type"] == "step":
+                assert message["data"]["code"] == "print('FINAL(42)')"
+                return {
+                    "data": {
+                        "observation": {
+                            "result": {
+                                "stdout": "FINAL(42)",
+                                "stderr": "",
+                                "locals_snapshot": {},
+                                "execution_time": 0.01,
+                                "success": True,
+                                "exception": None,
+                            },
+                            "context_preview": "Hello",
+                            "context_length": 5,
+                            "available_variables": ["answer", "context"],
+                            "iteration": 1,
+                            "max_iterations": 30,
+                            "metadata": {"final_answer": "42"},
+                        },
+                        "reward": 1.0,
+                        "done": True,
+                    }
+                }
+            if message["type"] == "state":
+                return {
+                    "data": {
+                        "episode_id": "episode-1",
+                        "step_count": 1,
+                        "context": "Hello",
+                        "task_prompt": "Count chars",
+                        "iteration": 1,
+                        "max_iterations": 30,
+                        "namespace_keys": ["answer", "context"],
+                        "final_answer": "42",
+                        "total_execution_time": 0.01,
+                    }
+                }
+            if message["type"] == "close":
+                return {"data": {}}
+            raise AssertionError(f"Unexpected message type: {message['type']}")
+
+        monkeypatch.setattr(env, "_send_and_receive", fake_send_and_receive)
+
+        result = await env.reset(context="Hello", task_prompt="Count chars")
+        assert result.observation.context_length == 5
+
+        result = await env.execute("print('FINAL(42)')")
+        assert result.done
+        assert result.observation.metadata["final_answer"] == "42"
+
+        state = await env.state()
+        assert state.final_answer == "42"
+
+    def test_sync_wrapper(self, monkeypatch):
+        from repl_env import REPLEnv
+
+        env = REPLEnv(base_url="http://localhost:8000").sync()
+
+        async def fake_connect():
+            return env.async_client
+
+        async def fake_send_and_receive(message):
+            if message["type"] == "reset":
+                return {
+                    "data": {
+                        "observation": {
+                            "result": {
+                                "stdout": "ready",
+                                "stderr": "",
+                                "locals_snapshot": {},
+                                "execution_time": 0.0,
+                                "success": True,
+                                "exception": None,
+                            },
+                            "context_preview": None,
+                            "context_length": 0,
+                            "available_variables": ["answer"],
+                            "iteration": 0,
+                            "max_iterations": 30,
+                            "metadata": {},
+                        },
+                        "reward": 0.0,
+                        "done": False,
+                    }
+                }
+            if message["type"] == "step":
+                return {
+                    "data": {
+                        "observation": {
+                            "result": {
+                                "stdout": "FINAL(done)",
+                                "stderr": "",
+                                "locals_snapshot": {},
+                                "execution_time": 0.0,
+                                "success": True,
+                                "exception": None,
+                            },
+                            "context_preview": None,
+                            "context_length": 0,
+                            "available_variables": ["answer"],
+                            "iteration": 1,
+                            "max_iterations": 30,
+                            "metadata": {"final_answer": "done"},
+                        },
+                        "reward": 1.0,
+                        "done": True,
+                    }
+                }
+            if message["type"] == "state":
+                return {
+                    "data": {
+                        "episode_id": "episode-1",
+                        "step_count": 1,
+                        "context": "",
+                        "task_prompt": "",
+                        "iteration": 1,
+                        "max_iterations": 30,
+                        "namespace_keys": ["answer"],
+                        "final_answer": "done",
+                        "total_execution_time": 0.0,
+                    }
+                }
+            if message["type"] == "close":
+                return {"data": {}}
+            raise AssertionError(f"Unexpected message type: {message['type']}")
+
+        monkeypatch.setattr(env.async_client, "connect", fake_connect)
+        monkeypatch.setattr(env.async_client, "_send_and_receive", fake_send_and_receive)
+
+        with env:
+            result = env.reset()
+            assert not result.done
+
+            result = env.execute("print('FINAL(done)')")
+            assert result.done
+
+            state = env.state()
+            assert state.final_answer == "done"
 
 
 if __name__ == "__main__":

@@ -2,8 +2,9 @@
 """
 Simple REPL + Oolong example with recursive LLM calls (RLM paradigm).
 
-Demonstrates the unified REPLEnv API that works with both remote servers
-and local execution using the same interface.
+Demonstrates the current repl_env split:
+- `REPLEnv(...).sync()` for remote/server-backed usage
+- `LocalREPLEnv(...)` for local in-process execution
 
 Usage:
     # Run against remote server
@@ -23,7 +24,7 @@ from huggingface_hub import InferenceClient
 HF_TOKEN = os.environ.get("HF_TOKEN")
 
 
-from repl_env import REPLEnv
+from repl_env import LocalREPLEnv, REPLEnv
 from repl_env.prompts import (
     RLM_SYSTEM_PROMPT_QWEN,  # Use Qwen version (with cost warning)
     QueryMetadata,
@@ -83,10 +84,10 @@ def main():
     # Build task prompt (just the question, as per official RLM)
     task_prompt = question
 
-    # Create environment - unified API for both local and remote!
+# Create environment using the current repl_env client split.
     if SPACE_URL:
         print(f"\nConnecting to: {SPACE_URL}")
-        env = REPLEnv(base_url=SPACE_URL)
+        env = REPLEnv(base_url=SPACE_URL).sync()
     else:
         print("\nRunning locally")
         # For local mode, provide LLM functions for llm_query/llm_query_batched support
@@ -96,9 +97,9 @@ def main():
         def local_llm_batch(prompts: list[str]) -> list[str]:
             return [local_llm_query(p) for p in prompts]
 
-        env = REPLEnv(llm_query_fn=local_llm_query, llm_batch_fn=local_llm_batch)
+        env = LocalREPLEnv(llm_query_fn=local_llm_query, llm_batch_fn=local_llm_batch)
 
-    # Reset environment - same API for both local and remote
+    # Reset environment. Both helpers expose the same synchronous surface here.
     # Pass hf_token so the server uses our token for llm_query/llm_query_batched
     result = env.reset(
         context=context,
@@ -143,7 +144,7 @@ def main():
         for code in code_blocks:
             print(f"\nExecuting:\n{code[:300]}{'...' if len(code) > 300 else ''}")
 
-            # Execute code - same API for both local and remote!
+            # Execute code.
             result = env.execute(code)
             obs = result.observation
             code_block_observations.append(obs)

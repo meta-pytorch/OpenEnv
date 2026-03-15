@@ -19,7 +19,7 @@ implementing the Recursive Language Model (RLM) paradigm:
 This is similar to the MIT RLM implementation but uses OpenEnv's repl_env.
 
 Requirements:
-    pip install transformers torch accelerate
+    pip install huggingface_hub
 
 Usage:
     python examples/repl_with_llm.py
@@ -29,20 +29,21 @@ from __future__ import annotations
 import os
 from huggingface_hub import InferenceClient
 
-from repl_env import REPLEnv
+from repl_env import LocalREPLEnv
 from repl_env.prompts import (
     RLM_SYSTEM_PROMPT,
-    build_initial_prompt,
+    QueryMetadata,
+    build_rlm_system_prompt,
+    build_user_prompt,
     extract_code_blocks,
     format_observation,
 )
 
 
 def create_qwen_llm():
-    """Create an LLM function using the smallest Qwen instruct model."""
-    #from transformers import AutoModelForCausalLM, AutoTokenizer
+    """Create an LLM function using a small Qwen model."""
     HF_TOKEN = os.environ.get("HF_TOKEN", None)
-    model_name = "Qwen/Qwen3-Coder-480B-A35B-Instruct"
+    model_name = os.environ.get("REPL_LLM_MODEL", "Qwen/Qwen3.5-9B")
     print(f"Loading model: {model_name}")
 
     client = InferenceClient(
@@ -50,14 +51,11 @@ def create_qwen_llm():
         token=HF_TOKEN,
     )
 
-    # Disable thinking mode for Qwen3
-    enable_thinking = False
-
     def llm_fn(messages: list[dict]) -> str:
         """Generate response using Qwen model."""
         response = client.chat.completions.create(
             messages=messages,
-            max_tokens=2048,  # Inrecreased for longer code responses
+            max_tokens=1024,
             temperature=0.7,
         )
         return response.choices[0].message.content
@@ -85,10 +83,10 @@ def run_rlm_loop(
     Returns:
         The final answer string
     """
-    # Use the unified REPLEnv API (local mode)
+    # Use the explicit local REPL helper
     # Note: env max_iterations should be higher than LLM loop iterations
     # because each code block counts as one env iteration
-    with REPLEnv() as env:
+    with LocalREPLEnv() as env:
         result = env.reset(
             context=context,
             task_prompt=task_prompt,
@@ -96,18 +94,13 @@ def run_rlm_loop(
         )
         obs = result.observation
 
-        # Build initial messages using prompts from repl_env
-        initial_user_prompt = build_initial_prompt(
-            task_prompt=task_prompt,
-            context_length=obs.context_length,
-            context_preview=obs.context_preview,
-            variables=obs.available_variables,
+        query_metadata = QueryMetadata(
+            context_lengths=[obs.context_length],
+            context_total_length=obs.context_length,
+            context_type="str",
         )
-
-        messages = [
-            {"role": "system", "content": RLM_SYSTEM_PROMPT},
-            {"role": "user", "content": initial_user_prompt},
-        ]
+        messages = build_rlm_system_prompt(RLM_SYSTEM_PROMPT, query_metadata)
+        messages.append(build_user_prompt(root_prompt=task_prompt, iteration=0))
 
         for iteration in range(1, max_iterations + 1):
             if verbose:
@@ -160,7 +153,10 @@ def run_rlm_loop(
             # Format observation for next iteration
             obs_text = format_observation(obs)
             messages.append({"role": "assistant", "content": response})
-            messages.append({"role": "user", "content": obs_text})
+            next_prompt = build_user_prompt(root_prompt=task_prompt, iteration=iteration)
+            messages.append(
+                {"role": "user", "content": obs_text + "\n\n" + next_prompt["content"]}
+            )
 
         # LLM loop max iterations reached (this is separate from env max_iterations)
         if verbose:

@@ -135,7 +135,7 @@ class REPLEnvironment(Environment):
 
         Args:
             hf_token: HuggingFace API token (not logged or persisted)
-            llm_model: Model to use (default: Qwen/Qwen3-Coder-480B-A35B-Instruct)
+            llm_model: Model to use (default: Qwen/Qwen3.5-9B)
         """
         from concurrent.futures import as_completed, ThreadPoolExecutor
 
@@ -145,16 +145,17 @@ class REPLEnvironment(Environment):
             # huggingface_hub not installed, skip LLM functions
             return
 
-        model = llm_model or os.environ.get(
-            "LLM_MODEL", "Qwen/Qwen3-Coder-480B-A35B-Instruct"
+        default_model = llm_model or os.environ.get(
+            "LLM_MODEL", "Qwen/Qwen3.5-9B"
         )
-        client = InferenceClient(model=model, token=hf_token)
+        client = InferenceClient(model=default_model, token=hf_token)
 
-        def llm_query(prompt: str) -> str:
+        def llm_query(prompt: str, model: str | None = None) -> str:
             """Query the LLM with a prompt and return the response."""
             try:
                 messages = [{"role": "user", "content": prompt}]
-                response = client.chat_completion(
+                response = client.chat.completions.create(
+                    model=model or default_model,
                     messages=messages,
                     max_tokens=2048,
                     temperature=0.7,
@@ -163,7 +164,9 @@ class REPLEnvironment(Environment):
             except Exception as e:
                 return f"Error calling LLM: {e}"
 
-        def llm_query_batched(prompts: List[str]) -> List[str]:
+        def llm_query_batched(
+            prompts: List[str], model: str | None = None
+        ) -> List[str]:
             """Query the LLM with multiple prompts in parallel."""
             if not prompts:
                 return []
@@ -173,7 +176,7 @@ class REPLEnvironment(Environment):
 
             with ThreadPoolExecutor(max_workers=max_workers) as executor:
                 future_to_idx = {
-                    executor.submit(llm_query, prompt): idx
+                    executor.submit(llm_query, prompt, model): idx
                     for idx, prompt in enumerate(prompts)
                 }
                 for future in as_completed(future_to_idx):
@@ -247,15 +250,36 @@ class REPLEnvironment(Environment):
         if effective_context:
             self._executor.set_context(effective_context)
 
+        def _call_single_query(prompt: str, model: str | None = None) -> str:
+            if not self.llm_query_fn:
+                raise RuntimeError("llm_query is not configured")
+            try:
+                return self.llm_query_fn(prompt, model)  # type: ignore[misc]
+            except TypeError:
+                return self.llm_query_fn(prompt)  # type: ignore[misc]
+
+        def _call_batched_query(
+            prompts: List[str], model: str | None = None
+        ) -> List[str]:
+            if not self.llm_batch_fn:
+                raise RuntimeError("llm_query_batched is not configured")
+            try:
+                return self.llm_batch_fn(prompts, model)  # type: ignore[misc]
+            except TypeError:
+                return self.llm_batch_fn(prompts)  # type: ignore[misc]
+
         # Inject LLM functions if provided
         # Names: llm_query (single), llm_query_batched (official RLM), llm_batch (alias)
         if self.llm_query_fn:
-            self._executor.inject_function("llm_query", self.llm_query_fn)
+            self._executor.inject_function("llm_query", _call_single_query)
+            # Current recursive API surface: explicit fallback alias until child RLMs land.
+            self._executor.inject_function("rlm_query", _call_single_query)
         if self.llm_batch_fn:
             self._executor.inject_function(
-                "llm_query_batched", self.llm_batch_fn
+                "llm_query_batched", _call_batched_query
             )  # Official name
-            self._executor.inject_function("llm_batch", self.llm_batch_fn)  # Alias
+            self._executor.inject_function("llm_batch", _call_batched_query)  # Alias
+            self._executor.inject_function("rlm_query_batched", _call_batched_query)
 
         # Inject FINAL helper function so both FINAL(x) and print(f'FINAL({x})') work
         # Returns the FINAL pattern as a string so it appears in stdout for detection
@@ -280,6 +304,12 @@ class REPLEnvironment(Environment):
             return f"FINAL_VAR({var_name_clean})"  # Fallback for regex detection
 
         self._executor.inject_function("FINAL_VAR", final_var_helper)
+
+        def show_vars_helper():
+            """Return the current non-private variables in the namespace."""
+            return sorted(executor.list_variables())
+
+        self._executor.inject_function("SHOW_VARS", show_vars_helper)
 
         # Update namespace keys
         self._state.namespace_keys = self._executor.list_variables()

@@ -25,7 +25,8 @@ The RLM paradigm allows language models to:
 
 ## Features
 
-- **Unified API**: Same `REPLEnv` class works for both local and remote execution
+- **Standard OpenEnv Client**: `REPLEnv` is an async `EnvClient` and supports `.sync()` for synchronous code
+- **Explicit Local Helper**: `LocalREPLEnv` provides in-process execution for tests and local RLM experiments
 - **Sandboxed Python Execution**: Safe code execution with restricted builtins
 - **Context Loading**: Load large contexts that agents can explore programmatically
 - **Multiple Finalization Patterns**:
@@ -34,17 +35,16 @@ The RLM paradigm allows language models to:
   - Prime Intellect style: `answer = {"content": "...", "ready": True}`
 - **Iteration Limits**: Configurable maximum steps per episode
 - **Reward Signals**: Customizable reward functions for RL training
-- **Optional LLM Oracle**: Can enable `llm_query()` and `llm_query_batched()` for recursive calls
+- **Optional LLM Oracle**: Can enable `llm_query()`, `llm_query_batched()`, plus fallback `rlm_query()` aliases inside the REPL
 
 ## Quick Start
 
 ### Local Mode (No Server Required)
 
 ```python
-from repl_env import REPLEnv
+from repl_env import LocalREPLEnv
 
-# Create environment - runs locally by default
-with REPLEnv() as env:
+with LocalREPLEnv() as env:
     result = env.reset(
         context="This is a large document with lots of text...",
         task_prompt="Find the word count"
@@ -62,28 +62,43 @@ with REPLEnv() as env:
 ### Remote Server Mode
 
 ```python
+import asyncio
 from repl_env import REPLEnv
 
-# Connect to a running server - same API!
-with REPLEnv(base_url="https://my-server.hf.space") as env:
+async def main():
+    async with REPLEnv(base_url="https://my-server.hf.space") as env:
+        result = await env.reset(context="...", task_prompt="...")
+        result = await env.execute("count = len(context)")
+        result = await env.execute("print(f'FINAL({count})')")
+
+asyncio.run(main())
+```
+
+For synchronous code:
+
+```python
+from repl_env import REPLEnv
+
+with REPLEnv(base_url="https://my-server.hf.space").sync() as env:
     result = env.reset(context="...", task_prompt="...")
     result = env.execute("count = len(context)")
-    result = env.execute("print(f'FINAL({count})')")
 ```
 
 ### Local Mode with LLM Support
 
 ```python
-from repl_env import REPLEnv
+from repl_env import LocalREPLEnv
 
 def my_llm_query(prompt: str) -> str:
     return your_llm.generate(prompt)
-
 def my_llm_query_batched(prompts: list[str]) -> list[str]:
     return [my_llm_query(p) for p in prompts]
 
 # Pass LLM functions for recursive calls
-with REPLEnv(llm_query_fn=my_llm_query, llm_batch_fn=my_llm_query_batched) as env:
+with LocalREPLEnv(
+    llm_query_fn=my_llm_query,
+    llm_batch_fn=my_llm_query_batched,
+) as env:
     result = env.reset(context=large_document, task_prompt="Summarize this")
 
     # Now the executed code can use llm_query() and llm_query_batched()!
@@ -95,11 +110,9 @@ with REPLEnv(llm_query_fn=my_llm_query, llm_batch_fn=my_llm_query_batched) as en
 ```python
 from repl_env import REPLEnv
 
-# Start from Docker image
-env = REPLEnv.from_docker_image("repl-env:latest")
-
-# Or from HuggingFace Hub
-env = REPLEnv.from_hub("openenv/repl-env")
+async def main():
+    env = await REPLEnv.from_docker_image("repl-env:latest")
+    await env.close()
 ```
 
 ## API Reference
@@ -107,26 +120,15 @@ env = REPLEnv.from_hub("openenv/repl-env")
 ### REPLEnv
 
 ```python
-class REPLEnv:
+class REPLEnv(EnvClient[REPLAction, REPLObservation, REPLState]):
     def __init__(
         self,
-        base_url: str | None = None,      # Server URL (None = local mode)
-        *,
-        # Local-only options
-        llm_query_fn: Callable | None = None,    # Function for llm_query()
-        llm_batch_fn: Callable | None = None,    # Function for llm_query_batched()
-        max_output_length: int = 8192,           # Max stdout/stderr chars
-        context_preview_length: int = 500,       # Chars in context preview
-        reward_on_success: float = 1.0,          # Reward on FINAL()
-        reward_on_iteration: float = 0.0,        # Reward per step
-        reward_on_failure: float = -0.1,         # Reward on max iterations
-        reward_on_error: float = -0.05,          # Reward on execution error
-        # Remote-only options
+        base_url: str,
         connect_timeout_s: float = 10.0,
         message_timeout_s: float = 60.0,
     ): ...
 
-    def reset(
+    async def reset(
         self,
         *,
         context: str = "",              # Text to analyze (as `context` variable)
@@ -138,11 +140,29 @@ class REPLEnv:
         llm_model: str | None = None,   # Model for llm_query (remote mode)
     ) -> StepResult[REPLObservation]: ...
 
-    def execute(self, code: str) -> StepResult[REPLObservation]: ...
-    def step(self, action: REPLAction) -> StepResult[REPLObservation]: ...
-    def submit_final_answer(self, answer: str) -> StepResult[REPLObservation]: ...
-    def state(self) -> REPLState: ...
+    async def execute(self, code: str) -> StepResult[REPLObservation]: ...
+    async def step(self, action: REPLAction) -> StepResult[REPLObservation]: ...
+    async def submit_final_answer(self, answer: str) -> StepResult[REPLObservation]: ...
+    async def state(self) -> REPLState: ...
     def close(self) -> None: ...
+```
+
+### LocalREPLEnv
+
+```python
+class LocalREPLEnv:
+    def __init__(
+        self,
+        *,
+        llm_query_fn: Callable | None = None,
+        llm_batch_fn: Callable | None = None,
+        max_output_length: int = 8192,
+        context_preview_length: int = 500,
+        reward_on_success: float = 1.0,
+        reward_on_iteration: float = 0.0,
+        reward_on_failure: float = -0.1,
+        reward_on_error: float = -0.05,
+    ): ...
 ```
 
 ### Action Space
@@ -244,12 +264,12 @@ code_blocks = extract_code_blocks(response)  # ["count = len(context.split())\nF
 
 See the `examples/` directory for complete working examples:
 
-- **`examples/repl_with_llm.py`** - Full RLM loop with local Qwen model
+- **`examples/repl_with_llm.py`** - Full RLM loop with Hugging Face chat inference
 - **`examples/repl_oolong_simple.py`** - RLM on Oolong benchmark with HuggingFace Inference API
 
 Run examples:
 ```bash
-# Full RLM example with local model (requires GPU)
+# Full RLM example with HF chat inference
 python examples/repl_with_llm.py
 
 # Oolong benchmark with HF Inference API (requires HF_TOKEN)
@@ -263,11 +283,10 @@ python examples/repl_oolong_simple.py
 A typical model inference loop where the LLM generates code and the environment executes it:
 
 ```python
-from repl_env import REPLEnv
+from repl_env import LocalREPLEnv
 from repl_env.prompts import RLM_SYSTEM_PROMPT, build_initial_prompt, extract_code_blocks, format_observation
 
-# Works with both local and remote!
-with REPLEnv(base_url="http://localhost:8000") as env:  # or REPLEnv() for local
+with LocalREPLEnv() as env:
     result = env.reset(
         context="The quick brown fox jumps over the lazy dog. " * 1000,
         task_prompt="Count how many times 'fox' appears"
@@ -305,7 +324,7 @@ with REPLEnv(base_url="http://localhost:8000") as env:  # or REPLEnv() for local
 The key insight of RLM is that models can make recursive calls to themselves or other LLMs from within the code:
 
 ```python
-from repl_env import REPLEnv
+from repl_env import LocalREPLEnv
 
 def llm_query(prompt: str) -> str:
     """Single LLM call - model can call this from executed code"""
@@ -316,7 +335,7 @@ def llm_query_batched(prompts: list[str]) -> list[str]:
     return [your_llm.generate(p) for p in prompts]
 
 # Create environment with LLM oracle (local mode)
-with REPLEnv(llm_query_fn=llm_query, llm_batch_fn=llm_query_batched) as env:
+with LocalREPLEnv(llm_query_fn=llm_query, llm_batch_fn=llm_query_batched) as env:
     result = env.reset(
         context=massive_document,  # Could be 100K+ chars
         task_prompt="Summarize each section and find key themes"
@@ -347,7 +366,7 @@ answer['ready'] = True
 For RL training, integrate with frameworks like TRL, prime-rl, or verifiers:
 
 ```python
-from repl_env import REPLEnv
+from repl_env import LocalREPLEnv
 
 def collect_trajectory(env, policy, context, task):
     """Collect a single trajectory for RL training"""
@@ -378,7 +397,7 @@ def collect_trajectory(env, policy, context, task):
     return trajectory, total_reward
 
 # Training loop
-with REPLEnv(
+with LocalREPLEnv(
     reward_on_success=1.0,
     reward_on_iteration=0.0,
     reward_on_error=-0.05,
@@ -403,7 +422,9 @@ with REPLEnv(
 Configure rewards for different outcomes:
 
 ```python
-env = REPLEnv(
+from repl_env import LocalREPLEnv
+
+env = LocalREPLEnv(
     reward_on_success=1.0,    # When FINAL() is called
     reward_on_iteration=0.0,  # Per step (can be negative to encourage efficiency)
     reward_on_error=-0.05,    # When code execution fails
@@ -419,7 +440,7 @@ env = REPLEnv(
 | `REPL_TASK_PROMPT` | Task description | "" |
 | `REPL_MAX_ITERATIONS` | Max steps per episode | 30 |
 | `HF_TOKEN` | HuggingFace token for llm_query (server fallback) | None |
-| `LLM_MODEL` | Model for llm_query/llm_query_batched | Qwen/Qwen3-Coder-480B-A35B-Instruct |
+| `LLM_MODEL` | Model for llm_query/llm_query_batched | Qwen/Qwen3.5-9B |
 
 ## Running the Server
 

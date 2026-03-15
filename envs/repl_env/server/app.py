@@ -32,7 +32,7 @@ Usage:
 
 Environment Variables:
     HF_TOKEN: Fallback HuggingFace API token (client token takes priority)
-    LLM_MODEL: Model to use for llm_query/llm_query_batched (default: Qwen/Qwen3-Coder-480B-A35B-Instruct)
+    LLM_MODEL: Model to use for llm_query/llm_query_batched (default: Qwen/Qwen3.5-9B)
 """
 
 import os
@@ -53,7 +53,7 @@ except ImportError:
 
 
 # ============== LLM CONFIGURATION ==============
-LLM_MODEL = os.environ.get("LLM_MODEL", "Qwen/Qwen3-Coder-480B-A35B-Instruct")
+LLM_MODEL = os.environ.get("LLM_MODEL", "Qwen/Qwen3.5-9B")
 HF_TOKEN = os.environ.get("HF_TOKEN", None)
 # ===============================================
 
@@ -71,7 +71,13 @@ else:
 env_factory = REPLEnvironment
 
 # Create the app with web interface and README integration
-app = create_app(env_factory, REPLAction, REPLObservation, env_name="repl_env")
+app = create_app(
+    env_factory,
+    REPLAction,
+    REPLObservation,
+    env_name="repl_env",
+    max_concurrent_envs=8,
+)
 
 
 def main():

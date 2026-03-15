@@ -17,10 +17,10 @@ This environment allows language models to:
 - Optionally make recursive LLM calls via llm_query() / llm_query_batched()
 
 Example:
-    >>> from repl_env import REPLEnv, REPLAction
+    >>> from repl_env import LocalREPLEnv, REPLAction
     >>>
-    >>> # Start from Docker
-    >>> env = REPLEnv.from_docker_image("repl-env:latest")
+    >>> # Local in-process helper
+    >>> env = LocalREPLEnv()
     >>>
     >>> # Reset with context
     >>> result = env.reset(context="Hello World", task_prompt="Count characters")
@@ -40,7 +40,7 @@ References:
     - Alex Zhang Blog: https://alexzhang13.github.io/blog/2025/rlm/
 """
 
-from .client import REPLEnv
+from .client import LocalREPLEnv, REPLEnv
 from .models import CodeBlockResult, REPLAction, REPLObservation, REPLState
 from .prompts import (
     build_initial_prompt,
@@ -64,6 +64,7 @@ __all__ = [
     "CodeBlockResult",
     # Client
     "REPLEnv",
+    "LocalREPLEnv",
     # System prompts
     "RLM_SYSTEM_PROMPT",
     "RLM_SYSTEM_PROMPT_QWEN",
