@@ -5,11 +5,10 @@
 # LICENSE file in the root directory of this source tree.
 
 """
-Controller composition for recursive backends and broker transport.
+Controller composition for recursive backends.
 
 This keeps server-side recursion assembly outside `REPLEnvironment`:
 - backend selection/config
-- broker transport wiring
 - cleanup lifecycle
 """
 
@@ -20,7 +19,6 @@ from typing import Callable
 
 from .prompts import RLM_SYSTEM_PROMPT
 from .recursive_backends import BackendLimits, DirectLMBackend, LocalChildRLMBackend
-from .recursive_broker import InProcessRecursiveBroker
 
 
 ChatFn = Callable[..., str]
@@ -33,11 +31,9 @@ class RecursiveController:
     rlm_query_fn: Callable[[str, str | None], str] | None
     rlm_batch_fn: Callable[[list[str], str | None], list[str]] | None
     backend: object
-    broker: InProcessRecursiveBroker | None
 
     def close(self) -> None:
-        if self.broker is not None:
-            self.broker.close()
+        pass
 
 
 def create_server_recursive_controller(
@@ -71,17 +67,12 @@ def create_server_recursive_controller(
             depth=0,
             limits=limits,
         )
-        broker = InProcessRecursiveBroker(
-            backend.recursive_query,
-            backend.recursive_query_batched,
-        )
         return RecursiveController(
             llm_query_fn=backend.query,
             llm_batch_fn=backend.query_batched,
-            rlm_query_fn=broker.query,
-            rlm_batch_fn=broker.query_batched,
+            rlm_query_fn=backend.recursive_query,
+            rlm_batch_fn=backend.recursive_query_batched,
             backend=backend,
-            broker=broker,
         )
 
     backend = DirectLMBackend(chat_fn, depth=0, limits=limits)
@@ -91,5 +82,4 @@ def create_server_recursive_controller(
         rlm_query_fn=None,
         rlm_batch_fn=None,
         backend=backend,
-        broker=None,
     )

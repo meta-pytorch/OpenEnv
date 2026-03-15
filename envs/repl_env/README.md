@@ -45,7 +45,6 @@ Main modules:
 - [`runner.py`](runner.py): local RLM orchestration loop
 - [`recursive_backends.py`](recursive_backends.py): direct and recursive backend implementations
 - [`recursive_controller.py`](recursive_controller.py): server-side backend/broker composition
-- [`recursive_broker.py`](recursive_broker.py): broker core for blocking recursive calls
 - [`rubrics.py`](rubrics.py): reward rubrics (OpenEnv RFC 004)
 - [`server/repl_environment.py`](server/repl_environment.py): server-side execution environment
 - [`server/app.py`](server/app.py): OpenEnv HTTP server app and env factory
@@ -63,7 +62,6 @@ Main modules:
   - `per_child_timeout_s`
   - `result_truncation_limit`
 - Lightweight child trace metadata on local runner results
-- Broker core operations (`enqueue`, `pending`, `respond`)
 - Rubric-based rewards (OpenEnv RFC 004):
   - `ExactMatchRubric`: binary outcome reward against ground truth
   - `FuzzyMatchRubric`: partial credit for containment matches

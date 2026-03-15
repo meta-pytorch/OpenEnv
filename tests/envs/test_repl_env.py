@@ -6,7 +6,6 @@
 
 """Tests for the REPL Environment."""
 
-import threading
 import pytest
 import time
 
@@ -14,7 +13,6 @@ import time
 pytest.importorskip("smolagents", reason="smolagents is not installed")
 
 from repl_env.models import CodeBlockResult, REPLAction, REPLObservation, REPLState
-from repl_env.recursive_broker import InProcessRecursiveBroker
 from repl_env.recursive_controller import create_server_recursive_controller
 from repl_env.server.python_executor import PythonExecutor
 from repl_env.server.repl_environment import REPLEnvironment
@@ -108,61 +106,6 @@ class TestPythonExecutor:
         executor.execute("x = 10")
         executor.reset()
         assert executor.get_variable("x") is None
-
-
-class TestRecursiveBroker:
-    """Tests for the in-process recursive broker."""
-
-    def test_single_query(self):
-        broker = InProcessRecursiveBroker(
-            lambda prompt, model=None: f"single:{prompt}",
-            lambda prompts, model=None: [f"batch:{p}" for p in prompts],
-        )
-        try:
-            assert broker.query("hello") == "single:hello"
-        finally:
-            broker.close()
-
-    def test_pending_and_respond(self):
-        broker = InProcessRecursiveBroker(
-            lambda prompt, model=None: f"single:{prompt}",
-            lambda prompts, model=None: [f"batch:{p}" for p in prompts],
-            start_worker=False,
-        )
-        results = {}
-
-        def enqueue_request():
-            request = broker.enqueue("single", ["queued"], timeout_s=1.0)
-            results["error"] = request.error
-            results["result"] = request.result
-
-        thread = threading.Thread(target=enqueue_request)
-        thread.start()
-        try:
-            pending = broker.pending(timeout_s=0.2)
-            assert len(pending) == 1
-            assert pending[0].kind == "single"
-            assert pending[0].prompts == ["queued"]
-            assert broker.respond(pending[0].request_id, result=["done"])
-            thread.join(timeout=1.0)
-            assert results["error"] is None
-            assert results["result"] == ["done"]
-        finally:
-            broker.close()
-
-
-class TestRecursiveBrokerBatched:
-    """Tests for broker batched queries."""
-
-    def test_batched_query(self):
-        broker = InProcessRecursiveBroker(
-            lambda prompt, model=None: f"single:{prompt}",
-            lambda prompts, model=None: [f"batch:{p}" for p in prompts],
-        )
-        try:
-            assert broker.query_batched(["a", "b"]) == ["batch:a", "batch:b"]
-        finally:
-            broker.close()
 
 
 class TestRecursiveController:
