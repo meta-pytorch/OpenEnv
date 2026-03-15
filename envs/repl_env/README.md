@@ -46,6 +46,7 @@ Main modules:
 - [`recursive_backends.py`](recursive_backends.py): direct and recursive backend implementations
 - [`recursive_controller.py`](recursive_controller.py): server-side backend/broker composition
 - [`recursive_broker.py`](recursive_broker.py): broker core for blocking recursive calls
+- [`rubrics.py`](rubrics.py): reward rubrics (OpenEnv RFC 004)
 - [`server/repl_environment.py`](server/repl_environment.py): server-side execution environment
 - [`server/app.py`](server/app.py): OpenEnv HTTP server app and env factory
 
@@ -62,10 +63,49 @@ Main modules:
   - `per_child_timeout_s`
   - `result_truncation_limit`
 - Lightweight child trace metadata on local runner results
-- Daytona-style broker core operations:
-  - `enqueue`
-  - `pending`
-  - `respond`
+- Broker core operations (`enqueue`, `pending`, `respond`)
+- Rubric-based rewards (OpenEnv RFC 004):
+  - `ExactMatchRubric`: binary outcome reward against ground truth
+  - `FuzzyMatchRubric`: partial credit for containment matches
+  - `CustomMetricRubric`: user-provided `metric(expected, predicted) -> float`
+  - `CodeExecutionRubric`: per-step process reward for code errors
+  - `REPLRubric`: composite rubric combining outcome + process
+  - Ground truth injectable at reset via `expected_answer`
+
+## Rewards
+
+Rewards follow the OpenEnv Rubric system (RFC 004). The environment uses
+`REPLRubric` by default, which combines:
+
+- **Outcome reward** (on terminal steps): compares `final_answer` against
+  `expected_answer` if provided. Returns 1.0 for match, 0.0 otherwise.
+- **Process reward** (on non-terminal steps): returns -0.05 for code
+  execution errors, 0.0 for successful steps.
+- **Failure reward**: returns -0.1 when max iterations exhausted without an answer.
+
+For RL training (GRPO, etc.), pass `expected_answer` at reset time:
+
+```python
+with LocalREPLEnv() as env:
+    env.reset(
+        context="...",
+        task_prompt="...",
+        expected_answer="42",  # ground truth for rubric scoring
+    )
+    result = env.execute("print(FINAL(42))")
+    print(result.reward)  # 1.0 (correct)
+```
+
+Custom rubrics can be injected at construction:
+
+```python
+from repl_env import LocalREPLEnv, CustomMetricRubric, REPLRubric
+
+def my_metric(expected, predicted):
+    return 1.0 if expected.strip() == predicted.strip() else 0.0
+
+env = LocalREPLEnv(rubric=REPLRubric(outcome=CustomMetricRubric(my_metric)))
+```
 
 ## Design Note: In-Process Broker
 
@@ -294,10 +334,6 @@ Server-side configuration in [`server/app.py`](server/app.py):
 - `REPL_MAX_ITERATIONS`
 - `REPL_MAX_OUTPUT_LENGTH`
 - `REPL_CONTEXT_PREVIEW_LENGTH`
-- `REPL_REWARD_ON_SUCCESS`
-- `REPL_REWARD_ON_ITERATION`
-- `REPL_REWARD_ON_FAILURE`
-- `REPL_REWARD_ON_ERROR`
 - `REPL_RLM_MAX_DEPTH`
 - `REPL_RLM_MAX_ITERATIONS`
 
