@@ -42,9 +42,9 @@ def register_mcp_tools(mcp: FastMCP, env: "QEDMathEnvironment") -> None:
         return env.get_problem_payload()
 
     @mcp.tool
-    def submit_proof(proof: str) -> dict:
+    async def submit_proof(proof: str) -> dict:
         """Submit a proof attempt and return grading output."""
-        return env.submit_proof_payload(proof)
+        return await env.submit_proof_payload(proof)
 
     @mcp.tool
     def get_grading_guidelines() -> dict:
