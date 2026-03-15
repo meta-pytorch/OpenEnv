@@ -113,6 +113,7 @@ def main():
         task_prompt=task_prompt,
         max_iterations=MAX_ITERATIONS,
         hf_token=HF_TOKEN,  # Server will use this token for sub-LLM calls
+        expected_answer=expected,  # For rubric-based reward scoring
     )
     obs = result.observation
 
@@ -181,7 +182,9 @@ def main():
 
         # Add assistant response and observation + next user prompt
         messages.append({"role": "assistant", "content": response})
-        observation_text = format_observations(code_block_observations)
+        observation_text = format_observations(
+            code_block_observations, code_blocks=code_blocks
+        )
         next_prompt = build_user_prompt(root_prompt=task_prompt, iteration=i)
         messages.append(
             {
