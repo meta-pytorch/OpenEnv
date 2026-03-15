@@ -13,6 +13,7 @@ Usage:
     # Run locally (set SPACE_URL = None in the script)
     python examples/repl_oolong_simple.py
 """
+
 from __future__ import annotations
 
 import os
@@ -52,7 +53,9 @@ def main():
 
     # Load dataset
     print(f"\nLoading dataset example {EXAMPLE_INDEX}...")
-    dataset = load_dataset("oolongbench/oolong-real", DATASET_SUBSET, split=DATASET_SPLIT)
+    dataset = load_dataset(
+        "oolongbench/oolong-real", DATASET_SUBSET, split=DATASET_SPLIT
+    )
     example = dataset[EXAMPLE_INDEX]
 
     context = example["context_window_text"]
@@ -90,6 +93,7 @@ def main():
         env = REPLEnv(base_url=SPACE_URL).sync()
     else:
         print("\nRunning locally")
+
         # For local mode, provide LLM functions for llm_query/llm_query_batched support
         def local_llm_query(prompt: str) -> str:
             return llm_chat([{"role": "user", "content": prompt}])
@@ -138,7 +142,9 @@ def main():
 
         if not code_blocks:
             messages.append({"role": "assistant", "content": response})
-            messages.append({"role": "user", "content": "Please provide code in ```repl``` blocks."})
+            messages.append(
+                {"role": "user", "content": "Please provide code in ```repl``` blocks."}
+            )
             continue
 
         for code in code_blocks:
@@ -152,7 +158,9 @@ def main():
             print(f"Success: {obs.result.success}")
             print(f"Env iteration: {obs.iteration}/{obs.max_iterations}")
             if obs.result.stdout:
-                print(f"Output: {obs.result.stdout[:300]}{'...' if len(obs.result.stdout) > 300 else ''}")
+                print(
+                    f"Output: {obs.result.stdout[:300]}{'...' if len(obs.result.stdout) > 300 else ''}"
+                )
             if obs.result.stderr:
                 print(f"Stderr: {obs.result.stderr[:200]}")
 
@@ -160,9 +168,9 @@ def main():
                 state = env.state()
                 final_answer = state.final_answer
                 if final_answer:
-                    print(f"\n=== FINAL answer detected ===")
+                    print("\n=== FINAL answer detected ===")
                 else:
-                    print(f"\n=== Environment terminated (max iterations) ===")
+                    print("\n=== Environment terminated (max iterations) ===")
                 break
 
         if result.done:
@@ -172,7 +180,12 @@ def main():
         messages.append({"role": "assistant", "content": response})
         observation_text = format_observations(code_block_observations)
         next_prompt = build_user_prompt(root_prompt=task_prompt, iteration=i)
-        messages.append({"role": "user", "content": observation_text + "\n\n" + next_prompt["content"]})
+        messages.append(
+            {
+                "role": "user",
+                "content": observation_text + "\n\n" + next_prompt["content"],
+            }
+        )
 
     # Cleanup
     env.close()

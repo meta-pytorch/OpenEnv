@@ -24,6 +24,7 @@ Requirements:
 Usage:
     python examples/repl_with_llm.py
 """
+
 from __future__ import annotations
 
 import os
