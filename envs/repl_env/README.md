@@ -107,13 +107,6 @@ def my_metric(expected, predicted):
 env = LocalREPLEnv(rubric=REPLRubric(outcome=CustomMetricRubric(my_metric)))
 ```
 
-## Design Note: In-Process Broker
-
-The broker uses an in-process worker thread. In OpenEnv, `PythonExecutor` runs
-in-process within the environment server container — the container is the
-isolation boundary. An external HTTP broker transport (like Daytona's) is not
-needed because there is no cross-process boundary to bridge.
-
 ## Quick Start
 
 ### Remote Server Usage
