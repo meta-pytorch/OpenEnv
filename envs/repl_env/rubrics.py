@@ -18,11 +18,9 @@ the training framework consumes it.
 
 from __future__ import annotations
 
-from typing import Any, Callable, Optional
+from typing import Any, Callable
 
 from openenv.core.rubrics.base import Rubric
-
-from .models import REPLAction, REPLObservation
 
 
 class ExactMatchRubric(Rubric):
