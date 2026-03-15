@@ -10,16 +10,11 @@ REPL Environment clients.
 `REPLEnv` is the standard async OpenEnv client for remote/server-backed usage.
 Use `async with` / `await` directly, or call `.sync()` for synchronous code.
 
-`LocalREPLEnv` is an explicit in-process helper for local experiments, tests,
-and notebook workflows where starting a server would be unnecessary.
-
-This separation matches current OpenEnv client conventions while preserving the
-RLM-style local REPL workflow used by this package.
+This module intentionally contains only the remote OpenEnv client.
 """
 
 from __future__ import annotations
 
-from collections.abc import Callable
 from typing import Any, Optional
 
 try:
@@ -119,95 +114,3 @@ class REPLEnv(EnvClient[REPLAction, REPLObservation, REPLState]):
         """Return the current REPL namespace keys."""
         return (await self.state()).namespace_keys
 
-
-class LocalREPLEnv:
-    """
-    Explicit in-process REPL helper for local experimentation.
-
-    This helper preserves the prior local `repl_env` workflow but keeps that
-    behavior separate from the standard remote `EnvClient` API.
-    """
-
-    def __init__(
-        self,
-        *,
-        llm_query_fn: Optional[Callable[[str], str]] = None,
-        llm_batch_fn: Optional[Callable[[list[str]], list[str]]] = None,
-        subcall_fn: Optional[Callable[[str, Optional[str]], str]] = None,
-        max_output_length: int = 8192,
-        context_preview_length: int = 500,
-        reward_on_success: float = 1.0,
-        reward_on_iteration: float = 0.0,
-        reward_on_failure: float = -0.1,
-        reward_on_error: float = -0.05,
-    ):
-        from .server.repl_environment import REPLEnvironment
-
-        self._env = REPLEnvironment(
-            max_output_length=max_output_length,
-            context_preview_length=context_preview_length,
-            reward_on_success=reward_on_success,
-            reward_on_iteration=reward_on_iteration,
-            reward_on_failure=reward_on_failure,
-            reward_on_error=reward_on_error,
-            llm_query_fn=llm_query_fn,
-            llm_batch_fn=llm_batch_fn,
-            subcall_fn=subcall_fn,
-        )
-
-    def reset(
-        self,
-        *,
-        context: str = "",
-        task_prompt: str = "",
-        max_iterations: int = 30,
-        seed: Optional[int] = None,
-        episode_id: Optional[str] = None,
-        hf_token: Optional[str] = None,
-        llm_model: Optional[str] = None,
-    ) -> StepResult[REPLObservation]:
-        self._env.max_iterations = max_iterations
-        obs = self._env.reset(
-            seed=seed,
-            episode_id=episode_id,
-            context=context,
-            task_prompt=task_prompt,
-            hf_token=hf_token,
-            llm_model=llm_model,
-        )
-        return self._wrap_observation(obs)
-
-    def step(self, action: REPLAction) -> StepResult[REPLObservation]:
-        return self._wrap_observation(self._env.step(action))
-
-    def execute(self, code: str) -> StepResult[REPLObservation]:
-        return self.step(REPLAction(code=code))
-
-    def submit_final_answer(self, answer: str) -> StepResult[REPLObservation]:
-        return self.step(REPLAction(code="", is_final=True, final_answer=answer))
-
-    def get_variable(self, name: str) -> StepResult[REPLObservation]:
-        return self.execute(f"print(repr({name}))")
-
-    def state(self) -> REPLState:
-        return self._env.state
-
-    def list_variables(self) -> list[str]:
-        return self.state().namespace_keys
-
-    def close(self) -> None:
-        self._env.close()
-
-    def __enter__(self) -> "LocalREPLEnv":
-        return self
-
-    def __exit__(self, exc_type, exc_val, exc_tb) -> None:
-        self.close()
-
-    @staticmethod
-    def _wrap_observation(obs: REPLObservation) -> StepResult[REPLObservation]:
-        return StepResult(
-            observation=obs,
-            reward=obs.reward,
-            done=obs.done,
-        )

@@ -62,6 +62,8 @@ REPL_REWARD_ON_SUCCESS = float(os.environ.get("REPL_REWARD_ON_SUCCESS", "1.0"))
 REPL_REWARD_ON_ITERATION = float(os.environ.get("REPL_REWARD_ON_ITERATION", "0.0"))
 REPL_REWARD_ON_FAILURE = float(os.environ.get("REPL_REWARD_ON_FAILURE", "-0.1"))
 REPL_REWARD_ON_ERROR = float(os.environ.get("REPL_REWARD_ON_ERROR", "-0.05"))
+REPL_RLM_MAX_DEPTH = int(os.environ.get("REPL_RLM_MAX_DEPTH", "2"))
+REPL_RLM_MAX_ITERATIONS = int(os.environ.get("REPL_RLM_MAX_ITERATIONS", "30"))
 # ===============================================
 
 # Log LLM configuration
@@ -90,6 +92,8 @@ def create_repl_environment() -> REPLEnvironment:
         reward_on_iteration=REPL_REWARD_ON_ITERATION,
         reward_on_failure=REPL_REWARD_ON_FAILURE,
         reward_on_error=REPL_REWARD_ON_ERROR,
+        rlm_max_depth=REPL_RLM_MAX_DEPTH,
+        rlm_max_iterations=REPL_RLM_MAX_ITERATIONS,
     )
 
 # Create the app with web interface and README integration

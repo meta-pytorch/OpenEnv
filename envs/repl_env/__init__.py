@@ -40,7 +40,8 @@ References:
     - Alex Zhang Blog: https://alexzhang13.github.io/blog/2025/rlm/
 """
 
-from .client import LocalREPLEnv, REPLEnv
+from .client import REPLEnv
+from .local import LocalREPLEnv
 from .models import CodeBlockResult, REPLAction, REPLObservation, REPLState
 from .prompts import (
     build_initial_prompt,

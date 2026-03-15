@@ -15,11 +15,10 @@ following the same separation used by the official RLM implementation and DSPy:
 
 from __future__ import annotations
 
-from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
-from typing import Any, Callable, Optional
+from typing import Callable, Optional
 
-from .client import LocalREPLEnv
+from .local import LocalREPLEnv
 from .prompts import (
     QueryMetadata,
     RLM_SYSTEM_PROMPT,
@@ -28,6 +27,7 @@ from .prompts import (
     extract_code_blocks,
     format_observations,
 )
+from .recursive_backends import BackendLimits, LocalChildRLMBackend, RecursiveBackend
 
 
 ChatFn = Callable[..., str]
@@ -39,6 +39,7 @@ class RLMRunResult:
     messages: list[dict[str, str]]
     iterations: int
     depth: int
+    child_traces: list[object]
 
 
 class LocalRLMRunner:
@@ -54,6 +55,11 @@ class LocalRLMRunner:
         depth: int = 0,
         env_max_iterations_multiplier: int = 5,
         max_batch_workers: int = 8,
+        backend_factory: Callable[..., RecursiveBackend] | None = None,
+        max_children_total: int | None = None,
+        max_children_per_batch: int | None = None,
+        result_truncation_limit: int | None = None,
+        per_child_timeout_s: float | None = None,
         verbose: bool = False,
     ) -> None:
         self.llm_chat_fn = llm_chat_fn
@@ -63,52 +69,33 @@ class LocalRLMRunner:
         self.depth = depth
         self.env_max_iterations_multiplier = env_max_iterations_multiplier
         self.max_batch_workers = max_batch_workers
+        self.backend_factory = backend_factory or self._default_backend_factory
+        self.max_children_total = max_children_total
+        self.max_children_per_batch = max_children_per_batch
+        self.result_truncation_limit = result_truncation_limit
+        self.per_child_timeout_s = per_child_timeout_s
         self.verbose = verbose
 
-    def _llm_query(self, prompt: str, model: str | None = None) -> str:
-        try:
-            return self.llm_chat_fn([{"role": "user", "content": prompt}], model)
-        except TypeError:
-            return self.llm_chat_fn([{"role": "user", "content": prompt}])
-
-    def _llm_query_batched(
-        self, prompts: list[str], model: str | None = None
-    ) -> list[str]:
-        if not prompts:
-            return []
-
-        max_workers = min(len(prompts), self.max_batch_workers)
-        results: list[str] = [""] * len(prompts)
-        with ThreadPoolExecutor(max_workers=max_workers) as executor:
-            future_to_idx = {
-                executor.submit(self._llm_query, prompt, model): idx
-                for idx, prompt in enumerate(prompts)
-            }
-            for future in as_completed(future_to_idx):
-                idx = future_to_idx[future]
-                try:
-                    results[idx] = future.result()
-                except Exception as exc:
-                    results[idx] = f"Error: {exc}"
-        return results
-
-    def _subcall(self, prompt: str, model: str | None = None) -> str:
-        next_depth = self.depth + 1
-        if next_depth >= self.max_depth:
-            return self._llm_query(prompt, model)
-
-        child = LocalRLMRunner(
-            self.llm_chat_fn,
-            system_prompt=self.system_prompt,
-            max_iterations=self.max_iterations,
+    def _default_backend_factory(
+        self, llm_chat_fn: ChatFn, **kwargs
+    ) -> RecursiveBackend:
+        limits = BackendLimits(
             max_depth=self.max_depth,
-            depth=next_depth,
-            env_max_iterations_multiplier=self.env_max_iterations_multiplier,
             max_batch_workers=self.max_batch_workers,
-            verbose=self.verbose,
+            max_children_total=self.max_children_total,
+            max_children_per_batch=self.max_children_per_batch,
+            result_truncation_limit=self.result_truncation_limit,
+            per_child_timeout_s=self.per_child_timeout_s,
         )
-        result = child.run(prompt, prompt, model=model)
-        return result.final_answer or ""
+        return LocalChildRLMBackend(
+            self.llm_chat_fn,
+            runner_factory=LocalRLMRunner,
+            system_prompt=kwargs["system_prompt"],
+            max_iterations=kwargs["max_iterations"],
+            env_max_iterations_multiplier=kwargs["env_max_iterations_multiplier"],
+            depth=kwargs["depth"],
+            limits=limits,
+        )
 
     def run(
         self,
@@ -117,10 +104,18 @@ class LocalRLMRunner:
         *,
         model: str | None = None,
     ) -> RLMRunResult:
+        backend = self.backend_factory(
+            self.llm_chat_fn,
+            system_prompt=self.system_prompt,
+            max_iterations=self.max_iterations,
+            depth=self.depth,
+            env_max_iterations_multiplier=self.env_max_iterations_multiplier,
+        )
         with LocalREPLEnv(
-            llm_query_fn=self._llm_query,
-            llm_batch_fn=self._llm_query_batched,
-            subcall_fn=self._subcall,
+            llm_query_fn=backend.query,
+            llm_batch_fn=backend.query_batched,
+            subcall_fn=backend.recursive_query,
+            subcall_batch_fn=backend.recursive_query_batched,
         ) as env:
             result = env.reset(
                 context=context,
@@ -170,6 +165,7 @@ class LocalRLMRunner:
                             messages=messages + [{"role": "assistant", "content": response}],
                             iterations=iteration,
                             depth=self.depth,
+                            child_traces=list(getattr(backend, "child_traces", [])),
                         )
 
                 observation_text = format_observations(code_block_observations)
@@ -190,6 +186,7 @@ class LocalRLMRunner:
                 messages=messages,
                 iterations=self.max_iterations,
                 depth=self.depth,
+                child_traces=list(getattr(backend, "child_traces", [])),
             )
 
     def _chat(self, messages: list[dict[str, str]], model: str | None = None) -> str:

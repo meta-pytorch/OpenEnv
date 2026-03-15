@@ -84,7 +84,7 @@ def main():
     # Build task prompt (just the question, as per official RLM)
     task_prompt = question
 
-# Create environment using the current repl_env client split.
+    # Create environment using the current repl_env client split.
     if SPACE_URL:
         print(f"\nConnecting to: {SPACE_URL}")
         env = REPLEnv(base_url=SPACE_URL).sync()

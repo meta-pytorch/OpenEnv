@@ -37,8 +37,12 @@ except ImportError:
 
 try:
     from .python_executor import PythonExecutor
+    from ..prompts import RLM_SYSTEM_PROMPT
+    from ..recursive_backends import BackendLimits, DirectLMBackend, ServerChildRLMBackend
 except ImportError:
     from python_executor import PythonExecutor
+    from prompts import RLM_SYSTEM_PROMPT
+    from recursive_backends import BackendLimits, DirectLMBackend, ServerChildRLMBackend
 
 
 class REPLEnvironment(Environment):
@@ -86,6 +90,9 @@ class REPLEnvironment(Environment):
         llm_query_fn: Optional[Callable[[str], str]] = None,
         llm_batch_fn: Optional[Callable[[List[str]], List[str]]] = None,
         subcall_fn: Optional[Callable[[str, Optional[str]], str]] = None,
+        subcall_batch_fn: Optional[Callable[[List[str], Optional[str]], List[str]]] = None,
+        rlm_max_depth: int = 1,
+        rlm_max_iterations: int | None = None,
     ):
         """Initialize the REPL environment.
 
@@ -102,6 +109,9 @@ class REPLEnvironment(Environment):
             llm_query_fn: Optional function for llm_query() support
             llm_batch_fn: Optional function for llm_query_batched() support
             subcall_fn: Optional function for recursive rlm_query() support
+            subcall_batch_fn: Optional function for recursive rlm_query_batched() support
+            rlm_max_depth: Max recursion depth for server-backed rlm_query()
+            rlm_max_iterations: Max iterations for recursive child runners
         """
         self.initial_context = context or os.environ.get("REPL_CONTEXT", "")
         self.initial_task_prompt = task_prompt or os.environ.get("REPL_TASK_PROMPT", "")
@@ -119,51 +129,58 @@ class REPLEnvironment(Environment):
         self.llm_query_fn = llm_query_fn
         self.llm_batch_fn = llm_batch_fn
         self.subcall_fn = subcall_fn
+        self.subcall_batch_fn = subcall_batch_fn
+        self.rlm_max_depth = rlm_max_depth
+        self.rlm_max_iterations = rlm_max_iterations or max_iterations
 
         # State (initialized on reset)
         self._state: Optional[REPLState] = None
         self._executor: Optional[PythonExecutor] = None
+        self._runtime_backend = None
 
-    def _create_llm_functions(
-        self,
+    @staticmethod
+    def _build_hf_chat_fn(
         hf_token: str,
         llm_model: Optional[str] = None,
-    ) -> None:
-        """Create LLM functions dynamically using client-provided token.
-
-        This allows clients to use their own HF token instead of the server's.
-
-        Security: The token is used only to initialize the InferenceClient
-        and is NOT stored in state, logged, or persisted anywhere.
-
-        Args:
-            hf_token: HuggingFace API token (not logged or persisted)
-            llm_model: Model to use (default: Qwen/Qwen3.5-9B)
-        """
-        from concurrent.futures import as_completed, ThreadPoolExecutor
-
+    ) -> Callable[..., str]:
         try:
             from huggingface_hub import InferenceClient
         except ImportError:
-            # huggingface_hub not installed, skip LLM functions
-            return
+            raise RuntimeError("huggingface_hub is required for HF-backed recursion")
 
         default_model = llm_model or os.environ.get(
             "LLM_MODEL", "Qwen/Qwen3.5-9B"
         )
         client = InferenceClient(model=default_model, token=hf_token)
 
+        def chat_fn(messages: list[dict[str, str]], model: str | None = None) -> str:
+            response = client.chat.completions.create(
+                model=model or default_model,
+                messages=messages,
+                max_tokens=2048,
+                temperature=0.7,
+            )
+            return response.choices[0].message.content or ""
+
+        return chat_fn
+
+    def _create_llm_functions(
+        self,
+        hf_token: Optional[str],
+        llm_model: Optional[str] = None,
+    ) -> None:
+        """Create LLM/subcall functions dynamically using client-provided token."""
+        from concurrent.futures import as_completed, ThreadPoolExecutor
+
+        try:
+            chat_fn = self._build_hf_chat_fn(hf_token, llm_model)
+        except RuntimeError:
+            return
+
         def llm_query(prompt: str, model: str | None = None) -> str:
             """Query the LLM with a prompt and return the response."""
             try:
-                messages = [{"role": "user", "content": prompt}]
-                response = client.chat.completions.create(
-                    model=model or default_model,
-                    messages=messages,
-                    max_tokens=2048,
-                    temperature=0.7,
-                )
-                return response.choices[0].message.content or ""
+                return chat_fn([{"role": "user", "content": prompt}], model)
             except Exception as e:
                 return f"Error calling LLM: {e}"
 
@@ -193,6 +210,28 @@ class REPLEnvironment(Environment):
 
         self.llm_query_fn = llm_query
         self.llm_batch_fn = llm_query_batched
+        from ..runner import LocalRLMRunner
+
+        limits = BackendLimits(
+            max_depth=self.rlm_max_depth,
+            max_batch_workers=8,
+        )
+        if self.rlm_max_depth > 1:
+            self._runtime_backend = ServerChildRLMBackend(
+                chat_fn,
+                runner_factory=LocalRLMRunner,
+                system_prompt=RLM_SYSTEM_PROMPT,
+                max_iterations=self.rlm_max_iterations,
+                env_max_iterations_multiplier=5,
+                depth=0,
+                limits=limits,
+            )
+            self.subcall_fn = self._runtime_backend.recursive_query
+            self.subcall_batch_fn = self._runtime_backend.recursive_query_batched
+        else:
+            self._runtime_backend = DirectLMBackend(chat_fn, depth=0, limits=limits)
+            self.subcall_fn = None
+            self.subcall_batch_fn = None
 
     def reset(
         self,
@@ -223,12 +262,23 @@ class REPLEnvironment(Environment):
         effective_context = context or self.initial_context
         effective_task_prompt = task_prompt or self.initial_task_prompt
 
-        # Create LLM functions if not already provided at init
-        # Priority: client hf_token > server HF_TOKEN env var
+        runtime_rlm_max_depth = kwargs.get("rlm_max_depth")
+        if runtime_rlm_max_depth is None:
+            runtime_rlm_max_depth = self.rlm_max_depth
+        runtime_rlm_max_depth = int(runtime_rlm_max_depth)
+
+        runtime_rlm_max_iterations = kwargs.get("rlm_max_iterations")
+        if runtime_rlm_max_iterations is None:
+            runtime_rlm_max_iterations = self.rlm_max_iterations
+        runtime_rlm_max_iterations = int(runtime_rlm_max_iterations)
+        self.rlm_max_depth = runtime_rlm_max_depth
+        self.rlm_max_iterations = runtime_rlm_max_iterations
+
+        # Create LLM functions if not already provided at init.
+        # Match example/client behavior by allowing anonymous routed inference too.
         if not self.llm_query_fn:
-            effective_token = hf_token or os.environ.get("HF_TOKEN")
-            if effective_token:
-                self._create_llm_functions(effective_token, llm_model)
+            effective_token = hf_token if hf_token is not None else os.environ.get("HF_TOKEN")
+            self._create_llm_functions(effective_token, llm_model)
 
         # Initialize state
         self._state = REPLState(
@@ -281,6 +331,8 @@ class REPLEnvironment(Environment):
         ) -> List[str]:
             if not prompts:
                 return []
+            if self.subcall_batch_fn is not None:
+                return self.subcall_batch_fn(prompts, model)
             if self.subcall_fn is None:
                 return _call_batched_query(prompts, model)
 

@@ -7,6 +7,7 @@
 """Tests for the REPL Environment."""
 
 import pytest
+import time
 
 # Skip entire module if smolagents is not installed
 pytest.importorskip("smolagents", reason="smolagents is not installed")
@@ -271,6 +272,33 @@ class TestREPLEnvironment:
         obs = env.step(REPLAction(code="print(vars_now)"))
         assert "deep" in obs.result.stdout
 
+    def test_server_backed_recursive_runtime(self, monkeypatch):
+        """Test HF-backed runtime installs a real recursive subcall function."""
+
+        def fake_build_hf_chat_fn(hf_token, llm_model=None):
+            def fake_chat(messages, model=None):
+                joined = "\n".join(message["content"] for message in messages)
+                if "Return child value" in joined:
+                    return "```repl\nvalue = 'child'\nprint(FINAL(value))\n```"
+                return "unreachable"
+
+            return fake_chat
+
+        monkeypatch.setattr(
+            REPLEnvironment,
+            "_build_hf_chat_fn",
+            staticmethod(fake_build_hf_chat_fn),
+        )
+
+        env = REPLEnvironment(rlm_max_depth=3, rlm_max_iterations=4)
+        obs = env.reset(hf_token="fake-token")
+        assert "rlm_query" in obs.available_variables
+
+        obs = env.step(REPLAction(code="result = rlm_query('Return child value')"))
+        assert obs.result.success
+        obs = env.step(REPLAction(code="print(result)"))
+        assert "child" in obs.result.stdout
+
 
 class TestModels:
     """Tests for the data models."""
@@ -526,6 +554,136 @@ class TestLocalRLMRunner:
         runner = LocalRLMRunner(mock_chat, max_iterations=4, max_depth=3)
         result = runner.run("Root context", "Ask recursive children for two parts")
         assert result.final_answer == "AB"
+
+    def test_max_children_total_limit(self):
+        """Test recursive child spawning respects max_children_total."""
+        from repl_env import LocalRLMRunner
+
+        def mock_chat(messages, model=None):
+            joined = "\n".join(message["content"] for message in messages)
+            if "Child prompt 1" in joined:
+                return "```repl\nprint(FINAL('one'))\n```"
+            if "Child prompt 2" in joined:
+                return "```repl\nprint(FINAL('two'))\n```"
+            return (
+                "```repl\n"
+                "a = rlm_query('Child prompt 1')\n"
+                "b = rlm_query('Child prompt 2')\n"
+                "print(FINAL(b))\n"
+                "```"
+            )
+
+        runner = LocalRLMRunner(
+            mock_chat,
+            max_iterations=4,
+            max_depth=3,
+            max_children_total=1,
+        )
+        result = runner.run("Root context", "Try to spawn too many children")
+        assert "max_children_total exceeded" in (result.final_answer or "")
+
+    def test_max_children_per_batch_limit(self):
+        """Test batched recursive child spawning is capped."""
+        from repl_env import LocalRLMRunner
+
+        def mock_chat(messages, model=None):
+            joined = "\n".join(message["content"] for message in messages)
+            if "Return A" in joined:
+                return "```repl\nprint(FINAL('A'))\n```"
+            if "Return B" in joined:
+                return "```repl\nprint(FINAL('B'))\n```"
+            if "Return C" in joined:
+                return "```repl\nprint(FINAL('C'))\n```"
+            return (
+                "```repl\n"
+                "parts = rlm_query_batched(['Return A', 'Return B', 'Return C'])\n"
+                "print(FINAL(''.join(parts)))\n"
+                "```"
+            )
+
+        runner = LocalRLMRunner(
+            mock_chat,
+            max_iterations=4,
+            max_depth=3,
+            max_children_per_batch=2,
+        )
+        result = runner.run("Root context", "Cap batch child count")
+        assert result.final_answer == "AB"
+
+    def test_result_truncation_limit(self):
+        """Test recursive child results are truncated when configured."""
+        from repl_env import LocalRLMRunner
+
+        def mock_chat(messages, model=None):
+            joined = "\n".join(message["content"] for message in messages)
+            if "Long child" in joined:
+                return "```repl\nprint(FINAL('abcdefghijklmnopqrstuvwxyz'))\n```"
+            return (
+                "```repl\n"
+                "result = rlm_query('Long child')\n"
+                "print(FINAL(result))\n"
+                "```"
+            )
+
+        runner = LocalRLMRunner(
+            mock_chat,
+            max_iterations=4,
+            max_depth=3,
+            result_truncation_limit=5,
+        )
+        result = runner.run("Root context", "Truncate child results")
+        assert result.final_answer == "abcde"
+
+    def test_child_trace_metadata(self):
+        """Test child trace metadata is recorded on the run result."""
+        from repl_env import LocalRLMRunner
+
+        def mock_chat(messages, model=None):
+            joined = "\n".join(message["content"] for message in messages)
+            if "Return traced child" in joined:
+                return "```repl\nprint(FINAL('child-result'))\n```"
+            return (
+                "```repl\n"
+                "result = rlm_query('Return traced child')\n"
+                "print(FINAL(result))\n"
+                "```"
+            )
+
+        runner = LocalRLMRunner(mock_chat, max_iterations=4, max_depth=3)
+        result = runner.run("Root context", "Collect child trace")
+        assert result.final_answer == "child-result"
+        assert len(result.child_traces) == 1
+        trace = result.child_traces[0]
+        assert trace.depth == 1
+        assert "Return traced child" in trace.prompt_preview
+        assert trace.error is None
+
+    def test_per_child_timeout(self):
+        """Test child recursion returns an error when timeout is exceeded."""
+        from repl_env import LocalRLMRunner
+
+        def mock_chat(messages, model=None):
+            joined = "\n".join(message["content"] for message in messages)
+            if "Slow child" in joined:
+                time.sleep(0.05)
+                return "```repl\nprint(FINAL('too-slow'))\n```"
+            return (
+                "```repl\n"
+                "result = rlm_query('Slow child')\n"
+                "print(FINAL(result))\n"
+                "```"
+            )
+
+        runner = LocalRLMRunner(
+            mock_chat,
+            max_iterations=4,
+            max_depth=3,
+            per_child_timeout_s=0.01,
+        )
+        result = runner.run("Root context", "Trigger a child timeout")
+        assert "child timeout" in (result.final_answer or "")
+        assert len(result.child_traces) == 1
+        assert "timeout" in (result.child_traces[0].error or "")
 
 
 class TestREPLEnvRemoteClient:
