@@ -176,7 +176,9 @@ class LocalRLMRunner:
                             child_traces=list(getattr(backend, "child_traces", [])),
                         )
 
-                observation_text = format_observations(code_block_observations)
+                observation_text = format_observations(
+                    code_block_observations, code_blocks=code_blocks
+                )
                 next_prompt = build_user_prompt(
                     root_prompt=task_prompt,
                     iteration=iteration,
@@ -189,13 +191,46 @@ class LocalRLMRunner:
                     }
                 )
 
+            # Max iterations exhausted — give the model one final chance to answer
+            final_answer = env.state().final_answer
+            if final_answer is None:
+                final_answer = self._default_answer(messages, model)
+
             return RLMRunResult(
-                final_answer=env.state().final_answer,
+                final_answer=final_answer,
                 messages=messages,
                 iterations=self.max_iterations,
                 depth=self.depth,
                 child_traces=list(getattr(backend, "child_traces", [])),
             )
+
+    def _default_answer(
+        self, messages: list[dict[str, str]], model: str | None = None
+    ) -> str | None:
+        """Make one final LLM call asking for an answer when iterations are exhausted."""
+        final_prompt = messages + [
+            {
+                "role": "user",
+                "content": (
+                    "You have run out of REPL iterations. Based on all your work above, "
+                    "provide your best final answer now. Use FINAL(your answer) to submit it. "
+                    "If you stored the answer in a variable, use FINAL_VAR(variable_name) instead. "
+                    "Do not write any more code — just provide the final answer."
+                ),
+            }
+        ]
+        try:
+            response = self._chat(final_prompt, model)
+            # Try to extract FINAL(...) from the response
+            import re
+
+            match = re.search(r"FINAL\((.*)\)", response, re.DOTALL)
+            if match:
+                return match.group(1).strip()
+            # If no FINAL pattern, return the raw response as best-effort
+            return response.strip() if response.strip() else None
+        except Exception:
+            return None
 
     def _chat(self, messages: list[dict[str, str]], model: str | None = None) -> str:
         try:

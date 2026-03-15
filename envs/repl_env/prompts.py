@@ -267,11 +267,20 @@ def extract_code_blocks(text: str, language: str = "python") -> List[str]:
     return all_matches
 
 
-def format_observations(observations) -> str:
+def format_observations(
+    observations,
+    code_blocks: Optional[List[str]] = None,
+    max_character_length: int = 20000,
+) -> str:
     """Format REPL observations into observation text for the LLM.
+
+    Follows the official RLM format: each observation includes the executed code
+    and its output, so the LLM sees what it wrote alongside the result.
 
     Args:
         observations: List of REPL observations from env.step()
+        code_blocks: Optional list of code strings that produced these observations
+        max_character_length: Truncate output beyond this length
 
     Returns:
         Formatted observation string
@@ -283,16 +292,24 @@ def format_observations(observations) -> str:
             if observation.result.stdout
             else "(no output)"
         )
-        if observation.result.success:
-            formatted.append(f"Code block {i} output:\n{output}")
-        else:
+        if not observation.result.success:
             error = (
                 observation.result.stderr
                 or observation.result.exception
                 or "Unknown error"
             )
+            output = f"{output}\n\nERROR: {error}"
+
+        # Truncate large outputs
+        if len(output) > max_character_length:
+            output = output[:max_character_length] + f"... [{len(output) - max_character_length} chars truncated]"
+
+        # Echo back executed code (matches official RLM format)
+        if code_blocks and i <= len(code_blocks):
             formatted.append(
-                f"Code block {i} output:\n{output}\n\nERROR: {error}\n"
-                f"Fix the error in code block {i}. Remember: 'context' is already defined."
+                f"Code executed:\n```python\n{code_blocks[i - 1]}\n```\n\nREPL output:\n{output}"
             )
+        else:
+            formatted.append(f"Code block {i} output:\n{output}")
+
     return "\n\n".join(formatted)

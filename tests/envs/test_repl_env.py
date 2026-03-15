@@ -551,12 +551,7 @@ class TestLocalRLMRunner:
         def mock_chat(messages, model=None):
             joined = "\n".join(message["content"] for message in messages)
             if "Return the answer 42" in joined:
-                return (
-                    "```repl\n"
-                    "child_answer = '42'\n"
-                    "print(FINAL(child_answer))\n"
-                    "```"
-                )
+                return "```repl\nchild_answer = '42'\nprint(FINAL(child_answer))\n```"
             return (
                 "```repl\n"
                 "result = rlm_query('Return the answer 42')\n"
@@ -655,10 +650,7 @@ class TestLocalRLMRunner:
             if "Long child" in joined:
                 return "```repl\nprint(FINAL('abcdefghijklmnopqrstuvwxyz'))\n```"
             return (
-                "```repl\n"
-                "result = rlm_query('Long child')\n"
-                "print(FINAL(result))\n"
-                "```"
+                "```repl\nresult = rlm_query('Long child')\nprint(FINAL(result))\n```"
             )
 
         runner = LocalRLMRunner(
@@ -704,10 +696,7 @@ class TestLocalRLMRunner:
                 time.sleep(0.05)
                 return "```repl\nprint(FINAL('too-slow'))\n```"
             return (
-                "```repl\n"
-                "result = rlm_query('Slow child')\n"
-                "print(FINAL(result))\n"
-                "```"
+                "```repl\nresult = rlm_query('Slow child')\nprint(FINAL(result))\n```"
             )
 
         runner = LocalRLMRunner(
@@ -743,7 +732,9 @@ class TestLocalRLMRunner:
             mock_chat,
             max_iterations=4,
             max_depth=3,
-            on_subcall_start=lambda depth, model, prompt: starts.append((depth, model, prompt)),
+            on_subcall_start=lambda depth, model, prompt: starts.append(
+                (depth, model, prompt)
+            ),
             on_subcall_complete=lambda depth, model, duration, error: completes.append(
                 (depth, model, duration, error)
             ),
@@ -757,6 +748,23 @@ class TestLocalRLMRunner:
         assert completes[0][0] == 1
         assert completes[0][2] >= 0.0
         assert completes[0][3] is None
+
+    def test_default_answer_on_max_iterations(self):
+        """Test that the runner makes a final LLM call when iterations are exhausted."""
+        from repl_env import LocalRLMRunner
+
+        def mock_chat(messages, model=None):
+            joined = "\n".join(message["content"] for message in messages)
+            # On the final "run out of REPL iterations" call, provide an answer
+            if "run out of REPL iterations" in joined:
+                return "FINAL(fallback-answer)"
+            # Otherwise just do computation without finishing
+            return "```repl\nx = 42\nprint(x)\n```"
+
+        runner = LocalRLMRunner(mock_chat, max_iterations=2, max_depth=1)
+        result = runner.run("Root context", "Never finish on time")
+        assert result.final_answer == "fallback-answer"
+        assert result.iterations == 2
 
 
 class TestREPLEnvRemoteClient:
@@ -920,7 +928,9 @@ class TestREPLEnvRemoteClient:
             raise AssertionError(f"Unexpected message type: {message['type']}")
 
         monkeypatch.setattr(env.async_client, "connect", fake_connect)
-        monkeypatch.setattr(env.async_client, "_send_and_receive", fake_send_and_receive)
+        monkeypatch.setattr(
+            env.async_client, "_send_and_receive", fake_send_and_receive
+        )
 
         with env:
             result = env.reset()
