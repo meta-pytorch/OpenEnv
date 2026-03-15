@@ -72,15 +72,18 @@ def main():
         token=HF_TOKEN,
     )
 
-    def llm_chat(messages: list[dict]) -> str:
+    def llm_chat(messages: list[dict], model: str | None = None) -> str:
         """
         LLM function for chat-style messages (outer loop),
         using HF Inference Providers.
         """
         response = client.chat.completions.create(
+            model=model or MODEL_NAME,
             messages=messages,
-            max_tokens=2048,  # Increased for longer code responses
+            max_tokens=2048,
             temperature=0.7,
+            # Disable thinking mode — the RLM loop is the reasoning mechanism
+            extra_body={"chat_template_kwargs": {"enable_thinking": False}},
         )
         return response.choices[0].message.content
 

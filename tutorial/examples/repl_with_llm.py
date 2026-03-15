@@ -44,12 +44,15 @@ def create_qwen_llm():
         token=HF_TOKEN,
     )
 
-    def llm_fn(messages: list[dict]) -> str:
+    def llm_fn(messages: list[dict], model: str | None = None) -> str:
         """Generate response using Qwen model."""
         response = client.chat.completions.create(
+            model=model or model_name,
             messages=messages,
-            max_tokens=1024,
+            max_tokens=2048,
             temperature=0.7,
+            # Disable thinking mode — the RLM loop is the reasoning mechanism
+            extra_body={"chat_template_kwargs": {"enable_thinking": False}},
         )
         return response.choices[0].message.content
 

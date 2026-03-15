@@ -149,6 +149,8 @@ class REPLEnvironment(Environment):
                 messages=messages,
                 max_tokens=2048,
                 temperature=0.7,
+                # Disable thinking mode — the RLM loop is the reasoning mechanism
+                extra_body={"chat_template_kwargs": {"enable_thinking": False}},
             )
             return response.choices[0].message.content or ""
 
