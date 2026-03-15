@@ -37,9 +37,11 @@ except ImportError:
 try:
     from .python_executor import PythonExecutor
     from ..recursive_controller import create_server_recursive_controller
+    from ..rubrics import REPLRubric
 except ImportError:
     from python_executor import PythonExecutor
     from recursive_controller import create_server_recursive_controller
+    from rubrics import REPLRubric
 
 
 class REPLEnvironment(Environment):
@@ -80,10 +82,7 @@ class REPLEnvironment(Environment):
         max_iterations: int = 30,
         max_output_length: int = 8192,
         context_preview_length: int = 500,
-        reward_on_success: float = 1.0,
-        reward_on_iteration: float = 0.0,
-        reward_on_failure: float = -0.1,
-        reward_on_error: float = -0.05,
+        rubric: Optional[REPLRubric] = None,
         llm_query_fn: Optional[Callable[[str], str]] = None,
         llm_batch_fn: Optional[Callable[[List[str]], List[str]]] = None,
         subcall_fn: Optional[Callable[[str, Optional[str]], str]] = None,
@@ -101,10 +100,7 @@ class REPLEnvironment(Environment):
             max_iterations: Maximum steps per episode (default 30, env var REPL_MAX_ITERATIONS)
             max_output_length: Max chars for stdout/stderr per turn (default 8192)
             context_preview_length: Chars to show in context preview (default 500)
-            reward_on_success: Reward when final answer is submitted (default 1.0)
-            reward_on_iteration: Reward per iteration step (default 0.0)
-            reward_on_failure: Reward when max iterations reached (default -0.1)
-            reward_on_error: Reward when code execution fails (default -0.05)
+            rubric: Optional REPLRubric for reward computation (default: REPLRubric())
             llm_query_fn: Optional function for llm_query() support
             llm_batch_fn: Optional function for llm_query_batched() support
             subcall_fn: Optional function for recursive rlm_query() support
@@ -118,11 +114,8 @@ class REPLEnvironment(Environment):
         self.max_output_length = max_output_length
         self.context_preview_length = context_preview_length
 
-        # Reward configuration
-        self.reward_on_success = reward_on_success
-        self.reward_on_iteration = reward_on_iteration
-        self.reward_on_failure = reward_on_failure
-        self.reward_on_error = reward_on_error
+        # Rubric for reward computation (OpenEnv RFC 004)
+        self.rubric = rubric or REPLRubric()
 
         # Optional LLM functions for recursive calls
         self.llm_query_fn = llm_query_fn
@@ -245,6 +238,12 @@ class REPLEnvironment(Environment):
         """
         effective_context = context or self.initial_context
         effective_task_prompt = task_prompt or self.initial_task_prompt
+
+        # Set expected answer for rubric-based reward computation
+        expected_answer = kwargs.get("expected_answer")
+        self.rubric.reset()
+        if expected_answer is not None:
+            self.rubric.set_expected(expected_answer)
 
         runtime_rlm_max_depth = kwargs.get("rlm_max_depth")
         if runtime_rlm_max_depth is None:
@@ -449,11 +448,12 @@ class REPLEnvironment(Environment):
         # Check if agent explicitly signals final answer
         if action.is_final:
             self._state.final_answer = action.final_answer or ""
-            return self._create_final_observation(
+            obs = self._create_final_observation(
                 success=True,
                 message="Final answer submitted.",
-                reward=self.reward_on_success,
             )
+            obs.reward = self._apply_rubric(action, obs)
+            return obs
 
         # Check iteration limit
         if self._state.iteration >= self.max_iterations:
@@ -461,21 +461,17 @@ class REPLEnvironment(Environment):
             answer_var = self._executor.get_variable("answer")
             if isinstance(answer_var, dict) and answer_var.get("content"):
                 self._state.final_answer = str(answer_var.get("content", ""))
-            return self._create_final_observation(
+            obs = self._create_final_observation(
                 success=False,
                 message=f"Maximum iterations ({self.max_iterations}) reached.",
-                reward=self.reward_on_failure,
             )
+            obs.reward = self._apply_rubric(action, obs)
+            return obs
 
         # Execute code
         result = self._executor.execute(action.code)
         self._state.total_execution_time += result["execution_time"]
         self._state.namespace_keys = self._executor.list_variables()
-
-        # Calculate reward
-        reward = self.reward_on_iteration
-        if not result["success"]:
-            reward += self.reward_on_error
 
         # Check for final answer patterns
         final_answer = self._extract_final_answer(result["stdout"])
@@ -483,9 +479,8 @@ class REPLEnvironment(Environment):
 
         if done:
             self._state.final_answer = final_answer
-            reward = self.reward_on_success
 
-        return REPLObservation(
+        obs = REPLObservation(
             result=CodeBlockResult(
                 stdout=result["stdout"],
                 stderr=result["stderr"],
@@ -504,13 +499,15 @@ class REPLEnvironment(Environment):
             iteration=self._state.iteration,
             max_iterations=self.max_iterations,
             done=done,
-            reward=reward,
+            reward=0.0,
             metadata={
                 "task_prompt": self._state.task_prompt,
                 "final_answer": final_answer,
                 "execution_time": result["execution_time"],
             },
         )
+        obs.reward = self._apply_rubric(action, obs)
+        return obs
 
     def _extract_final_answer(self, stdout: str) -> Optional[str]:
         """Extract final answer from output.
@@ -549,17 +546,16 @@ class REPLEnvironment(Environment):
         return None
 
     def _create_final_observation(
-        self, success: bool, message: str, reward: float
+        self, success: bool, message: str
     ) -> REPLObservation:
         """Create observation for episode termination.
 
         Args:
             success: Whether the episode ended successfully
             message: Termination message
-            reward: Final reward value
 
         Returns:
-            Final REPLObservation with done=True
+            Final REPLObservation with done=True (reward set by rubric)
         """
         return REPLObservation(
             result=CodeBlockResult(
@@ -576,7 +572,7 @@ class REPLEnvironment(Environment):
             iteration=self._state.iteration if self._state else 0,
             max_iterations=self.max_iterations,
             done=True,
-            reward=reward,
+            reward=0.0,
             metadata={
                 "final_answer": self._state.final_answer if self._state else None,
                 "total_execution_time": (

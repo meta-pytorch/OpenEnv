@@ -55,6 +55,13 @@ from .prompts import (
     RLM_SYSTEM_PROMPT,
     RLM_SYSTEM_PROMPT_QWEN,
 )
+from .rubrics import (
+    CodeExecutionRubric,
+    CustomMetricRubric,
+    ExactMatchRubric,
+    FuzzyMatchRubric,
+    REPLRubric,
+)
 from .runner import LocalRLMRunner, RLMRunResult
 
 __all__ = [
@@ -78,4 +85,10 @@ __all__ = [
     # Parsing utilities
     "extract_code_blocks",
     "format_observations",
+    # Rubrics
+    "REPLRubric",
+    "ExactMatchRubric",
+    "FuzzyMatchRubric",
+    "CustomMetricRubric",
+    "CodeExecutionRubric",
 ]

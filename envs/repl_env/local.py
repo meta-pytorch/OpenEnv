@@ -20,10 +20,12 @@ try:
     from openenv.core.client_types import StepResult
 
     from .models import REPLAction, REPLObservation, REPLState
+    from .rubrics import REPLRubric
     from .server.repl_environment import REPLEnvironment
 except ImportError:
     from models import REPLAction, REPLObservation, REPLState
     from openenv.core.client_types import StepResult
+    from rubrics import REPLRubric
     from server.repl_environment import REPLEnvironment
 
 
@@ -41,20 +43,14 @@ class LocalREPLEnv:
         ] = None,
         max_output_length: int = 8192,
         context_preview_length: int = 500,
-        reward_on_success: float = 1.0,
-        reward_on_iteration: float = 0.0,
-        reward_on_failure: float = -0.1,
-        reward_on_error: float = -0.05,
+        rubric: Optional[REPLRubric] = None,
         rlm_max_depth: int = 1,
         rlm_max_iterations: int | None = None,
     ):
         self._env = REPLEnvironment(
             max_output_length=max_output_length,
             context_preview_length=context_preview_length,
-            reward_on_success=reward_on_success,
-            reward_on_iteration=reward_on_iteration,
-            reward_on_failure=reward_on_failure,
-            reward_on_error=reward_on_error,
+            rubric=rubric,
             llm_query_fn=llm_query_fn,
             llm_batch_fn=llm_batch_fn,
             subcall_fn=subcall_fn,
@@ -73,6 +69,7 @@ class LocalREPLEnv:
         episode_id: Optional[str] = None,
         hf_token: Optional[str] = None,
         llm_model: Optional[str] = None,
+        expected_answer: Optional[str] = None,
         rlm_max_depth: Optional[int] = None,
         rlm_max_iterations: Optional[int] = None,
     ) -> StepResult[REPLObservation]:
@@ -86,6 +83,8 @@ class LocalREPLEnv:
             reset_kwargs["rlm_max_depth"] = rlm_max_depth
         if rlm_max_iterations is not None:
             reset_kwargs["rlm_max_iterations"] = rlm_max_iterations
+        if expected_answer is not None:
+            reset_kwargs["expected_answer"] = expected_answer
         obs = self._env.reset(
             seed=seed,
             episode_id=episode_id,

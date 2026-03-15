@@ -48,19 +48,15 @@ except ImportError:
     from server.repl_environment import REPLEnvironment
 
 
-# ============== LLM CONFIGURATION ==============
+# ============== CONFIGURATION ==============
 LLM_MODEL = os.environ.get("LLM_MODEL", "Qwen/Qwen3.5-9B")
 HF_TOKEN = os.environ.get("HF_TOKEN")
 REPL_MAX_ITERATIONS = int(os.environ.get("REPL_MAX_ITERATIONS", "30"))
 REPL_MAX_OUTPUT_LENGTH = int(os.environ.get("REPL_MAX_OUTPUT_LENGTH", "8192"))
 REPL_CONTEXT_PREVIEW_LENGTH = int(os.environ.get("REPL_CONTEXT_PREVIEW_LENGTH", "500"))
-REPL_REWARD_ON_SUCCESS = float(os.environ.get("REPL_REWARD_ON_SUCCESS", "1.0"))
-REPL_REWARD_ON_ITERATION = float(os.environ.get("REPL_REWARD_ON_ITERATION", "0.0"))
-REPL_REWARD_ON_FAILURE = float(os.environ.get("REPL_REWARD_ON_FAILURE", "-0.1"))
-REPL_REWARD_ON_ERROR = float(os.environ.get("REPL_REWARD_ON_ERROR", "-0.05"))
 REPL_RLM_MAX_DEPTH = int(os.environ.get("REPL_RLM_MAX_DEPTH", "2"))
 REPL_RLM_MAX_ITERATIONS = int(os.environ.get("REPL_RLM_MAX_ITERATIONS", "30"))
-# ===============================================
+# ==========================================
 
 # Log LLM configuration
 if HF_TOKEN:
@@ -85,10 +81,6 @@ def create_repl_environment() -> REPLEnvironment:
         max_iterations=REPL_MAX_ITERATIONS,
         max_output_length=REPL_MAX_OUTPUT_LENGTH,
         context_preview_length=REPL_CONTEXT_PREVIEW_LENGTH,
-        reward_on_success=REPL_REWARD_ON_SUCCESS,
-        reward_on_iteration=REPL_REWARD_ON_ITERATION,
-        reward_on_failure=REPL_REWARD_ON_FAILURE,
-        reward_on_error=REPL_REWARD_ON_ERROR,
         rlm_max_depth=REPL_RLM_MAX_DEPTH,
         rlm_max_iterations=REPL_RLM_MAX_ITERATIONS,
     )

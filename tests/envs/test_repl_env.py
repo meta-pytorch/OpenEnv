@@ -285,19 +285,34 @@ class TestREPLEnvironment:
         with pytest.raises(RuntimeError):
             _ = env.state
 
-    def test_reward_on_success(self):
-        """Test reward on successful completion."""
-        env = REPLEnvironment(reward_on_success=1.0)
-        env.reset()
+    def test_rubric_reward_on_success(self):
+        """Test rubric reward when final answer matches expected."""
+        from repl_env.rubrics import ExactMatchRubric, REPLRubric
+
+        rubric = REPLRubric(outcome=ExactMatchRubric())
+        env = REPLEnvironment(rubric=rubric)
+        env.reset(expected_answer="done")
         obs = env.step(REPLAction(code="print('FINAL(done)')"))
+        assert obs.done
         assert obs.reward == 1.0
 
-    def test_reward_on_error(self):
-        """Test reward on code error."""
-        env = REPLEnvironment(reward_on_error=-0.1)
+    def test_rubric_reward_on_wrong_answer(self):
+        """Test rubric reward when final answer does not match expected."""
+        from repl_env.rubrics import ExactMatchRubric, REPLRubric
+
+        rubric = REPLRubric(outcome=ExactMatchRubric())
+        env = REPLEnvironment(rubric=rubric)
+        env.reset(expected_answer="correct")
+        obs = env.step(REPLAction(code="print('FINAL(wrong)')"))
+        assert obs.done
+        assert obs.reward == 0.0
+
+    def test_rubric_reward_on_error(self):
+        """Test rubric process reward on code error."""
+        env = REPLEnvironment()
         env.reset()
         obs = env.step(REPLAction(code="raise ValueError()"))
-        assert obs.reward == -0.1
+        assert obs.reward == -0.05  # default CodeExecutionRubric error_penalty
 
     def test_close(self):
         """Test close cleans up resources."""
