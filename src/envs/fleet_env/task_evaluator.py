@@ -13,7 +13,6 @@ This is the inner loop of the task generation RL pipeline:
 """
 
 import asyncio
-import json
 import logging
 import os
 import time
@@ -81,7 +80,7 @@ class TaskEvaluator:
             raise ValueError("Fleet API key required")
 
         self.k_rollouts = k_rollouts
-        self.models = models or DEFAULT_MODELS
+        self.models = list(models or DEFAULT_MODELS)
         self.max_steps = max_steps
         self.poll_interval_s = poll_interval_s
         self.max_poll_time_s = max_poll_time_s
