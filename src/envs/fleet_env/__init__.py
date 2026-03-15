@@ -13,6 +13,7 @@ from .models import CallToolAction, ListToolsAction
 from .task_env import FleetTaskEnv, make_fleet_task_env
 from .telemetry import configure_fleet_telemetry, set_task_context, clear_task_context
 from .trace import create_trace_job, upload_trace
+from .task_evaluator import TaskEvaluator, evaluate_task
 
 __all__ = [
     "FleetEnvClient",
@@ -21,6 +22,8 @@ __all__ = [
     "CallToolAction",
     "FleetTaskEnv",
     "make_fleet_task_env",
+    "TaskEvaluator",
+    "evaluate_task",
     "ContextManager",
     "CONTEXT_TOOLS",
     "CONTEXT_TOOL_NAMES",
