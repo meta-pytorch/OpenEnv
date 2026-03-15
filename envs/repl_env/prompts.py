@@ -179,11 +179,10 @@ def build_rlm_system_prompt(
     else:
         context_lengths_str = str(context_lengths)
 
-    metadata_prompt = f"Your context is a {context_type} with {context_total_length} total characters, and is broken up into chunks of char lengths: {context_lengths_str}."
+    metadata = f"\n\nYour context is a {context_type} with {context_total_length} total characters, and is broken up into chunks of char lengths: {context_lengths_str}."
 
     return [
-        {"role": "system", "content": system_prompt},
-        {"role": "user", "content": metadata_prompt},
+        {"role": "system", "content": system_prompt + metadata},
     ]
 
 
