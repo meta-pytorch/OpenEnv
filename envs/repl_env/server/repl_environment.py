@@ -136,23 +136,35 @@ class REPLEnvironment(Environment):
         llm_model: Optional[str] = None,
     ) -> Callable[..., str]:
         try:
-            from huggingface_hub import InferenceClient
+            from huggingface_hub import InferenceClient, InferenceTimeoutError
         except ImportError:
             raise RuntimeError("huggingface_hub is required for HF-backed recursion")
 
         default_model = llm_model or os.environ.get("LLM_MODEL", "Qwen/Qwen3.5-9B")
-        client = InferenceClient(model=default_model, token=hf_token)
+        client = InferenceClient(model=default_model, token=hf_token, timeout=300)
 
         def chat_fn(messages: list[dict[str, str]], model: str | None = None) -> str:
-            response = client.chat.completions.create(
-                model=model or default_model,
-                messages=messages,
-                max_tokens=2048,
-                temperature=0.7,
-                # Disable thinking mode — the RLM loop is the reasoning mechanism
-                extra_body={"chat_template_kwargs": {"enable_thinking": False}},
-            )
-            return response.choices[0].message.content or ""
+            try:
+                response = client.chat.completions.create(
+                    model=model or default_model,
+                    messages=messages,
+                    max_tokens=2048,
+                    # Qwen3.5 non-thinking mode for precise coding tasks (from model card)
+                    temperature=0.6,
+                    top_p=0.95,
+                    presence_penalty=0.0,
+                    extra_body={
+                        "top_k": 20,
+                        "min_p": 0.0,
+                        "repetition_penalty": 1.0,
+                        "chat_template_kwargs": {"enable_thinking": False},
+                    },
+                )
+                return response.choices[0].message.content or ""
+            except InferenceTimeoutError:
+                return "Error: LLM inference timed out"
+            except Exception as e:
+                return f"Error: {e}"
 
         return chat_fn
 
