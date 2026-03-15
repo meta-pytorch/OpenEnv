@@ -418,7 +418,7 @@ class REPLEnvironment(Environment):
             iteration=0,
             max_iterations=self.max_iterations,
             done=False,
-            reward=0.0,
+
             metadata={
                 "task_prompt": effective_task_prompt,
                 "message": "Environment ready.",
@@ -501,7 +501,7 @@ class REPLEnvironment(Environment):
             iteration=self._state.iteration,
             max_iterations=self.max_iterations,
             done=done,
-            reward=0.0,
+
             metadata={
                 "task_prompt": self._state.task_prompt,
                 "final_answer": final_answer,
@@ -574,7 +574,7 @@ class REPLEnvironment(Environment):
             iteration=self._state.iteration if self._state else 0,
             max_iterations=self.max_iterations,
             done=True,
-            reward=0.0,
+
             metadata={
                 "final_answer": self._state.final_answer if self._state else None,
                 "total_execution_time": (
