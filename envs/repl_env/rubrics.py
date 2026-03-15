@@ -47,7 +47,11 @@ class ExactMatchRubric(Rubric):
         if final is None:
             return 0.0
         if self._normalize:
-            return 1.0 if str(final).strip().lower() == str(self._expected).strip().lower() else 0.0
+            return (
+                1.0
+                if str(final).strip().lower() == str(self._expected).strip().lower()
+                else 0.0
+            )
         return 1.0 if str(final) == str(self._expected) else 0.0
 
     def reset(self) -> None:

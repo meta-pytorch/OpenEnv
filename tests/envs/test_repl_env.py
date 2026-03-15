@@ -6,8 +6,9 @@
 
 """Tests for the REPL Environment."""
 
-import pytest
 import time
+
+import pytest
 
 # Skip entire module if smolagents is not installed
 pytest.importorskip("smolagents", reason="smolagents is not installed")

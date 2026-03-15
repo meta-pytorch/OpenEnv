@@ -15,7 +15,7 @@ query/query_batched/child-recursion behavior.
 from __future__ import annotations
 
 import time
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import as_completed, ThreadPoolExecutor
 from dataclasses import dataclass
 from typing import Callable, Protocol
 

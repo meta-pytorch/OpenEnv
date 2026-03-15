@@ -35,9 +35,9 @@ except ImportError:
     from models import CodeBlockResult, REPLAction, REPLObservation, REPLState
 
 try:
-    from .python_executor import PythonExecutor
     from ..recursive_controller import create_server_recursive_controller
     from ..rubrics import REPLRubric
+    from .python_executor import PythonExecutor
 except ImportError:
     from python_executor import PythonExecutor
     from recursive_controller import create_server_recursive_controller
@@ -323,7 +323,7 @@ class REPLEnvironment(Environment):
             if self.subcall_fn is None:
                 return _call_batched_query(prompts, model)
 
-            from concurrent.futures import ThreadPoolExecutor, as_completed
+            from concurrent.futures import as_completed, ThreadPoolExecutor
 
             max_workers = min(len(prompts), 8)
             results: List[str] = [""] * len(prompts)
@@ -418,7 +418,6 @@ class REPLEnvironment(Environment):
             iteration=0,
             max_iterations=self.max_iterations,
             done=False,
-
             metadata={
                 "task_prompt": effective_task_prompt,
                 "message": "Environment ready.",
@@ -501,7 +500,6 @@ class REPLEnvironment(Environment):
             iteration=self._state.iteration,
             max_iterations=self.max_iterations,
             done=done,
-
             metadata={
                 "task_prompt": self._state.task_prompt,
                 "final_answer": final_answer,
@@ -547,9 +545,7 @@ class REPLEnvironment(Environment):
 
         return None
 
-    def _create_final_observation(
-        self, success: bool, message: str
-    ) -> REPLObservation:
+    def _create_final_observation(self, success: bool, message: str) -> REPLObservation:
         """Create observation for episode termination.
 
         Args:
@@ -574,7 +570,6 @@ class REPLEnvironment(Environment):
             iteration=self._state.iteration if self._state else 0,
             max_iterations=self.max_iterations,
             done=True,
-
             metadata={
                 "final_answer": self._state.final_answer if self._state else None,
                 "total_execution_time": (

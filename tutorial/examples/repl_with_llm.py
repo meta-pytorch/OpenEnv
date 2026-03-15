@@ -28,8 +28,8 @@ Usage:
 from __future__ import annotations
 
 import os
-from huggingface_hub import InferenceClient
 
+from huggingface_hub import InferenceClient
 from repl_env import LocalRLMRunner, RLM_SYSTEM_PROMPT
 
 

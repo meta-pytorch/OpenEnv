@@ -302,7 +302,10 @@ def format_observations(
 
         # Truncate large outputs
         if len(output) > max_character_length:
-            output = output[:max_character_length] + f"... [{len(output) - max_character_length} chars truncated]"
+            output = (
+                output[:max_character_length]
+                + f"... [{len(output) - max_character_length} chars truncated]"
+            )
 
         # Echo back executed code (matches official RLM format)
         if code_blocks and i <= len(code_blocks):

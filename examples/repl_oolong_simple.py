@@ -27,12 +27,12 @@ HF_TOKEN = os.environ.get("HF_TOKEN")
 
 from repl_env import LocalREPLEnv, REPLEnv
 from repl_env.prompts import (
-    RLM_SYSTEM_PROMPT_QWEN,  # Use Qwen version (with cost warning)
-    QueryMetadata,
     build_rlm_system_prompt,
     build_user_prompt,
     extract_code_blocks,
     format_observations,
+    QueryMetadata,
+    RLM_SYSTEM_PROMPT_QWEN,  # Use Qwen version (with cost warning)
 )
 
 # ============== CONFIGURATION ==============

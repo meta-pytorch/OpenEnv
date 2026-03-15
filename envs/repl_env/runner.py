@@ -20,12 +20,12 @@ from typing import Callable
 
 from .local import LocalREPLEnv
 from .prompts import (
-    QueryMetadata,
-    RLM_SYSTEM_PROMPT,
     build_rlm_system_prompt,
     build_user_prompt,
     extract_code_blocks,
     format_observations,
+    QueryMetadata,
+    RLM_SYSTEM_PROMPT,
 )
 from .recursive_backends import BackendLimits, LocalChildRLMBackend, RecursiveBackend
 
