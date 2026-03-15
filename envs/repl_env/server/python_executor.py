@@ -162,9 +162,7 @@ class PythonExecutor:
         Returns:
             List of variable names (excluding private and builtins)
         """
-        variables = {
-            key for key in self._executor.state if not key.startswith("_")
-        }
+        variables = {key for key in self._executor.state if not key.startswith("_")}
         variables.update(self._user_variables)
         return list(variables)
 
@@ -213,16 +211,16 @@ class PythonExecutor:
 
         # Capture new/modified variables
         for key in self._executor.state:
-                if key not in pre_state_keys and not key.startswith("_"):
-                    try:
-                        val = self._executor.state[key]
-                        val_repr = repr(val)
-                        if len(val_repr) > 500:
-                            val_repr = val_repr[:500] + "..."
-                        new_locals[key] = val_repr
-                        self._user_variables.add(key)
-                    except Exception:
-                        new_locals[key] = "<unrepresentable>"
+            if key not in pre_state_keys and not key.startswith("_"):
+                try:
+                    val = self._executor.state[key]
+                    val_repr = repr(val)
+                    if len(val_repr) > 500:
+                        val_repr = val_repr[:500] + "..."
+                    new_locals[key] = val_repr
+                    self._user_variables.add(key)
+                except Exception:
+                    new_locals[key] = "<unrepresentable>"
 
         # Compose stdout/stderr
         stdout = "\n".join(part for part in stdout_parts if part)
