@@ -477,6 +477,57 @@ class TestLocalREPLEnv:
             env.state()
 
 
+class TestLocalRLMRunner:
+    """Tests for the local recursive runner."""
+
+    def test_recursive_subcall(self):
+        """Test rlm_query spawns a child runner and returns its final answer."""
+        from repl_env import LocalRLMRunner
+
+        def mock_chat(messages, model=None):
+            joined = "\n".join(message["content"] for message in messages)
+            if "Return the answer 42" in joined:
+                return (
+                    "```repl\n"
+                    "child_answer = '42'\n"
+                    "print(FINAL(child_answer))\n"
+                    "```"
+                )
+            return (
+                "```repl\n"
+                "result = rlm_query('Return the answer 42')\n"
+                "print(result)\n"
+                "print(FINAL(result))\n"
+                "```"
+            )
+
+        runner = LocalRLMRunner(mock_chat, max_iterations=4, max_depth=3)
+        result = runner.run("Root context", "Ask a recursive child for the answer")
+        assert result.final_answer == "42"
+
+    def test_recursive_batched_subcall(self):
+        """Test rlm_query_batched spawns multiple child runners."""
+        from repl_env import LocalRLMRunner
+
+        def mock_chat(messages, model=None):
+            joined = "\n".join(message["content"] for message in messages)
+            if "Return A" in joined:
+                return "```repl\nvalue = 'A'\nprint(FINAL(value))\n```"
+            if "Return B" in joined:
+                return "```repl\nvalue = 'B'\nprint(FINAL(value))\n```"
+            return (
+                "```repl\n"
+                "parts = rlm_query_batched(['Return A', 'Return B'])\n"
+                "combined = ''.join(parts)\n"
+                "print(FINAL(combined))\n"
+                "```"
+            )
+
+        runner = LocalRLMRunner(mock_chat, max_iterations=4, max_depth=3)
+        result = runner.run("Root context", "Ask recursive children for two parts")
+        assert result.final_answer == "AB"
+
+
 class TestREPLEnvRemoteClient:
     """Tests for the async OpenEnv REPL client."""
 

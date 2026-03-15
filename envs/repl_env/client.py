@@ -133,6 +133,7 @@ class LocalREPLEnv:
         *,
         llm_query_fn: Optional[Callable[[str], str]] = None,
         llm_batch_fn: Optional[Callable[[list[str]], list[str]]] = None,
+        subcall_fn: Optional[Callable[[str, Optional[str]], str]] = None,
         max_output_length: int = 8192,
         context_preview_length: int = 500,
         reward_on_success: float = 1.0,
@@ -151,6 +152,7 @@ class LocalREPLEnv:
             reward_on_error=reward_on_error,
             llm_query_fn=llm_query_fn,
             llm_batch_fn=llm_batch_fn,
+            subcall_fn=subcall_fn,
         )
 
     def reset(

@@ -29,15 +29,7 @@ from __future__ import annotations
 import os
 from huggingface_hub import InferenceClient
 
-from repl_env import LocalREPLEnv
-from repl_env.prompts import (
-    RLM_SYSTEM_PROMPT,
-    QueryMetadata,
-    build_rlm_system_prompt,
-    build_user_prompt,
-    extract_code_blocks,
-    format_observations,
-)
+from repl_env import LocalRLMRunner, RLM_SYSTEM_PROMPT
 
 
 def create_qwen_llm():
@@ -83,89 +75,14 @@ def run_rlm_loop(
     Returns:
         The final answer string
     """
-    # Use the explicit local REPL helper
-    # Note: env max_iterations should be higher than LLM loop iterations
-    # because each code block counts as one env iteration
-    with LocalREPLEnv() as env:
-        result = env.reset(
-            context=context,
-            task_prompt=task_prompt,
-            max_iterations=max_iterations * 5,  # Allow ~5 code blocks per LLM turn
-        )
-        obs = result.observation
-
-        query_metadata = QueryMetadata(
-            context_lengths=[obs.context_length],
-            context_total_length=obs.context_length,
-            context_type="str",
-        )
-        messages = build_rlm_system_prompt(RLM_SYSTEM_PROMPT, query_metadata)
-        messages.append(build_user_prompt(root_prompt=task_prompt, iteration=0))
-
-        for iteration in range(1, max_iterations + 1):
-            if verbose:
-                print(f"\n--- Iteration {iteration} ---")
-
-            # Get LLM response
-            response = llm_fn(messages)
-
-            if verbose:
-                print(f"LLM Response:\n{response[:500]}{'...' if len(response) > 500 else ''}")
-
-            # Extract and execute code blocks
-            code_blocks = extract_code_blocks(response)
-            code_block_observations = []
-
-            if not code_blocks:
-                # No code, ask LLM to provide code
-                messages.append({"role": "assistant", "content": response})
-                messages.append(
-                    {
-                        "role": "user",
-                        "content": "Please provide Python code in ```python``` blocks to solve the task.",
-                    }
-                )
-                continue
-
-            # Execute each code block
-            for code in code_blocks:
-                if verbose:
-                    print(f"\nExecuting:\n{code[:200]}{'...' if len(code) > 200 else ''}")
-
-                result = env.execute(code)
-                obs = result.observation
-                code_block_observations.append(obs)
-
-                if verbose:
-                    print(f"Success: {obs.result.success}")
-                    print(f"Env iteration: {obs.iteration}/{obs.max_iterations}")
-                    if obs.result.stdout:
-                        print(f"Output: {obs.result.stdout[:200]}")
-
-                if result.done:
-                    final_answer = env.state().final_answer
-                    if verbose:
-                        # Check if done due to FINAL() or max iterations
-                        if final_answer:
-                            print(f"\n=== Final Answer: {final_answer} ===")
-                        else:
-                            print(f"\n=== Environment terminated (iteration {obs.iteration}/{obs.max_iterations}) ===")
-                    return final_answer
-
-            # Format observation for next iteration
-            obs_text = format_observations(code_block_observations)
-            messages.append({"role": "assistant", "content": response})
-            next_prompt = build_user_prompt(root_prompt=task_prompt, iteration=iteration)
-            messages.append(
-                {"role": "user", "content": obs_text + "\n\n" + next_prompt["content"]}
-            )
-
-        # LLM loop max iterations reached (this is separate from env max_iterations)
-        if verbose:
-            print(f"\nLLM loop max iterations ({max_iterations}) reached")
-            print("Note: Each code block counts as one env iteration.")
-            print(f"Final env state: iteration {obs.iteration}/{obs.max_iterations}")
-        return None
+    runner = LocalRLMRunner(
+        llm_fn,
+        system_prompt=RLM_SYSTEM_PROMPT,
+        max_iterations=max_iterations,
+        max_depth=3,
+        verbose=verbose,
+    )
+    return runner.run(context, task_prompt).final_answer
 
 
 def main():

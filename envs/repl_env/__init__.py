@@ -55,6 +55,7 @@ from .prompts import (
     RLM_SYSTEM_PROMPT,
     RLM_SYSTEM_PROMPT_QWEN,
 )
+from .runner import LocalRLMRunner, RLMRunResult
 
 __all__ = [
     # Models
@@ -65,6 +66,8 @@ __all__ = [
     # Client
     "REPLEnv",
     "LocalREPLEnv",
+    "LocalRLMRunner",
+    "RLMRunResult",
     # System prompts
     "RLM_SYSTEM_PROMPT",
     "RLM_SYSTEM_PROMPT_QWEN",

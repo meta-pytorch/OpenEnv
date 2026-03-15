@@ -54,7 +54,14 @@ except ImportError:
 
 # ============== LLM CONFIGURATION ==============
 LLM_MODEL = os.environ.get("LLM_MODEL", "Qwen/Qwen3.5-9B")
-HF_TOKEN = os.environ.get("HF_TOKEN", None)
+HF_TOKEN = os.environ.get("HF_TOKEN")
+REPL_MAX_ITERATIONS = int(os.environ.get("REPL_MAX_ITERATIONS", "30"))
+REPL_MAX_OUTPUT_LENGTH = int(os.environ.get("REPL_MAX_OUTPUT_LENGTH", "8192"))
+REPL_CONTEXT_PREVIEW_LENGTH = int(os.environ.get("REPL_CONTEXT_PREVIEW_LENGTH", "500"))
+REPL_REWARD_ON_SUCCESS = float(os.environ.get("REPL_REWARD_ON_SUCCESS", "1.0"))
+REPL_REWARD_ON_ITERATION = float(os.environ.get("REPL_REWARD_ON_ITERATION", "0.0"))
+REPL_REWARD_ON_FAILURE = float(os.environ.get("REPL_REWARD_ON_FAILURE", "-0.1"))
+REPL_REWARD_ON_ERROR = float(os.environ.get("REPL_REWARD_ON_ERROR", "-0.05"))
 # ===============================================
 
 # Log LLM configuration
@@ -67,12 +74,27 @@ else:
         "[REPL Server] LLM functions will be enabled if client passes hf_token in reset()"
     )
 
-# Simple factory - LLM functions are created dynamically in reset() based on token
-env_factory = REPLEnvironment
+def create_repl_environment() -> REPLEnvironment:
+    """Factory function that creates REPLEnvironment with server config.
+
+    The environment still creates per-episode LLM functions dynamically during
+    `reset()`, but the base execution and reward configuration is now explicit.
+    This also gives the server a clean place to inject future recursion/runtime
+    backends without changing `create_app(...)`.
+    """
+    return REPLEnvironment(
+        max_iterations=REPL_MAX_ITERATIONS,
+        max_output_length=REPL_MAX_OUTPUT_LENGTH,
+        context_preview_length=REPL_CONTEXT_PREVIEW_LENGTH,
+        reward_on_success=REPL_REWARD_ON_SUCCESS,
+        reward_on_iteration=REPL_REWARD_ON_ITERATION,
+        reward_on_failure=REPL_REWARD_ON_FAILURE,
+        reward_on_error=REPL_REWARD_ON_ERROR,
+    )
 
 # Create the app with web interface and README integration
 app = create_app(
-    env_factory,
+    create_repl_environment,
     REPLAction,
     REPLObservation,
     env_name="repl_env",

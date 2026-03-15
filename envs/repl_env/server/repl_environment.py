@@ -85,6 +85,7 @@ class REPLEnvironment(Environment):
         reward_on_error: float = -0.05,
         llm_query_fn: Optional[Callable[[str], str]] = None,
         llm_batch_fn: Optional[Callable[[List[str]], List[str]]] = None,
+        subcall_fn: Optional[Callable[[str, Optional[str]], str]] = None,
     ):
         """Initialize the REPL environment.
 
@@ -100,6 +101,7 @@ class REPLEnvironment(Environment):
             reward_on_error: Reward when code execution fails (default -0.05)
             llm_query_fn: Optional function for llm_query() support
             llm_batch_fn: Optional function for llm_query_batched() support
+            subcall_fn: Optional function for recursive rlm_query() support
         """
         self.initial_context = context or os.environ.get("REPL_CONTEXT", "")
         self.initial_task_prompt = task_prompt or os.environ.get("REPL_TASK_PROMPT", "")
@@ -116,6 +118,7 @@ class REPLEnvironment(Environment):
         # Optional LLM functions for recursive calls
         self.llm_query_fn = llm_query_fn
         self.llm_batch_fn = llm_batch_fn
+        self.subcall_fn = subcall_fn
 
         # State (initialized on reset)
         self._state: Optional[REPLState] = None
@@ -268,18 +271,49 @@ class REPLEnvironment(Environment):
             except TypeError:
                 return self.llm_batch_fn(prompts)  # type: ignore[misc]
 
+        def _call_recursive_query(prompt: str, model: str | None = None) -> str:
+            if self.subcall_fn is None:
+                return _call_single_query(prompt, model)
+            return self.subcall_fn(prompt, model)
+
+        def _call_recursive_batched(
+            prompts: List[str], model: str | None = None
+        ) -> List[str]:
+            if not prompts:
+                return []
+            if self.subcall_fn is None:
+                return _call_batched_query(prompts, model)
+
+            from concurrent.futures import ThreadPoolExecutor, as_completed
+
+            max_workers = min(len(prompts), 8)
+            results: List[str] = [""] * len(prompts)
+            with ThreadPoolExecutor(max_workers=max_workers) as executor:
+                future_to_idx = {
+                    executor.submit(_call_recursive_query, prompt, model): idx
+                    for idx, prompt in enumerate(prompts)
+                }
+                for future in as_completed(future_to_idx):
+                    idx = future_to_idx[future]
+                    try:
+                        results[idx] = future.result()
+                    except Exception as e:
+                        results[idx] = f"Error: {e}"
+            return results
+
         # Inject LLM functions if provided
         # Names: llm_query (single), llm_query_batched (official RLM), llm_batch (alias)
         if self.llm_query_fn:
             self._executor.inject_function("llm_query", _call_single_query)
-            # Current recursive API surface: explicit fallback alias until child RLMs land.
-            self._executor.inject_function("rlm_query", _call_single_query)
         if self.llm_batch_fn:
             self._executor.inject_function(
                 "llm_query_batched", _call_batched_query
             )  # Official name
             self._executor.inject_function("llm_batch", _call_batched_query)  # Alias
-            self._executor.inject_function("rlm_query_batched", _call_batched_query)
+        if self.llm_query_fn or self.subcall_fn:
+            self._executor.inject_function("rlm_query", _call_recursive_query)
+        if self.llm_batch_fn or self.subcall_fn:
+            self._executor.inject_function("rlm_query_batched", _call_recursive_batched)
 
         # Inject FINAL helper function so both FINAL(x) and print(f'FINAL({x})') work
         # Returns the FINAL pattern as a string so it appears in stdout for detection
