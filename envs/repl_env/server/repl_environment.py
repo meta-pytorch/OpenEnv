@@ -162,46 +162,11 @@ class REPLEnvironment(Environment):
         llm_model: Optional[str] = None,
     ) -> None:
         """Create LLM/subcall functions dynamically using client-provided token."""
-        from concurrent.futures import as_completed, ThreadPoolExecutor
-
         try:
             chat_fn = self._build_hf_chat_fn(hf_token, llm_model)
         except RuntimeError:
             return
 
-        def llm_query(prompt: str, model: str | None = None) -> str:
-            """Query the LLM with a prompt and return the response."""
-            try:
-                return chat_fn([{"role": "user", "content": prompt}], model)
-            except Exception as e:
-                return f"Error calling LLM: {e}"
-
-        def llm_query_batched(
-            prompts: List[str], model: str | None = None
-        ) -> List[str]:
-            """Query the LLM with multiple prompts in parallel."""
-            if not prompts:
-                return []
-
-            max_workers = min(len(prompts), 8)
-            results: List[str] = [""] * len(prompts)
-
-            with ThreadPoolExecutor(max_workers=max_workers) as executor:
-                future_to_idx = {
-                    executor.submit(llm_query, prompt, model): idx
-                    for idx, prompt in enumerate(prompts)
-                }
-                for future in as_completed(future_to_idx):
-                    idx = future_to_idx[future]
-                    try:
-                        results[idx] = future.result()
-                    except Exception as e:
-                        results[idx] = f"Error: {e}"
-
-            return results
-
-        self.llm_query_fn = llm_query
-        self.llm_batch_fn = llm_query_batched
         self._runtime_controller = create_server_recursive_controller(
             chat_fn,
             max_depth=self.rlm_max_depth,
@@ -323,25 +288,7 @@ class REPLEnvironment(Environment):
                 return []
             if self.subcall_batch_fn is not None:
                 return self.subcall_batch_fn(prompts, model)
-            if self.subcall_fn is None:
-                return _call_batched_query(prompts, model)
-
-            from concurrent.futures import as_completed, ThreadPoolExecutor
-
-            max_workers = min(len(prompts), 8)
-            results: List[str] = [""] * len(prompts)
-            with ThreadPoolExecutor(max_workers=max_workers) as executor:
-                future_to_idx = {
-                    executor.submit(_call_recursive_query, prompt, model): idx
-                    for idx, prompt in enumerate(prompts)
-                }
-                for future in as_completed(future_to_idx):
-                    idx = future_to_idx[future]
-                    try:
-                        results[idx] = future.result()
-                    except Exception as e:
-                        results[idx] = f"Error: {e}"
-            return results
+            return _call_batched_query(prompts, model)
 
         # Inject LLM functions if provided
         # Names: llm_query (single), llm_query_batched (official RLM), llm_batch (alias)
