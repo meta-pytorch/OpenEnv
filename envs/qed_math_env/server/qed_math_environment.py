@@ -12,6 +12,7 @@ submitted proofs using LLM-based rubric grading (0-7 scale).
 """
 
 import json
+from dataclasses import dataclass
 from pathlib import Path
 import random
 from uuid import uuid4
@@ -34,13 +35,23 @@ except ImportError:
     from models import ProblemObservation, ProofSubmissionObservation
 
 from .mcp_server import register_mcp_tools
-from .rubric import MathProofRubric
+from .rubric import GradingResult, MathProofRubric, parse_schema
 
 
 DEFAULT_EVALUATOR_PROMPT = (
     "You are a strict math proof grader. Score the submission from 0 to 7 based on "
     "mathematical correctness, completeness, and logical rigor."
 )
+
+
+@dataclass
+class QEDMathConfig:
+    """Configuration for QEDMathEnvironment rubric and dataset behavior."""
+
+    dataset_path: str | None = None
+    grader_model: str = "gemini-3-pro"
+    prompt_name: str = "v2"
+    custom_reward_threshold: bool = False
 
 
 def load_evaluator_prompt(prompt_name: str) -> str:
@@ -153,16 +164,20 @@ class QEDMathEnvironment(MCPEnvironment):
     def __init__(
         self,
         dataset_path: str | None = None,
-        grader_model: str = "gemini-2.0-flash",
-        prompt_name: str = "v2",
+        grader_model: str | None = None,
+        prompt_name: str | None = None,
+        custom_reward_threshold: bool | None = None,
+        config: QEDMathConfig | None = None,
     ):
         """
         Initialize the QED Math environment.
 
         Args:
             dataset_path: Optional path to problems dataset.
-            grader_model: LLM model to use for grading (default: gemini-2.0-flash).
-            prompt_name: Grading prompt version (default: v2).
+            grader_model: LLM model to use for grading.
+            prompt_name: Grading prompt version.
+            custom_reward_threshold: Apply QED-Nano-style score thresholding.
+            config: Optional consolidated configuration object.
         """
         mcp = FastMCP("qed_math_env")
 
@@ -170,16 +185,35 @@ class QEDMathEnvironment(MCPEnvironment):
 
         super().__init__(mcp)
 
-        self._dataset_path = dataset_path
-        self._grader_model = grader_model
-        self._prompt_name = prompt_name
-        self._prompt_template = load_evaluator_prompt(prompt_name)
-        self._problems: list[dict] = load_problems(dataset_path)
+        # Prefer explicit constructor args when provided; otherwise use config.
+        base_config = config or QEDMathConfig()
+        self._config = QEDMathConfig(
+            dataset_path=(
+                dataset_path if dataset_path is not None else base_config.dataset_path
+            ),
+            grader_model=(
+                grader_model if grader_model is not None else base_config.grader_model
+            ),
+            prompt_name=(
+                prompt_name if prompt_name is not None else base_config.prompt_name
+            ),
+            custom_reward_threshold=(
+                custom_reward_threshold
+                if custom_reward_threshold is not None
+                else base_config.custom_reward_threshold
+            ),
+        )
+
+        self._dataset_path = self._config.dataset_path
+        self._grader_model = self._config.grader_model
+        self._prompt_name = self._config.prompt_name
+        self._prompt_template = load_evaluator_prompt(self._config.prompt_name)
+        self._problems: list[dict] = load_problems(self._config.dataset_path)
         self._current_problem: dict | None = None
         self._rubric = MathProofRubric(
-            grader_model=grader_model,
+            grader_model=self._config.grader_model,
             prompt_template=self._prompt_template,
-            custom_threshold=False,
+            custom_threshold=self._config.custom_reward_threshold,
         )
         self._state = State(episode_id=str(uuid4()), step_count=0)
         self._reset_count = 0
@@ -187,7 +221,7 @@ class QEDMathEnvironment(MCPEnvironment):
     def reset(
         self,
         seed: Optional[int] = None,
-        problem_id: Optional[str] = None,
+        episode_id: Optional[str] = None,
         **kwargs: Any,
     ) -> Observation:
         """
@@ -195,7 +229,8 @@ class QEDMathEnvironment(MCPEnvironment):
 
         Args:
             seed: Optional random seed for problem selection.
-            problem_id: Optional specific problem ID to load.
+            episode_id: Optional episode identifier.
+            problem_id: Optional specific problem ID to load (via kwargs).
             **kwargs: Additional reset parameters.
 
         Returns:
@@ -206,8 +241,10 @@ class QEDMathEnvironment(MCPEnvironment):
             and return ProblemObservation with problem, reference_solution,
             grading_guidelines, problem_id, and dataset_source.
         """
+        selected_problem_id = kwargs.pop("problem_id", None)
+
         self._state = State(
-            episode_id=str(uuid4()),
+            episode_id=episode_id or str(uuid4()),
             step_count=0,
         )
         self._reset_count += 1
@@ -218,12 +255,12 @@ class QEDMathEnvironment(MCPEnvironment):
             rubric_reset()
 
         if self._problems:
-            if problem_id is not None:
+            if selected_problem_id is not None:
                 selected = next(
                     (
                         problem
                         for problem in self._problems
-                        if problem.get("problem_id") == problem_id
+                        if problem.get("problem_id") == selected_problem_id
                     ),
                     None,
                 )
@@ -249,7 +286,7 @@ class QEDMathEnvironment(MCPEnvironment):
         return ProblemObservation(
             problem=self._current_problem.get("problem", ""),
             reference_solution=self._current_problem.get("reference_solution", ""),
-            grading_guidelines=str(self._current_problem.get("grading_guidelines", "")),
+            grading_guidelines=parse_schema(self._current_problem.get("grading_guidelines", "") or ""),
             problem_id=self._current_problem.get("problem_id", ""),
             dataset_source=self._current_problem.get("dataset_source", ""),
             done=False,
@@ -375,7 +412,7 @@ class QEDMathEnvironment(MCPEnvironment):
             "reward": 0.0,
         }
 
-    def submit_proof_payload(self, proof: str) -> dict:
+    async def submit_proof_payload(self, proof: str) -> dict:
         """Payload for MCP tool submit_proof."""
         if self._current_problem is None:
             return ProofSubmissionObservation(
@@ -398,24 +435,20 @@ class QEDMathEnvironment(MCPEnvironment):
 
         problem = self._current_problem.get("problem", "")
         reference_solution = self._current_problem.get("reference_solution", "")
+        grading_guidelines = parse_schema(
+            self._current_problem.get("grading_guidelines", "") or ""
+        )
 
-        try:
-            score, feedback = self._rubric.grade(proof, problem, reference_solution)
-        except NotImplementedError:
-            score, feedback = (
-                0,
-                "Grading rubric is not implemented yet for QED-Math. ",
-            )
-
-        score = max(0, min(7, int(score)))
-        reward = self._rubric.normalize_reward(score)
+        result: GradingResult = await self._rubric.grade(
+            proof, problem, reference_solution, grading_guidelines
+        )
 
         return ProofSubmissionObservation(
             proof=proof,
-            score=score,
-            feedback=feedback,
+            score=result.score,
+            feedback=result.feedback,
             done=True,
-            reward=reward,
+            reward=result.reward,
         ).model_dump()
 
     def get_grading_guidelines_payload(self) -> dict:
