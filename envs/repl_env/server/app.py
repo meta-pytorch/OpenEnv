@@ -72,10 +72,9 @@ else:
 def create_repl_environment() -> REPLEnvironment:
     """Factory function that creates REPLEnvironment with server config.
 
-    The environment still creates per-episode LLM functions dynamically during
-    `reset()`, but the base execution and reward configuration is now explicit.
-    This also gives the server a clean place to inject future recursion/runtime
-    backends without changing `create_app(...)`.
+    LLM functions are created dynamically during `reset()` when a client
+    passes `hf_token`. Rewards are computed via the default `REPLRubric`;
+    pass `expected_answer` at reset time for outcome-based scoring.
     """
     return REPLEnvironment(
         max_iterations=REPL_MAX_ITERATIONS,

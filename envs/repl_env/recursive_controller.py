@@ -8,8 +8,9 @@
 Controller composition for recursive backends.
 
 This keeps server-side recursion assembly outside `REPLEnvironment`:
-- backend selection/config
-- cleanup lifecycle
+- backend selection based on max_depth
+- limits configuration
+- uniform callable interface for the environment
 """
 
 from __future__ import annotations

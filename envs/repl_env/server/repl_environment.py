@@ -232,8 +232,11 @@ class REPLEnvironment(Environment):
             hf_token: Optional HuggingFace token for llm_query/llm_query_batched.
                       If provided, creates LLM functions using this token.
                       Security: Token is NOT stored in state or logged.
-            llm_model: Optional model name for LLM functions (default: from env or Qwen3-Coder)
-            **kwargs: Additional reset parameters
+            llm_model: Optional model name for LLM functions (default: from env or Qwen3.5-9B)
+            **kwargs: Additional reset parameters including:
+                expected_answer: Ground truth for rubric-based reward scoring
+                rlm_max_depth: Override max recursion depth
+                rlm_max_iterations: Override max iterations for recursive child runners
 
         Returns:
             Initial REPLObservation with environment ready message
