@@ -37,17 +37,13 @@ Environment Variables:
 
 import os
 
-# Support both in-repo and standalone imports
 try:
-    # In-repo imports (when running from OpenEnv repository)
     from openenv.core.env_server.http_server import create_app
 
     from ..models import REPLAction, REPLObservation
     from .repl_environment import REPLEnvironment
 except ImportError:
     from models import REPLAction, REPLObservation
-
-    # Standalone imports (when environment is standalone with openenv from pip)
     from openenv.core.env_server.http_server import create_app
     from server.repl_environment import REPLEnvironment
 
@@ -68,13 +64,14 @@ REPL_RLM_MAX_ITERATIONS = int(os.environ.get("REPL_RLM_MAX_ITERATIONS", "30"))
 
 # Log LLM configuration
 if HF_TOKEN:
-    print(f"[REPL Server] LLM support ENABLED (server token configured)")
+    print("[REPL Server] LLM support ENABLED (server token configured)")
     print(f"[REPL Server] Default model: {LLM_MODEL}")
 else:
     print("[REPL Server] No server HF_TOKEN configured")
     print(
         "[REPL Server] LLM functions will be enabled if client passes hf_token in reset()"
     )
+
 
 def create_repl_environment() -> REPLEnvironment:
     """Factory function that creates REPLEnvironment with server config.
@@ -95,6 +92,7 @@ def create_repl_environment() -> REPLEnvironment:
         rlm_max_depth=REPL_RLM_MAX_DEPTH,
         rlm_max_iterations=REPL_RLM_MAX_ITERATIONS,
     )
+
 
 # Create the app with web interface and README integration
 app = create_app(

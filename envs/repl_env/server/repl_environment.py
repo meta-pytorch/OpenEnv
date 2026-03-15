@@ -19,10 +19,9 @@ References:
 import os
 import re
 from collections.abc import Callable
-from typing import Any, Dict, List, Optional
+from typing import Any, List, Optional
 from uuid import uuid4
 
-# Support both in-repo and standalone imports
 try:
     from openenv.core.env_server.interfaces import Environment
     from openenv.core.env_server.types import EnvironmentMetadata
@@ -37,12 +36,10 @@ except ImportError:
 
 try:
     from .python_executor import PythonExecutor
-    from ..prompts import RLM_SYSTEM_PROMPT
-    from ..recursive_backends import BackendLimits, DirectLMBackend, ServerChildRLMBackend
+    from ..recursive_controller import create_server_recursive_controller
 except ImportError:
     from python_executor import PythonExecutor
-    from prompts import RLM_SYSTEM_PROMPT
-    from recursive_backends import BackendLimits, DirectLMBackend, ServerChildRLMBackend
+    from recursive_controller import create_server_recursive_controller
 
 
 class REPLEnvironment(Environment):
@@ -90,7 +87,9 @@ class REPLEnvironment(Environment):
         llm_query_fn: Optional[Callable[[str], str]] = None,
         llm_batch_fn: Optional[Callable[[List[str]], List[str]]] = None,
         subcall_fn: Optional[Callable[[str, Optional[str]], str]] = None,
-        subcall_batch_fn: Optional[Callable[[List[str], Optional[str]], List[str]]] = None,
+        subcall_batch_fn: Optional[
+            Callable[[List[str], Optional[str]], List[str]]
+        ] = None,
         rlm_max_depth: int = 1,
         rlm_max_iterations: int | None = None,
     ):
@@ -136,7 +135,7 @@ class REPLEnvironment(Environment):
         # State (initialized on reset)
         self._state: Optional[REPLState] = None
         self._executor: Optional[PythonExecutor] = None
-        self._runtime_backend = None
+        self._runtime_controller = None
 
     @staticmethod
     def _build_hf_chat_fn(
@@ -148,9 +147,7 @@ class REPLEnvironment(Environment):
         except ImportError:
             raise RuntimeError("huggingface_hub is required for HF-backed recursion")
 
-        default_model = llm_model or os.environ.get(
-            "LLM_MODEL", "Qwen/Qwen3.5-9B"
-        )
+        default_model = llm_model or os.environ.get("LLM_MODEL", "Qwen/Qwen3.5-9B")
         client = InferenceClient(model=default_model, token=hf_token)
 
         def chat_fn(messages: list[dict[str, str]], model: str | None = None) -> str:
@@ -210,28 +207,15 @@ class REPLEnvironment(Environment):
 
         self.llm_query_fn = llm_query
         self.llm_batch_fn = llm_query_batched
-        from ..runner import LocalRLMRunner
-
-        limits = BackendLimits(
+        self._runtime_controller = create_server_recursive_controller(
+            chat_fn,
             max_depth=self.rlm_max_depth,
-            max_batch_workers=8,
+            max_iterations=self.rlm_max_iterations,
         )
-        if self.rlm_max_depth > 1:
-            self._runtime_backend = ServerChildRLMBackend(
-                chat_fn,
-                runner_factory=LocalRLMRunner,
-                system_prompt=RLM_SYSTEM_PROMPT,
-                max_iterations=self.rlm_max_iterations,
-                env_max_iterations_multiplier=5,
-                depth=0,
-                limits=limits,
-            )
-            self.subcall_fn = self._runtime_backend.recursive_query
-            self.subcall_batch_fn = self._runtime_backend.recursive_query_batched
-        else:
-            self._runtime_backend = DirectLMBackend(chat_fn, depth=0, limits=limits)
-            self.subcall_fn = None
-            self.subcall_batch_fn = None
+        self.llm_query_fn = self._runtime_controller.llm_query_fn
+        self.llm_batch_fn = self._runtime_controller.llm_batch_fn
+        self.subcall_fn = self._runtime_controller.rlm_query_fn
+        self.subcall_batch_fn = self._runtime_controller.rlm_batch_fn
 
     def reset(
         self,
@@ -277,7 +261,9 @@ class REPLEnvironment(Environment):
         # Create LLM functions if not already provided at init.
         # Match example/client behavior by allowing anonymous routed inference too.
         if not self.llm_query_fn:
-            effective_token = hf_token if hf_token is not None else os.environ.get("HF_TOKEN")
+            effective_token = (
+                hf_token if hf_token is not None else os.environ.get("HF_TOKEN")
+            )
             self._create_llm_functions(effective_token, llm_model)
 
         # Initialize state
@@ -616,6 +602,9 @@ class REPLEnvironment(Environment):
 
     def close(self) -> None:
         """Cleanup resources."""
+        if self._runtime_controller is not None:
+            self._runtime_controller.close()
+            self._runtime_controller = None
         self._executor = None
         self._state = None
 

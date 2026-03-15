@@ -16,7 +16,7 @@ following the same separation used by the official RLM implementation and DSPy:
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Callable, Optional
+from typing import Callable
 
 from .local import LocalREPLEnv
 from .prompts import (
@@ -60,6 +60,9 @@ class LocalRLMRunner:
         max_children_per_batch: int | None = None,
         result_truncation_limit: int | None = None,
         per_child_timeout_s: float | None = None,
+        on_subcall_start: Callable[[int, str, str], None] | None = None,
+        on_subcall_complete: Callable[[int, str, float, str | None], None]
+        | None = None,
         verbose: bool = False,
     ) -> None:
         self.llm_chat_fn = llm_chat_fn
@@ -74,6 +77,8 @@ class LocalRLMRunner:
         self.max_children_per_batch = max_children_per_batch
         self.result_truncation_limit = result_truncation_limit
         self.per_child_timeout_s = per_child_timeout_s
+        self.on_subcall_start = on_subcall_start
+        self.on_subcall_complete = on_subcall_complete
         self.verbose = verbose
 
     def _default_backend_factory(
@@ -95,6 +100,8 @@ class LocalRLMRunner:
             env_max_iterations_multiplier=kwargs["env_max_iterations_multiplier"],
             depth=kwargs["depth"],
             limits=limits,
+            on_subcall_start=self.on_subcall_start,
+            on_subcall_complete=self.on_subcall_complete,
         )
 
     def run(
@@ -162,7 +169,8 @@ class LocalRLMRunner:
                     if result.done:
                         return RLMRunResult(
                             final_answer=env.state().final_answer,
-                            messages=messages + [{"role": "assistant", "content": response}],
+                            messages=messages
+                            + [{"role": "assistant", "content": response}],
                             iterations=iteration,
                             depth=self.depth,
                             child_traces=list(getattr(backend, "child_traces", [])),

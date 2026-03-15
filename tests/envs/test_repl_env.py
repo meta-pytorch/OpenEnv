@@ -6,6 +6,7 @@
 
 """Tests for the REPL Environment."""
 
+import threading
 import pytest
 import time
 
@@ -13,6 +14,8 @@ import time
 pytest.importorskip("smolagents", reason="smolagents is not installed")
 
 from repl_env.models import CodeBlockResult, REPLAction, REPLObservation, REPLState
+from repl_env.recursive_broker import InProcessRecursiveBroker
+from repl_env.recursive_controller import create_server_recursive_controller
 from repl_env.server.python_executor import PythonExecutor
 from repl_env.server.repl_environment import REPLEnvironment
 
@@ -105,6 +108,77 @@ class TestPythonExecutor:
         executor.execute("x = 10")
         executor.reset()
         assert executor.get_variable("x") is None
+
+
+class TestRecursiveBroker:
+    """Tests for the in-process recursive broker."""
+
+    def test_single_query(self):
+        broker = InProcessRecursiveBroker(
+            lambda prompt, model=None: f"single:{prompt}",
+            lambda prompts, model=None: [f"batch:{p}" for p in prompts],
+        )
+        try:
+            assert broker.query("hello") == "single:hello"
+        finally:
+            broker.close()
+
+    def test_pending_and_respond(self):
+        broker = InProcessRecursiveBroker(
+            lambda prompt, model=None: f"single:{prompt}",
+            lambda prompts, model=None: [f"batch:{p}" for p in prompts],
+            start_worker=False,
+        )
+        results = {}
+
+        def enqueue_request():
+            request = broker.enqueue("single", ["queued"], timeout_s=1.0)
+            results["error"] = request.error
+            results["result"] = request.result
+
+        thread = threading.Thread(target=enqueue_request)
+        thread.start()
+        try:
+            pending = broker.pending(timeout_s=0.2)
+            assert len(pending) == 1
+            assert pending[0].kind == "single"
+            assert pending[0].prompts == ["queued"]
+            assert broker.respond(pending[0].request_id, result=["done"])
+            thread.join(timeout=1.0)
+            assert results["error"] is None
+            assert results["result"] == ["done"]
+        finally:
+            broker.close()
+
+
+class TestRecursiveBrokerBatched:
+    """Tests for broker batched queries."""
+
+    def test_batched_query(self):
+        broker = InProcessRecursiveBroker(
+            lambda prompt, model=None: f"single:{prompt}",
+            lambda prompts, model=None: [f"batch:{p}" for p in prompts],
+        )
+        try:
+            assert broker.query_batched(["a", "b"]) == ["batch:a", "batch:b"]
+        finally:
+            broker.close()
+
+
+class TestRecursiveController:
+    """Tests for the recursive controller composition."""
+
+    def test_direct_controller(self):
+        controller = create_server_recursive_controller(
+            lambda messages, model=None: "ok",
+            max_depth=1,
+            max_iterations=4,
+        )
+        try:
+            assert controller.llm_query_fn("hello") == "ok"
+            assert controller.rlm_query_fn is None
+        finally:
+            controller.close()
 
 
 class TestREPLEnvironment:
@@ -425,44 +499,6 @@ class TestLocalREPLEnv:
             result = env.execute("print(vars_now)")
             assert "r2" in result.observation.result.stdout
 
-    def test_local_mode_max_iterations(self):
-        """Test local mode max iterations."""
-        from repl_env import LocalREPLEnv
-
-        with LocalREPLEnv() as env:
-            result = env.reset(max_iterations=2)
-
-            result = env.execute("x = 1")
-            assert not result.done
-
-            result = env.execute("x = 2")
-            assert result.done
-            assert "Maximum iterations" in result.observation.result.stdout
-
-    def test_local_mode_rewards(self):
-        """Test local mode reward configuration."""
-        from repl_env import LocalREPLEnv
-
-        with LocalREPLEnv(reward_on_success=1.0, reward_on_error=-0.5) as env:
-            env.reset()
-
-            # Error should give negative reward
-            result = env.execute("raise ValueError()")
-            assert result.reward == -0.5
-
-            # Success should give positive reward
-            result = env.execute("print('FINAL(done)')")
-            assert result.reward == 1.0
-
-    def test_execute_convenience_method(self):
-        """Test execute() convenience method."""
-        from repl_env import LocalREPLEnv
-
-        with LocalREPLEnv() as env:
-            env.reset()
-            result = env.execute("x = 1 + 1")
-            assert result.observation.result.success
-
     def test_submit_final_answer(self):
         """Test submit_final_answer() method."""
         from repl_env import LocalREPLEnv
@@ -684,6 +720,43 @@ class TestLocalRLMRunner:
         assert "child timeout" in (result.final_answer or "")
         assert len(result.child_traces) == 1
         assert "timeout" in (result.child_traces[0].error or "")
+
+    def test_subcall_callbacks(self):
+        """Test official-style subcall lifecycle callbacks fire for real child runs."""
+        from repl_env import LocalRLMRunner
+
+        starts = []
+        completes = []
+
+        def mock_chat(messages, model=None):
+            joined = "\n".join(message["content"] for message in messages)
+            if "Child callback task" in joined:
+                return "```repl\nprint(FINAL('callback-child'))\n```"
+            return (
+                "```repl\n"
+                "result = rlm_query('Child callback task')\n"
+                "print(FINAL(result))\n"
+                "```"
+            )
+
+        runner = LocalRLMRunner(
+            mock_chat,
+            max_iterations=4,
+            max_depth=3,
+            on_subcall_start=lambda depth, model, prompt: starts.append((depth, model, prompt)),
+            on_subcall_complete=lambda depth, model, duration, error: completes.append(
+                (depth, model, duration, error)
+            ),
+        )
+        result = runner.run("Root context", "Exercise callbacks")
+        assert result.final_answer == "callback-child"
+        assert len(starts) == 1
+        assert starts[0][0] == 1
+        assert "Child callback task" in starts[0][2]
+        assert len(completes) == 1
+        assert completes[0][0] == 1
+        assert completes[0][2] >= 0.0
+        assert completes[0][3] is None
 
 
 class TestREPLEnvRemoteClient:

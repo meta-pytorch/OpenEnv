@@ -36,7 +36,9 @@ class LocalREPLEnv:
         llm_query_fn: Optional[Callable[[str], str]] = None,
         llm_batch_fn: Optional[Callable[[list[str]], list[str]]] = None,
         subcall_fn: Optional[Callable[[str, Optional[str]], str]] = None,
-        subcall_batch_fn: Optional[Callable[[list[str], Optional[str]], list[str]]] = None,
+        subcall_batch_fn: Optional[
+            Callable[[list[str], Optional[str]], list[str]]
+        ] = None,
         max_output_length: int = 8192,
         context_preview_length: int = 500,
         reward_on_success: float = 1.0,

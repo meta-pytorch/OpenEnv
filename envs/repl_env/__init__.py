@@ -44,7 +44,6 @@ from .client import REPLEnv
 from .local import LocalREPLEnv
 from .models import CodeBlockResult, REPLAction, REPLObservation, REPLState
 from .prompts import (
-    build_initial_prompt,
     build_rlm_system_prompt,
     build_user_prompt,
     # Parsing utilities
@@ -76,7 +75,6 @@ __all__ = [
     "QueryMetadata",
     "build_rlm_system_prompt",
     "build_user_prompt",
-    "build_initial_prompt",
     # Parsing utilities
     "extract_code_blocks",
     "format_observations",

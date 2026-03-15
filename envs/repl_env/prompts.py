@@ -119,9 +119,7 @@ Think step by step carefully, plan, and execute this plan immediately in your re
 """
 
 
-RLM_SYSTEM_PROMPT = textwrap.dedent(
-    _RLM_SYSTEM_PROMPT_BASE.format(cost_guidance="")
-)
+RLM_SYSTEM_PROMPT = textwrap.dedent(_RLM_SYSTEM_PROMPT_BASE.format(cost_guidance=""))
 
 
 # =============================================================================
@@ -236,37 +234,6 @@ def build_user_prompt(
             prompt += f"\n\nNote: You have {history_count} prior conversation histories available (history_0 through history_{history_count - 1})."
 
     return {"role": "user", "content": prompt}
-
-
-# =============================================================================
-# Convenience Functions (for backward compatibility)
-# =============================================================================
-
-
-def build_initial_prompt(
-    task_prompt: str,
-    context_length: int,
-    context_preview: Optional[str] = None,
-    variables: Optional[List[str]] = None,
-    **kwargs,
-) -> str:
-    """Build the initial user prompt (convenience wrapper).
-
-    Args:
-        task_prompt: The task to accomplish
-        context_length: Total length of the context
-        context_preview: Preview of the context (not used)
-        variables: List of available variable names (not used)
-
-    Returns:
-        Formatted initial prompt string
-    """
-    return build_user_prompt(root_prompt=task_prompt, iteration=0)["content"]
-
-
-def format_observation(observation) -> str:
-    """Backward-compatible wrapper for a single observation."""
-    return format_observations([observation])
 
 
 # =============================================================================

@@ -17,7 +17,7 @@ from __future__ import annotations
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
-from typing import Callable, Optional, Protocol
+from typing import Callable, Protocol
 
 
 ChatFn = Callable[..., str]
@@ -83,9 +83,7 @@ class DirectLMBackend:
             result = self.llm_chat_fn([{"role": "user", "content": prompt}])
         return self._truncate(result)
 
-    def query_batched(
-        self, prompts: list[str], model: str | None = None
-    ) -> list[str]:
+    def query_batched(self, prompts: list[str], model: str | None = None) -> list[str]:
         if not prompts:
             return []
         max_workers = min(len(prompts), self.limits.max_batch_workers)
@@ -131,12 +129,17 @@ class LocalChildRLMBackend(DirectLMBackend):
         env_max_iterations_multiplier: int,
         depth: int = 0,
         limits: BackendLimits | None = None,
+        on_subcall_start: Callable[[int, str, str], None] | None = None,
+        on_subcall_complete: Callable[[int, str, float, str | None], None]
+        | None = None,
     ) -> None:
         super().__init__(llm_chat_fn, depth=depth, limits=limits)
         self.runner_factory = runner_factory
         self.system_prompt = system_prompt
         self.max_iterations = max_iterations
         self.env_max_iterations_multiplier = env_max_iterations_multiplier
+        self.on_subcall_start = on_subcall_start
+        self.on_subcall_complete = on_subcall_complete
         self._children_spawned = 0
 
     def recursive_query(self, prompt: str, model: str | None = None) -> str:
@@ -150,6 +153,12 @@ class LocalChildRLMBackend(DirectLMBackend):
         start = time.perf_counter()
         error: str | None = None
         result_text = ""
+        resolved_model = model or "default"
+        if self.on_subcall_start is not None:
+            try:
+                self.on_subcall_start(next_depth, str(resolved_model), prompt[:80])
+            except Exception:
+                pass
         try:
             child = self.runner_factory(
                 self.llm_chat_fn,
@@ -160,6 +169,8 @@ class LocalChildRLMBackend(DirectLMBackend):
                 env_max_iterations_multiplier=self.env_max_iterations_multiplier,
                 max_batch_workers=self.limits.max_batch_workers,
                 backend_factory=self._child_backend_factory,
+                on_subcall_start=self.on_subcall_start,
+                on_subcall_complete=self.on_subcall_complete,
             )
             if self.limits.per_child_timeout_s is None:
                 result = child.run(prompt, prompt, model=model)
@@ -191,6 +202,16 @@ class LocalChildRLMBackend(DirectLMBackend):
                     error=error,
                 )
             )
+            if self.on_subcall_complete is not None:
+                try:
+                    self.on_subcall_complete(
+                        next_depth,
+                        str(resolved_model),
+                        duration,
+                        error,
+                    )
+                except Exception:
+                    pass
 
     def recursive_query_batched(
         self, prompts: list[str], model: str | None = None
@@ -215,7 +236,9 @@ class LocalChildRLMBackend(DirectLMBackend):
                     results[idx] = f"Error: {exc}"
         return results
 
-    def _child_backend_factory(self, llm_chat_fn: ChatFn, **kwargs) -> "LocalChildRLMBackend":
+    def _child_backend_factory(
+        self, llm_chat_fn: ChatFn, **kwargs
+    ) -> "LocalChildRLMBackend":
         return LocalChildRLMBackend(
             llm_chat_fn,
             runner_factory=self.runner_factory,
@@ -224,10 +247,6 @@ class LocalChildRLMBackend(DirectLMBackend):
             env_max_iterations_multiplier=kwargs["env_max_iterations_multiplier"],
             depth=kwargs["depth"],
             limits=self.limits,
+            on_subcall_start=self.on_subcall_start,
+            on_subcall_complete=self.on_subcall_complete,
         )
-
-
-class ServerChildRLMBackend(LocalChildRLMBackend):
-    """Server-backed child backend; currently reuses local child runner orchestration."""
-
-    pass

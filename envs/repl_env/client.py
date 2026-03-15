@@ -15,7 +15,7 @@ This module intentionally contains only the remote OpenEnv client.
 
 from __future__ import annotations
 
-from typing import Any, Optional
+from typing import Any
 
 try:
     from openenv.core.client_types import StepResult
@@ -113,4 +113,3 @@ class REPLEnv(EnvClient[REPLAction, REPLObservation, REPLState]):
     async def list_variables(self) -> list[str]:
         """Return the current REPL namespace keys."""
         return (await self.state()).namespace_keys
-
