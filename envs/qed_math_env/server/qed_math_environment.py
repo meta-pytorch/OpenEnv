@@ -43,7 +43,7 @@ except ImportError:
     from models import ProblemObservation, ProofSubmissionObservation
 
 from .mcp_server import register_mcp_tools
-from .rubric import GradingResult, MathProofRubric, parse_schema
+from .rubric import GradingResult, MathProofRubric, length_penalty, parse_schema
 
 
 DEFAULT_EVALUATOR_PROMPT = (
@@ -95,6 +95,36 @@ def timeout(seconds: int = 1):
         signal.signal(sigalrm, original_handler)
 
 
+def remove_reasoning(
+    completion: str,
+    reasoning_delimiters: list[str] | None = None,
+) -> str:
+    """Strip reasoning traces from model output before verification.
+
+    When *reasoning_delimiters* is provided, splits on each delimiter in
+    order and keeps only the text after the last occurrence.  This handles
+    outputs that include ``<think>...</think>`` or similar chain-of-thought
+    wrapping.
+
+    Args:
+        completion: Raw model output.
+        reasoning_delimiters: Ordered list of delimiter strings to split on.
+            ``None`` or empty list disables stripping.
+
+    Returns:
+        The final-answer portion of the completion, or an empty string if
+        no delimiter was found (indicating the model never produced a
+        final-answer section).
+    """
+    if not reasoning_delimiters:
+        return completion
+    for delim in reasoning_delimiters:
+        if delim in completion:
+            completion = completion.split(delim)[-1]
+            return completion.strip()
+    return ""
+
+
 @dataclass
 class QEDMathConfig:
     """Configuration for QEDMathEnvironment rubric and dataset behavior."""
@@ -104,6 +134,10 @@ class QEDMathConfig:
     prompt_name: str = "v2"
     custom_reward_threshold: bool = False
     max_attempts: int = 1
+    discount_factor: float = 1.0
+    buffer_tokens: int = 0
+    max_tokens: int = 0
+    reasoning_delimiters: list[str] | None = None
 
 
 def load_evaluator_prompt(prompt_name: str) -> str:
@@ -488,6 +522,10 @@ class QEDMathEnvironment(MCPEnvironment):
             max_attempts=(
                 max_attempts if max_attempts is not None else base_config.max_attempts
             ),
+            discount_factor=base_config.discount_factor,
+            buffer_tokens=base_config.buffer_tokens,
+            max_tokens=base_config.max_tokens,
+            reasoning_delimiters=base_config.reasoning_delimiters,
         )
 
         self._dataset_path = self._config.dataset_path
@@ -501,6 +539,10 @@ class QEDMathEnvironment(MCPEnvironment):
             prompt_template=self._prompt_template,
             custom_threshold=self._config.custom_reward_threshold,
         )
+        self._discount_factor = self._config.discount_factor
+        self._buffer_tokens = self._config.buffer_tokens
+        self._max_tokens = self._config.max_tokens
+        self._reasoning_delimiters = self._config.reasoning_delimiters
         self._state = State(episode_id=str(uuid4()), step_count=0)
         self._reset_count = 0
         self._attempt_count = 0
@@ -867,6 +909,10 @@ class QEDMathEnvironment(MCPEnvironment):
             reward=score / 7.0,
         )
 
+    def _strip_reasoning(self, text: str) -> str:
+        """Strip reasoning traces using configured delimiters."""
+        return remove_reasoning(text, self._reasoning_delimiters)
+
     async def _grade_submission(self, submission: str) -> GradingResult:
         if self._current_problem is None:
             return GradingResult(
@@ -874,6 +920,15 @@ class QEDMathEnvironment(MCPEnvironment):
                 feedback="No active problem. Call reset() first.",
                 reward=0.0,
             )
+
+        # Strip reasoning traces (e.g. <think>...</think>) before grading,
+        # matching QED-Nano rollout behavior (remove_reasoning).
+        grading_input = self._strip_reasoning(submission)
+        if not grading_input.strip() and submission.strip():
+            # Reasoning stripping produced empty output — grade original
+            # to avoid silently awarding 0 for valid submissions that
+            # don't follow the expected delimiter pattern.
+            grading_input = submission
 
         problem = self._current_problem.get("problem", "")
         reference_solution = self._current_problem.get("reference_solution", "")
@@ -883,17 +938,58 @@ class QEDMathEnvironment(MCPEnvironment):
         evaluation_mode = self._current_problem.get("evaluation_mode", "proof")
 
         if evaluation_mode == "answer":
-            return self._grade_answer_submission(submission, reference_solution)
+            return self._grade_answer_submission(grading_input, reference_solution)
 
         return await self._rubric.grade(
-            submission,
+            grading_input,
             problem,
             reference_solution,
             grading_guidelines,
         )
 
-    async def submit_proof_payload(self, proof: str) -> dict:
-        """Payload for MCP tool submit_proof."""
+    def _apply_reward_shaping(
+        self,
+        reward: float,
+        output_length_tokens: int,
+    ) -> float:
+        """Apply discount factor and length penalty to a base reward.
+
+        Ported from QED-Nano: training/pipelinerl/domains/math/rollouts.py.
+
+        Discount: ``reward *= discount_factor ** output_length_tokens``
+        Length penalty: additive penalty when output approaches max_tokens.
+
+        Args:
+            reward: Base normalized reward from grading.
+            output_length_tokens: Token count of the agent's generation.
+                When 0 or negative, shaping is skipped.
+
+        Returns:
+            Shaped reward.
+        """
+        if output_length_tokens <= 0:
+            return reward
+
+        reward = reward * (self._discount_factor ** output_length_tokens)
+
+        if self._buffer_tokens > 0 and self._max_tokens > 0:
+            reward += length_penalty(
+                self._max_tokens, output_length_tokens, self._buffer_tokens
+            )
+
+        return reward
+
+    async def submit_proof_payload(
+        self, proof: str, output_length_tokens: int = 0
+    ) -> dict:
+        """Payload for MCP tool submit_proof.
+
+        Args:
+            proof: The proof text submitted by the agent.
+            output_length_tokens: Optional token count of the agent generation.
+                When provided (>0), discount factor and length penalty are
+                applied to the reward, matching QED-Nano training semantics.
+        """
         if self._current_problem is None:
             return ProofSubmissionObservation(
                 proof=proof,
@@ -920,6 +1016,11 @@ class QEDMathEnvironment(MCPEnvironment):
             )
         else:
             result = await self._grade_submission(proof)
+
+        # Apply discount factor and length penalty when token count provided.
+        shaped_reward = self._apply_reward_shaping(
+            result.reward, output_length_tokens
+        )
 
         success_threshold = _coerce_positive_int(
             self._current_problem.get("success_score_threshold"),
@@ -948,7 +1049,7 @@ class QEDMathEnvironment(MCPEnvironment):
             score=result.score,
             feedback=feedback,
             done=done,
-            reward=result.reward,
+            reward=shaped_reward,
             problem_type=problem_type,
             attempt_number=self._attempt_count,
             attempts_remaining=attempts_remaining,
@@ -956,6 +1057,9 @@ class QEDMathEnvironment(MCPEnvironment):
             metadata={
                 "grading_progress": grading_progress,
                 "status": grading_progress["status"],
+                "base_reward": result.reward,
+                "shaped_reward": shaped_reward,
+                "output_length_tokens": output_length_tokens,
             },
         ).model_dump()
 
