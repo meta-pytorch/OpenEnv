@@ -19,6 +19,8 @@ dependencies = [
     # "openenv-core[core] @ git+https://github.com/meta-pytorch/OpenEnv.git",
     "openenv-core[core]>=0.2.1",
     # Environment-specific dependencies
+    "datasets>=4.7.0",
+    "math-verify[antlr4_13_2]>=0.9.0"
     # Add all dependencies needed for your environment here
     # Examples:
     # "numpy>=1.19.0",

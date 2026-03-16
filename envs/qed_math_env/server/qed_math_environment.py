@@ -12,11 +12,18 @@ submitted proofs using LLM-based rubric grading (0-7 scale).
 """
 
 import json
+import logging
+import signal
 from dataclasses import dataclass
+from contextlib import contextmanager
 from pathlib import Path
+from datasets import load_dataset
+
 import random
 from uuid import uuid4
 from typing import Any, Optional
+
+import math_verify
 
 from fastmcp import FastMCP
 
@@ -43,15 +50,59 @@ DEFAULT_EVALUATOR_PROMPT = (
     "mathematical correctness, completeness, and logical rigor."
 )
 
+logger = logging.getLogger(__name__)
+
+DatasetSource = str | dict[str, Any] | list[str | dict[str, Any]] | None
+
+
+class UnparsableException(Exception):
+    """Raised when a math answer cannot be parsed for verification."""
+
+
+class NoAnswerException(Exception):
+    """Raised when a model output does not contain a boxed final answer."""
+
+
+class EmptyBoxedException(Exception):
+    """Raised when a boxed final answer is present but empty."""
+
+
+class TimeoutException(Exception):
+    """Raised when verification computation times out."""
+
+
+@contextmanager
+def timeout(seconds: int = 1):
+    """QED-Nano-style timeout guard used around math_verify.verify."""
+
+    def timeout_handler(signum, frame):
+        raise TimeoutException("Computation timed out")
+
+    # Windows does not provide SIGALRM/signal.alarm.
+    sigalrm = getattr(signal, "SIGALRM", None)
+    alarm_fn = getattr(signal, "alarm", None)
+    if sigalrm is None or alarm_fn is None:
+        yield
+        return
+
+    original_handler = signal.signal(sigalrm, timeout_handler)
+    alarm_fn(seconds)
+    try:
+        yield
+    finally:
+        alarm_fn(0)
+        signal.signal(sigalrm, original_handler)
+
 
 @dataclass
 class QEDMathConfig:
     """Configuration for QEDMathEnvironment rubric and dataset behavior."""
 
-    dataset_path: str | None = None
+    dataset_path: DatasetSource = None
     grader_model: str = "gemini-3-pro"
     prompt_name: str = "v2"
     custom_reward_threshold: bool = False
+    max_attempts: int = 1
 
 
 def load_evaluator_prompt(prompt_name: str) -> str:
@@ -72,53 +123,77 @@ def load_evaluator_prompt(prompt_name: str) -> str:
     return DEFAULT_EVALUATOR_PROMPT
 
 
-def _normalize_problem(raw_problem: dict, index: int, dataset_source: str) -> dict:
-    """Map heterogeneous dataset rows to canonical QED-Math fields."""
-    return {
-        "problem": raw_problem.get("problem", ""),
-        "reference_solution": raw_problem.get("solution", ""),
-        "grading_guidelines": raw_problem.get("grading_guidelines")
-        or raw_problem.get("rubrics", ""),
-        "problem_id": raw_problem.get("problem_id")
-        or raw_problem.get("id")
-        or f"problem_{index:06d}",
-        "dataset_source": raw_problem.get("dataset", dataset_source),
-    }
+def _bootstrap_problems() -> list[dict]:
+    return [
+        {
+            "problem": "Prove that the sum of two even integers is even.",
+            "reference_solution": "Let a=2m and b=2n. Then a+b=2(m+n), so it is even.",
+            "grading_guidelines": "Award full credit for a correct parity argument.",
+            "problem_id": "bootstrap_000001",
+            "dataset_source": "bootstrap",
+            "problem_type": "proof",
+            "max_attempts": 1,
+        }
+    ]
 
 
-def load_problems(dataset_path: str | None) -> list[dict]:
-    """Load problems from local JSON/JSONL or return a bootstrap sample.
+def _coerce_positive_int(value: Any, default: int) -> int:
+    try:
+        parsed = int(value)
+    except (TypeError, ValueError):
+        return default
+    return parsed if parsed > 0 else default
 
-    Supported local formats:
-    - JSONL: one problem object per line
-    - JSON: list[object] or {"problems": list[object]}
-    """
-    if not dataset_path:
-        return [
-            {
-                "problem": "Prove that the sum of two even integers is even.",
-                "reference_solution": "Let a=2m and b=2n. Then a+b=2(m+n), so it is even.",
-                "grading_guidelines": "Award full credit for a correct parity argument.",
-                "problem_id": "bootstrap_000001",
-                "dataset_source": "bootstrap",
-            }
-        ]
 
-    path = Path(dataset_path)
+def _canonical_problem_type(raw_problem: dict[str, Any]) -> str:
+    explicit_type = _first_present_value(
+        raw_problem,
+        ("problem_type", "type", "problem_kind", "mode"),
+        None,
+    )
+    if isinstance(explicit_type, str):
+        normalized = explicit_type.strip().lower()
+        if normalized in {"proof", "answer", "multi_step"}:
+            return normalized
+
+    if bool(raw_problem.get("multi_step")):
+        return "multi_step"
+
+    evaluation_mode = _first_present_value(raw_problem, ("evaluation_mode",), None)
+    if isinstance(evaluation_mode, str) and evaluation_mode.strip().lower() == "answer":
+        return "answer"
+
+    return "proof"
+
+
+def _coerce_dataset_specs(dataset_path: DatasetSource) -> list[str | dict[str, Any]]:
+    if dataset_path is None:
+        return []
+    if isinstance(dataset_path, (str, dict)):
+        return [dataset_path]
+    if isinstance(dataset_path, list):
+        return dataset_path
+    raise TypeError(
+        "dataset_path must be None, a string path or hub id, a dataset spec dict, or a list of specs."
+    )
+
+
+def _read_local_problem_rows(path: Path) -> list[dict[str, Any]]:
     if not path.exists():
-        raise FileNotFoundError(f"Dataset path does not exist: {dataset_path}")
+        raise FileNotFoundError(f"Dataset path does not exist: {path}")
 
-    rows: list[dict] = []
-    if path.suffix.lower() == ".jsonl":
-        with path.open("r", encoding="utf-8") as f:
-            for line in f:
+    rows: list[dict[str, Any]] = []
+    suffix = path.suffix.lower()
+    if suffix == ".jsonl":
+        with path.open("r", encoding="utf-8") as handle:
+            for line in handle:
                 line = line.strip()
                 if not line:
                     continue
                 parsed = json.loads(line)
                 if isinstance(parsed, dict):
                     rows.append(parsed)
-    elif path.suffix.lower() == ".json":
+    elif suffix == ".json":
         parsed = json.loads(path.read_text(encoding="utf-8"))
         if isinstance(parsed, list):
             rows = [item for item in parsed if isinstance(item, dict)]
@@ -129,15 +204,219 @@ def load_problems(dataset_path: str | None) -> list[dict]:
                 "JSON dataset must be a list of problem objects or contain 'problems'."
             )
     else:
+        raise ValueError("Unsupported dataset format. Expected .jsonl or .json.")
+
+    return rows
+
+
+def _read_hub_problem_rows(
+    spec: str | dict[str, Any],
+) -> tuple[list[dict[str, Any]], str]:
+    if isinstance(spec, str):
+        hub_id = spec
+        config = None
+        split = "train"
+        trust_remote_code = True
+    else:
+        hub_id = str(spec.get("hub_id") or spec.get("dataset") or "").strip()
+        config = spec.get("config")
+        split = spec.get("split", "train")
+        trust_remote_code = spec.get("trust_remote_code", True)
+
+    if not hub_id:
+        raise ValueError("Hub dataset specs must include 'hub_id' or 'dataset'.")
+
+    load_args: tuple[Any, ...] = (hub_id,)
+    if config is not None:
+        load_args += (config,)
+
+    dataset = load_dataset(
+        *load_args,
+        split=split,
+        trust_remote_code=trust_remote_code,
+    )
+    rows = [dict(row) for row in dataset]
+    logger.info(
+        "Loaded QED math hub dataset %s%s split=%s with %d rows",
+        hub_id,
+        f"/{config}" if config else "",
+        split,
+        len(rows),
+    )
+    return rows, hub_id
+
+
+def _first_present_value(
+    raw_problem: dict[str, Any],
+    keys: tuple[str, ...],
+    default: Any = None,
+) -> Any:
+    """Return the first non-None value for the provided keys.
+
+    This uses key presence rather than truthiness so explicit empty strings in
+    canonical fields are preserved instead of silently falling through to alias
+    fields from other dataset formats.
+    """
+    for key in keys:
+        if key in raw_problem and raw_problem[key] is not None:
+            return raw_problem[key]
+    return default
+
+
+def _normalize_problem(
+    raw_problem: dict[str, Any], index: int, dataset_source: str
+) -> dict:
+    """Map heterogeneous dataset rows to canonical QED-Math fields.
+
+    Canonical environment fields:
+    - problem <- problem | task | Problem
+    - reference_solution <- reference_solution | solution | answer | Solution
+    - grading_guidelines <- grading_guidelines | rubrics | schema | schema_0 |
+      Grading guidelines | details
+    - dataset_source <- dataset_source | dataset | data_source | loader default
+    """
+    problem = _first_present_value(raw_problem, ("problem", "task", "Problem"))
+    if not isinstance(problem, str) or not problem.strip():
+        raise ValueError("Dataset row is missing a non-empty problem statement.")
+
+    reference_solution = _first_present_value(
+        raw_problem,
+        ("reference_solution", "solution", "answer", "Solution"),
+        "",
+    )
+    grading_guidelines = _first_present_value(
+        raw_problem,
+        (
+            "grading_guidelines",
+            "rubrics",
+            "schema",
+            "schema_0",
+            "Grading guidelines",
+            "details",
+        ),
+        "",
+    )
+    problem_id = _first_present_value(
+        raw_problem,
+        ("problem_id", "id"),
+        f"problem_{index:06d}",
+    )
+    resolved_dataset_source = _first_present_value(
+        raw_problem,
+        ("dataset_source", "dataset", "data_source"),
+        dataset_source,
+    )
+    problem_type = _canonical_problem_type(raw_problem)
+    default_max_attempts = 1 if problem_type != "multi_step" else 3
+    max_attempts = _coerce_positive_int(
+        _first_present_value(raw_problem, ("max_attempts", "attempts", "num_attempts"), None),
+        default=default_max_attempts,
+    )
+    success_score_threshold = _coerce_positive_int(
+        _first_present_value(raw_problem, ("success_score_threshold",), None),
+        default=6,
+    )
+    evaluation_mode = _first_present_value(raw_problem, ("evaluation_mode",), None)
+    if isinstance(evaluation_mode, str):
+        evaluation_mode = evaluation_mode.strip().lower()
+    else:
+        evaluation_mode = "answer" if problem_type == "answer" else "proof"
+    if evaluation_mode not in {"proof", "answer"}:
+        evaluation_mode = "proof"
+
+    # Match QED-Nano process_math semantics: answer datasets use boxed gold answers.
+    if (
+        evaluation_mode == "answer"
+        and isinstance(reference_solution, str)
+        and "\\boxed{" not in reference_solution
+    ):
+        reference_solution = f"\\boxed{{{reference_solution}}}"
+
+    return {
+        "problem": problem,
+        "reference_solution": str(reference_solution),
+        "grading_guidelines": grading_guidelines,
+        "problem_id": str(problem_id),
+        "dataset_source": str(resolved_dataset_source),
+        "problem_type": problem_type,
+        "max_attempts": max_attempts,
+        "success_score_threshold": success_score_threshold,
+        "evaluation_mode": evaluation_mode,
+    }
+
+
+def _load_problems_from_spec(
+    spec: str | dict[str, Any],
+    start_index: int,
+) -> list[dict[str, Any]]:
+    if isinstance(spec, dict):
+        if "path" in spec:
+            path = Path(spec["path"])
+            rows = _read_local_problem_rows(path)
+            dataset_source = str(
+                spec.get("dataset_source") or spec.get("dataset") or path.stem
+            )
+        elif "hub_id" in spec or "dataset" in spec:
+            rows, dataset_source = _read_hub_problem_rows(spec)
+        else:
+            raise ValueError(
+                "Dataset spec dict must include either 'path' for local files or 'hub_id'/'dataset' for hub datasets."
+            )
+    else:
+        candidate_path = Path(spec)
+        if candidate_path.exists() or candidate_path.suffix.lower() in {
+            ".json",
+            ".jsonl",
+        }:
+            rows = _read_local_problem_rows(candidate_path)
+            dataset_source = candidate_path.stem
+        elif "/" in spec:
+            rows, dataset_source = _read_hub_problem_rows(spec)
+        else:
+            raise ValueError(
+                "Dataset source must be a local .json/.jsonl path or a Hugging Face dataset id like 'owner/name'."
+            )
+
+    problems: list[dict[str, Any]] = []
+    for offset, row in enumerate(rows, start=1):
+        try:
+            problems.append(
+                _normalize_problem(row, start_index + offset, dataset_source)
+            )
+        except ValueError:
+            logger.warning(
+                "Skipping invalid QED math dataset row from %s at offset %d",
+                dataset_source,
+                offset,
+            )
+
+    return problems
+
+
+def load_problems(dataset_path: DatasetSource) -> list[dict]:
+    """Load problems from local JSON/JSONL files or Hugging Face datasets.
+
+    Supported sources:
+    - Local JSONL: one problem object per line
+    - Local JSON: list[object] or {"problems": list[object]}
+    - Hugging Face hub id: "owner/name"
+    - Hugging Face spec dict: {"hub_id": ..., "config": ..., "split": ...}
+    - Lists mixing the above forms
+    """
+    dataset_specs = _coerce_dataset_specs(dataset_path)
+    if not dataset_specs:
+        return _bootstrap_problems()
+
+    problems: list[dict[str, Any]] = []
+    for spec in dataset_specs:
+        problems.extend(_load_problems_from_spec(spec, start_index=len(problems)))
+
+    if not problems:
         raise ValueError(
-            "Unsupported dataset format. Expected .jsonl or .json."
+            "No valid QED math problems were loaded from the configured dataset source."
         )
 
-    dataset_source = path.stem
-    return [
-        _normalize_problem(problem, idx + 1, dataset_source)
-        for idx, problem in enumerate(rows)
-    ]
+    return problems
 
 
 class QEDMathEnvironment(MCPEnvironment):
@@ -167,6 +446,7 @@ class QEDMathEnvironment(MCPEnvironment):
         grader_model: str | None = None,
         prompt_name: str | None = None,
         custom_reward_threshold: bool | None = None,
+        max_attempts: int | None = None,
         config: QEDMathConfig | None = None,
     ):
         """
@@ -177,6 +457,8 @@ class QEDMathEnvironment(MCPEnvironment):
             grader_model: LLM model to use for grading.
             prompt_name: Grading prompt version.
             custom_reward_threshold: Apply QED-Nano-style score thresholding.
+            max_attempts: Default maximum number of attempts when the
+                dataset row does not provide max_attempts.
             config: Optional consolidated configuration object.
         """
         mcp = FastMCP("qed_math_env")
@@ -202,6 +484,9 @@ class QEDMathEnvironment(MCPEnvironment):
                 if custom_reward_threshold is not None
                 else base_config.custom_reward_threshold
             ),
+            max_attempts=(
+                max_attempts if max_attempts is not None else base_config.max_attempts
+            ),
         )
 
         self._dataset_path = self._config.dataset_path
@@ -217,6 +502,8 @@ class QEDMathEnvironment(MCPEnvironment):
         )
         self._state = State(episode_id=str(uuid4()), step_count=0)
         self._reset_count = 0
+        self._attempt_count = 0
+        self._current_max_attempts = max(1, int(self._config.max_attempts))
 
     def reset(
         self,
@@ -247,6 +534,7 @@ class QEDMathEnvironment(MCPEnvironment):
             episode_id=episode_id or str(uuid4()),
             step_count=0,
         )
+        self._attempt_count = 0
         self._reset_count += 1
 
         # Reset rubric state if the rubric exposes a reset hook.
@@ -283,18 +571,28 @@ class QEDMathEnvironment(MCPEnvironment):
                 },
             )
 
+        self._current_max_attempts = _coerce_positive_int(
+            self._current_problem.get("max_attempts"),
+            default=max(1, int(self._config.max_attempts)),
+        )
+
         return ProblemObservation(
             problem=self._current_problem.get("problem", ""),
             reference_solution=self._current_problem.get("reference_solution", ""),
-            grading_guidelines=parse_schema(self._current_problem.get("grading_guidelines", "") or ""),
+            grading_guidelines=parse_schema(
+                self._current_problem.get("grading_guidelines", "") or ""
+            ),
             problem_id=self._current_problem.get("problem_id", ""),
             dataset_source=self._current_problem.get("dataset_source", ""),
+            problem_type=self._current_problem.get("problem_type", "proof"),
+            max_attempts=self._current_max_attempts,
             done=False,
             reward=0.0,
             metadata={
                 "status": "ready",
                 "reset_count": self._reset_count,
                 "step_count": self._state.step_count,
+                "attempt_count": self._attempt_count,
             },
         )
 
@@ -360,6 +658,10 @@ class QEDMathEnvironment(MCPEnvironment):
                     feedback=str(payload.get("feedback", "")),
                     done=bool(payload.get("done", True)),
                     reward=float(payload.get("reward", 0.0)),
+                    problem_type=str(payload.get("problem_type", "proof")),
+                    attempt_number=int(payload.get("attempt_number", 1)),
+                    attempts_remaining=int(payload.get("attempts_remaining", 0)),
+                    is_correct=bool(payload.get("is_correct", False)),
                 )
                 metadata = dict(obs.metadata)
                 metadata["proof_submission"] = proof_obs.model_dump()
@@ -408,9 +710,123 @@ class QEDMathEnvironment(MCPEnvironment):
             "grading_guidelines": self._current_problem.get("grading_guidelines", ""),
             "problem_id": self._current_problem.get("problem_id", ""),
             "dataset_source": self._current_problem.get("dataset_source", ""),
+            "problem_type": self._current_problem.get("problem_type", "proof"),
+            "max_attempts": self._current_max_attempts,
+            "attempt_count": self._attempt_count,
             "done": False,
             "reward": 0.0,
         }
+
+    def _verify_answer(
+        self,
+        prediction: str,
+        gold: str,
+        strict: bool = True,
+        max_prediction_length: int = 1000,
+    ) -> str:
+        """QED-Nano-style answer verification entrypoint."""
+        if prediction.startswith("countdown"):
+            # QED-Nano routes this to verify_countdown; countdown mode is not
+            # part of QED-Math env right now, so keep status-only behavior.
+            return "unparsable"
+
+        return self._verify_math(
+            prediction=prediction,
+            gold=gold,
+            strict=strict,
+            max_prediction_length=max_prediction_length,
+        )
+
+    @staticmethod
+    def _verify_math(
+        prediction: str,
+        gold: str,
+        strict: bool = True,
+        max_prediction_length: int = 1000,
+    ) -> str:
+        """QED-Nano-style math verification using math_verify.
+
+        Returns one of: correct, wrong, no_answer, unparsable.
+        """
+        try:
+            if not isinstance(prediction, str) or not isinstance(gold, str):
+                raise ValueError("Prediction and gold must be strings")
+
+            boxed_start = prediction.rfind("\\boxed{")
+            if boxed_start < 0:
+                raise NoAnswerException()
+
+            boxed_prediction = prediction[boxed_start:]
+            if "\\boxed{}" in boxed_prediction:
+                raise EmptyBoxedException()
+
+            if len(boxed_prediction) > max_prediction_length:
+                raise UnparsableException()
+
+            gold_parsed = math_verify.parse(gold)
+            boxed_prediction_parsed = math_verify.parse(boxed_prediction)
+            if not boxed_prediction_parsed:
+                raise ValueError("Failed to parse prediction.")
+
+            with timeout(1):
+                equivalent = math_verify.verify(
+                    gold_parsed,
+                    boxed_prediction_parsed,
+                    strict=strict,
+                    timeout_seconds=1,
+                )
+            return "correct" if equivalent else "wrong"
+
+        except Exception as exc:  # noqa: BLE001
+            if isinstance(exc, NoAnswerException):
+                return "no_answer"
+            return "unparsable"
+
+    def _grade_answer_submission(
+        self,
+        submission: str,
+        expected_answer: str,
+    ) -> GradingResult:
+        answer_status = self._verify_answer(
+            prediction=submission,
+            gold=expected_answer,
+            strict=True,
+            max_prediction_length=1000,
+        )
+
+        score = 7 if answer_status == "correct" else 0
+        feedback = f"answer_status={answer_status}"
+
+        return GradingResult(
+            score=score,
+            feedback=feedback,
+            reward=score / 7.0,
+        )
+
+    async def _grade_submission(self, submission: str) -> GradingResult:
+        if self._current_problem is None:
+            return GradingResult(
+                score=0,
+                feedback="No active problem. Call reset() first.",
+                reward=0.0,
+            )
+
+        problem = self._current_problem.get("problem", "")
+        reference_solution = self._current_problem.get("reference_solution", "")
+        grading_guidelines = parse_schema(
+            self._current_problem.get("grading_guidelines", "") or ""
+        )
+        evaluation_mode = self._current_problem.get("evaluation_mode", "proof")
+
+        if evaluation_mode == "answer":
+            return self._grade_answer_submission(submission, reference_solution)
+
+        return await self._rubric.grade(
+            submission,
+            problem,
+            reference_solution,
+            grading_guidelines,
+        )
 
     async def submit_proof_payload(self, proof: str) -> dict:
         """Payload for MCP tool submit_proof."""
@@ -421,34 +837,51 @@ class QEDMathEnvironment(MCPEnvironment):
                 feedback="Proof not graded because no problem is active.",
                 done=True,
                 reward=0.0,
+                problem_type="proof",
+                attempt_number=1,
+                attempts_remaining=0,
+                is_correct=False,
                 metadata={"error": "No active problem. Call reset() first."},
             ).model_dump()
 
+        self._attempt_count += 1
+        problem_type = str(self._current_problem.get("problem_type", "proof"))
+        is_multi_step = problem_type == "multi_step"
+
         if not proof.strip():
-            return ProofSubmissionObservation(
-                proof=proof,
+            result = GradingResult(
                 score=0,
                 feedback="Empty proof submission.",
-                done=True,
                 reward=0.0,
-            ).model_dump()
+            )
+        else:
+            result = await self._grade_submission(proof)
 
-        problem = self._current_problem.get("problem", "")
-        reference_solution = self._current_problem.get("reference_solution", "")
-        grading_guidelines = parse_schema(
-            self._current_problem.get("grading_guidelines", "") or ""
+        success_threshold = _coerce_positive_int(
+            self._current_problem.get("success_score_threshold"),
+            default=6,
         )
+        is_correct = result.score >= success_threshold
+        attempts_remaining = max(0, self._current_max_attempts - self._attempt_count)
+        done = (not is_multi_step) or is_correct or attempts_remaining == 0
 
-        result: GradingResult = await self._rubric.grade(
-            proof, problem, reference_solution, grading_guidelines
-        )
+        feedback = result.feedback
+        if is_multi_step and not done:
+            feedback = (
+                f"{result.feedback} Continue: "
+                f"attempt {self._attempt_count}/{self._current_max_attempts}."
+            )
 
         return ProofSubmissionObservation(
             proof=proof,
             score=result.score,
-            feedback=result.feedback,
-            done=True,
+            feedback=feedback,
+            done=done,
             reward=result.reward,
+            problem_type=problem_type,
+            attempt_number=self._attempt_count,
+            attempts_remaining=attempts_remaining,
+            is_correct=is_correct,
         ).model_dump()
 
     def get_grading_guidelines_payload(self) -> dict:
