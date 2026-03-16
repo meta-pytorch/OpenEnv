@@ -121,6 +121,35 @@ def apply_score_threshold(score: float) -> float:
     return score
 
 
+def length_penalty(
+    max_length: int, sequence_length: int, buffer_tokens: int
+) -> float:
+    """Compute an overlong penalty for sequences approaching *max_length*.
+
+    When ``buffer_tokens`` is 0 the penalty is always 0 (disabled).  Otherwise
+    sequences that exceed ``max_length - buffer_tokens`` but stay within
+    ``max_length`` receive a linearly increasing negative penalty.
+
+    Args:
+        max_length: Maximum allowed token count.
+        sequence_length: Actual token count of the generation.
+        buffer_tokens: Width of the soft penalty zone before *max_length*.
+            0 disables the penalty.
+
+    Returns:
+        A non-positive float: 0.0 when outside the penalty zone, negative
+        when inside.
+    """
+    if buffer_tokens <= 0:
+        return 0.0
+    if (
+        sequence_length > (max_length - buffer_tokens)
+        and sequence_length <= max_length
+    ):
+        return ((max_length - buffer_tokens) - sequence_length) / buffer_tokens
+    return 0.0
+
+
 class MathProofRubric(Rubric):
     """LLM-based rubric for grading mathematical proofs on a 0-7 scale.
 
