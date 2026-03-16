@@ -162,30 +162,102 @@ with LocalREPLEnv() as env:
 
 ### Local Recursive RLM Usage
 
+`LocalRLMRunner` takes any `chat_fn(messages, model=None) -> str`. It works
+with HF Inference API, vLLM, SGLang, Ollama, or any OpenAI-compatible server.
+
+With HF Inference API:
+
 ```python
+from huggingface_hub import InferenceClient
+from repl_env import LocalRLMRunner, RLM_SYSTEM_PROMPT
+
+client = InferenceClient(model="Qwen/Qwen3.5-9B", timeout=300)
+
+def chat_fn(messages, model=None):
+    response = client.chat.completions.create(
+        model=model or "Qwen/Qwen3.5-9B",
+        messages=messages,
+        max_tokens=2048,
+        temperature=0.6,
+        extra_body={"chat_template_kwargs": {"enable_thinking": False}},
+    )
+    return response.choices[0].message.content
+
+runner = LocalRLMRunner(chat_fn, max_iterations=30, max_depth=2)
+result = runner.run("The answer is 42", "What number is mentioned?")
+print(result.final_answer)
+```
+
+With a local vLLM server:
+
+```python
+from openai import OpenAI
 from repl_env import LocalRLMRunner
 
+client = OpenAI(base_url="http://localhost:8000/v1", api_key="unused")
 
-def mock_chat(messages, model=None):
-    joined = "\n".join(message["content"] for message in messages)
-    if "small child task" in joined:
-        return "```repl\nprint(FINAL('child-done'))\n```"
-    return (
-        "```repl\n"
-        "result = rlm_query('small child task')\n"
-        "print(FINAL(result))\n"
-        "```"
+def chat_fn(messages, model=None):
+    response = client.chat.completions.create(
+        model=model or "Qwen/Qwen3.5-9B",
+        messages=messages,
+        max_tokens=2048,
+        temperature=0.6,
+    )
+    return response.choices[0].message.content
+
+runner = LocalRLMRunner(chat_fn, max_iterations=30, max_depth=2)
+result = runner.run(context, task)
+```
+
+### Using Different Models for Outer and Inner Loops
+
+The outer loop (code generation) can use a large model while inner
+`llm_query`/`rlm_query` calls use a smaller, faster model. Pass a
+custom `backend_factory` to the runner:
+
+```python
+from openai import OpenAI
+from huggingface_hub import InferenceClient
+from repl_env import LocalRLMRunner
+from repl_env.recursive_backends import BackendLimits, LocalChildRLMBackend
+
+# Outer loop: large local model via vLLM
+vllm = OpenAI(base_url="http://localhost:8000/v1", api_key="unused")
+
+def outer_chat(messages, model=None):
+    r = vllm.chat.completions.create(
+        model="Qwen/Qwen3-32B", messages=messages, max_tokens=2048,
+    )
+    return r.choices[0].message.content
+
+# Inner calls (llm_query/rlm_query): smaller HF-hosted model
+hf = InferenceClient(model="Qwen/Qwen3.5-9B")
+
+def inner_chat(messages, model=None):
+    r = hf.chat.completions.create(
+        model=model or "Qwen/Qwen3.5-9B", messages=messages, max_tokens=2048,
+        extra_body={"chat_template_kwargs": {"enable_thinking": False}},
+    )
+    return r.choices[0].message.content
+
+def my_backend_factory(llm_chat_fn, **kwargs):
+    return LocalChildRLMBackend(
+        inner_chat,  # inner calls use the smaller model
+        runner_factory=LocalRLMRunner,
+        system_prompt=kwargs["system_prompt"],
+        max_iterations=kwargs["max_iterations"],
+        env_max_iterations_multiplier=kwargs["env_max_iterations_multiplier"],
+        depth=kwargs["depth"],
+        limits=BackendLimits(max_depth=2),
     )
 
-
 runner = LocalRLMRunner(
-    mock_chat,
-    max_iterations=4,
-    max_depth=3,
+    outer_chat,                        # outer loop: large model
+    backend_factory=my_backend_factory, # inner calls: small model
+    max_iterations=30,
+    max_depth=2,
 )
-result = runner.run("Root context", "Use a child run")
-print(result.final_answer)
-print(result.child_traces)
+result = runner.run(context, task)
 ```
 
 ## Server
