@@ -183,9 +183,11 @@ class LocalChildRLMBackend(DirectLMBackend):
                 try:
                     result = future.result(timeout=self.limits.per_child_timeout_s)
                 except Exception as exc:
+                    from concurrent.futures import TimeoutError as FuturesTimeoutError
+
                     error = (
                         f"child timeout after {self.limits.per_child_timeout_s:.3f}s"
-                        if isinstance(exc, TimeoutError)
+                        if isinstance(exc, FuturesTimeoutError)
                         else str(exc)
                     )
                     executor.shutdown(wait=False)
