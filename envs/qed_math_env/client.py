@@ -18,9 +18,13 @@ Example:
     ...     result = env.call_tool("submit_proof", proof="By induction...")
 """
 
-from typing import Any, Optional
+from typing import Any, Mapping, Optional
 
+from openenv.core.client_types import StepResult
+from openenv.core.env_server.types import Observation, State
 from openenv.core.mcp_client import MCPToolClient
+
+from .models import ProblemObservation, ProofSubmissionObservation
 
 
 class QEDMathEnv(MCPToolClient):
@@ -39,7 +43,31 @@ class QEDMathEnv(MCPToolClient):
         ...     result = env.call_tool("submit_proof", proof="By induction...")
     """
 
-    async def reset(self, problem_id: Optional[str] = None, **kwargs: Any) -> Any:
+    @staticmethod
+    def _as_problem_observation(value: Any) -> ProblemObservation:
+        """Normalize tool/reset outputs into a ProblemObservation instance."""
+        if isinstance(value, ProblemObservation):
+            return value
+        if isinstance(value, Mapping):
+            return ProblemObservation(**dict(value))
+        if hasattr(value, "model_dump"):
+            return ProblemObservation(**value.model_dump())
+        raise TypeError(f"Unsupported problem observation payload type: {type(value).__name__}")
+
+    @staticmethod
+    def _as_proof_submission_observation(value: Any) -> ProofSubmissionObservation:
+        """Normalize tool outputs into a ProofSubmissionObservation instance."""
+        if isinstance(value, ProofSubmissionObservation):
+            return value
+        if isinstance(value, Mapping):
+            return ProofSubmissionObservation(**dict(value))
+        if hasattr(value, "model_dump"):
+            return ProofSubmissionObservation(**value.model_dump())
+        raise TypeError(f"Unsupported proof submission payload type: {type(value).__name__}")
+
+    async def reset(
+        self, problem_id: Optional[str] = None, **kwargs: Any
+    ) -> StepResult[Observation]:
         """
         Reset the environment, optionally selecting a specific problem.
 
@@ -49,13 +77,20 @@ class QEDMathEnv(MCPToolClient):
             **kwargs: Additional reset parameters (e.g., seed).
 
         Returns:
-            StepResult whose observation contains the initial ProblemObservation.
+            StepResult with a normalized ProblemObservation in `observation`.
         """
         if problem_id is not None:
             kwargs["problem_id"] = problem_id
-        return await super().reset(**kwargs)
+        result = await super().reset(**kwargs)
+        observation = result.observation if isinstance(result, StepResult) else result
+        normalized_observation = self._as_problem_observation(observation)
+        return StepResult(
+            observation=normalized_observation,
+            reward=result.reward,
+            done=result.done,
+        )
 
-    async def submit_proof(self, proof: str) -> Any:
+    async def submit_proof(self, proof: str) -> ProofSubmissionObservation:
         """
         Submit a proof attempt for the current problem.
 
@@ -63,25 +98,44 @@ class QEDMathEnv(MCPToolClient):
             proof: The proof text to submit for grading.
 
         Returns:
-            Graded result dict with keys: score (0-7), feedback, reward (0.0-1.0).
+            ProofSubmissionObservation with score (0-7), feedback, and reward.
         """
-        return await self.call_tool("submit_proof", proof=proof)
+        result = await self.call_tool("submit_proof", proof=proof)
+        return self._as_proof_submission_observation(result)
 
-    async def get_current_problem(self) -> Any:
+    async def get_current_problem(self) -> ProblemObservation:
         """
         Retrieve the current problem statement without resetting.
 
         Returns:
-            Problem dict with keys: problem, reference_solution,
-            grading_guidelines, problem_id, dataset_source.
+            ProblemObservation for the active problem.
         """
-        return await self.call_tool("get_problem")
+        result = await self.call_tool("get_problem")
+        return self._as_problem_observation(result)
 
-    async def get_grading_feedback(self) -> Any:
+    async def get_problem(self) -> ProblemObservation:
+        """Compatibility alias for get_current_problem()."""
+        return await self.get_current_problem()
+
+    async def get_grading_feedback(self) -> dict[str, Any]:
         """
         Retrieve the grading guidelines/rubric for the current problem.
 
         Returns:
-            Grading guidelines string (Markdown rubric, 0-7 scale).
+            Tool payload containing grading_guidelines and problem metadata.
         """
-        return await self.call_tool("get_grading_guidelines")
+        result = await self.call_tool("get_grading_guidelines")
+        if isinstance(result, Mapping):
+            return dict(result)
+        if hasattr(result, "model_dump"):
+            return result.model_dump()
+        raise TypeError(f"Unsupported grading feedback payload type: {type(result).__name__}")
+
+    async def get_state(self) -> State:
+        """Return current environment state (episode_id, step_count)."""
+        return await super().state()
+
+    def get_state_sync(self) -> State:
+        """Synchronous helper for code paths that do not use async/await."""
+        with self.sync() as client:
+            return client.state()
