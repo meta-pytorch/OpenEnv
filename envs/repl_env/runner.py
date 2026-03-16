@@ -93,7 +93,7 @@ class LocalRLMRunner:
             per_child_timeout_s=self.per_child_timeout_s,
         )
         return LocalChildRLMBackend(
-            self.llm_chat_fn,
+            llm_chat_fn,
             runner_factory=LocalRLMRunner,
             system_prompt=kwargs["system_prompt"],
             max_iterations=kwargs["max_iterations"],
