@@ -42,6 +42,7 @@ def create_server_recursive_controller(
     *,
     max_depth: int,
     max_iterations: int,
+    system_prompt: str = RLM_SYSTEM_PROMPT,
     max_batch_workers: int = 8,
     max_children_total: int | None = None,
     max_children_per_batch: int | None = None,
@@ -63,7 +64,7 @@ def create_server_recursive_controller(
         backend = LocalChildRLMBackend(
             chat_fn,
             runner_factory=LocalRLMRunner,
-            system_prompt=RLM_SYSTEM_PROMPT,
+            system_prompt=system_prompt,
             max_iterations=max_iterations,
             env_max_iterations_multiplier=env_max_iterations_multiplier,
             depth=0,

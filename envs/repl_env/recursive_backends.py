@@ -178,17 +178,20 @@ class LocalChildRLMBackend(DirectLMBackend):
             if self.limits.per_child_timeout_s is None:
                 result = child.run(prompt, prompt, model=model)
             else:
-                with ThreadPoolExecutor(max_workers=1) as executor:
-                    future = executor.submit(child.run, prompt, prompt, model=model)
-                    try:
-                        result = future.result(timeout=self.limits.per_child_timeout_s)
-                    except Exception as exc:
-                        error = (
-                            f"child timeout after {self.limits.per_child_timeout_s:.3f}s"
-                            if exc.__class__.__name__ == "TimeoutError"
-                            else str(exc)
-                        )
-                        return f"Error: {error}"
+                executor = ThreadPoolExecutor(max_workers=1)
+                future = executor.submit(child.run, prompt, prompt, model=model)
+                try:
+                    result = future.result(timeout=self.limits.per_child_timeout_s)
+                except Exception as exc:
+                    error = (
+                        f"child timeout after {self.limits.per_child_timeout_s:.3f}s"
+                        if isinstance(exc, TimeoutError)
+                        else str(exc)
+                    )
+                    executor.shutdown(wait=False)
+                    return f"Error: {error}"
+                finally:
+                    executor.shutdown(wait=False)
             result_text = self._truncate(result.final_answer or "")
             return result_text
         except Exception as exc:
