@@ -707,7 +707,7 @@ class QEDMathEnvironment(MCPEnvironment):
         return {
             "problem": self._current_problem.get("problem", ""),
             "reference_solution": self._current_problem.get("reference_solution", ""),
-            "grading_guidelines": self._current_problem.get("grading_guidelines", ""),
+            "grading_guidelines": self._current_grading_guidelines_text(),
             "problem_id": self._current_problem.get("problem_id", ""),
             "dataset_source": self._current_problem.get("dataset_source", ""),
             "problem_type": self._current_problem.get("problem_type", "proof"),
@@ -895,11 +895,17 @@ class QEDMathEnvironment(MCPEnvironment):
             }
 
         return {
-            "grading_guidelines": self._current_problem.get("grading_guidelines", ""),
+            "grading_guidelines": self._current_grading_guidelines_text(),
             "problem_id": self._current_problem.get("problem_id", ""),
             "done": False,
             "reward": 0.0,
         }
+
+    def _current_grading_guidelines_text(self) -> str:
+        """Return current grading guidelines normalized to markdown text."""
+        if self._current_problem is None:
+            return ""
+        return parse_schema(self._current_problem.get("grading_guidelines", "") or "")
 
     @property
     def state(self) -> State:
