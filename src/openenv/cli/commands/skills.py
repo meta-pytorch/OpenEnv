@@ -179,7 +179,9 @@ def skills_add(
 
     central_path = CENTRAL_GLOBAL if global_ else CENTRAL_LOCAL
     central_skill_path = _install_to(central_path, force)
-    typer.echo(f"Installed '{DEFAULT_SKILL_ID}' to central location: {central_skill_path}")
+    typer.echo(
+        f"Installed '{DEFAULT_SKILL_ID}' to central location: {central_skill_path}"
+    )
 
     targets = GLOBAL_TARGETS if global_ else LOCAL_TARGETS
     agent_targets: list[Path] = []
