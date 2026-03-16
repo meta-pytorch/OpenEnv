@@ -115,6 +115,7 @@ class LocalRLMRunner:
             self.llm_chat_fn,
             system_prompt=self.system_prompt,
             max_iterations=self.max_iterations,
+            max_depth=self.max_depth,
             depth=self.depth,
             env_max_iterations_multiplier=self.env_max_iterations_multiplier,
         )
