@@ -313,7 +313,7 @@ class REPLEnvironment(Environment):
             self._executor.inject_function("llm_batch", _call_batched_query)  # Alias
         if self.llm_query_fn or self.subcall_fn:
             self._executor.inject_function("rlm_query", _call_recursive_query)
-        if self.llm_batch_fn or self.subcall_fn:
+        if self.llm_batch_fn or self.subcall_batch_fn:
             self._executor.inject_function("rlm_query_batched", _call_recursive_batched)
 
         # Inject FINAL helper function so both FINAL(x) and print(f'FINAL({x})') work

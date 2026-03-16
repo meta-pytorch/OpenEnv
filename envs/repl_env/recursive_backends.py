@@ -14,6 +14,7 @@ query/query_batched/child-recursion behavior.
 
 from __future__ import annotations
 
+import threading
 import time
 from concurrent.futures import as_completed, ThreadPoolExecutor
 from dataclasses import dataclass
@@ -141,15 +142,17 @@ class LocalChildRLMBackend(DirectLMBackend):
         self.on_subcall_start = on_subcall_start
         self.on_subcall_complete = on_subcall_complete
         self._children_spawned = 0
+        self._children_lock = threading.Lock()
 
     def recursive_query(self, prompt: str, model: str | None = None) -> str:
         next_depth = self.depth + 1
         if next_depth >= self.max_depth:
             return self.query(prompt, model)
-        if self.limits.max_children_total is not None:
-            if self._children_spawned >= self.limits.max_children_total:
-                return "Error: max_children_total exceeded"
-        self._children_spawned += 1
+        with self._children_lock:
+            if self.limits.max_children_total is not None:
+                if self._children_spawned >= self.limits.max_children_total:
+                    return "Error: max_children_total exceeded"
+            self._children_spawned += 1
         start = time.perf_counter()
         error: str | None = None
         result_text = ""

@@ -47,6 +47,7 @@ def create_server_recursive_controller(
     max_children_per_batch: int | None = None,
     result_truncation_limit: int | None = None,
     per_child_timeout_s: float | None = None,
+    env_max_iterations_multiplier: int = 5,
 ) -> RecursiveController:
     limits = BackendLimits(
         max_depth=max_depth,
@@ -64,7 +65,7 @@ def create_server_recursive_controller(
             runner_factory=LocalRLMRunner,
             system_prompt=RLM_SYSTEM_PROMPT,
             max_iterations=max_iterations,
-            env_max_iterations_multiplier=5,
+            env_max_iterations_multiplier=env_max_iterations_multiplier,
             depth=0,
             limits=limits,
         )
