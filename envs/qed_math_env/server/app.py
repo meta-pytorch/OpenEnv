@@ -21,13 +21,13 @@ Usage:
 # Support both in-repo and standalone imports
 try:
     # In-repo imports (when running from OpenEnv repository)
-    from openenv.core.env_server.http_server import create_app
+    from openenv.core.env_server import create_app
     from openenv.core.env_server.mcp_types import CallToolAction, CallToolObservation
 
     from .qed_math_environment import QEDMathEnvironment
 except ImportError:
     # Standalone imports (when environment is standalone with openenv from pip)
-    from openenv.core.env_server.http_server import create_app
+    from openenv.core.env_server import create_app
     from openenv.core.env_server.mcp_types import CallToolAction, CallToolObservation
     from server.qed_math_environment import QEDMathEnvironment
 
@@ -39,6 +39,12 @@ app = create_app(
     CallToolObservation,
     env_name="qed_math_env",
 )
+
+
+@app.get("/healthz")
+async def health() -> dict[str, str]:
+    """Lightweight service health endpoint for basic orchestration checks."""
+    return {"status": "ok"}
 
 
 def main():

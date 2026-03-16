@@ -14,6 +14,7 @@ submitted proofs using LLM-based rubric grading (0-7 scale).
 import json
 import logging
 import signal
+from datetime import datetime, timezone
 from dataclasses import dataclass
 from contextlib import contextmanager
 from pathlib import Path
@@ -662,6 +663,7 @@ class QEDMathEnvironment(MCPEnvironment):
                     attempt_number=int(payload.get("attempt_number", 1)),
                     attempts_remaining=int(payload.get("attempts_remaining", 0)),
                     is_correct=bool(payload.get("is_correct", False)),
+                    metadata=dict(payload.get("metadata", {})),
                 )
                 metadata = dict(obs.metadata)
                 metadata["proof_submission"] = proof_obs.model_dump()
@@ -694,6 +696,68 @@ class QEDMathEnvironment(MCPEnvironment):
             return tool_result
 
         return None
+
+    @staticmethod
+    def _utc_now_iso() -> str:
+        """Return a UTC timestamp string for progress events."""
+        return datetime.now(timezone.utc).isoformat()
+
+    @staticmethod
+    def _chunk_feedback(feedback: str, chunk_size: int = 280) -> list[str]:
+        """Split grader feedback into chunks for client-side streamed rendering."""
+        if not feedback:
+            return []
+        return [feedback[i : i + chunk_size] for i in range(0, len(feedback), chunk_size)]
+
+    def _build_grading_progress(
+        self,
+        proof: str,
+        feedback: str,
+        is_correct: bool,
+        done: bool,
+    ) -> dict[str, Any]:
+        """Build WebSocket-friendly progress and streaming feedback metadata."""
+        feedback_chunks = self._chunk_feedback(feedback)
+        return {
+            "status": "completed" if done else "in_progress",
+            "progress": 1.0,
+            "events": [
+                {
+                    "stage": "submission_received",
+                    "progress": 0.2,
+                    "message": "Proof submission received.",
+                    "timestamp": self._utc_now_iso(),
+                },
+                {
+                    "stage": "grading_started",
+                    "progress": 0.6,
+                    "message": "Grading started.",
+                    "timestamp": self._utc_now_iso(),
+                },
+                {
+                    "stage": "grading_completed",
+                    "progress": 0.9,
+                    "message": "Grading completed.",
+                    "timestamp": self._utc_now_iso(),
+                },
+                {
+                    "stage": "result_ready",
+                    "progress": 1.0,
+                    "message": "Result ready for client consumption.",
+                    "timestamp": self._utc_now_iso(),
+                },
+            ],
+            "realtime": {
+                "websocket_supported": True,
+                "submission_type": "proof" if proof.strip() else "empty",
+            },
+            "streaming_feedback": {
+                "chunks": feedback_chunks,
+                "chunk_count": len(feedback_chunks),
+                "is_final": True,
+            },
+            "is_correct": is_correct,
+        }
 
     def get_problem_payload(self) -> dict:
         """Payload for MCP tool get_problem."""
@@ -872,6 +936,13 @@ class QEDMathEnvironment(MCPEnvironment):
                 f"attempt {self._attempt_count}/{self._current_max_attempts}."
             )
 
+        grading_progress = self._build_grading_progress(
+            proof=proof,
+            feedback=feedback,
+            is_correct=is_correct,
+            done=done,
+        )
+
         return ProofSubmissionObservation(
             proof=proof,
             score=result.score,
@@ -882,6 +953,10 @@ class QEDMathEnvironment(MCPEnvironment):
             attempt_number=self._attempt_count,
             attempts_remaining=attempts_remaining,
             is_correct=is_correct,
+            metadata={
+                "grading_progress": grading_progress,
+                "status": grading_progress["status"],
+            },
         ).model_dump()
 
     def get_grading_guidelines_payload(self) -> dict:
