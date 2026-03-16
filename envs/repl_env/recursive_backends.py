@@ -17,7 +17,7 @@ from __future__ import annotations
 import threading
 import time
 from concurrent.futures import as_completed, ThreadPoolExecutor
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Callable, Protocol
 
 
@@ -50,6 +50,11 @@ class BackendLimits:
     max_children_per_batch: int | None = None
     result_truncation_limit: int | None = None
     per_child_timeout_s: float | None = None
+    # Tree-global child counter shared across all recursion depths
+    _children_spawned: int = field(default=0, init=False, repr=False)
+    _children_lock: threading.Lock = field(
+        default_factory=threading.Lock, init=False, repr=False
+    )
 
 
 @dataclass
@@ -141,18 +146,16 @@ class LocalChildRLMBackend(DirectLMBackend):
         self.env_max_iterations_multiplier = env_max_iterations_multiplier
         self.on_subcall_start = on_subcall_start
         self.on_subcall_complete = on_subcall_complete
-        self._children_spawned = 0
-        self._children_lock = threading.Lock()
 
     def recursive_query(self, prompt: str, model: str | None = None) -> str:
         next_depth = self.depth + 1
         if next_depth >= self.max_depth:
             return self.query(prompt, model)
-        with self._children_lock:
+        with self.limits._children_lock:
             if self.limits.max_children_total is not None:
-                if self._children_spawned >= self.limits.max_children_total:
+                if self.limits._children_spawned >= self.limits.max_children_total:
                     return "Error: max_children_total exceeded"
-            self._children_spawned += 1
+            self.limits._children_spawned += 1
         start = time.perf_counter()
         error: str | None = None
         result_text = ""
@@ -175,25 +178,9 @@ class LocalChildRLMBackend(DirectLMBackend):
                 on_subcall_start=self.on_subcall_start,
                 on_subcall_complete=self.on_subcall_complete,
             )
-            if self.limits.per_child_timeout_s is None:
-                result = child.run(prompt, prompt, model=model)
-            else:
-                executor = ThreadPoolExecutor(max_workers=1)
-                future = executor.submit(child.run, prompt, prompt, model=model)
-                try:
-                    result = future.result(timeout=self.limits.per_child_timeout_s)
-                except Exception as exc:
-                    from concurrent.futures import TimeoutError as FuturesTimeoutError
-
-                    error = (
-                        f"child timeout after {self.limits.per_child_timeout_s:.3f}s"
-                        if isinstance(exc, FuturesTimeoutError)
-                        else str(exc)
-                    )
-                    executor.shutdown(wait=False)
-                    return f"Error: {error}"
-                finally:
-                    executor.shutdown(wait=False)
+            result = child.run(
+                prompt, prompt, model=model, timeout_s=self.limits.per_child_timeout_s
+            )
             result_text = self._truncate(result.final_answer or "")
             return result_text
         except Exception as exc:

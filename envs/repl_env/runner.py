@@ -15,6 +15,7 @@ following the same separation used by the official RLM implementation and DSPy:
 
 from __future__ import annotations
 
+import time
 from dataclasses import dataclass
 from typing import Callable
 
@@ -110,6 +111,7 @@ class LocalRLMRunner:
         task_prompt: str,
         *,
         model: str | None = None,
+        timeout_s: float | None = None,
     ) -> RLMRunResult:
         backend = self.backend_factory(
             self.llm_chat_fn,
@@ -141,7 +143,21 @@ class LocalRLMRunner:
             messages = build_rlm_system_prompt(self.system_prompt, query_metadata)
             messages.append(build_user_prompt(root_prompt=task_prompt, iteration=0))
 
+            run_start = time.perf_counter()
+
             for iteration in range(1, self.max_iterations + 1):
+                # Cooperative timeout check (matches official RLM pattern)
+                if timeout_s is not None:
+                    elapsed = time.perf_counter() - run_start
+                    if elapsed >= timeout_s:
+                        return RLMRunResult(
+                            final_answer=f"Error: child timeout after {elapsed:.3f}s",
+                            messages=messages,
+                            iterations=iteration - 1,
+                            depth=self.depth,
+                            child_traces=list(getattr(backend, "child_traces", [])),
+                        )
+
                 response = self._chat(messages, model)
                 code_blocks = extract_code_blocks(response)
                 code_block_observations = []
