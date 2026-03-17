@@ -49,6 +49,10 @@ class BackendLimits:
     max_children_total: int | None = None
     max_children_per_batch: int | None = None
     result_truncation_limit: int | None = None
+    # Cooperative timeout: checked between iterations, not during LLM calls.
+    # A slow LLM call within an iteration will not be interrupted — the timeout
+    # fires at the next iteration boundary. For mid-call cancellation, use
+    # process-based isolation instead.
     per_child_timeout_s: float | None = None
     # Tree-global child counter shared across all recursion depths
     _children_spawned: int = field(default=0, init=False, repr=False)

@@ -15,6 +15,7 @@ following the same separation used by the official RLM implementation and DSPy:
 
 from __future__ import annotations
 
+import re
 import time
 from dataclasses import dataclass
 from typing import Callable
@@ -243,8 +244,6 @@ class LocalRLMRunner:
         try:
             response = self._chat(final_prompt, model)
             # Try to extract FINAL(...) from the response
-            import re
-
             match = re.search(r"FINAL\((.*)\)", response, re.DOTALL)
             if match:
                 return match.group(1).strip()

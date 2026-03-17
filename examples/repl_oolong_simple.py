@@ -37,8 +37,8 @@ def create_chat_fn():
         response = client.chat.completions.create(
             model=model or MODEL_NAME,
             messages=messages,
-            max_tokens=4096,
-            # Qwen3-Coder sampling params (from model card)
+            # Qwen3-Coder-480B sampling params (from model card)
+            max_tokens=1024,
             temperature=0.7,
             top_p=0.8,
             extra_body={
