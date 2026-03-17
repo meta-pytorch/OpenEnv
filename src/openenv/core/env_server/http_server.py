@@ -217,7 +217,8 @@ class HTTPEnvServer:
         self._executor = ThreadPoolExecutor(max_workers=32)
 
         # Idle session reaper configuration.
-        # Default to 30 minutes; can be overridden via ConcurrencyConfig.session_timeout.
+        # Timeout is taken from ConcurrencyConfig.session_timeout;
+        # None means no timeout (default — reaper is a no-op).
         self._session_idle_timeout_s: Optional[float] = (
             self._concurrency_config.session_timeout
         )
@@ -420,8 +421,13 @@ class HTTPEnvServer:
                     await self._destroy_session(sid)
             except asyncio.CancelledError:
                 break
-            except Exception:
-                pass  # best-effort; will retry next interval
+            except Exception as exc:
+                import logging
+
+                logging.getLogger(__name__).warning(
+                    "Idle-session reaper encountered an error (will retry): %s",
+                    exc,
+                )
 
     def _start_reaper(self) -> None:
         """Start the idle-session reaper if a timeout is configured."""
@@ -518,8 +524,10 @@ class HTTPEnvServer:
         async def _stop_session_reaper() -> None:
             server_ref._stop_reaper()
 
-        app.router.on_startup.append(_start_session_reaper)
-        app.router.on_shutdown.append(_stop_session_reaper)
+        if not getattr(app.router, "_openenv_reaper_registered", False):
+            app.router.on_startup.append(_start_session_reaper)
+            app.router.on_shutdown.append(_stop_session_reaper)
+            app.router._openenv_reaper_registered = True  # type: ignore[attr-defined]
 
         # Helper function to handle reset endpoint
         async def reset_handler(

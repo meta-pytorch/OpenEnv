@@ -31,7 +31,7 @@ Test coverage:
 import json
 import sys
 from pathlib import Path
-from unittest.mock import AsyncMock, Mock, patch
+from unittest.mock import patch
 
 import pytest
 from fastapi import FastAPI
@@ -790,9 +790,121 @@ class TestHTTPMCPSessionLifecycle:
             response2 = json.loads(response_text2)
             assert response2["data"]["result"]["session_id"] == ws_session_id
 
-    async def test_idle_session_reaper(self, mock_fastmcp_server):
-        """Test that idle HTTP sessions are reaped after the configured timeout."""
+    def test_session_close_missing_session_id_param(self, app):
+        """Test openenv/session/close without session_id returns INVALID_PARAMS."""
+        from starlette.testclient import TestClient
+
+        client = TestClient(app)
+        response = client.post(
+            "/mcp",
+            json={
+                "jsonrpc": "2.0",
+                "method": "openenv/session/close",
+                "params": {},
+                "id": 1,
+            },
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert "error" in data
+        assert data["error"]["code"] == -32602  # INVALID_PARAMS
+        assert "session_id" in data["error"]["message"].lower()
+
+    def test_session_double_close_returns_error(self, app):
+        """Test closing the same session twice returns an error on the second close."""
+        from starlette.testclient import TestClient
+
+        client = TestClient(app)
+
+        # Create session
+        create_resp = client.post(
+            "/mcp",
+            json={
+                "jsonrpc": "2.0",
+                "method": "openenv/session/create",
+                "params": {},
+                "id": 1,
+            },
+        )
+        sid = create_resp.json()["result"]["session_id"]
+
+        # First close — should succeed
+        close1 = client.post(
+            "/mcp",
+            json={
+                "jsonrpc": "2.0",
+                "method": "openenv/session/close",
+                "params": {"session_id": sid},
+                "id": 2,
+            },
+        )
+        assert close1.json().get("result", {}).get("closed") is True
+
+        # Second close — session no longer exists
+        close2 = client.post(
+            "/mcp",
+            json={
+                "jsonrpc": "2.0",
+                "method": "openenv/session/close",
+                "params": {"session_id": sid},
+                "id": 3,
+            },
+        )
+        data2 = close2.json()
+        assert "error" in data2
+        assert data2["error"]["code"] == -32602  # INVALID_PARAMS
+
+    def test_tools_call_after_close_returns_error(self, app):
+        """Test tools/call with a closed session_id returns an error."""
+        from starlette.testclient import TestClient
+
+        client = TestClient(app)
+
+        # Create then close
+        create_resp = client.post(
+            "/mcp",
+            json={
+                "jsonrpc": "2.0",
+                "method": "openenv/session/create",
+                "params": {},
+                "id": 1,
+            },
+        )
+        sid = create_resp.json()["result"]["session_id"]
+        client.post(
+            "/mcp",
+            json={
+                "jsonrpc": "2.0",
+                "method": "openenv/session/close",
+                "params": {"session_id": sid},
+                "id": 2,
+            },
+        )
+
+        # Call tool on closed session
+        call_resp = client.post(
+            "/mcp",
+            json={
+                "jsonrpc": "2.0",
+                "method": "tools/call",
+                "params": {
+                    "name": "add",
+                    "arguments": {"a": 1, "b": 2},
+                    "session_id": sid,
+                },
+                "id": 3,
+            },
+        )
+        data = call_resp.json()
+        assert "error" in data
+
+    async def test_idle_session_reaper_destroys_stale_sessions(
+        self, mock_fastmcp_server
+    ):
+        """Test that _reap_idle_sessions destroys sessions past the timeout."""
         import asyncio
+        import time as _time
 
         from openenv.core.env_server.http_server import HTTPEnvServer
         from openenv.core.env_server.mcp_environment import MCPEnvironment
@@ -830,30 +942,101 @@ class TestHTTPMCPSessionLifecycle:
         session_id, env = await server._create_session()
         assert session_id in server._sessions
 
-        # Start the reaper
+        # Wait for session to become stale
+        await asyncio.sleep(0.4)
+
+        # Manually trigger one reap cycle (the background reaper's interval
+        # is min 5s, too long for a unit test)
+        now = _time.time()
+        stale = []
+        async with server._session_lock:
+            for sid, info in server._session_info.items():
+                if now - info.last_activity_at > 0.3:
+                    stale.append(sid)
+        for sid in stale:
+            await server._destroy_session(sid)
+
+        # Session should be gone
+        assert session_id not in server._sessions
+
+    async def test_reaper_stop_cancels_task(self, mock_fastmcp_server):
+        """Test that _stop_reaper cancels the running reaper task."""
+        from openenv.core.env_server.http_server import HTTPEnvServer
+        from openenv.core.env_server.mcp_environment import MCPEnvironment
+        from openenv.core.env_server.types import ConcurrencyConfig
+
+        class ReaperTestEnv(MCPEnvironment):
+            SUPPORTS_CONCURRENT_SESSIONS = True
+
+            def __init__(self):
+                super().__init__(mock_fastmcp_server)
+
+            def reset(self, **kwargs):
+                return Observation(done=False, reward=0.0)
+
+            def _step_impl(self, action, **kwargs):
+                return Observation(done=False, reward=0.0)
+
+            @property
+            def state(self):
+                from openenv.core.env_server.types import State
+
+                return State(step_count=0)
+
+        server = HTTPEnvServer(
+            env=ReaperTestEnv,
+            action_cls=None,
+            observation_cls=None,
+            concurrency_config=ConcurrencyConfig(
+                max_concurrent_envs=10,
+                session_timeout=60,
+            ),
+        )
+
         server._start_reaper()
-        try:
-            # Session should still exist immediately
-            assert session_id in server._sessions
+        assert server._reaper_task is not None
+        assert not server._reaper_task.done()
 
-            # Wait long enough for reaper to run (timeout=0.3s, interval=max(0.075, 5)=5s)
-            # We need to override the interval; instead, call reap directly
-            await asyncio.sleep(0.4)
-            # Manually trigger one reap cycle since the reaper interval
-            # is min 5s and we don't want to wait that long in tests
-            now = __import__("time").time()
-            stale = []
-            async with server._session_lock:
-                for sid, info in server._session_info.items():
-                    if now - info.last_activity_at > 0.3:
-                        stale.append(sid)
-            for sid in stale:
-                await server._destroy_session(sid)
+        server._stop_reaper()
+        assert server._reaper_task is None
 
-            # Session should be gone
-            assert session_id not in server._sessions
-        finally:
-            server._stop_reaper()
+    async def test_reaper_noop_when_no_timeout(self, mock_fastmcp_server):
+        """Test that _start_reaper is a no-op when session_timeout is None."""
+        from openenv.core.env_server.http_server import HTTPEnvServer
+        from openenv.core.env_server.mcp_environment import MCPEnvironment
+        from openenv.core.env_server.types import ConcurrencyConfig
+
+        class ReaperTestEnv(MCPEnvironment):
+            SUPPORTS_CONCURRENT_SESSIONS = True
+
+            def __init__(self):
+                super().__init__(mock_fastmcp_server)
+
+            def reset(self, **kwargs):
+                return Observation(done=False, reward=0.0)
+
+            def _step_impl(self, action, **kwargs):
+                return Observation(done=False, reward=0.0)
+
+            @property
+            def state(self):
+                from openenv.core.env_server.types import State
+
+                return State(step_count=0)
+
+        server = HTTPEnvServer(
+            env=ReaperTestEnv,
+            action_cls=None,
+            observation_cls=None,
+            concurrency_config=ConcurrencyConfig(
+                max_concurrent_envs=10,
+                session_timeout=None,  # default — no timeout
+            ),
+        )
+
+        server._start_reaper()
+        # No task should be created when timeout is None
+        assert server._reaper_task is None
 
 
 class TestWebSocketMCP:
