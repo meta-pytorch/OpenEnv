@@ -6,9 +6,7 @@
 
 import inspect
 from abc import ABC, abstractmethod
-from typing import Any, Generic, Optional, Protocol, TYPE_CHECKING, TypeVar
-
-from typing import Any, Generic, Optional, Protocol, TYPE_CHECKING, TypeVar, TypedDict
+from typing import Any, Generic, Optional, Protocol, TYPE_CHECKING, TypedDict, TypeVar
 
 from .types import Action, EnvironmentMetadata, Observation, State
 
