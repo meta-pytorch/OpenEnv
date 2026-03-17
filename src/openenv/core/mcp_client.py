@@ -122,6 +122,7 @@ class MCPClientBase(EnvClient[Any, Observation, State]):
         self._production_session_id: Optional[str] = None
         self._production_session_lock = asyncio.Lock()
         self._jsonrpc_request_id = 0
+        self._http_client: Optional[Any] = None  # lazily-created httpx.AsyncClient
 
     def _next_request_id(self) -> int:
         """Generate a monotonically increasing JSON-RPC request id."""
@@ -131,27 +132,35 @@ class MCPClientBase(EnvClient[Any, Observation, State]):
     def _production_mcp_url(self) -> str:
         """Build HTTP MCP endpoint URL from the client's websocket URL."""
         url = self._ws_url.replace("ws://", "http://").replace("wss://", "https://")
-        return url.rstrip("/ws").rstrip("/") + "/mcp"
+        if url.endswith("/ws"):
+            url = url[: -len("/ws")]
+        return url.rstrip("/") + "/mcp"
+
+    async def _get_http_client(self) -> Any:
+        """Return a shared httpx.AsyncClient, creating one lazily."""
+        if self._http_client is None:
+            import httpx
+
+            self._http_client = httpx.AsyncClient()
+        return self._http_client
 
     async def _production_mcp_request(
         self, method: str, params: Optional[Dict[str, Any]] = None
     ) -> Dict[str, Any]:
         """Send a JSON-RPC request to HTTP /mcp and return parsed JSON response."""
-        import httpx
-
-        async with httpx.AsyncClient() as client:
-            response = await client.post(
-                self._production_mcp_url(),
-                json={
-                    "jsonrpc": "2.0",
-                    "method": method,
-                    "params": params or {},
-                    "id": self._next_request_id(),
-                },
-                timeout=self._message_timeout,
-            )
-            response.raise_for_status()
-            return response.json()
+        client = await self._get_http_client()
+        response = await client.post(
+            self._production_mcp_url(),
+            json={
+                "jsonrpc": "2.0",
+                "method": method,
+                "params": params or {},
+                "id": self._next_request_id(),
+            },
+            timeout=self._message_timeout,
+        )
+        response.raise_for_status()
+        return response.json()
 
     async def _ensure_production_session(self) -> str:
         """Create and cache a persistent HTTP MCP session id if needed."""
@@ -318,6 +327,14 @@ class MCPClientBase(EnvClient[Any, Observation, State]):
                 pass
             finally:
                 self._production_session_id = None
+
+        if self._http_client is not None:
+            try:
+                await self._http_client.aclose()
+            except Exception:
+                pass
+            finally:
+                self._http_client = None
 
         await super().close()
 

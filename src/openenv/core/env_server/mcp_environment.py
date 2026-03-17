@@ -56,9 +56,8 @@ import asyncio
 import inspect
 from abc import abstractmethod
 from collections import defaultdict
-from typing import Any, Callable, Dict, Optional
-
 from contextlib import asynccontextmanager
+from typing import Any, Callable, Dict, Optional
 
 from fastmcp import Client
 from fastmcp.client.client import CallToolResult
@@ -159,6 +158,7 @@ class MCPEnvironment(Environment):
         self.mcp_server = mcp_server
         self.mcp_client = Client(mcp_server)
         self._mcp_connected = False
+        self._mcp_session_lock = asyncio.Lock()
 
         # Track mode-specific tools: {tool_name: {mode: func}}
         # mode can be "production", "simulation", or None (available in all modes)
@@ -185,17 +185,23 @@ class MCPEnvironment(Environment):
         Context manager for MCP client sessions.
         Ensures the MCP client is connected for the duration of the context.
         If already connected, it yields the existing client without reconnecting.
+        Uses a lock to prevent concurrent double-connection on the same env.
         """
         client = self._require_mcp_client()
         if self._mcp_connected:
             yield client
-        else:
-            self._mcp_connected = True
-            try:
-                async with client:
+            return
+        async with self._mcp_session_lock:
+            # Re-check after acquiring lock — another coroutine may have connected
+            if self._mcp_connected:
+                yield client
+                return
+            async with client:
+                self._mcp_connected = True
+                try:
                     yield client
-            finally:
-                self._mcp_connected = False
+                finally:
+                    self._mcp_connected = False
 
     @property
     def supports_code_mode(self) -> bool:

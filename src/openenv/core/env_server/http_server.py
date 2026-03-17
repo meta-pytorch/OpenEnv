@@ -216,6 +216,13 @@ class HTTPEnvServer:
         # This is needed for environments using sync libraries (e.g., Playwright)
         self._executor = ThreadPoolExecutor(max_workers=32)
 
+        # Idle session reaper configuration.
+        # Default to 30 minutes; can be overridden via ConcurrencyConfig.session_timeout.
+        self._session_idle_timeout_s: Optional[float] = (
+            self._concurrency_config.session_timeout
+        )
+        self._reaper_task: Optional[asyncio.Task[None]] = None
+
     def _validate_concurrency_safety(self) -> None:
         """
         Validate that the environment supports the configured concurrency level.
@@ -350,7 +357,11 @@ class HTTPEnvServer:
 
         await self._cleanup_session_resources(env, executor)
 
-    async def _cleanup_session_resources(self, env: object, executor: object) -> None:
+    async def _cleanup_session_resources(
+        self,
+        env: Optional[Environment],
+        executor: Optional[ThreadPoolExecutor],
+    ) -> None:
         """Close an environment and shut down its executor (best-effort)."""
         # Run close() in the same executor where the env was created
         # This is required for thread-sensitive libraries like Playwright/greenlet
@@ -389,6 +400,39 @@ class HTTPEnvServer:
             self._session_info[session_id].last_activity_at = time.time()
             if increment_step:
                 self._session_info[session_id].step_count += 1
+
+    async def _reap_idle_sessions(self) -> None:
+        """Background task that periodically destroys sessions idle beyond the timeout."""
+        timeout = self._session_idle_timeout_s
+        if timeout is None:
+            return  # no timeout configured — noop
+        interval = max(timeout / 4, 5.0)  # check frequently enough
+        while True:
+            try:
+                await asyncio.sleep(interval)
+                now = time.time()
+                stale_ids: list[str] = []
+                async with self._session_lock:
+                    for sid, info in self._session_info.items():
+                        if now - info.last_activity_at > timeout:
+                            stale_ids.append(sid)
+                for sid in stale_ids:
+                    await self._destroy_session(sid)
+            except asyncio.CancelledError:
+                break
+            except Exception:
+                pass  # best-effort; will retry next interval
+
+    def _start_reaper(self) -> None:
+        """Start the idle-session reaper if a timeout is configured."""
+        if self._session_idle_timeout_s is not None and self._reaper_task is None:
+            self._reaper_task = asyncio.create_task(self._reap_idle_sessions())
+
+    def _stop_reaper(self) -> None:
+        """Cancel the reaper background task."""
+        if self._reaper_task is not None:
+            self._reaper_task.cancel()
+            self._reaper_task = None
 
     def get_session_info(self, session_id: str) -> Optional[SessionInfo]:
         """
@@ -464,6 +508,18 @@ class HTTPEnvServer:
                 raise ValueError(
                     f"Invalid mode: '{mode}'. Must be one of: {valid_modes}"
                 )
+
+        # Wire up idle-session reaper lifecycle via app events
+        server_ref = self
+
+        async def _start_session_reaper() -> None:
+            server_ref._start_reaper()
+
+        async def _stop_session_reaper() -> None:
+            server_ref._stop_reaper()
+
+        app.router.on_startup.append(_start_session_reaper)
+        app.router.on_shutdown.append(_stop_session_reaper)
 
         # Helper function to handle reset endpoint
         async def reset_handler(
@@ -586,14 +642,28 @@ class HTTPEnvServer:
                     )
 
                 async with self._session_lock:
-                    env = self._sessions.pop(target_session_id, None)
-                    executor = self._session_executors.pop(target_session_id, None)
-                    self._session_info.pop(target_session_id, None)
+                    env = self._sessions.pop(target_session_id, _MISSING)
+                    if env is not _MISSING:
+                        executor = self._session_executors.pop(target_session_id, None)
+                        self._session_info.pop(target_session_id, None)
+                    else:
+                        executor = None
 
-                if env is None:
+                if env is _MISSING:
                     return JsonRpcResponse.error_response(
                         JsonRpcErrorCode.INVALID_PARAMS,
                         f"Unknown session_id: {target_session_id}",
+                        request_id=request_id,
+                    )
+
+                if env is None:
+                    # Session slot reserved but env factory still running;
+                    # re-insert the placeholder so _create_session can finish.
+                    async with self._session_lock:
+                        self._sessions[target_session_id] = None
+                    return JsonRpcResponse.error_response(
+                        JsonRpcErrorCode.INVALID_REQUEST,
+                        f"Session {target_session_id} is still initializing; retry shortly",
                         request_id=request_id,
                     )
 

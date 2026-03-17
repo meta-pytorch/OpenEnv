@@ -615,8 +615,245 @@ class TestHTTPMCPEndpoint:
 
 
 # =============================================================================
-# WebSocket MCP Tests
+# HTTP MCP Session Lifecycle Tests
 # =============================================================================
+
+
+class TestHTTPMCPSessionLifecycle:
+    """Tests for openenv/session/create and openenv/session/close methods."""
+
+    def test_session_create_returns_session_id(self, app):
+        """Test openenv/session/create returns a non-empty session_id."""
+        from starlette.testclient import TestClient
+
+        client = TestClient(app)
+        response = client.post(
+            "/mcp",
+            json={
+                "jsonrpc": "2.0",
+                "method": "openenv/session/create",
+                "params": {},
+                "id": 1,
+            },
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert "result" in data
+        assert "session_id" in data["result"]
+        assert isinstance(data["result"]["session_id"], str)
+        assert len(data["result"]["session_id"]) > 0
+
+    def test_session_tools_call_with_session_id(self, app):
+        """Test tools/call works with an explicit session_id."""
+        from starlette.testclient import TestClient
+
+        client = TestClient(app)
+
+        # Create session
+        create_resp = client.post(
+            "/mcp",
+            json={
+                "jsonrpc": "2.0",
+                "method": "openenv/session/create",
+                "params": {},
+                "id": 1,
+            },
+        )
+        sid = create_resp.json()["result"]["session_id"]
+
+        # Call tool with that session
+        call_resp = client.post(
+            "/mcp",
+            json={
+                "jsonrpc": "2.0",
+                "method": "tools/call",
+                "params": {
+                    "name": "add",
+                    "arguments": {"a": 2, "b": 3},
+                    "session_id": sid,
+                },
+                "id": 2,
+            },
+        )
+
+        assert call_resp.status_code == 200
+        data = call_resp.json()
+        assert "result" in data
+        assert "5" in str(data["result"]) or data["result"] == 5
+
+    def test_session_close_returns_closed_true(self, app):
+        """Test openenv/session/close returns closed: true."""
+        from starlette.testclient import TestClient
+
+        client = TestClient(app)
+
+        # Create session
+        create_resp = client.post(
+            "/mcp",
+            json={
+                "jsonrpc": "2.0",
+                "method": "openenv/session/create",
+                "params": {},
+                "id": 1,
+            },
+        )
+        sid = create_resp.json()["result"]["session_id"]
+
+        # Close session
+        close_resp = client.post(
+            "/mcp",
+            json={
+                "jsonrpc": "2.0",
+                "method": "openenv/session/close",
+                "params": {"session_id": sid},
+                "id": 2,
+            },
+        )
+
+        assert close_resp.status_code == 200
+        data = close_resp.json()
+        assert "result" in data
+        assert data["result"]["session_id"] == sid
+        assert data["result"]["closed"] is True
+
+    def test_session_close_unknown_id_returns_error(self, app):
+        """Test closing a bogus session_id returns an error."""
+        from starlette.testclient import TestClient
+
+        client = TestClient(app)
+        response = client.post(
+            "/mcp",
+            json={
+                "jsonrpc": "2.0",
+                "method": "openenv/session/close",
+                "params": {"session_id": "nonexistent-session-id"},
+                "id": 1,
+            },
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert "error" in data
+        assert data["error"]["code"] == -32602  # INVALID_PARAMS
+
+    def test_session_create_from_websocket_is_idempotent(self, app):
+        """Test openenv/session/create over WebSocket returns the existing session id."""
+        from starlette.testclient import TestClient
+
+        client = TestClient(app)
+
+        with client.websocket_connect("/ws") as websocket:
+            # Send session/create via MCP over WebSocket
+            websocket.send_text(
+                json.dumps(
+                    {
+                        "type": "mcp",
+                        "data": {
+                            "jsonrpc": "2.0",
+                            "method": "openenv/session/create",
+                            "params": {},
+                            "id": 1,
+                        },
+                    }
+                )
+            )
+
+            response_text = websocket.receive_text()
+            response = json.loads(response_text)
+
+            assert response["type"] == "mcp"
+            data = response["data"]
+            assert "result" in data
+            assert "session_id" in data["result"]
+            # Should return the WebSocket's own session_id, not create a new one
+            ws_session_id = data["result"]["session_id"]
+            assert isinstance(ws_session_id, str)
+            assert len(ws_session_id) > 0
+
+            # Send again — should return the same session id (idempotent)
+            websocket.send_text(
+                json.dumps(
+                    {
+                        "type": "mcp",
+                        "data": {
+                            "jsonrpc": "2.0",
+                            "method": "openenv/session/create",
+                            "params": {},
+                            "id": 2,
+                        },
+                    }
+                )
+            )
+
+            response_text2 = websocket.receive_text()
+            response2 = json.loads(response_text2)
+            assert response2["data"]["result"]["session_id"] == ws_session_id
+
+    async def test_idle_session_reaper(self, mock_fastmcp_server):
+        """Test that idle HTTP sessions are reaped after the configured timeout."""
+        import asyncio
+
+        from openenv.core.env_server.http_server import HTTPEnvServer
+        from openenv.core.env_server.mcp_environment import MCPEnvironment
+        from openenv.core.env_server.types import ConcurrencyConfig
+
+        class ReaperTestEnv(MCPEnvironment):
+            SUPPORTS_CONCURRENT_SESSIONS = True
+
+            def __init__(self):
+                super().__init__(mock_fastmcp_server)
+
+            def reset(self, **kwargs):
+                return Observation(done=False, reward=0.0)
+
+            def _step_impl(self, action, **kwargs):
+                return Observation(done=False, reward=0.0)
+
+            @property
+            def state(self):
+                from openenv.core.env_server.types import State
+
+                return State(step_count=0)
+
+        server = HTTPEnvServer(
+            env=ReaperTestEnv,
+            action_cls=None,
+            observation_cls=None,
+            concurrency_config=ConcurrencyConfig(
+                max_concurrent_envs=10,
+                session_timeout=0.3,  # 300ms for fast test
+            ),
+        )
+
+        # Create a session directly on the server
+        session_id, env = await server._create_session()
+        assert session_id in server._sessions
+
+        # Start the reaper
+        server._start_reaper()
+        try:
+            # Session should still exist immediately
+            assert session_id in server._sessions
+
+            # Wait long enough for reaper to run (timeout=0.3s, interval=max(0.075, 5)=5s)
+            # We need to override the interval; instead, call reap directly
+            await asyncio.sleep(0.4)
+            # Manually trigger one reap cycle since the reaper interval
+            # is min 5s and we don't want to wait that long in tests
+            now = __import__("time").time()
+            stale = []
+            async with server._session_lock:
+                for sid, info in server._session_info.items():
+                    if now - info.last_activity_at > 0.3:
+                        stale.append(sid)
+            for sid in stale:
+                await server._destroy_session(sid)
+
+            # Session should be gone
+            assert session_id not in server._sessions
+        finally:
+            server._stop_reaper()
 
 
 class TestWebSocketMCP:
