@@ -13,8 +13,10 @@ import pytest
 # Skip entire module if smolagents is not installed
 pytest.importorskip("smolagents", reason="smolagents is not installed")
 
+from repl_env import LocalREPLEnv, LocalRLMRunner, REPLEnv
 from repl_env.models import CodeBlockResult, REPLAction, REPLObservation, REPLState
 from repl_env.recursive_controller import create_server_recursive_controller
+from repl_env.rubrics import ExactMatchRubric, REPLRubric
 from repl_env.server.python_executor import PythonExecutor
 from repl_env.server.repl_environment import REPLEnvironment
 
@@ -231,7 +233,6 @@ class TestREPLEnvironment:
 
     def test_rubric_reward_on_success(self):
         """Test rubric reward when final answer matches expected."""
-        from repl_env.rubrics import ExactMatchRubric, REPLRubric
 
         rubric = REPLRubric(outcome=ExactMatchRubric())
         env = REPLEnvironment(rubric=rubric)
@@ -242,7 +243,6 @@ class TestREPLEnvironment:
 
     def test_rubric_reward_on_wrong_answer(self):
         """Test rubric reward when final answer does not match expected."""
-        from repl_env.rubrics import ExactMatchRubric, REPLRubric
 
         rubric = REPLRubric(outcome=ExactMatchRubric())
         env = REPLEnvironment(rubric=rubric)
@@ -401,7 +401,6 @@ class TestLocalREPLEnv:
 
     def test_local_mode_basic(self):
         """Test basic local mode execution."""
-        from repl_env import LocalREPLEnv
 
         with LocalREPLEnv() as env:
             result = env.reset()
@@ -417,7 +416,6 @@ class TestLocalREPLEnv:
 
     def test_local_mode_with_context(self):
         """Test local mode with context."""
-        from repl_env import LocalREPLEnv
 
         with LocalREPLEnv() as env:
             result = env.reset(context="Hello World", task_prompt="Count chars")
@@ -429,7 +427,6 @@ class TestLocalREPLEnv:
 
     def test_local_mode_with_llm_functions(self):
         """Test local mode with LLM functions."""
-        from repl_env import LocalREPLEnv
 
         def mock_query(prompt):
             return f"Response: {prompt[:20]}"
@@ -460,7 +457,6 @@ class TestLocalREPLEnv:
 
     def test_submit_final_answer(self):
         """Test submit_final_answer() method."""
-        from repl_env import LocalREPLEnv
 
         with LocalREPLEnv() as env:
             env.reset()
@@ -470,7 +466,6 @@ class TestLocalREPLEnv:
 
     def test_state_method(self):
         """Test state() method."""
-        from repl_env import LocalREPLEnv
 
         with LocalREPLEnv() as env:
             env.reset(context="test", task_prompt="do something")
@@ -480,7 +475,6 @@ class TestLocalREPLEnv:
 
     def test_list_variables(self):
         """Test list_variables() method."""
-        from repl_env import LocalREPLEnv
 
         with LocalREPLEnv() as env:
             env.reset()
@@ -490,7 +484,6 @@ class TestLocalREPLEnv:
 
     def test_context_manager(self):
         """Test context manager properly closes."""
-        from repl_env import LocalREPLEnv
 
         env = LocalREPLEnv()
         with env:
@@ -505,7 +498,6 @@ class TestLocalRLMRunner:
 
     def test_recursive_subcall(self):
         """Test rlm_query spawns a child runner and returns its final answer."""
-        from repl_env import LocalRLMRunner
 
         def mock_chat(messages, model=None):
             joined = "\n".join(message["content"] for message in messages)
@@ -525,7 +517,6 @@ class TestLocalRLMRunner:
 
     def test_recursive_batched_subcall(self):
         """Test rlm_query_batched spawns multiple child runners."""
-        from repl_env import LocalRLMRunner
 
         def mock_chat(messages, model=None):
             joined = "\n".join(message["content"] for message in messages)
@@ -545,9 +536,30 @@ class TestLocalRLMRunner:
         result = runner.run("Root context", "Ask recursive children for two parts")
         assert result.final_answer == "AB"
 
+    def test_multiple_code_blocks_all_executed(self):
+        """Test that all code blocks in a single response are executed before checking FINAL.
+
+        Matches official RLM behavior: the model writes exploration code first
+        and FINAL last, expecting all blocks to run in the same namespace.
+        """
+
+        def mock_chat(messages, model=None):
+            joined = "\n".join(message["content"] for message in messages)
+            if "REPL output" in joined:
+                return "```repl\nprint(FINAL(total))\n```"
+            # Three blocks — setup, compute, then FINAL
+            return (
+                "```repl\na = 10\nprint(a)\n```\n"
+                "```repl\nb = 20\nprint(b)\n```\n"
+                "```repl\ntotal = a + b\nprint(FINAL(total))\n```"
+            )
+
+        runner = LocalRLMRunner(mock_chat, max_iterations=4, max_depth=1)
+        result = runner.run("Root context", "Add numbers across blocks")
+        assert result.final_answer == "30"
+
     def test_max_children_total_limit(self):
         """Test recursive child spawning respects max_children_total."""
-        from repl_env import LocalRLMRunner
 
         def mock_chat(messages, model=None):
             joined = "\n".join(message["content"] for message in messages)
@@ -574,7 +586,6 @@ class TestLocalRLMRunner:
 
     def test_max_children_per_batch_limit(self):
         """Test batched recursive child spawning is capped."""
-        from repl_env import LocalRLMRunner
 
         def mock_chat(messages, model=None):
             joined = "\n".join(message["content"] for message in messages)
@@ -602,7 +613,6 @@ class TestLocalRLMRunner:
 
     def test_result_truncation_limit(self):
         """Test recursive child results are truncated when configured."""
-        from repl_env import LocalRLMRunner
 
         def mock_chat(messages, model=None):
             joined = "\n".join(message["content"] for message in messages)
@@ -623,7 +633,6 @@ class TestLocalRLMRunner:
 
     def test_child_trace_metadata(self):
         """Test child trace metadata is recorded on the run result."""
-        from repl_env import LocalRLMRunner
 
         def mock_chat(messages, model=None):
             joined = "\n".join(message["content"] for message in messages)
@@ -651,7 +660,6 @@ class TestLocalRLMRunner:
         Uses cooperative timeout: checked between iterations, so the child
         must take multiple iterations to trigger the timeout.
         """
-        from repl_env import LocalRLMRunner
 
         def mock_chat(messages, model=None):
             joined = "\n".join(message["content"] for message in messages)
@@ -674,7 +682,6 @@ class TestLocalRLMRunner:
 
     def test_subcall_callbacks(self):
         """Test official-style subcall lifecycle callbacks fire for real child runs."""
-        from repl_env import LocalRLMRunner
 
         starts = []
         completes = []
@@ -713,7 +720,6 @@ class TestLocalRLMRunner:
 
     def test_default_answer_on_max_iterations(self):
         """Test that the runner makes a final LLM call when iterations are exhausted."""
-        from repl_env import LocalRLMRunner
 
         def mock_chat(messages, model=None):
             joined = "\n".join(message["content"] for message in messages)
@@ -734,7 +740,6 @@ class TestREPLEnvRemoteClient:
 
     @pytest.mark.asyncio
     async def test_async_execute_and_state(self, monkeypatch):
-        from repl_env import REPLEnv
 
         env = REPLEnv(base_url="http://localhost:8000")
 
@@ -817,7 +822,6 @@ class TestREPLEnvRemoteClient:
         assert state.final_answer == "42"
 
     def test_sync_wrapper(self, monkeypatch):
-        from repl_env import REPLEnv
 
         env = REPLEnv(base_url="http://localhost:8000").sync()
 

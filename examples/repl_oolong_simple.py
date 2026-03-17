@@ -19,7 +19,7 @@ from repl_env import LocalRLMRunner
 from repl_env.prompts import RLM_SYSTEM_PROMPT_QWEN
 
 # ============== CONFIGURATION ==============
-MODEL_NAME = "Qwen/Qwen3.5-9B"
+MODEL_NAME = "Qwen/Qwen3-Coder-480B-A35B-Instruct"
 DATASET_SUBSET = "toy_dnd"
 DATASET_SPLIT = "validation"
 EXAMPLE_INDEX = 0
@@ -30,24 +30,20 @@ HF_TOKEN = os.environ.get("HF_TOKEN")
 
 
 def create_chat_fn():
-    """Create the chat function with Qwen3.5 model card recommended params."""
+    """Create the chat function with Qwen3-Coder recommended params."""
     client = InferenceClient(model=MODEL_NAME, token=HF_TOKEN, timeout=300)
 
     def chat_fn(messages: list[dict], model: str | None = None) -> str:
         response = client.chat.completions.create(
             model=model or MODEL_NAME,
             messages=messages,
-            max_tokens=2048,
-            # Qwen3.5 non-thinking mode for precise coding tasks (from model card)
-            temperature=0.6,
-            top_p=0.95,
-            presence_penalty=0.0,
+            max_tokens=4096,
+            # Qwen3-Coder sampling params (from model card)
+            temperature=0.7,
+            top_p=0.8,
             extra_body={
                 "top_k": 20,
-                "min_p": 0.0,
-                "repetition_penalty": 1.0,
-                # Disable thinking mode — the RLM loop is the reasoning mechanism
-                "chat_template_kwargs": {"enable_thinking": False},
+                "repetition_penalty": 1.05,
             },
         )
         return response.choices[0].message.content

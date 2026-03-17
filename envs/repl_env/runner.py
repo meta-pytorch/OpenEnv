@@ -183,15 +183,19 @@ class LocalRLMRunner:
                 for code in code_blocks:
                     result = env.execute(code)
                     code_block_observations.append(result.observation)
-                    if result.done:
-                        return RLMRunResult(
-                            final_answer=env.state().final_answer,
-                            messages=messages
-                            + [{"role": "assistant", "content": response}],
-                            iterations=iteration,
-                            depth=self.depth,
-                            child_traces=list(getattr(backend, "child_traces", [])),
-                        )
+
+                # Check for FINAL after all blocks executed (matches official RLM).
+                # The model expects all blocks to run — it often writes exploration
+                # code first and FINAL last in the same response.
+                if any(obs.done for obs in code_block_observations):
+                    return RLMRunResult(
+                        final_answer=env.state().final_answer,
+                        messages=messages
+                        + [{"role": "assistant", "content": response}],
+                        iterations=iteration,
+                        depth=self.depth,
+                        child_traces=list(getattr(backend, "child_traces", [])),
+                    )
 
                 observation_text = format_observations(
                     code_block_observations, code_blocks=code_blocks
