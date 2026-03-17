@@ -43,6 +43,20 @@ Then open [http://localhost:8000](http://localhost:8000) in your browser.
 | `make html-stable` | Build as a versioned release |
 | `make clean html` | Clean rebuild from scratch |
 
+## How the Getting Started Section Builds
+
+The Getting Started section is powered by [Sphinx Gallery](https://sphinx-gallery.github.io/). Source files live in `docs/source/getting_started/`:
+
+- **`plot_*.py`** — executable Python scripts that Sphinx Gallery converts into rendered notebook pages
+- **`*.md`** — static Markdown pages (environment-builder, contributing-envs)
+- **`README.rst`** — gallery index template
+
+During the build, Sphinx Gallery processes these sources and writes the output into a generated `auto_getting_started/` directory. A custom `copy_md_pages_to_gallery` hook in `conf.py` copies the static `.md` pages into that same output directory so they appear alongside the gallery notebooks in the left nav.
+
+Because `getting_started/*.md` is in `exclude_patterns` in `conf.py`, Sphinx only generates HTML from the `auto_getting_started/` output — not from the source directory directly. This means all internal links to Getting Started pages must use the `auto_getting_started/` path (e.g. `auto_getting_started/environment-builder.md`). Linking to `getting_started/` will 404.
+
+The copy hook runs on the `builder-inited` event, so static pages are available in every build variant including `make html-noplot`. That flag only skips executing the `plot_*.py` gallery scripts; it does not skip the page copy.
+
 ## Adding an Environment to the Docs
 
 Every environment page is generated from the environment's own `README.md` using a Sphinx `{include}` directive. There are three steps:
