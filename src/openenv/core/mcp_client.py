@@ -52,6 +52,7 @@ Example (sync wrapper):
     ...     result = env.call_tool("echo_message", message="Hello!")
 """
 
+import asyncio
 from typing import Any, Dict, List, Optional
 
 from .client_types import StepResult
@@ -119,6 +120,7 @@ class MCPClientBase(EnvClient[Any, Observation, State]):
         self._tools_cache: Optional[List[Tool]] = None
         self.use_production_mode = False
         self._production_session_id: Optional[str] = None
+        self._production_session_lock = asyncio.Lock()
         self._jsonrpc_request_id = 0
 
     def _next_request_id(self) -> int:
@@ -153,20 +155,21 @@ class MCPClientBase(EnvClient[Any, Observation, State]):
 
     async def _ensure_production_session(self) -> str:
         """Create and cache a persistent HTTP MCP session id if needed."""
-        if self._production_session_id is not None:
-            return self._production_session_id
+        async with self._production_session_lock:
+            if self._production_session_id is not None:
+                return self._production_session_id
 
-        data = await self._production_mcp_request("openenv/session/create")
-        if "error" in data:
-            message = data.get("error", {}).get("message", "unknown error")
-            raise RuntimeError(f"Failed to create MCP session: {message}")
+            data = await self._production_mcp_request("openenv/session/create")
+            if "error" in data:
+                message = data.get("error", {}).get("message", "unknown error")
+                raise RuntimeError(f"Failed to create MCP session: {message}")
 
-        session_id = data.get("result", {}).get("session_id")
-        if not session_id:
-            raise RuntimeError("Failed to create MCP session: missing session_id")
+            session_id = data.get("result", {}).get("session_id")
+            if not session_id:
+                raise RuntimeError("Failed to create MCP session: missing session_id")
 
-        self._production_session_id = session_id
-        return session_id
+            self._production_session_id = session_id
+            return session_id
 
     async def list_tools(self, use_cache: bool = True) -> List[Tool]:
         """

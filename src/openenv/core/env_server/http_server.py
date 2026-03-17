@@ -21,7 +21,7 @@ import time
 import uuid
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import AsyncExitStack
-from typing import Any, AsyncContextManager, Callable, Dict, Optional, Type, cast
+from typing import Any, AsyncContextManager, Callable, cast, Dict, Optional, Type
 
 _MISSING = object()
 
@@ -348,6 +348,10 @@ class HTTPEnvServer:
             executor = self._session_executors.pop(session_id, None)
             self._session_info.pop(session_id, None)
 
+        await self._cleanup_session_resources(env, executor)
+
+    async def _cleanup_session_resources(self, env: object, executor: object) -> None:
+        """Close an environment and shut down its executor (best-effort)."""
         # Run close() in the same executor where the env was created
         # This is required for thread-sensitive libraries like Playwright/greenlet
         if env is not None:
@@ -582,16 +586,19 @@ class HTTPEnvServer:
                     )
 
                 async with self._session_lock:
-                    exists = target_session_id in self._sessions
+                    env = self._sessions.pop(target_session_id, None)
+                    executor = self._session_executors.pop(target_session_id, None)
+                    self._session_info.pop(target_session_id, None)
 
-                if not exists:
+                if env is None:
                     return JsonRpcResponse.error_response(
                         JsonRpcErrorCode.INVALID_PARAMS,
                         f"Unknown session_id: {target_session_id}",
                         request_id=request_id,
                     )
 
-                await self._destroy_session(target_session_id)
+                # env/executor cleanup outside the lock
+                await self._cleanup_session_resources(env, executor)
                 return JsonRpcResponse.success(
                     result={"session_id": target_session_id, "closed": True},
                     request_id=request_id,
@@ -687,7 +694,6 @@ class HTTPEnvServer:
                     )
 
                 elif method == McpMethod.TOOLS_CALL:
-                    params = request.params
                     tool_name = params.get("name")
                     arguments = params.get("arguments", {})
 

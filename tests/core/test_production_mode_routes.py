@@ -455,7 +455,7 @@ def mock_fastmcp_server():
 @pytest.fixture
 def app(mock_fastmcp_server):
     """Create FastAPI app with MCP endpoints."""
-    # This should FAIL because MCP endpoints are not implemented yet
+    # This creates and returns a FastAPI app with MCP endpoints
     from openenv.core.env_server.http_server import create_fastapi_app
     from openenv.core.env_server.mcp_environment import MCPEnvironment
 
@@ -495,7 +495,6 @@ class TestHTTPMCPEndpoint:
 
     def test_mcp_endpoint_exists(self, app):
         """Test /mcp endpoint is exposed."""
-        # This should FAIL because /mcp endpoint doesn't exist yet
         from starlette.testclient import TestClient
 
         client = TestClient(app)
@@ -507,7 +506,6 @@ class TestHTTPMCPEndpoint:
 
     def test_mcp_tools_list_via_http(self, app):
         """Test tools/list via HTTP /mcp endpoint."""
-        # This should FAIL because tools/list handling is not implemented
         from starlette.testclient import TestClient
 
         client = TestClient(app)
@@ -526,7 +524,6 @@ class TestHTTPMCPEndpoint:
 
     def test_mcp_tools_call_via_http(self, app):
         """Test tools/call via HTTP /mcp endpoint."""
-        # This should FAIL because tools/call handling is not implemented
         from starlette.testclient import TestClient
 
         client = TestClient(app)
@@ -551,7 +548,6 @@ class TestHTTPMCPEndpoint:
 
     def test_mcp_http_bypasses_step_overhead(self, app):
         """Test direct MCP access doesn't call step() or compute rewards."""
-        # This should FAIL because direct MCP path is not implemented
         from starlette.testclient import TestClient
 
         client = TestClient(app)
@@ -575,7 +571,6 @@ class TestHTTPMCPEndpoint:
 
     def test_mcp_http_invalid_method_returns_error(self, app):
         """Test invalid MCP method returns proper JSON-RPC error."""
-        # This should FAIL because error handling is not implemented
         from starlette.testclient import TestClient
 
         client = TestClient(app)
@@ -593,7 +588,6 @@ class TestHTTPMCPEndpoint:
 
     def test_mcp_http_missing_jsonrpc_version(self, app):
         """Test request without jsonrpc version returns error."""
-        # This should FAIL because validation is not implemented
         from starlette.testclient import TestClient
 
         client = TestClient(app)
@@ -606,7 +600,6 @@ class TestHTTPMCPEndpoint:
 
     def test_mcp_http_no_reset_required(self, app):
         """Test MCP endpoints work without calling reset() first."""
-        # This should FAIL if reset() is required (it shouldn't be)
         from starlette.testclient import TestClient
 
         client = TestClient(app)
@@ -631,7 +624,6 @@ class TestWebSocketMCP:
 
     def test_websocket_mcp_message_type(self, app):
         """Test WebSocket accepts 'mcp' message type."""
-        # This should FAIL because MCP message handling is not implemented
         from starlette.testclient import TestClient
 
         client = TestClient(app)
@@ -655,7 +647,6 @@ class TestWebSocketMCP:
 
     def test_websocket_mcp_tools_list(self, app):
         """Test tools/list via WebSocket MCP message."""
-        # This should FAIL because WebSocket MCP is not implemented
         from starlette.testclient import TestClient
 
         client = TestClient(app)
@@ -678,7 +669,6 @@ class TestWebSocketMCP:
 
     def test_websocket_mcp_tools_call(self, app):
         """Test tools/call via WebSocket MCP message."""
-        # This should FAIL because WebSocket MCP is not implemented
         from starlette.testclient import TestClient
 
         client = TestClient(app)
@@ -709,7 +699,6 @@ class TestWebSocketMCP:
 
     def test_websocket_mcp_interleaved_with_step(self, app):
         """Test WebSocket can handle both MCP and step() messages."""
-        # This should FAIL because mixed message handling is not implemented
         from starlette.testclient import TestClient
 
         client = TestClient(app)
@@ -823,7 +812,6 @@ class TestProductionModePerformance:
 
     def test_production_mode_no_state_tracking(self, app):
         """Test production MCP mode doesn't track episode state."""
-        # This should FAIL because production mode optimization is not implemented
         from starlette.testclient import TestClient
 
         client = TestClient(app)
@@ -860,7 +848,6 @@ class TestMCPClientProductionMode:
 
     async def test_mcp_client_can_use_production_endpoints(self):
         """Test MCPToolClient can use production MCP endpoints directly."""
-        # This should FAIL because client doesn't expose production mode option
         from openenv.core.mcp_client import MCPToolClient
 
         client = MCPToolClient(base_url="http://localhost:8000")
@@ -894,7 +881,6 @@ class TestMCPErrorResponses:
 
     def test_invalid_json_returns_parse_error(self, app):
         """Test malformed JSON returns JSON-RPC parse error."""
-        # This should FAIL because error handling is not implemented
         from starlette.testclient import TestClient
 
         client = TestClient(app)
@@ -908,7 +894,6 @@ class TestMCPErrorResponses:
 
     def test_missing_params_returns_invalid_params(self, app):
         """Test missing required params returns invalid params error."""
-        # This should FAIL because validation is not implemented
         from starlette.testclient import TestClient
 
         client = TestClient(app)
@@ -931,7 +916,6 @@ class TestMCPErrorResponses:
 
     def test_nonexistent_tool_returns_error(self, app):
         """Test calling non-existent tool returns proper error."""
-        # This should FAIL because error handling is not implemented
         from starlette.testclient import TestClient
 
         client = TestClient(app)
