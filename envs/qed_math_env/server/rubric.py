@@ -25,7 +25,8 @@ from __future__ import annotations
 
 import asyncio
 import re
-from dataclasses import dataclass
+import time
+from dataclasses import dataclass, field
 from typing import Any, Union
 
 import openai
@@ -97,6 +98,13 @@ class GradingResult:
     score: int  # Raw integer score in [0, MAX_SCORE]
     feedback: str  # Full grader response text (may contain reasoning)
     reward: float  # Normalized reward in [0, 1]
+    metrics: dict[str, float | int] = field(default_factory=dict)
+    # Verifier metrics following QED-Nano conventions:
+    #   verifier/rollouts/success, verifier/rollouts/failure,
+    #   verifier/failures/timeout, verifier/failures/rate_limit,
+    #   verifier/failures/no_score_tag, verifier/failures/num_retries,
+    #   verifier/runtime/latency_per_request,
+    #   verifier/runtime/input_tokens, verifier/runtime/output_tokens
 
 
 def apply_score_threshold(score: float) -> float:
@@ -242,6 +250,10 @@ class MathProofRubric(Rubric):
         returns the normalized reward.  Retries transient errors up to
         ``max_retries`` times with configurable back-off.
 
+        Also collects verifier metrics (success/failure, failure causes,
+        retry count, latency, tokens) mirroring QED-Nano's
+        ``_build_rollout_metrics`` pattern.
+
         Args:
             proof: Agent's proof text.
             problem: Problem statement.
@@ -251,12 +263,31 @@ class MathProofRubric(Rubric):
                 :func:`parse_schema`); ``None`` is treated as empty.
 
         Returns:
-            GradingResult with ``score`` (0-7), ``feedback``, and
-            ``reward`` (0.0-1.0).
+            GradingResult with ``score`` (0-7), ``feedback``,
+            ``reward`` (0.0-1.0), and ``metrics`` dict.
         """
+        metrics: dict[str, float | int] = {
+            "verifier/rollouts/success": 0,
+            "verifier/rollouts/failure": 0,
+            "verifier/failures/timeout": 0,
+            "verifier/failures/rate_limit": 0,
+            "verifier/failures/no_input": 0,
+            "verifier/failures/no_score_tag": 0,
+            "verifier/failures/all_attempts_failed": 0,
+            "verifier/failures/num_retries": 0,
+            "verifier/runtime/latency_per_request": 0.0,
+            "verifier/runtime/input_tokens": 0,
+            "verifier/runtime/output_tokens": 0,
+        }
+
         if not proof.strip():
+            metrics["verifier/rollouts/failure"] = 1
+            metrics["verifier/failures/no_input"] = 1
             return GradingResult(
-                score=0, feedback="Empty proof submission.", reward=0.0
+                score=0,
+                feedback="Empty proof submission.",
+                reward=0.0,
+                metrics=metrics,
             )
 
         # Normalize structured schema to Markdown before building the prompt.
@@ -271,6 +302,7 @@ class MathProofRubric(Rubric):
         prompt = self._build_prompt(proof, problem, reference_solution, guidelines_str)
 
         attempt_causes: list[str] = []
+        t0 = time.perf_counter()
         for attempt in range(1, self.max_retries + 1):
             try:
                 response_text = await asyncio.wait_for(
@@ -278,16 +310,43 @@ class MathProofRubric(Rubric):
                     timeout=self.timeout_seconds,
                 )
                 score, feedback = self._parse_response(response_text)
+
+                elapsed = time.perf_counter() - t0
+                metrics["verifier/runtime/latency_per_request"] = round(elapsed, 4)
+                metrics["verifier/failures/num_retries"] = attempt - 1
+
+                # Estimate tokens (rough heuristic: ~4 chars per token).
+                metrics["verifier/runtime/input_tokens"] = max(
+                    1, len(prompt) // 4
+                )
+                metrics["verifier/runtime/output_tokens"] = max(
+                    1, len(response_text) // 4
+                )
+
+                # Check for missing score tag (score defaults to 0).
+                if not re.search(r"<score>\d+</score>", response_text):
+                    metrics["verifier/failures/no_score_tag"] = 1
+                    metrics["verifier/rollouts/failure"] = 1
+                else:
+                    metrics["verifier/rollouts/success"] = 1
+
                 reward = self.normalize_reward(score)
-                return GradingResult(score=score, feedback=feedback, reward=reward)
+                return GradingResult(
+                    score=score,
+                    feedback=feedback,
+                    reward=reward,
+                    metrics=metrics,
+                )
 
             except openai.RateLimitError:
                 attempt_causes.append("rate_limit")
+                metrics["verifier/failures/rate_limit"] += 1
                 if attempt < self.max_retries:
                     await asyncio.sleep(self._backoff(attempt))
 
             except asyncio.TimeoutError:
                 attempt_causes.append("timeout")
+                metrics["verifier/failures/timeout"] += 1
                 if attempt < self.max_retries:
                     await asyncio.sleep(self._backoff(attempt))
 
@@ -296,6 +355,13 @@ class MathProofRubric(Rubric):
                 if attempt < self.max_retries:
                     await asyncio.sleep(self._backoff(attempt))
 
+        # All attempts exhausted.
+        elapsed = time.perf_counter() - t0
+        metrics["verifier/runtime/latency_per_request"] = round(elapsed, 4)
+        metrics["verifier/failures/num_retries"] = self.max_retries
+        metrics["verifier/failures/all_attempts_failed"] = 1
+        metrics["verifier/rollouts/failure"] = 1
+
         return GradingResult(
             score=0,
             feedback=(
@@ -303,6 +369,7 @@ class MathProofRubric(Rubric):
                 + "; ".join(attempt_causes)
             ),
             reward=0.0,
+            metrics=metrics,
         )
 
     # Helpers
