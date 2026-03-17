@@ -141,3 +141,50 @@ Rebuild and check that the environment appears in the left nav and the catalog g
 cd docs && make clean html
 cd _build/html && python -m http.server 8000
 ```
+
+## Version Switcher
+
+The docs site includes a version dropdown in the top-left navbar (next to the logo) powered by the `pytorch-sphinx-theme2` theme. It is configured by three pieces:
+
+### `versions.json`
+
+The file `docs/source/_static/versions.json` lists all published versions. Each entry has a `name` (display label), `version` (matching key), `url` (root URL for that version), and optionally `preferred: true` for the default. Currently it contains only the `main` development build:
+
+```json
+[
+  {
+    "name": "main",
+    "version": "main",
+    "url": "https://meta-pytorch.org/OpenEnv/",
+    "preferred": true
+  }
+]
+```
+
+### Build-time version detection
+
+`conf.py` reads the version from `pyproject.toml` and uses the `RELEASE` environment variable to decide which mode to build in:
+
+- **`make html`** (default) — builds as `main`. The switcher highlights the "main" entry.
+- **`make html-stable`** — sets `RELEASE=true`. The version is extracted from `pyproject.toml` (e.g. `0.2` from `0.2.2.dev0`) and the switcher highlights that version's entry.
+
+### Publishing a new version
+
+When cutting a release:
+
+1. Ensure `pyproject.toml` has the release version (e.g. `0.2.0`)
+2. Build with `make html-stable` — this produces docs tagged as version `0.2`
+3. Deploy the output to a versioned path (e.g. `https://meta-pytorch.org/OpenEnv/0.2/`)
+4. Add an entry to `docs/source/_static/versions.json`:
+
+```json
+{
+  "name": "0.2",
+  "version": "0.2",
+  "url": "https://meta-pytorch.org/OpenEnv/0.2/"
+}
+```
+
+5. Rebuild and redeploy `main` so its copy of `versions.json` includes the new entry
+
+The switcher on every version of the site fetches `versions.json` at page load, so all versions see the full list once the file is updated.
