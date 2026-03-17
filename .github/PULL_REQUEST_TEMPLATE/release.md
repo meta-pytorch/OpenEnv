@@ -4,7 +4,6 @@
 
 ### Before opening this PR
 - [ ] `pyproject.toml` version changed from `X.Y.Z.dev0` → `X.Y.Z` (no `.dev0` suffix)
-- [ ] PyPI badge in `README.md` line 5 points to `openenv-core` (not `openenv`)
 - [ ] `hf-staging/` is NOT in this PR's diff
 - [ ] No `print()`, `breakpoint()`, or `TODO` in release-critical paths
 
