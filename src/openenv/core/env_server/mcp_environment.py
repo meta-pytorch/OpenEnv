@@ -157,8 +157,6 @@ class MCPEnvironment(Environment):
 
         self.mcp_server = mcp_server
         self.mcp_client = Client(mcp_server)
-        self._mcp_connected = False
-        self._mcp_session_lock = asyncio.Lock()
 
         # Track mode-specific tools: {tool_name: {mode: func}}
         # mode can be "production", "simulation", or None (available in all modes)
@@ -183,25 +181,35 @@ class MCPEnvironment(Environment):
     async def mcp_session(self):
         """
         Context manager for MCP client sessions.
-        Ensures the MCP client is connected for the duration of the context.
-        If already connected, it yields the existing client without reconnecting.
-        Uses a lock to prevent concurrent double-connection on the same env.
+
+        This wrapper serves two purposes:
+
+        1. **Null guard** — raises a clear error if ``close()`` has already
+           been called (``mcp_client`` is ``None``).
+
+        2. **AsyncExitStack adapter** — FastMCP's ``Client.__aenter__``
+           creates a background ``asyncio.Task`` for session management.
+           When entered directly via ``AsyncExitStack`` in the HTTP session
+           path (``_create_session``), this task can be cancelled by ASGI
+           harnesses (e.g. Starlette ``TestClient``) between requests,
+           corrupting session state.  Wrapping in an ``asynccontextmanager``
+           generator isolates the task lifecycle: the generator frame keeps
+           ``async with client:`` suspended at ``yield``, so cleanup only
+           runs when the stack explicitly closes the generator — not when
+           the event loop cancels orphaned tasks.
+
+        Delegates to FastMCP's ``Client`` context manager which is
+        reentrant: the first entry opens the transport and subsequent
+        (nested) entries simply increment an internal reference counter.
+        The transport is closed only when the outermost context exits.
+
+        No external lock is needed because ``Client._connect`` /
+        ``Client._disconnect`` already serialise connection state changes
+        through their own ``anyio.Lock``.
         """
         client = self._require_mcp_client()
-        if self._mcp_connected:
+        async with client:
             yield client
-            return
-        async with self._mcp_session_lock:
-            # Re-check after acquiring lock — another coroutine may have connected
-            if self._mcp_connected:
-                yield client
-                return
-            async with client:
-                self._mcp_connected = True
-                try:
-                    yield client
-                finally:
-                    self._mcp_connected = False
 
     @property
     def supports_code_mode(self) -> bool:
@@ -484,8 +492,7 @@ class MCPEnvironment(Environment):
         Returns:
             List of tool objects from the MCP server.
         """
-        async with self.mcp_session():
-            client = self._require_mcp_client()
+        async with self.mcp_session() as client:
             return await client.list_tools()
 
     def _handle_call_tool(
@@ -625,8 +632,7 @@ class MCPEnvironment(Environment):
         Returns:
             The result from the tool execution.
         """
-        async with self.mcp_session():
-            client = self._require_mcp_client()
+        async with self.mcp_session() as client:
             return await client.call_tool(tool_name, arguments)
 
     @abstractmethod
