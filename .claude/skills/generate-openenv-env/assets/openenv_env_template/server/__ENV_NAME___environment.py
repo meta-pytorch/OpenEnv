@@ -39,25 +39,30 @@ class __ENV_CLASS_NAME__Environment(Environment):
         >>> print(obs.message_length)  # 5
     """
 
-    # Enable concurrent WebSocket sessions.
-    # Set to True if your environment isolates state between instances.
-    # When True, multiple WebSocket clients can connect simultaneously, each
-    # getting their own environment instance (when using factory mode in app.py).
-    SUPPORTS_CONCURRENT_SESSIONS: bool = True
+    # Set to True only when your environment isolates state between instances
+    # and max_concurrent_envs > 1 in server/app.py.
+    SUPPORTS_CONCURRENT_SESSIONS: bool = False
 
     def __init__(self):
         """Initialize the __ENV_NAME__ environment."""
         self._state = State(episode_id=str(uuid4()), step_count=0)
         self._reset_count = 0
 
-    def reset(self) -> __ENV_CLASS_NAME__Observation:
+    def reset(
+        self, seed=None, episode_id=None, **kwargs
+    ) -> __ENV_CLASS_NAME__Observation:
         """
         Reset the environment.
+
+        Args:
+            seed: Optional seed for deterministic resets
+            episode_id: Optional externally-provided episode id
+            **kwargs: Additional reset arguments
 
         Returns:
             __ENV_CLASS_NAME__Observation with a ready message
         """
-        self._state = State(episode_id=str(uuid4()), step_count=0)
+        self._state = State(episode_id=episode_id or str(uuid4()), step_count=0)
         self._reset_count += 1
 
         return __ENV_CLASS_NAME__Observation(

@@ -22,7 +22,7 @@ RUN apt-get update && \
 
 # Build argument to control whether we're building standalone or in-repo
 ARG BUILD_MODE=in-repo
-ARG ENV_NAME=maze_env
+ARG ENV_NAME=__ENV_NAME__
 
 # Copy environment code (always at root of build context)
 COPY . /app/env
@@ -68,8 +68,8 @@ COPY --from=builder /app/env /app/env
 # Set PATH to use the virtual environment
 ENV PATH="/app/.venv/bin:$PATH"
 
-# Prefer the staged repo sources so env validation uses the checked-out OpenEnv tree.
-ENV PYTHONPATH="/app/env/src/core:/app/env/src:/app/env:$PYTHONPATH"
+# Set PYTHONPATH so imports work correctly
+ENV PYTHONPATH="/app/env:$PYTHONPATH"
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \

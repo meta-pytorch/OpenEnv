@@ -9,22 +9,23 @@ requires = ["setuptools>=45", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "openenv-tbench2_env"
+name = "openenv-__ENV_NAME__"
 version = "0.1.0"
-description = "Tbench2 Env environment for OpenEnv"
+description = "__ENV_TITLE_NAME__ environment for OpenEnv"
 requires-python = ">=3.10"
 dependencies = [
     # Core OpenEnv runtime (provides FastAPI server + HTTP client types)
     # install from github
-    "openenv-core[core]>=0.2.1,<0.2.2",
-    "pytest>=8.4.0",
+    # "openenv-core[core] @ git+https://github.com/meta-pytorch/OpenEnv.git",
+    "openenv-core[core]>=0.2.1",
     # Environment-specific dependencies
     # Add all dependencies needed for your environment here
-    "camel-ai",
-    # Docker-backed mode (optional, for full TB2.0 compatibility)
-    "docker>=7.0.0",
-     # TOML parsing (tomllib for Python 3.11+, tomli for older versions)
-    "tomli>=2.0.0; python_version < '3.11'",
+    # Examples:
+    # "numpy>=1.19.0",
+    # "torch>=2.0.0",
+    # "gymnasium>=0.29.0",
+    # "openspiel>=1.0.0",
+    # "smolagents>=1.22.0,<2",
 ]
 
 [project.optional-dependencies]
@@ -35,10 +36,10 @@ dev = [
 
 [project.scripts]
 # Server entry point - enables running via: uv run --project . server
-# or: python -m tbench2_env.server.app
-server = "tbench2_env.server.app:main"
+# or: python -m __ENV_NAME__.server.app
+server = "__ENV_NAME__.server.app:main"
 
 [tool.setuptools]
 include-package-data = true
-packages = ["tbench2_env", "tbench2_env.server"]
-package-dir = { "tbench2_env" = ".", "tbench2_env.server" = "server" }
+packages = ["__ENV_NAME__", "__ENV_NAME__.server"]
+package-dir = { "__ENV_NAME__" = ".", "__ENV_NAME__.server" = "server" }
