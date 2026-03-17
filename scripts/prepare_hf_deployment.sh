@@ -97,6 +97,7 @@ if [ -z "$DEFAULT_OPENENV_VERSION" ]; then
     DEFAULT_OPENENV_VERSION="0.2.0"
 fi
 OPENENV_VERSION="${OPENENV_VERSION:-$DEFAULT_OPENENV_VERSION}"
+OPENENV_GIT_REF="${OPENENV_GIT_REF:-}"
 COLLECTION_NAMESPACE="${COLLECTION_NAMESPACE:-openenv}"
 COLLECTION_SLUG="${COLLECTION_SLUG:-}"
 PRIVATE=true
@@ -123,6 +124,41 @@ normalized_version_suffix() {
     fi
 
     printf "%s" "$normalized"
+}
+
+resolve_openenv_git_ref() {
+    local requested_ref="$1"
+    local repo_url="https://github.com/meta-pytorch/OpenEnv.git"
+    local candidate=""
+    local resolved=""
+
+    if [ -z "$requested_ref" ]; then
+        printf "main"
+        return
+    fi
+
+    case "$requested_ref" in
+        main|master)
+            printf "%s" "$requested_ref"
+            return
+            ;;
+    esac
+
+    if printf "%s" "$requested_ref" | grep -Eq '^[0-9a-f]{7,40}$'; then
+        printf "%s" "$requested_ref"
+        return
+    fi
+
+    for candidate in "$requested_ref" "v${requested_ref#v}"; do
+        resolved=$(git ls-remote --heads --tags "$repo_url" "$candidate" 2>/dev/null || true)
+        if [ -n "$resolved" ]; then
+            printf "%s" "$candidate"
+            return
+        fi
+    done
+
+    warn "OpenEnv ref '$requested_ref' not found on GitHub; using 'main' for dependency rewrites."
+    printf "main"
 }
 
 while [[ $# -gt 0 ]]; do
@@ -216,6 +252,8 @@ if [ "$SPACE_SUFFIX_EXPLICIT" = false ]; then
     SPACE_SUFFIX="-$(normalized_version_suffix "$OPENENV_VERSION")"
 fi
 
+OPENENV_GIT_REF=$(resolve_openenv_git_ref "$OPENENV_VERSION")
+
 if [ -z "$HF_NAMESPACE" ]; then
     # Non-fatal if user is not logged in locally.
     if command -v hf >/dev/null 2>&1; then
@@ -243,8 +281,21 @@ fi
 is_deployable_env() {
     local env_name="$1"
     [ -d "envs/$env_name" ] &&
-        [ -f "envs/$env_name/server/Dockerfile" ] &&
+        { [ -f "envs/$env_name/server/Dockerfile" ] || [ -f "envs/$env_name/Dockerfile" ]; } &&
         [ -f "envs/$env_name/README.md" ]
+}
+
+resolve_env_dockerfile() {
+    local env_name="$1"
+    if [ -f "envs/$env_name/server/Dockerfile" ]; then
+        printf "%s" "envs/$env_name/server/Dockerfile"
+        return 0
+    fi
+    if [ -f "envs/$env_name/Dockerfile" ]; then
+        printf "%s" "envs/$env_name/Dockerfile"
+        return 0
+    fi
+    return 1
 }
 
 discover_all_envs() {
@@ -254,7 +305,7 @@ discover_all_envs() {
             SELECTED_ENVS+=("$env_name")
         else
             SKIPPED_ENVS+=("$env_name")
-            warn "Skipping '$env_name' (missing server/Dockerfile or README.md)"
+            warn "Skipping '$env_name' (missing Dockerfile or README.md)"
         fi
     done < <(
         find envs -mindepth 1 -maxdepth 1 -type d \
@@ -294,9 +345,17 @@ pin_openenv_refs_in_pyproject() {
 
     [ -f "$file_path" ] || return 0
 
-    # Pin git-based OpenEnv dependencies that track main.
+    # Pin git-based OpenEnv dependencies and rewrite loose package constraints
+    # so release-candidate deployments test the requested OpenEnv ref instead
+    # of silently resolving an older PyPI package.
     sed_inplace \
-        "/^[[:space:]]*\"/ s|git+https://github.com/meta-pytorch/OpenEnv.git@main|git+https://github.com/meta-pytorch/OpenEnv.git@$OPENENV_VERSION|g" \
+        "/^[[:space:]]*\"/ s|git+https://github.com/meta-pytorch/OpenEnv.git@main|git+https://github.com/meta-pytorch/OpenEnv.git@$OPENENV_GIT_REF|g" \
+        "$file_path"
+    sed_inplace \
+        "/^[[:space:]]*\"/ s|git+https://github.com/meta-pytorch/OpenEnv.git\"|git+https://github.com/meta-pytorch/OpenEnv.git@$OPENENV_GIT_REF\"|g" \
+        "$file_path"
+    sed_inplace \
+        "/^[[:space:]]*\"/ s|\"openenv-core\\[core\\][^\"]*\"|\"openenv-core[core] @ git+https://github.com/meta-pytorch/OpenEnv.git@$OPENENV_GIT_REF\"|g" \
         "$file_path"
 }
 
@@ -316,8 +375,13 @@ strip_stage_artifacts() {
 create_environment_dockerfile() {
     local env_name="$1"
     local stage_dir="$2"
-    local dockerfile_path="envs/$env_name/server/Dockerfile"
+    local dockerfile_path=""
     local prepare_script="envs/$env_name/server/prepare_hf.sh"
+    local tmp_dockerfile="$stage_dir/Dockerfile.tmp"
+
+    dockerfile_path=$(resolve_env_dockerfile "$env_name") || {
+        error "Could not find Dockerfile for $env_name"
+    }
 
     cp "$dockerfile_path" "$stage_dir/Dockerfile"
 
@@ -332,10 +396,22 @@ create_environment_dockerfile() {
         sed_inplace "s|FROM envtorch-base:latest|FROM $BASE_IMAGE_REF|g" "$stage_dir/Dockerfile"
     fi
 
+    sed_inplace \
+        "s|git+https://github.com/meta-pytorch/OpenEnv.git@main|git+https://github.com/meta-pytorch/OpenEnv.git@$OPENENV_GIT_REF|g" \
+        "$stage_dir/Dockerfile"
+    sed_inplace \
+        "s|git+https://github.com/meta-pytorch/OpenEnv.git\"|git+https://github.com/meta-pytorch/OpenEnv.git@$OPENENV_GIT_REF\"|g" \
+        "$stage_dir/Dockerfile"
+    sed_inplace \
+        "s|git+https://github.com/meta-pytorch/OpenEnv.git$|git+https://github.com/meta-pytorch/OpenEnv.git@$OPENENV_GIT_REF|g" \
+        "$stage_dir/Dockerfile"
+    sed_inplace \
+        "s|\"openenv-core\\[core\\][^\"]*\"|\"openenv-core[core] @ git+https://github.com/meta-pytorch/OpenEnv.git@$OPENENV_GIT_REF\"|g" \
+        "$stage_dir/Dockerfile"
+
     # Some base images include older uv versions that fail on a subset of env
     # pyproject layouts. Insert a deterministic uv install before the first sync.
     if grep -q "RUN --mount=type=cache,target=/root/.cache/uv" "$stage_dir/Dockerfile"; then
-        local tmp_dockerfile="$stage_dir/Dockerfile.tmp"
         awk '
             BEGIN { inserted = 0 }
             {
@@ -357,15 +433,28 @@ create_environment_dockerfile() {
     fi
 
     # Legacy Dockerfiles that copy src/core often rely on imports from both
-    # `core.*` and `openenv.*`. Ensure /app/src/core is on PYTHONPATH.
+    # `core.*` and `openenv.*`. Copy both packages under /app/src, then expose
+    # only the shared parent directory to avoid shadowing stdlib modules such
+    # as `types` with files under /app/src/core.
     if grep -q "COPY src/core/" "$stage_dir/Dockerfile"; then
+        awk '
+            /COPY src\/core\// && !inserted {
+                print
+                print "COPY src/openenv/ /app/src/openenv/"
+                inserted = 1
+                next
+            }
+            { print }
+        ' "$stage_dir/Dockerfile" > "$tmp_dockerfile"
+        mv "$tmp_dockerfile" "$stage_dir/Dockerfile"
+
         if grep -q '^ENV PYTHONPATH=' "$stage_dir/Dockerfile"; then
             sed_inplace \
-                '/^ENV PYTHONPATH=/ { /\/app\/src\/core/! s|^ENV PYTHONPATH=|ENV PYTHONPATH=/app/src/core:|; }' \
+                '/^ENV PYTHONPATH=/ { /\/app\/src/! s|^ENV PYTHONPATH=|ENV PYTHONPATH=/app/src:|; }' \
                 "$stage_dir/Dockerfile"
         else
             ensure_trailing_newline "$stage_dir/Dockerfile"
-            echo "ENV PYTHONPATH=/app/src/core:/app/src:\${PYTHONPATH}" >> "$stage_dir/Dockerfile"
+            echo "ENV PYTHONPATH=/app/src:\${PYTHONPATH}" >> "$stage_dir/Dockerfile"
         fi
     fi
 
@@ -592,7 +681,7 @@ deploy_env() {
     local space_repo="$HF_NAMESPACE/${env_name}${SPACE_SUFFIX}"
 
     if ! is_deployable_env "$env_name"; then
-        warn "Skipping '$env_name' (not deployable in current layout)"
+        warn "Skipping '$env_name' (missing Dockerfile or README.md)"
         SKIPPED_ENVS+=("$env_name")
         return 0
     fi
@@ -682,7 +771,7 @@ update_collection() {
         scripts/manage_hf_collection.py
         --version "$OPENENV_VERSION"
         --collection-namespace "$COLLECTION_NAMESPACE"
-        --global-scope tagged
+        --skip-global-collection
     )
     if [ -n "$COLLECTION_SLUG" ]; then
         cmd+=(--collection-slug "$COLLECTION_SLUG")
@@ -701,6 +790,7 @@ update_collection() {
 log "Namespace: $HF_NAMESPACE"
 log "Space suffix: $SPACE_SUFFIX"
 log "OpenEnv pinned ref: $OPENENV_VERSION"
+log "OpenEnv git ref for dependency rewrites: $OPENENV_GIT_REF"
 log "Base image ref: $BASE_IMAGE_REF"
 log "Selected env count: ${#SELECTED_ENVS[@]}"
 
