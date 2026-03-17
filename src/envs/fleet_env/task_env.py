@@ -138,9 +138,13 @@ class FleetTaskEnv:
         if ttl_seconds is not None:
             self.ttl_seconds = ttl_seconds
         elif self.modality == "computer_use":
-            self.ttl_seconds = 1800  # 30 min — CUA rollouts are slow (browser + inference)
+            self.ttl_seconds = (
+                1800  # 30 min — CUA rollouts are slow (browser + inference)
+            )
         else:
-            self.ttl_seconds = 900   # 15 min — tool_use rollouts need headroom for retries
+            self.ttl_seconds = (
+                900  # 15 min — tool_use rollouts need headroom for retries
+            )
         self.max_steps = max_steps
         self.request_timeout_s = request_timeout_s
         self.reset_timeout_s = reset_timeout_s
@@ -158,6 +162,11 @@ class FleetTaskEnv:
         self._reward_computed = False
         self.final_reward: Optional[float] = None
         self._submitted_answer: Optional[str] = None
+
+        # Feedback for hint generation (accumulated during rollout)
+        self._tool_errors: List[str] = []
+        self._verifier_stdout: Optional[str] = None
+        self._verifier_error: Optional[str] = None
 
         # Set telemetry context so init failures are tracked with full context
         set_task_context(
@@ -315,6 +324,9 @@ class FleetTaskEnv:
         self._reward_computed = False
         self.final_reward = None
         self._submitted_answer = None
+        self._tool_errors = []
+        self._verifier_stdout = None
+        self._verifier_error = None
 
         # Reset the environment (use short timeout to avoid blocking on broken manager APIs)
         # reset() failure is non-fatal — env is up, just the manager API timed out
@@ -504,7 +516,10 @@ class FleetTaskEnv:
         if tool_name == "submit_final_answer":
             # Synthetic tool — handled locally, not routed to MCP.
             self._submitted_answer = tool_params.get("answer", "")
-            tool_result = {"status": "submitted", "message": "Answer recorded. Ending session."}
+            tool_result = {
+                "status": "submitted",
+                "message": "Answer recorded. Ending session.",
+            }
             info["tool_result"] = tool_result
             info["submitted_answer"] = self._submitted_answer
             agent_done = True  # Force episode end, same as harness behaviour
@@ -517,6 +532,9 @@ class FleetTaskEnv:
                 is_error, error_msg = _is_tool_error(tool_result)
                 if is_error:
                     info["tool_error"] = error_msg
+                    self._tool_errors.append(
+                        f"{tool_name}(): {error_msg[:500] if error_msg else 'unknown'}"
+                    )
                     logger.warning(
                         f"[env={self.env_key}:{self.env_version}] step {self._step_count}/{self.max_steps} "
                         f"tool_error: {tool_name}() -> {error_msg[:200] if error_msg else 'unknown'}"
@@ -531,6 +549,7 @@ class FleetTaskEnv:
             except Exception as e:
                 info["tool_error"] = str(e)
                 tool_result = {"error": str(e)}
+                self._tool_errors.append(f"{tool_name}(): {str(e)[:500]}")
                 logger.warning(
                     f"[env={self.env_key}:{self.env_version}] step {self._step_count}/{self.max_steps} "
                     f"tool_call_failed: {tool_name}() -> {type(e).__name__}: {str(e)[:200]}"
@@ -599,6 +618,21 @@ class FleetTaskEnv:
         except Exception:
             return None
 
+    @property
+    def verifier_stdout(self) -> Optional[str]:
+        """Raw verifier stdout (contains ERROR/SUCCESS_ACCUMULATOR blocks)."""
+        return self._verifier_stdout
+
+    @property
+    def verifier_error(self) -> Optional[str]:
+        """Verifier error message, if verifier failed."""
+        return self._verifier_error
+
+    @property
+    def tool_errors_list(self) -> List[str]:
+        """Accumulated tool error messages from this rollout."""
+        return self._tool_errors.copy()
+
     async def _compute_reward(self) -> float:
         """Compute reward by executing the verifier using Fleet SDK.
 
@@ -649,7 +683,9 @@ class FleetTaskEnv:
                     verify_kwargs = {}
                     if self._submitted_answer is not None:
                         verify_kwargs["final_answer"] = self._submitted_answer
-                    response = await asyncio.to_thread(fleet_task.verify_detailed, fleet_env, **verify_kwargs)
+                    response = await asyncio.to_thread(
+                        fleet_task.verify_detailed, fleet_env, **verify_kwargs
+                    )
 
                     # Extract result from response
                     # response.success is bool, response.result is the verifier's return value (0.0 or 1.0)
@@ -663,6 +699,14 @@ class FleetTaskEnv:
                         score = 0.0
 
                     verifier_success = response.success
+
+                    # Capture verifier feedback for hint generation
+                    if hasattr(response, "stdout") and response.stdout:
+                        self._verifier_stdout = response.stdout
+                    if not response.success:
+                        self._verifier_error = (
+                            f"Verifier failed: result={response.result}"
+                        )
 
                     # Partial reward: use accumulator counts instead of binary 0/1
                     partial_score = None
@@ -679,12 +723,17 @@ class FleetTaskEnv:
                     logger.info(
                         f"Task {self.task_key}: verifier returned success={response.success}, "
                         f"result={response.result}, score={score}"
-                        + (f", partial={partial_score:.3f}" if partial_score is not None else "")
+                        + (
+                            f", partial={partial_score:.3f}"
+                            if partial_score is not None
+                            else ""
+                        )
                     )
 
                 except ImportError as e:
                     logger.error(f"Fleet SDK not available for verifier execution: {e}")
                     failure_reason = "import_error"
+                    self._verifier_error = f"ImportError: {e}"
                 except Exception as e:
                     logger.error(
                         f"Verifier execution failed for task {self.task_key}: {e}\n"
@@ -698,6 +747,7 @@ class FleetTaskEnv:
                         ),
                     )
                     failure_reason = "verifier_exception"
+                    self._verifier_error = f"Verifier exception: {e}"
 
         # Always emit rollout completed event
         fleet_info(
@@ -729,7 +779,11 @@ class FleetTaskEnv:
                 except RuntimeError:
                     # Already inside a running event loop — caller should use close_async()
                     # Fall back to emitting telemetry without verifier
-                    stop_reason = "max_steps" if self._step_count >= self.max_steps else "abandoned"
+                    stop_reason = (
+                        "max_steps"
+                        if self._step_count >= self.max_steps
+                        else "abandoned"
+                    )
                     fleet_info(
                         "fleet_rollout_completed",
                         step_count=self._step_count,
