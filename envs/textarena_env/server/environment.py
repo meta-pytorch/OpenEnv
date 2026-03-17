@@ -24,7 +24,7 @@ try:
         TextArenaObservation,
         TextArenaState,
     )
-    from textarena_env.rewards import RewardProvider, build_reward_providers
+    from textarena_env.rubrics import build_rubric, WordleRubric
 except ImportError:
     # When running uvicorn directly from textarena_env/
     from models import (
@@ -33,7 +33,7 @@ except ImportError:
         TextArenaObservation,
         TextArenaState,
     )
-    from rewards import RewardProvider, build_reward_providers
+    from rubrics import build_rubric, WordleRubric
 
 
 _TEXTARENA_MODULE: Any | None = None
@@ -111,7 +111,8 @@ class TextArenaEnvironment(Environment):
             max_turns=max_turns,
         )
 
-        self._reward_providers: List[RewardProvider] = build_reward_providers(env_id)
+        # Build rubric for this environment (RFC 004)
+        self.rubric = build_rubric(env_id)
         self._last_reward_signals: Dict[str, float] = {}
 
         # Initialize environment state - TextArena envs require reset() to be called
@@ -142,8 +143,8 @@ class TextArenaEnvironment(Environment):
 
         self._ta_env.reset(num_players=self.num_players)
 
-        for provider in self._reward_providers:
-            provider.reset()
+        # Reset rubric state (RFC 004)
+        self._reset_rubric()
 
         self._state.episode_id = episode_id if episode_id is not None else str(uuid4())
         self._state.step_count = 0
@@ -176,7 +177,10 @@ class TextArenaEnvironment(Environment):
         observation.reward = reward
         self._state.last_reward = reward
 
-        reward_signals = self._compute_reward_signals(action=action, observation=observation)
+        # Compute reward signals using rubric (RFC 004)
+        reward_signals = self._compute_reward_signals(
+            action=action, observation=observation
+        )
         if reward_signals:
             observation.info.setdefault("reward_signals", {}).update(reward_signals)
             observation.metadata.setdefault("reward_signals", {}).update(reward_signals)
@@ -247,7 +251,9 @@ class TextArenaEnvironment(Environment):
 
     def _legal_players(self) -> List[int]:
         role_mapping = getattr(self._ta_env.state, "role_mapping", {}) or {}
-        players = [pid for pid in role_mapping.keys() if isinstance(pid, int) and pid >= 0]
+        players = [
+            pid for pid in role_mapping.keys() if isinstance(pid, int) and pid >= 0
+        ]
         return sorted(players)
 
     def _convert_messages(self, messages: Iterable[Any]) -> List[TextArenaMessage]:
@@ -284,7 +290,11 @@ class TextArenaEnvironment(Environment):
             sender_id = int(sender) if isinstance(sender, (int, float)) else -1
             text = str(content)
 
-            if buffered_content and buffered_category == category_name and buffered_sender == sender_id:
+            if (
+                buffered_content
+                and buffered_category == category_name
+                and buffered_sender == sender_id
+            ):
                 buffered_content.append(text)
             else:
                 flush_buffer()
@@ -326,15 +336,23 @@ class TextArenaEnvironment(Environment):
     def _compute_reward_signals(
         self, *, action: TextArenaAction, observation: TextArenaObservation
     ) -> Dict[str, float]:
-        if not self._reward_providers:
+        """Compute reward signals using the rubric.
+
+        The rubric evaluates the action/observation and provides detailed
+        reward signals that can be used for training.
+        """
+        if self.rubric is None:
             return {}
 
-        aggregated: Dict[str, float] = {}
-        for provider in self._reward_providers:
-            try:
-                result = provider.compute(action=action, observation=observation)
-            except Exception:  # pragma: no cover - defensive
-                continue
-            for key, value in result.items():
-                aggregated[key] = float(value)
-        return aggregated
+        try:
+            # Evaluate the rubric - this updates all child rubric scores
+            self.rubric(action, observation)
+
+            # For WordleRubric, get the detailed reward signals
+            if isinstance(self.rubric, WordleRubric):
+                return self.rubric.get_reward_signals()
+
+            # For other rubrics, just return the main score
+            return {"reward": self.rubric.last_score or 0.0}
+        except Exception:  # pragma: no cover - defensive
+            return {}
