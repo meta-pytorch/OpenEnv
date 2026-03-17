@@ -14,7 +14,7 @@ for tokenization and message history management.
 import torch
 from openenv.core.env_server.interfaces import Message
 from openenv.core.env_server.types import Action, Observation, State
-from pydantic import Field
+from pydantic import Field, field_validator
 
 
 class ChatAction(Action):
@@ -24,12 +24,22 @@ class ChatAction(Action):
     This interfaces directly with models.
     """
 
-    tokens: torch.Tensor = Field(default_factory=lambda: torch.tensor([]))
+    tokens: list[int] = Field(..., min_length=1)
 
-    def __post_init__(self):
-        """Validate required Fields after initialization."""
-        if self.tokens.numel() == 0:
-            raise ValueError("tokens is required and cannot be empty")
+    @field_validator("tokens", mode="before")
+    @classmethod
+    def _coerce_tokens(cls, value):
+        """Accept either tensors or JSON arrays on the public HTTP surface."""
+        if isinstance(value, torch.Tensor):
+            value = value.flatten().tolist()
+        elif hasattr(value, "tolist") and callable(value.tolist):
+            value = value.tolist()
+
+        if isinstance(value, tuple):
+            value = list(value)
+        if isinstance(value, list):
+            return [int(token) for token in value]
+        raise TypeError("tokens must be provided as a list of token ids")
 
 
 class ChatState(State):
@@ -58,5 +68,5 @@ class ChatObservation(Observation):
     """
 
     messages: list[Message] = Field(default_factory=list)
-    tokens: torch.Tensor = Field(default_factory=lambda: torch.tensor([]))
+    tokens: list[int] = Field(default_factory=list)
     # Inherited Fields from Observation ABC: reward, done, metadata
