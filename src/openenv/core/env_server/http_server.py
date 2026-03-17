@@ -209,6 +209,7 @@ class HTTPEnvServer:
         # Session management for WebSocket connections
         self._sessions: Dict[str, Optional[Environment]] = {}
         self._session_executors: Dict[str, ThreadPoolExecutor] = {}
+        self._session_stacks: Dict[str, AsyncExitStack] = {}
         self._session_info: Dict[str, SessionInfo] = {}
         self._session_lock = asyncio.Lock()
 
@@ -332,12 +333,37 @@ class HTTPEnvServer:
             )
             raise EnvironmentFactoryError(factory_name) from e
 
+        # Hold the MCP session open for the lifetime of this session,
+        # matching the WebSocket path's AsyncExitStack pattern.  This
+        # prevents per-request MCP transport teardown/reconnection and
+        # preserves FastMCP session state (ctx.set_state / ctx.get_state)
+        # across HTTP calls within the same OpenEnv session.
+        stack = AsyncExitStack()
+        try:
+            mcp_session_factory = getattr(env, "mcp_session", None)
+            if callable(mcp_session_factory):
+                mcp_session_cm = cast(AsyncContextManager[Any], mcp_session_factory())
+                await stack.enter_async_context(mcp_session_cm)
+        except Exception:
+            # MCP transport failed to start — clean up the reserved slot,
+            # the env, and the executor so they don't leak permanently
+            # against _max_concurrent_envs.
+            await stack.aclose()  # best-effort
+            async with self._session_lock:
+                self._sessions.pop(session_id, None)
+                self._session_executors.pop(session_id, None)
+                self._session_info.pop(session_id, None)
+            await self._cleanup_session_resources(env, executor)
+            raise
+
         async with self._session_lock:
             self._sessions[session_id] = env
+            self._session_stacks[session_id] = stack
+            now = time.time()
             self._session_info[session_id] = SessionInfo(
                 session_id=session_id,
                 created_at=current_time,
-                last_activity_at=current_time,
+                last_activity_at=now,
                 step_count=0,
                 environment_type=type(env).__name__,
             )
@@ -354,16 +380,27 @@ class HTTPEnvServer:
         async with self._session_lock:
             env = self._sessions.pop(session_id, None)
             executor = self._session_executors.pop(session_id, None)
+            stack = self._session_stacks.pop(session_id, None)
             self._session_info.pop(session_id, None)
 
-        await self._cleanup_session_resources(env, executor)
+        await self._cleanup_session_resources(env, executor, stack)
 
     async def _cleanup_session_resources(
         self,
         env: Optional[Environment],
         executor: Optional[ThreadPoolExecutor],
+        stack: Optional[AsyncExitStack] = None,
     ) -> None:
         """Close an environment and shut down its executor (best-effort)."""
+        # Close the MCP session stack first — this gracefully exits the
+        # mcp_session() context (and the underlying FastMCP Client session)
+        # before we tear down the environment references.
+        if stack is not None:
+            try:
+                await stack.aclose()
+            except Exception:
+                pass  # Best effort cleanup
+
         # Run close() in the same executor where the env was created
         # This is required for thread-sensitive libraries like Playwright/greenlet
         if env is not None:
@@ -418,6 +455,15 @@ class HTTPEnvServer:
                         if now - info.last_activity_at > timeout:
                             stale_ids.append(sid)
                 for sid in stale_ids:
+                    # Re-check under lock: activity may have arrived since
+                    # the snapshot was taken, making this session active again.
+                    # Refresh `now` so slow _destroy_session calls don't cause
+                    # subsequent entries to be validated against a stale clock.
+                    now = time.time()
+                    async with self._session_lock:
+                        info = self._session_info.get(sid)
+                        if info is None or (now - info.last_activity_at) <= timeout:
+                            continue
                     await self._destroy_session(sid)
             except asyncio.CancelledError:
                 break
@@ -627,7 +673,25 @@ class HTTPEnvServer:
                         result={"session_id": session_id},
                         request_id=request_id,
                     )
-                created_session_id, _ = await self._create_session()
+                try:
+                    created_session_id, _ = await self._create_session()
+                except SessionCapacityError as e:
+                    return JsonRpcResponse.error_response(
+                        JsonRpcErrorCode.SERVER_ERROR,
+                        str(e),
+                        request_id=request_id,
+                        data={
+                            "active_sessions": e.active_sessions,
+                            "max_sessions": e.max_sessions,
+                        },
+                    )
+                except EnvironmentFactoryError as e:
+                    return JsonRpcResponse.error_response(
+                        JsonRpcErrorCode.SERVER_ERROR,
+                        str(e),
+                        request_id=request_id,
+                        data={"factory_name": e.factory_name},
+                    )
                 return JsonRpcResponse.success(
                     result={"session_id": created_session_id},
                     request_id=request_id,
@@ -653,9 +717,11 @@ class HTTPEnvServer:
                     env = self._sessions.pop(target_session_id, _MISSING)
                     if env is not _MISSING:
                         executor = self._session_executors.pop(target_session_id, None)
+                        stack = self._session_stacks.pop(target_session_id, None)
                         self._session_info.pop(target_session_id, None)
                     else:
                         executor = None
+                        stack = None
 
                 if env is _MISSING:
                     return JsonRpcResponse.error_response(
@@ -666,17 +732,21 @@ class HTTPEnvServer:
 
                 if env is None:
                     # Session slot reserved but env factory still running;
-                    # re-insert the placeholder so _create_session can finish.
+                    # re-insert the placeholder AND the executor so
+                    # _create_session can finish and the executor remains
+                    # tracked for eventual shutdown.
                     async with self._session_lock:
                         self._sessions[target_session_id] = None
+                        if executor is not None:
+                            self._session_executors[target_session_id] = executor
                     return JsonRpcResponse.error_response(
                         JsonRpcErrorCode.INVALID_REQUEST,
                         f"Session {target_session_id} is still initializing; retry shortly",
                         request_id=request_id,
                     )
 
-                # env/executor cleanup outside the lock
-                await self._cleanup_session_resources(env, executor)
+                # env/executor/stack cleanup outside the lock
+                await self._cleanup_session_resources(env, executor, stack)
                 return JsonRpcResponse.success(
                     result={"session_id": target_session_id, "closed": True},
                     request_id=request_id,
@@ -727,8 +797,13 @@ class HTTPEnvServer:
                         )
 
                     if mcp_client:
-                        # Use async context manager for MCP client
-                        if callable(mcp_session_factory):
+                        if managed_session_id and mcp_client.is_connected():
+                            # Session-managed with live transport — call
+                            # directly, no redundant re-entry.
+                            tools = await mcp_client.list_tools()
+                        elif callable(mcp_session_factory):
+                            # Stateless request, or session-managed but the
+                            # background transport was lost: (re-)open.
                             mcp_session_cm = cast(
                                 AsyncContextManager[Any], mcp_session_factory()
                             )
@@ -790,8 +865,14 @@ class HTTPEnvServer:
                         )
 
                     if mcp_client:
-                        # Use async context manager for MCP client
-                        if callable(mcp_session_factory):
+                        if managed_session_id and mcp_client.is_connected():
+                            # Session-managed with live transport.
+                            result = await mcp_client.call_tool(
+                                name=tool_name, arguments=arguments
+                            )
+                        elif callable(mcp_session_factory):
+                            # Stateless request, or session-managed but the
+                            # background transport was lost: (re-)open.
                             mcp_session_cm = cast(
                                 AsyncContextManager[Any], mcp_session_factory()
                             )
@@ -808,7 +889,10 @@ class HTTPEnvServer:
                         server_tools = get_server_tools(mcp_server)
                         if tool_name in server_tools:
                             tool = server_tools[tool_name]
-                            result = tool.fn(**arguments)
+                            if inspect.iscoroutinefunction(tool.fn):
+                                result = await tool.fn(**arguments)
+                            else:
+                                result = tool.fn(**arguments)
                         else:
                             return JsonRpcResponse.error_response(
                                 JsonRpcErrorCode.INVALID_PARAMS,
