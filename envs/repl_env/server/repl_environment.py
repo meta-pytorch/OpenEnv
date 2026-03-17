@@ -132,7 +132,7 @@ class REPLEnvironment(Environment):
 
     @staticmethod
     def _build_hf_chat_fn(
-        hf_token: str,
+        hf_token: Optional[str] = None,
         llm_model: Optional[str] = None,
     ) -> Callable[..., str]:
         try:
@@ -236,12 +236,18 @@ class REPLEnvironment(Environment):
         if runtime_rlm_max_iterations is None:
             runtime_rlm_max_iterations = self.rlm_max_iterations
         runtime_rlm_max_iterations = int(runtime_rlm_max_iterations)
+
+        # Detect if recursion config changed — controller must be rebuilt
+        depth_changed = (
+            runtime_rlm_max_depth != self.rlm_max_depth
+            or runtime_rlm_max_iterations != self.rlm_max_iterations
+        )
         self.rlm_max_depth = runtime_rlm_max_depth
         self.rlm_max_iterations = runtime_rlm_max_iterations
 
-        # Create LLM functions if not already provided at init.
-        # Match example/client behavior by allowing anonymous routed inference too.
-        if not self.llm_query_fn:
+        # Create or rebuild LLM functions when needed.
+        # Token resolution: explicit hf_token > HF_TOKEN env var > cached HF login.
+        if not self.llm_query_fn or depth_changed:
             effective_token = (
                 hf_token if hf_token is not None else os.environ.get("HF_TOKEN")
             )
