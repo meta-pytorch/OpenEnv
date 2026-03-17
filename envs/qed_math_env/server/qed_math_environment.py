@@ -367,8 +367,16 @@ def _normalize_problem(
     ):
         reference_solution = f"\\boxed{{{reference_solution}}}"
 
+    # QED-Nano RC stream: when the prompt seen by the actor differs from the
+    # original problem (e.g. after reasoning-cache summarization), the dataset
+    # row carries an ``original_problem`` field that must be used for grading.
+    original_problem = _first_present_value(
+        raw_problem, ("original_problem",), None
+    )
+
     return {
         "problem": problem,
+        "original_problem": original_problem,
         "reference_solution": str(reference_solution),
         "grading_guidelines": grading_guidelines,
         "problem_id": str(problem_id),
@@ -930,7 +938,13 @@ class QEDMathEnvironment(MCPEnvironment):
             # don't follow the expected delimiter pattern.
             grading_input = submission
 
-        problem = self._current_problem.get("problem", "")
+        # Use original_problem for grading when present (QED-Nano RC stream
+        # semantics: the actor prompt may be a reformulated version, but the
+        # grader must evaluate against the original problem statement).
+        problem = (
+            self._current_problem.get("original_problem")
+            or self._current_problem.get("problem", "")
+        )
         reference_solution = self._current_problem.get("reference_solution", "")
         grading_guidelines = parse_schema(
             self._current_problem.get("grading_guidelines", "") or ""
