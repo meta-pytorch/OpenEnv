@@ -915,6 +915,19 @@ class QEDMathEnvironment(MCPEnvironment):
             score=score,
             feedback=feedback,
             reward=score / 7.0,
+            metrics={
+                "verifier/rollouts/success": int(answer_status == "correct"),
+                "verifier/rollouts/failure": int(answer_status != "correct"),
+                "verifier/failures/timeout": 0,
+                "verifier/failures/rate_limit": 0,
+                "verifier/failures/no_input": 0,
+                "verifier/failures/no_score_tag": 0,
+                "verifier/failures/all_attempts_failed": 0,
+                "verifier/failures/num_retries": 0,
+                "verifier/runtime/latency_per_request": 0.0,
+                "verifier/runtime/input_tokens": 0,
+                "verifier/runtime/output_tokens": 0,
+            },
         )
 
     def _strip_reasoning(self, text: str) -> str:
@@ -1027,6 +1040,10 @@ class QEDMathEnvironment(MCPEnvironment):
                 score=0,
                 feedback="Empty proof submission.",
                 reward=0.0,
+                metrics={
+                    "verifier/rollouts/failure": 1,
+                    "verifier/failures/no_input": 1,
+                },
             )
         else:
             result = await self._grade_submission(proof)
@@ -1074,8 +1091,53 @@ class QEDMathEnvironment(MCPEnvironment):
                 "base_reward": result.reward,
                 "shaped_reward": shaped_reward,
                 "output_length_tokens": output_length_tokens,
+                "verifier_metrics": self._build_verifier_metrics(
+                    result, shaped_reward, output_length_tokens, is_correct
+                ),
             },
         ).model_dump()
+
+    def _build_verifier_metrics(
+        self,
+        result: GradingResult,
+        shaped_reward: float,
+        output_length_tokens: int,
+        is_correct: bool,
+    ) -> dict[str, float | int | str]:
+        """Build TrackIO-compatible verifier metrics dict.
+
+        Aggregates rubric-level metrics from ``result.metrics`` with
+        episode-level reward and problem metadata.  The returned dict
+        uses QED-Nano naming conventions so it can be forwarded directly
+        to TrackIO / WandB without transformation.
+        """
+        metrics: dict[str, float | int | str] = dict(result.metrics)
+
+        # Reward breakdown
+        metrics["reward/base"] = result.reward
+        metrics["reward/shaped"] = shaped_reward
+        metrics["reward/score_raw"] = result.score
+        if output_length_tokens > 0 and self._buffer_tokens > 0 and self._max_tokens > 0:
+            from .rubric import length_penalty as _lp
+
+            metrics["reward/overlong_penalty"] = _lp(
+                self._max_tokens, output_length_tokens, self._buffer_tokens
+            )
+        else:
+            metrics["reward/overlong_penalty"] = 0.0
+
+        # Episode context
+        metrics["episode/attempt_number"] = self._attempt_count
+        metrics["episode/is_correct"] = int(is_correct)
+        if self._current_problem is not None:
+            metrics["episode/problem_type"] = str(
+                self._current_problem.get("problem_type", "proof")
+            )
+            metrics["episode/dataset_source"] = str(
+                self._current_problem.get("dataset_source", "unknown")
+            )
+
+        return metrics
 
     def get_grading_guidelines_payload(self) -> dict:
         """Payload for MCP tool get_grading_guidelines."""
