@@ -1,30 +1,44 @@
-# OpenEnv docs workflow
+# Building the Docs Locally
 
-Use this guide to preview and build the MkDocs site that lives under `docs/`.
+## Prerequisites
 
-## 1. Install dependencies
+- Python 3.11+
 
-```bash
-uv venv
-source .venv/bin/activate
-uv pip install mkdocs-material mkdocs-include-markdown-plugin "mkdocstrings[python]" pymdown-extensions
-```
+## Setup
 
-The packages mirror what the GitHub Pages workflow installs, so local builds match CI.
-
-## 2. Run the live preview server
+Install OpenEnv with the docs dependencies:
 
 ```bash
-mkdocs serve --config-file docs/mkdocs.yml
+pip install -e ".[docs]"
 ```
 
-The site is served at `http://127.0.0.1:8000/` with automatic reloads whenever files in `docs/` or `docs/mkdocs.yml` change.
+## Build
 
-## 3. Produce the production build
+From the `docs/` directory:
 
 ```bash
-mkdocs build --config-file docs/mkdocs.yml --clean --site-dir site
+cd docs
+make html
 ```
 
-This regenerates the static HTML into `site/`, matching `.github/workflows/docs.yml`. Inspect the output locally.
+The output will be in `docs/_build/html/`.
 
+## Preview
+
+From the repo root, start a local server:
+
+```bash
+cd docs/_build/html
+python -m http.server 8000
+```
+
+Then open [http://localhost:8000](http://localhost:8000) in your browser.
+
+### Build Variants
+
+| Command | Description |
+|---------|-------------|
+| `make html` | Full build with Sphinx Gallery execution |
+| `make html-noplot` | Skip gallery execution (faster) |
+| `make html-stable` | Build as a versioned release |
+| `make clean html` | Clean rebuild from scratch |
