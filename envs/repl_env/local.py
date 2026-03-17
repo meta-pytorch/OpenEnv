@@ -74,10 +74,6 @@ class LocalREPLEnv:
         rlm_max_iterations: Optional[int] = None,
     ) -> StepResult[REPLObservation]:
         self._env.max_iterations = max_iterations
-        if rlm_max_depth is not None:
-            self._env.rlm_max_depth = rlm_max_depth
-        if rlm_max_iterations is not None:
-            self._env.rlm_max_iterations = rlm_max_iterations
         reset_kwargs = {}
         if rlm_max_depth is not None:
             reset_kwargs["rlm_max_depth"] = rlm_max_depth

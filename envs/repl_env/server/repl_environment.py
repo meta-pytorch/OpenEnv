@@ -129,6 +129,7 @@ class REPLEnvironment(Environment):
         self._state: Optional[REPLState] = None
         self._executor: Optional[PythonExecutor] = None
         self._runtime_controller = None
+        self._runtime_controller_chat_fn: Optional[Callable[..., str]] = None
 
     @staticmethod
     def _build_hf_chat_fn(
@@ -179,6 +180,7 @@ class REPLEnvironment(Environment):
         except RuntimeError:
             return
 
+        self._runtime_controller_chat_fn = chat_fn
         self._runtime_controller = create_server_recursive_controller(
             chat_fn,
             max_depth=self.rlm_max_depth,
@@ -247,11 +249,24 @@ class REPLEnvironment(Environment):
 
         # Create or rebuild LLM functions when needed.
         # Token resolution: explicit hf_token > HF_TOKEN env var > cached HF login.
-        if not self.llm_query_fn or depth_changed:
+        if not self.llm_query_fn:
             effective_token = (
                 hf_token if hf_token is not None else os.environ.get("HF_TOKEN")
             )
             self._create_llm_functions(effective_token, llm_model)
+        elif depth_changed and self._runtime_controller is not None:
+            # Rebuild controller with new depth/iteration config but reuse
+            # the existing chat_fn — don't require re-providing credentials.
+            self._runtime_controller.close()
+            self._runtime_controller = create_server_recursive_controller(
+                self._runtime_controller_chat_fn,
+                max_depth=self.rlm_max_depth,
+                max_iterations=self.rlm_max_iterations,
+            )
+            self.llm_query_fn = self._runtime_controller.llm_query_fn
+            self.llm_batch_fn = self._runtime_controller.llm_batch_fn
+            self.subcall_fn = self._runtime_controller.rlm_query_fn
+            self.subcall_batch_fn = self._runtime_controller.rlm_batch_fn
 
         # Initialize state
         self._state = REPLState(
