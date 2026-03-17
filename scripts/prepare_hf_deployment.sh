@@ -732,8 +732,7 @@ deploy_env() {
     fi
 
     DEPLOYED_SPACES+=("$space_repo")
-    local repo_url="${space_repo:-$HF_NAMESPACE/${env_name}${SPACE_SUFFIX}}"
-    log "Uploaded https://huggingface.co/spaces/$repo_url"
+    log "Uploaded https://huggingface.co/spaces/$space_repo"
 }
 
 update_collection() {
