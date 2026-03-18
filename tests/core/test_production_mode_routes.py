@@ -1093,8 +1093,10 @@ class TestMCPSessionTransportPersistence:
         import asyncio
 
         import httpx
-        from fastmcp import FastMCP
         from httpx import ASGITransport
+
+        from fastmcp import FastMCP
+
         from openenv.core.env_server.http_server import create_fastapi_app
         from openenv.core.env_server.mcp_environment import MCPEnvironment
 
@@ -1205,9 +1207,10 @@ class TestMCPSessionResourceLeaks:
         env, and executor must all be cleaned up — not leaked permanently
         against _max_concurrent_envs.
         """
-        from unittest.mock import patch
+        from unittest.mock import AsyncMock, patch
 
         from fastmcp import FastMCP
+
         from openenv.core.env_server.http_server import HTTPEnvServer
         from openenv.core.env_server.mcp_environment import MCPEnvironment
         from openenv.core.env_server.types import ConcurrencyConfig
@@ -1244,6 +1247,9 @@ class TestMCPSessionResourceLeaks:
                 session_timeout=None,
             ),
         )
+
+        # Patch mcp_session to simulate an unreachable MCP server
+        original_mcp_session = MCPEnvironment.mcp_session
 
         async def failing_mcp_session(self_env):
             raise ConnectionError("MCP server unreachable")
@@ -1292,6 +1298,7 @@ class TestMCPSessionResourceLeaks:
             return "pong"
 
         init_event = asyncio.Event()
+        proceed_event = asyncio.Event()
 
         class SlowInitEnv(MCPEnvironment):
             SUPPORTS_CONCURRENT_SESSIONS = True
@@ -1302,7 +1309,6 @@ class TestMCPSessionResourceLeaks:
                 init_event.set()
                 # We can't await in __init__, so we use a threading Event
                 import threading
-
                 self._threading_event = threading.Event()
                 self._threading_event.wait(timeout=5)
 
@@ -1329,7 +1335,6 @@ class TestMCPSessionResourceLeaks:
         # Reserve a session slot manually to simulate the init-in-progress state
         session_id = "test-init-session"
         from concurrent.futures import ThreadPoolExecutor
-
         executor = ThreadPoolExecutor(max_workers=1)
         async with server._session_lock:
             server._sessions[session_id] = None  # placeholder
@@ -1337,6 +1342,24 @@ class TestMCPSessionResourceLeaks:
 
         # Now simulate session/close hitting the "env is None" branch directly
         # by calling through the internal path
+        from openenv.core.env_server.mcp_types import JsonRpcRequest
+
+        close_request = JsonRpcRequest(
+            jsonrpc="2.0",
+            method="openenv/session/close",
+            params={"session_id": session_id},
+            id=99,
+        )
+
+        # We need to call mcp_handler — build the app to get access
+        from openenv.core.env_server.http_server import create_fastapi_app
+
+        app = create_fastapi_app(
+            env=SlowInitEnv,
+            action_cls=None,
+            observation_cls=None,
+        )
+
         # Instead of going through the app, directly verify the state
         # Simulate what session/close does for env=None:
         async with server._session_lock:

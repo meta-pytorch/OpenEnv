@@ -1428,6 +1428,7 @@ all schema information needed to interact with the environment.
                                     response = WSErrorResponse(
                                         data={
                                             "message": f"Unknown message type: {msg_type}",
+                                            "code": WSErrorCode.UNKNOWN_TYPE,
                                         }
                                     )
 
