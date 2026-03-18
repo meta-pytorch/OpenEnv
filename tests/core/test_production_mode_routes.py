@@ -908,13 +908,13 @@ class TestHTTPMCPSessionLifecycle:
 class TestMCPSessionTransportPersistence:
     """Tests for MCP transport persistence across HTTP calls.
 
-    These HTTP MCP paths enter and exit mcp_session() per request,
-    tearing down the MCP protocol session between calls.  FastMCP's session
-    state (ctx.set_state / ctx.get_state) is scoped to the MCP session, so
-    it is lost between HTTP calls within the same OpenEnv session.
+    After the lifecycle fix, HTTP MCP paths hold mcp_session() open for the
+    full OpenEnv session lifetime via AsyncExitStack in _create_session.
+    FastMCP's session state (ctx.set_state / ctx.get_state) therefore
+    persists across sequential HTTP tool calls within the same session.
 
-    The WebSocket path correctly holds mcp_session() open for the connection
-    lifetime via AsyncExitStack, so WebSocket state persists (control test).
+    The WebSocket path likewise holds mcp_session() open for the connection
+    lifetime, so both transports now provide the same persistence guarantee.
     """
 
     @pytest.fixture

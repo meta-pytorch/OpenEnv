@@ -16,6 +16,7 @@ from __future__ import annotations
 import asyncio
 import inspect
 import json
+import logging
 import os
 import time
 import uuid
@@ -468,8 +469,6 @@ class HTTPEnvServer:
             except asyncio.CancelledError:
                 break
             except Exception as exc:
-                import logging
-
                 logging.getLogger(__name__).warning(
                     "Idle-session reaper encountered an error (will retry): %s",
                     exc,
