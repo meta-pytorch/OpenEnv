@@ -1207,7 +1207,7 @@ class TestMCPSessionResourceLeaks:
         env, and executor must all be cleaned up — not leaked permanently
         against _max_concurrent_envs.
         """
-        from unittest.mock import AsyncMock, patch
+        from unittest.mock import patch
 
         from fastmcp import FastMCP
 
@@ -1249,7 +1249,6 @@ class TestMCPSessionResourceLeaks:
         )
 
         # Patch mcp_session to simulate an unreachable MCP server
-        original_mcp_session = MCPEnvironment.mcp_session
 
         async def failing_mcp_session(self_env):
             raise ConnectionError("MCP server unreachable")
@@ -1298,7 +1297,7 @@ class TestMCPSessionResourceLeaks:
             return "pong"
 
         init_event = asyncio.Event()
-        proceed_event = asyncio.Event()
+        asyncio.Event()
 
         class SlowInitEnv(MCPEnvironment):
             SUPPORTS_CONCURRENT_SESSIONS = True
@@ -1344,7 +1343,7 @@ class TestMCPSessionResourceLeaks:
         # by calling through the internal path
         from openenv.core.env_server.mcp_types import JsonRpcRequest
 
-        close_request = JsonRpcRequest(
+        JsonRpcRequest(
             jsonrpc="2.0",
             method="openenv/session/close",
             params={"session_id": session_id},
@@ -1354,7 +1353,7 @@ class TestMCPSessionResourceLeaks:
         # We need to call mcp_handler — build the app to get access
         from openenv.core.env_server.http_server import create_fastapi_app
 
-        app = create_fastapi_app(
+        create_fastapi_app(
             env=SlowInitEnv,
             action_cls=None,
             observation_cls=None,
