@@ -1093,10 +1093,8 @@ class TestMCPSessionTransportPersistence:
         import asyncio
 
         import httpx
-        from httpx import ASGITransport
-
         from fastmcp import FastMCP
-
+        from httpx import ASGITransport
         from openenv.core.env_server.http_server import create_fastapi_app
         from openenv.core.env_server.mcp_environment import MCPEnvironment
 
@@ -1210,7 +1208,6 @@ class TestMCPSessionResourceLeaks:
         from unittest.mock import patch
 
         from fastmcp import FastMCP
-
         from openenv.core.env_server.http_server import HTTPEnvServer
         from openenv.core.env_server.mcp_environment import MCPEnvironment
         from openenv.core.env_server.types import ConcurrencyConfig
@@ -1308,6 +1305,7 @@ class TestMCPSessionResourceLeaks:
                 init_event.set()
                 # We can't await in __init__, so we use a threading Event
                 import threading
+
                 self._threading_event = threading.Event()
                 self._threading_event.wait(timeout=5)
 
@@ -1334,6 +1332,7 @@ class TestMCPSessionResourceLeaks:
         # Reserve a session slot manually to simulate the init-in-progress state
         session_id = "test-init-session"
         from concurrent.futures import ThreadPoolExecutor
+
         executor = ThreadPoolExecutor(max_workers=1)
         async with server._session_lock:
             server._sessions[session_id] = None  # placeholder
