@@ -390,6 +390,192 @@ class TestFleetMCPClientExtractToolResult:
         assert result["data"] == [1, 2, 3]
 
 
+@pytest.fixture
+def fake_fleet_module_with_db(monkeypatch):
+    """Fake fleet module whose env handle supports .db() for query/describe."""
+
+    class _Urls:
+        def __init__(self):
+            self.root = "https://example/"
+
+            class _Mgr:
+                api = "https://example/api/v1/env"
+
+            self.manager = _Mgr()
+
+    class _DescribeResponse:
+        def model_dump(self):
+            return {
+                "success": True,
+                "resource_name": "seed",
+                "tables": [
+                    {
+                        "name": "events",
+                        "sql": "CREATE TABLE events (id INTEGER, title TEXT)",
+                        "columns": [
+                            {
+                                "name": "id",
+                                "type": "INTEGER",
+                                "notnull": True,
+                                "primary_key": True,
+                            },
+                            {
+                                "name": "title",
+                                "type": "TEXT",
+                                "notnull": False,
+                                "primary_key": False,
+                            },
+                        ],
+                    }
+                ],
+                "message": "Schema retrieved",
+            }
+
+    class _QueryResponse:
+        def __init__(self, sql):
+            self._sql = sql
+
+        def model_dump(self):
+            return {
+                "success": True,
+                "columns": ["id", "title"],
+                "rows": [[1, "Concert A"], [2, "Concert B"]],
+                "rows_affected": None,
+                "last_insert_id": None,
+                "error": None,
+                "message": "Query executed successfully",
+            }
+
+    class _SQLiteResource:
+        def __init__(self, name):
+            self.name = name
+
+        def describe(self):
+            return _DescribeResponse()
+
+        def query(self, sql, args=None):
+            return _QueryResponse(sql)
+
+    class _Env:
+        def __init__(self):
+            self.urls = _Urls()
+            self.closed = False
+
+        def db(self, name="current"):
+            return _SQLiteResource(name)
+
+        def close(self):
+            self.closed = True
+
+    class _Fleet:
+        def __init__(self, api_key=None):
+            self.api_key = api_key
+
+        def make(self, **kwargs):
+            return _Env()
+
+    mod = types.SimpleNamespace(Fleet=_Fleet)
+    monkeypatch.setitem(sys.modules, "fleet", mod)
+
+
+@pytest.mark.usefixtures("fake_requests_session", "fake_fleet_module_with_db")
+class TestFleetEnvClientDbQuery:
+    """Tests for FleetEnvClient.describe_db / query_db."""
+
+    def test_describe_db_returns_schema(self):
+        from envs.fleet_env import FleetEnvClient
+
+        orch, _ = FleetEnvClient.from_fleet(
+            api_key="k",
+            env_key="e",
+            data_key="d",
+            data_version="v1",
+            image_type="standard",
+        )
+        result = orch.describe_db("seed")
+        assert result["success"] is True
+        assert len(result["tables"]) == 1
+        assert result["tables"][0]["name"] == "events"
+        assert len(result["tables"][0]["columns"]) == 2
+
+    def test_describe_db_defaults_to_seed(self):
+        from envs.fleet_env import FleetEnvClient
+
+        orch, _ = FleetEnvClient.from_fleet(
+            api_key="k",
+            env_key="e",
+            data_key="d",
+            data_version="v1",
+            image_type="standard",
+        )
+        result = orch.describe_db()
+        assert result["resource_name"] == "seed"
+
+    def test_query_db_returns_rows(self):
+        from envs.fleet_env import FleetEnvClient
+
+        orch, _ = FleetEnvClient.from_fleet(
+            api_key="k",
+            env_key="e",
+            data_key="d",
+            data_version="v1",
+            image_type="standard",
+        )
+        result = orch.query_db("SELECT * FROM events LIMIT 2")
+        assert result["success"] is True
+        assert result["columns"] == ["id", "title"]
+        assert len(result["rows"]) == 2
+        assert result["rows"][0] == [1, "Concert A"]
+
+    def test_query_db_defaults_to_seed(self):
+        from envs.fleet_env import FleetEnvClient
+
+        orch, _ = FleetEnvClient.from_fleet(
+            api_key="k",
+            env_key="e",
+            data_key="d",
+            data_version="v1",
+            image_type="standard",
+        )
+        result = orch.query_db("SELECT 1")
+        assert result["success"] is True
+
+
+@pytest.mark.usefixtures("fake_requests_session", "fake_fleet_module_with_db")
+class TestFleetEnvClientDbQueryAsync:
+    """Tests for async describe_db_async / query_db_async."""
+
+    @pytest.mark.anyio
+    async def test_describe_db_async(self):
+        from envs.fleet_env import FleetEnvClient
+
+        orch, _ = FleetEnvClient.from_fleet(
+            api_key="k",
+            env_key="e",
+            data_key="d",
+            data_version="v1",
+            image_type="standard",
+        )
+        result = await orch.describe_db_async("seed")
+        assert result["success"] is True
+        assert result["tables"][0]["name"] == "events"
+
+    @pytest.mark.anyio
+    async def test_query_db_async(self):
+        from envs.fleet_env import FleetEnvClient
+
+        orch, _ = FleetEnvClient.from_fleet(
+            api_key="k",
+            env_key="e",
+            data_key="d",
+            data_version="v1",
+            image_type="standard",
+        )
+        result = await orch.query_db_async("SELECT * FROM events")
+        assert result["success"] is True
+        assert len(result["rows"]) == 2
+
+
 class TestFleetTaskEnvInitFetchesTools:
     """Tests for FleetTaskEnv provisioning and fetching tools during reset()."""
 
@@ -463,9 +649,7 @@ class TestFleetTaskEnvInitFetchesTools:
 
         # Create a proper coroutine for list_tools
         async def mock_list_tools():
-            return MagicMock(
-                tools=[{"type": "function", "function": {"name": "bash"}}]
-            )
+            return MagicMock(tools=[{"type": "function", "function": {"name": "bash"}}])
 
         mock_tools.list_tools = mock_list_tools
 
@@ -535,7 +719,9 @@ class TestFleetTaskEnvInitFetchesTools:
         assert "fleet_rollout_completed" in event_names
 
         # fleet_rollout_completed should have failure_reason="init_error"
-        completed = next(e for e in telemetry_events if e[0] == "fleet_rollout_completed")
+        completed = next(
+            e for e in telemetry_events if e[0] == "fleet_rollout_completed"
+        )
         assert completed[1]["failure_reason"] == "init_error"
         assert completed[1]["reward"] == 0.0
         assert completed[1]["step_count"] == 0

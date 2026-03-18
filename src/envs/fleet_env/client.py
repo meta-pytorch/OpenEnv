@@ -8,7 +8,8 @@
 
 import asyncio
 import dataclasses
-from typing import Any, Dict, Optional, Tuple, Type
+import logging
+from typing import Any, Dict, List, Optional, Tuple, Type
 
 try:
     # In-repo imports
@@ -204,7 +205,9 @@ class FleetEnvClient(HTTPEnvClient[Action, Observation]):
 
         _logger = logging.getLogger(__name__)
 
-        _logger.info(f"Creating Fleet instance (async): env_key={env_key}, ttl={ttl_seconds}s")
+        _logger.info(
+            f"Creating Fleet instance (async): env_key={env_key}, ttl={ttl_seconds}s"
+        )
         start = time.time()
 
         # Retry logic with async sleep (non-blocking)
@@ -288,6 +291,55 @@ class FleetEnvClient(HTTPEnvClient[Action, Observation]):
         )
         tools = FleetMCPTools(api_key=api_key, mcp_urls=mcp_urls)
         return orch, tools
+
+    # ------------------------------------------------------------------
+    # Database query methods (delegate to Fleet SDK's SQLiteResource)
+    # ------------------------------------------------------------------
+
+    def describe_db(self, db_name: str = "seed") -> Dict[str, Any]:
+        """Describe the schema of a database on the provisioned Fleet instance.
+
+        Args:
+            db_name: Database name — "seed" (initial state) or "current" (live).
+
+        Returns:
+            Dict with keys: success, resource_name, tables, message.
+            Each table has: name, sql, columns (list of {name, type, notnull, primary_key}).
+        """
+        resp = self._fleet_env.db(db_name).describe()
+        return resp.model_dump() if hasattr(resp, "model_dump") else resp.dict()
+
+    def query_db(
+        self,
+        sql: str,
+        args: Optional[List[Any]] = None,
+        db_name: str = "seed",
+    ) -> Dict[str, Any]:
+        """Execute a read-only SQL query against a database on the Fleet instance.
+
+        Args:
+            sql: SQL SELECT statement.
+            args: Optional bind parameters.
+            db_name: Database name — "seed" (initial state) or "current" (live).
+
+        Returns:
+            Dict with keys: success, columns, rows, message.
+        """
+        resp = self._fleet_env.db(db_name).query(sql, args)
+        return resp.model_dump() if hasattr(resp, "model_dump") else resp.dict()
+
+    async def describe_db_async(self, db_name: str = "seed") -> Dict[str, Any]:
+        """Async version of describe_db — runs in a thread to avoid blocking."""
+        return await asyncio.to_thread(self.describe_db, db_name)
+
+    async def query_db_async(
+        self,
+        sql: str,
+        args: Optional[List[Any]] = None,
+        db_name: str = "seed",
+    ) -> Dict[str, Any]:
+        """Async version of query_db — runs in a thread to avoid blocking."""
+        return await asyncio.to_thread(self.query_db, sql, args, db_name)
 
     def _step_payload(self, action: Action) -> dict:
         """Serialize action for HTTP /step."""
