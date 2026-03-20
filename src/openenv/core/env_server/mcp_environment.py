@@ -781,7 +781,10 @@ class MCPEnvironment(Environment):
         elif isinstance(action, CallToolAction):
             return await self._async_handle_call_tool(action, timeout_s=timeout_s)
         else:
-            return self._step_impl(action, timeout_s=timeout_s, **kwargs)
+            loop = asyncio.get_event_loop()
+            return await loop.run_in_executor(
+                None, lambda: self._step_impl(action, timeout_s=timeout_s, **kwargs)
+            )
 
     @abstractmethod
     def _step_impl(
