@@ -7,7 +7,9 @@ try:
     # In-repo imports (when running from OpenEnv repository)
     from ..models import Connect4Action, Connect4Observation
     from .connect4_environment import Connect4Environment
-except ImportError:
+except ImportError as e:
+    if "relative import" not in str(e) and "no known parent package" not in str(e):
+        raise
     # Standalone imports (when running via uvicorn server.app:app)
     from models import Connect4Action, Connect4Observation
     from server.connect4_environment import Connect4Environment
