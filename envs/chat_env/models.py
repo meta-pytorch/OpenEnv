@@ -44,6 +44,8 @@ class ChatAction(Action):
 class ChatState(State):
     """State of the ChatEnvironment containing message history."""
 
+    # TODO: revert to list[Message] once openenv-core ships typing_extensions.TypedDict
+    # in interfaces.py and chat_env/pyproject.toml pins to that release.
     history_messages: list[dict[str, str]] = Field(default_factory=list)
     history_tokens: list[torch.Tensor] = Field(
         default_factory=list
@@ -66,6 +68,7 @@ class ChatObservation(Observation):
     tokens = tensor([1, 2, 3, 4, 5, ...])  # tokenized entire conversation
     """
 
+    # TODO: revert to list[Message] (same as above)
     messages: list[dict[str, str]] = Field(default_factory=list)
     tokens: list[int] = Field(default_factory=list)
     # Inherited Fields from Observation ABC: reward, done, metadata
