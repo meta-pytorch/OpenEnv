@@ -329,8 +329,17 @@ class FleetEnvClient(HTTPEnvClient[Action, Observation]):
         return resp.model_dump() if hasattr(resp, "model_dump") else resp.dict()
 
     async def describe_db_async(self, db_name: str = "seed") -> Dict[str, Any]:
-        """Async version of describe_db — runs in a thread to avoid blocking."""
-        return await asyncio.to_thread(self.describe_db, db_name)
+        """Async version of describe_db.
+
+        Works with both sync (Fleet) and async (AsyncFleet) env handles.
+        """
+        resource = self._fleet_env.db(db_name)
+        # AsyncFleet returns AsyncSQLiteResource with async describe()
+        if asyncio.iscoroutinefunction(getattr(resource, "describe", None)):
+            resp = await resource.describe()
+        else:
+            resp = await asyncio.to_thread(resource.describe)
+        return resp.model_dump() if hasattr(resp, "model_dump") else resp.dict()
 
     async def query_db_async(
         self,
@@ -338,8 +347,17 @@ class FleetEnvClient(HTTPEnvClient[Action, Observation]):
         args: Optional[List[Any]] = None,
         db_name: str = "seed",
     ) -> Dict[str, Any]:
-        """Async version of query_db — runs in a thread to avoid blocking."""
-        return await asyncio.to_thread(self.query_db, sql, args, db_name)
+        """Async version of query_db.
+
+        Works with both sync (Fleet) and async (AsyncFleet) env handles.
+        """
+        resource = self._fleet_env.db(db_name)
+        # AsyncFleet returns AsyncSQLiteResource with async query()
+        if asyncio.iscoroutinefunction(getattr(resource, "query", None)):
+            resp = await resource.query(sql, args)
+        else:
+            resp = await asyncio.to_thread(resource.query, sql, args)
+        return resp.model_dump() if hasattr(resp, "model_dump") else resp.dict()
 
     def _step_payload(self, action: Action) -> dict:
         """Serialize action for HTTP /step."""
