@@ -185,6 +185,21 @@ class EchoEnvironment(MCPEnvironment):
         # Let the base class handle MCP actions and non-MCP routing
         return super().step(action, timeout_s=timeout_s, **kwargs)
 
+    async def step_async(
+        self,
+        action: Action,
+        timeout_s: Optional[float] = None,
+        **kwargs: Any,
+    ) -> Observation:
+        """
+        Async step used by the WebSocket handler.
+
+        Increments step count then delegates to MCPEnvironment.step_async,
+        which routes MCP actions without going through run_async_safely.
+        """
+        self._state.step_count += 1
+        return await super().step_async(action, timeout_s=timeout_s, **kwargs)
+
     @property
     def state(self) -> State:
         """

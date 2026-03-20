@@ -635,6 +635,154 @@ class MCPEnvironment(Environment):
         async with self.mcp_session() as client:
             return await client.call_tool(tool_name, arguments)
 
+    async def _async_handle_list_tools(self) -> ListToolsObservation:
+        """Async version of _handle_list_tools — avoids run_async_safely."""
+        try:
+            current_mode = getattr(self, "_mode", None)
+            tools_result = await self._async_list_tools()
+            tools = []
+            for tool in tools_result:
+                if tool.name not in self._mode_tool_schemas:
+                    tools.append(
+                        Tool(
+                            name=tool.name,
+                            description=tool.description or "",
+                            input_schema=tool.inputSchema
+                            if hasattr(tool, "inputSchema")
+                            else {},
+                        )
+                    )
+            for tool_name, mode_schemas in self._mode_tool_schemas.items():
+                if None in mode_schemas:
+                    schema = mode_schemas[None]
+                    tools.append(
+                        Tool(
+                            name=schema["name"],
+                            description=schema["description"],
+                            input_schema=schema["input_schema"],
+                        )
+                    )
+                elif current_mode in mode_schemas:
+                    schema = mode_schemas[current_mode]
+                    tools.append(
+                        Tool(
+                            name=schema["name"],
+                            description=schema["description"],
+                            input_schema=schema["input_schema"],
+                        )
+                    )
+            return ListToolsObservation(tools=tools)
+        except Exception as e:
+            return ListToolsObservation(
+                tools=[],
+                metadata={"error": str(e), "error_type": "list_tools_failed"},
+            )
+
+    async def _async_handle_call_tool(
+        self,
+        action: CallToolAction,
+        timeout_s: Optional[float] = None,
+    ) -> CallToolObservation:
+        """Async version of _handle_call_tool — avoids run_async_safely."""
+        timeout = timeout_s if timeout_s is not None else MCP_TOOL_CALL_TIMEOUT
+        tool_name = action.tool_name
+        current_mode = getattr(self, "_mode", None)
+
+        if tool_name in self._mode_tools:
+            mode_info = self._mode_tools[tool_name]
+            if None in mode_info:
+                func = mode_info[None]
+            elif current_mode in mode_info:
+                func = mode_info[current_mode]
+            else:
+                return CallToolObservation(
+                    tool_name=tool_name,
+                    result=None,
+                    error=ToolError(
+                        error_type=ToolErrorType.TOOL_NOT_FOUND,
+                        message=f"Tool '{tool_name}' not available in {current_mode} mode",
+                    ),
+                )
+            try:
+                if inspect.iscoroutinefunction(func):
+                    result = await func(**action.arguments)
+                else:
+                    result = func(**action.arguments)
+                return CallToolObservation(
+                    tool_name=tool_name,
+                    result=CallToolResult(
+                        content=[TextContent(type="text", text=str(result))],
+                        structured_content={"result": result},
+                        meta=None,
+                        data=result,
+                        is_error=False,
+                    ),
+                )
+            except Exception as e:
+                return CallToolObservation(
+                    tool_name=tool_name,
+                    result=None,
+                    error=ToolError(
+                        error_type=ToolErrorType.EXECUTION_ERROR,
+                        message=str(e),
+                    ),
+                )
+
+        try:
+            result = await asyncio.wait_for(
+                self._async_call_tool(action.tool_name, action.arguments),
+                timeout=timeout,
+            )
+            return CallToolObservation(tool_name=action.tool_name, result=result)
+        except asyncio.TimeoutError:
+            return CallToolObservation(
+                tool_name=action.tool_name,
+                result=None,
+                error=ToolError(
+                    error_type=ToolErrorType.TIMEOUT,
+                    message=f"Tool '{action.tool_name}' timed out after {timeout} seconds",
+                ),
+            )
+        except Exception as e:
+            error_message = str(e)
+            if (
+                "not found" in error_message.lower()
+                or "unknown tool" in error_message.lower()
+            ):
+                error_type = ToolErrorType.TOOL_NOT_FOUND
+            elif (
+                "invalid" in error_message.lower()
+                or "argument" in error_message.lower()
+            ):
+                error_type = ToolErrorType.INVALID_ARGS
+            else:
+                error_type = ToolErrorType.EXECUTION_ERROR
+            return CallToolObservation(
+                tool_name=action.tool_name,
+                result=None,
+                error=ToolError(error_type=error_type, message=error_message),
+            )
+
+    async def step_async(
+        self,
+        action: Action,
+        timeout_s: Optional[float] = None,
+        **kwargs: Any,
+    ) -> Observation:
+        """
+        Async step that routes MCP actions without going through run_async_safely.
+
+        The WebSocket handler calls this directly on the outer event loop, where
+        the MCP session is already open, avoiding the thread/event-loop deadlock
+        that occurs when the sync step() path is used via run_in_executor.
+        """
+        if isinstance(action, ListToolsAction):
+            return await self._async_handle_list_tools()
+        elif isinstance(action, CallToolAction):
+            return await self._async_handle_call_tool(action, timeout_s=timeout_s)
+        else:
+            return self._step_impl(action, timeout_s=timeout_s, **kwargs)
+
     @abstractmethod
     def _step_impl(
         self,
