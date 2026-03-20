@@ -9,7 +9,6 @@ FROM ${BASE_IMAGE} AS builder
 
 WORKDIR /app
 
-ARG BUILD_MODE=in-repo
 
 COPY . /app/env
 

@@ -9,7 +9,6 @@ FROM ${BASE_IMAGE} AS builder
 
 WORKDIR /app
 
-ARG BUILD_MODE=in-repo
 
 COPY . /app/env
 
@@ -39,8 +38,9 @@ RUN --mount=type=cache,target=/root/.cache/uv \
         uv sync --no-editable; \
     fi
 
-# Pre-download GPT-2 tokenizer to avoid permission issues at runtime
-RUN /app/env/.venv/bin/python -c "from transformers import GPT2Tokenizer; GPT2Tokenizer.from_pretrained('gpt2')"
+# Pre-download GPT-2 tokenizer to avoid permission issues at runtime.
+# HF_HOME must match the runtime value so the cache is copied to the right place.
+RUN HF_HOME=/.cache /app/env/.venv/bin/python -c "from transformers import GPT2Tokenizer; GPT2Tokenizer.from_pretrained('gpt2')"
 
 # Final runtime stage
 FROM ${BASE_IMAGE}
@@ -49,7 +49,7 @@ WORKDIR /app
 
 COPY --from=builder /app/env/.venv /app/.venv
 COPY --from=builder /app/env /app/env
-COPY --from=builder /root/.cache/huggingface /root/.cache/huggingface
+COPY --from=builder /.cache /.cache
 
 ENV PATH="/app/.venv/bin:$PATH"
 ENV PYTHONPATH="/app/env:$PYTHONPATH"
