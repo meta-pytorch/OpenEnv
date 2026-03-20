@@ -28,8 +28,15 @@ import os
 
 from openenv.core.env_server import create_app
 
-from ..models import GitAction, GitObservation
-from .git_task_environment import GitTaskEnvironment
+# Support both in-repo and standalone imports
+try:
+    # In-repo imports (when running from OpenEnv repository)
+    from ..models import GitAction, GitObservation
+    from .git_task_environment import GitTaskEnvironment
+except ImportError:
+    # Standalone imports (when running via uvicorn server.app:app)
+    from models import GitAction, GitObservation
+    from server.git_task_environment import GitTaskEnvironment
 
 logger = logging.getLogger(__name__)
 
@@ -62,7 +69,11 @@ def create_git_environment():
 app = create_app(create_git_environment, GitAction, GitObservation, env_name="git_env")
 
 
-if __name__ == "__main__":
+def main():
     import uvicorn
 
     uvicorn.run(app, host="0.0.0.0", port=8000)
+
+
+if __name__ == "__main__":
+    main()

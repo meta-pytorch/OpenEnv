@@ -12,7 +12,6 @@ for tokenization and message history management.
 """
 
 import torch
-from openenv.core.env_server.interfaces import Message
 from openenv.core.env_server.types import Action, Observation, State
 from pydantic import Field, field_validator
 
@@ -45,7 +44,7 @@ class ChatAction(Action):
 class ChatState(State):
     """State of the ChatEnvironment containing message history."""
 
-    history_messages: list[Message] = Field(default_factory=list)
+    history_messages: list[dict[str, str]] = Field(default_factory=list)
     history_tokens: list[torch.Tensor] = Field(
         default_factory=list
     )  # Same len as messages
@@ -67,6 +66,6 @@ class ChatObservation(Observation):
     tokens = tensor([1, 2, 3, 4, 5, ...])  # tokenized entire conversation
     """
 
-    messages: list[Message] = Field(default_factory=list)
+    messages: list[dict[str, str]] = Field(default_factory=list)
     tokens: list[int] = Field(default_factory=list)
     # Inherited Fields from Observation ABC: reward, done, metadata

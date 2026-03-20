@@ -16,7 +16,13 @@ from typing import Any, Dict, Literal, Optional
 
 from openenv.core.env_server import Action, Environment, Observation
 
-from ..models import AtariAction, AtariObservation, AtariState
+# Support both in-repo and standalone imports
+try:
+    # In-repo imports (when running from OpenEnv repository)
+    from ..models import AtariAction, AtariObservation, AtariState
+except ImportError:
+    # Standalone imports (when running via uvicorn server.app:app)
+    from models import AtariAction, AtariObservation, AtariState
 
 # Import ALE
 try:
