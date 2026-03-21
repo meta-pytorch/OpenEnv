@@ -1,0 +1,7 @@
+{
+  "case_id": "toy_case_002",
+  "conditions": ["wild_type", "knockout"],
+  "true_pathway": "PI3K-Akt signaling",
+  "top_genes": ["AKT1", "PIK3CA", "PTEN", "MTOR"],
+  "top_pathways": ["PI3K-Akt signaling", "mTOR signaling", "apoptosis regulation"]
+}

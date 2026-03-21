@@ -1,0 +1,7 @@
+{
+  "case_id": "toy_case_001",
+  "conditions": ["control", "treated"],
+  "true_pathway": "MAPK signaling",
+  "top_genes": ["DUSP6", "FOS", "JUN", "EGR1"],
+  "top_pathways": ["MAPK signaling", "ERK cascade", "growth factor response"]
+}
