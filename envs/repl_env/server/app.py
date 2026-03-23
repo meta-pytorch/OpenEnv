@@ -32,34 +32,35 @@ Usage:
 
 Environment Variables:
     HF_TOKEN: Fallback HuggingFace API token (client token takes priority)
-    LLM_MODEL: Model to use for llm_query/llm_query_batched (default: Qwen/Qwen3-Coder-480B-A35B-Instruct)
+    LLM_MODEL: Model to use for llm_query/llm_query_batched (default: Qwen/Qwen3.5-9B)
 """
 
 import os
 
-# Support both in-repo and standalone imports
 try:
-    # In-repo imports (when running from OpenEnv repository)
     from openenv.core.env_server.http_server import create_app
 
     from ..models import REPLAction, REPLObservation
     from .repl_environment import REPLEnvironment
 except ImportError:
     from models import REPLAction, REPLObservation
-
-    # Standalone imports (when environment is standalone with openenv from pip)
     from openenv.core.env_server.http_server import create_app
     from server.repl_environment import REPLEnvironment
 
 
-# ============== LLM CONFIGURATION ==============
-LLM_MODEL = os.environ.get("LLM_MODEL", "Qwen/Qwen3-Coder-480B-A35B-Instruct")
-HF_TOKEN = os.environ.get("HF_TOKEN", None)
-# ===============================================
+# ============== CONFIGURATION ==============
+LLM_MODEL = os.environ.get("LLM_MODEL", "Qwen/Qwen3.5-9B")
+HF_TOKEN = os.environ.get("HF_TOKEN")
+REPL_MAX_ITERATIONS = int(os.environ.get("REPL_MAX_ITERATIONS", "30"))
+REPL_MAX_OUTPUT_LENGTH = int(os.environ.get("REPL_MAX_OUTPUT_LENGTH", "8192"))
+REPL_CONTEXT_PREVIEW_LENGTH = int(os.environ.get("REPL_CONTEXT_PREVIEW_LENGTH", "500"))
+REPL_RLM_MAX_DEPTH = int(os.environ.get("REPL_RLM_MAX_DEPTH", "2"))
+REPL_RLM_MAX_ITERATIONS = int(os.environ.get("REPL_RLM_MAX_ITERATIONS", "30"))
+# ==========================================
 
 # Log LLM configuration
 if HF_TOKEN:
-    print(f"[REPL Server] LLM support ENABLED (server token configured)")
+    print("[REPL Server] LLM support ENABLED (server token configured)")
     print(f"[REPL Server] Default model: {LLM_MODEL}")
 else:
     print("[REPL Server] No server HF_TOKEN configured")
@@ -67,11 +68,31 @@ else:
         "[REPL Server] LLM functions will be enabled if client passes hf_token in reset()"
     )
 
-# Simple factory - LLM functions are created dynamically in reset() based on token
-env_factory = REPLEnvironment
+
+def create_repl_environment() -> REPLEnvironment:
+    """Factory function that creates REPLEnvironment with server config.
+
+    LLM functions are created dynamically during `reset()` when a client
+    passes `hf_token`. Rewards are computed via the default `REPLRubric`;
+    pass `expected_answer` at reset time for outcome-based scoring.
+    """
+    return REPLEnvironment(
+        max_iterations=REPL_MAX_ITERATIONS,
+        max_output_length=REPL_MAX_OUTPUT_LENGTH,
+        context_preview_length=REPL_CONTEXT_PREVIEW_LENGTH,
+        rlm_max_depth=REPL_RLM_MAX_DEPTH,
+        rlm_max_iterations=REPL_RLM_MAX_ITERATIONS,
+    )
+
 
 # Create the app with web interface and README integration
-app = create_app(env_factory, REPLAction, REPLObservation, env_name="repl_env")
+app = create_app(
+    create_repl_environment,
+    REPLAction,
+    REPLObservation,
+    env_name="repl_env",
+    max_concurrent_envs=8,
+)
 
 
 def main():
