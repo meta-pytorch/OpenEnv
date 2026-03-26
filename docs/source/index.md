@@ -89,21 +89,64 @@ OpenEnv is currently in an experimental stage. You should expect bugs, incomplet
 
 ```{toctree}
 :maxdepth: 2
-:caption: Learn
+:caption: Get Started
 :hidden:
 
+quickstart
+installation
+concepts
 auto_getting_started/index
-tutorials/index
-environments
+```
+
+```{toctree}
+:maxdepth: 2
+:caption: Guides
+:hidden:
+
+guides/index
+guides/auto-discovery
+guides/connecting
+guides/async-sync
+guides/first-environment
+guides/environment-anatomy
+guides/deployment
+guides/rl-integration
+guides/rewards
 customizing-web-ui
 ```
 
 ```{toctree}
 :maxdepth: 2
-:caption: Reference
+:caption: Tutorials
 :hidden:
 
+tutorials/index
+```
+
+```{toctree}
+:maxdepth: 2
+:caption: Environments
+:hidden:
+
+environments
+```
+
+```{toctree}
+:maxdepth: 2
+:caption: API Reference
+:hidden:
+
+reference/index
+core
 cli
 auto_discovery
-core
+```
+
+```{toctree}
+:maxdepth: 2
+:caption: Community
+:hidden:
+
+contributing
+auto_getting_started/contributing-envs
 ```
