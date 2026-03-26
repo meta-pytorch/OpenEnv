@@ -439,7 +439,9 @@ class MCPEnvironment(Environment):
         timeout_s: Optional[float] = None,
     ) -> CallToolObservation:
         """Sync wrapper — delegates to the canonical async implementation."""
-        return run_async_safely(self._async_handle_call_tool(action, timeout_s=timeout_s))
+        return run_async_safely(
+            self._async_handle_call_tool(action, timeout_s=timeout_s)
+        )
 
     async def _async_call_tool(self, tool_name: str, arguments: dict) -> Any:
         """
