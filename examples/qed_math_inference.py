@@ -256,6 +256,9 @@ async def run_episode(
                 print(
                     f"\nOutcome: {outcome}  score={final_score}/7  reward={final_reward:.3f}"
                 )
+                feedback = result_dict.get("feedback", "")
+                if feedback and not result_dict.get("is_correct"):
+                    print(f"Feedback: {feedback[:300]}")
         else:
             done = result_dict.get("done", False)
 
