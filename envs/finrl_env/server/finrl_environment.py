@@ -10,6 +10,8 @@ FinRL Environment Implementation.
 Wraps FinRL's StockTradingEnv to conform to the OpenEnv interface.
 """
 
+from typing import Any
+
 from uuid import uuid4
 
 import numpy as np
@@ -23,6 +25,36 @@ except ImportError:
     from openenv.core.env_server.types import State
 
 from ..models import FinRLAction, FinRLObservation
+
+
+def _json_safe(value: Any) -> Any:
+    """Convert library-specific values into JSON-serializable Python types."""
+    if value is None or isinstance(value, (str, int, float, bool)):
+        return value
+    if isinstance(value, dict):
+        return {str(key): _json_safe(item) for key, item in value.items()}
+    if isinstance(value, (list, tuple, set)):
+        return [_json_safe(item) for item in value]
+    if isinstance(value, np.ndarray):
+        return value.tolist()
+    if isinstance(value, np.generic):
+        return value.item()
+
+    tolist = getattr(value, "tolist", None)
+    if callable(tolist):
+        try:
+            return tolist()
+        except Exception:
+            pass
+
+    item = getattr(value, "item", None)
+    if callable(item):
+        try:
+            return item()
+        except Exception:
+            pass
+
+    return str(value)
 
 
 class FinRLEnvironment(Environment):
@@ -157,7 +189,7 @@ class FinRLEnvironment(Environment):
             date=date,
             done=done,
             reward=float(reward),
-            metadata=info,
+            metadata=_json_safe(info),
         )
 
     @property

@@ -31,6 +31,32 @@ except ImportError as e:
     ) from e
 
 
+def _json_safe(value: Any) -> Any:
+    """Convert library-specific values into JSON-serializable Python types."""
+    if value is None or isinstance(value, (str, int, float, bool)):
+        return value
+    if isinstance(value, dict):
+        return {str(key): _json_safe(item) for key, item in value.items()}
+    if isinstance(value, (list, tuple, set)):
+        return [_json_safe(item) for item in value]
+
+    tolist = getattr(value, "tolist", None)
+    if callable(tolist):
+        try:
+            return tolist()
+        except Exception:
+            pass
+
+    item = getattr(value, "item", None)
+    if callable(item):
+        try:
+            return item()
+        except Exception:
+            pass
+
+    return str(value)
+
+
 class SumoEnvironment(Environment):
     """
     SUMO-RL Environment wrapper for OpenEnv.
@@ -229,6 +255,6 @@ class SumoEnvironment(Environment):
             reward=reward,
             metadata={
                 "num_green_phases": num_phases,
-                "system_info": system_info,
+                "system_info": _json_safe(system_info),
             },
         )
