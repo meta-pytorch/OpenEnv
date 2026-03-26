@@ -13,6 +13,7 @@ submitted proofs using LLM-based rubric grading (0-7 scale).
 
 import json
 import logging
+import os
 import signal
 from datetime import datetime, timezone
 from dataclasses import dataclass
@@ -542,10 +543,22 @@ class QEDMathEnvironment(MCPEnvironment):
         self._prompt_template = load_evaluator_prompt(self._config.prompt_name)
         self._problems: list[dict] = load_problems(self._config.dataset_path)
         self._current_problem: dict | None = None
+        # Read judge credentials from JUDGE_* env vars (set in Docker) with
+        # fallbacks to the standard OPENAI_* names for local development.
+        judge_api_base_url = (
+            os.environ.get("JUDGE_API_BASE_URL")
+            or os.environ.get("OPENAI_BASE_URL")
+        )
+        judge_api_key = (
+            os.environ.get("JUDGE_API_KEY")
+            or os.environ.get("OPENAI_API_KEY")
+        )
         self._rubric = MathProofRubric(
             grader_model=self._config.grader_model,
             prompt_template=self._prompt_template,
             custom_threshold=self._config.custom_reward_threshold,
+            api_base_url=judge_api_base_url,
+            api_key=judge_api_key,
         )
         self._discount_factor = self._config.discount_factor
         self._buffer_tokens = self._config.buffer_tokens

@@ -2090,12 +2090,13 @@ wheels = [
 
 [[package]]
 name = "openenv-core"
-version = "0.2.2.dev0"
-source = { git = "https://github.com/meta-pytorch/OpenEnv.git#4fc110eb412813eaf4c100f87e65b8c2a9880fc1" }
+version = "0.2.3.dev0"
+source = { git = "https://github.com/meta-pytorch/OpenEnv.git#ca8e7c0970ebd2c2623248e58dedf9664fb5ae21" }
 dependencies = [
     { name = "fastapi" },
     { name = "fastmcp" },
     { name = "gradio" },
+    { name = "httpx" },
     { name = "huggingface-hub" },
     { name = "openai" },
     { name = "pydantic" },

@@ -10,8 +10,11 @@
 # - Standalone environments (with openenv from PyPI/Git)
 # The build script (openenv build) handles context detection and sets appropriate build args.
 #
-# Build from project root:
-#   docker build -t qed-math-env:latest -f envs/qed_math_env/server/Dockerfile .
+# Build from the env directory:
+#   docker build -t qed-math-env:latest -f server/Dockerfile .
+#
+# Or from the repo root:
+#   docker build -t qed-math-env:latest -f envs/qed_math_env/server/Dockerfile envs/qed_math_env
 #
 # Run:
 #   docker run -p 8000:8000 -e OPENAI_API_KEY=$OPENAI_API_KEY qed-math-env:latest
@@ -85,5 +88,5 @@ HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
     CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')" || exit 1
 
 # Run the FastAPI server
-# The module path is constructed to work with the /app/env structure
-CMD ["sh", "-c", "cd /app/env && uvicorn server.app:app --host 0.0.0.0 --port 8000"]
+# Use the installed package path (pyproject.toml maps server/ → qed_math_env.server)
+CMD ["uvicorn", "qed_math_env.server.app:app", "--host", "0.0.0.0", "--port", "8000"]
