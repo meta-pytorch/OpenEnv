@@ -101,8 +101,6 @@ nav:
       - Your First Environment: guides/first-environment.md
       - Environment Anatomy: guides/environment-anatomy.md
       - Deployment: guides/deployment.md
-      - Environment Builder: environment-builder.md
-      - Customizing the Web UI: customizing-web-ui.md
     - Training:
       - RL Framework Integration: guides/rl-integration.md
       - Reward Design: guides/rewards.md

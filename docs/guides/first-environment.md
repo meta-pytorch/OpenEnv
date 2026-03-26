@@ -1,7 +1,7 @@
 # Your First Environment
 
 !!! note "Coming Soon"
-    This page will contain a streamlined guide to building your first OpenEnv environment. For now, see the [full environment builder guide](../environment-builder.md).
+    This page will contain a streamlined guide to building your first OpenEnv environment. For now, see the [environment anatomy guide](environment-anatomy.md).
 
 ## Overview
 
@@ -43,4 +43,4 @@ class EchoEnvironment(Environment[EchoAction, EchoObservation, EchoState]):
 
 - [Environment Anatomy](environment-anatomy.md) - Deep dive into structure
 - [Deployment](deployment.md) - Deploy to Docker and HF Spaces
-- [Full Guide](../environment-builder.md) - Complete documentation
+- [Environment Anatomy](environment-anatomy.md) - Complete documentation

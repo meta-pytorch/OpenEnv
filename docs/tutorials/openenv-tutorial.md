@@ -26,9 +26,7 @@ That's OpenEnv. Type-safe. Isolated. Production-ready. 🎯
 Let's take a trip down memory lane:
 
 It's 2016, RL is popular. You read some papers, it looks promising.
-It's 2016, RL is popular. You read some papers, it looks promising.
 
-But in real world: Cartpole is the best you can run on a gaming GPU.
 But in real world: Cartpole is the best you can run on a gaming GPU.
 
 What do you do beyond Cartpole?
@@ -37,7 +35,6 @@ Fast-forward to 2025, GRPO is awesome and this time it's not JUST in theory, it 
 
 The problem still remains, how do you take these RL algorithms and take them beyond Cartpole?
 
-A huge part of RL is giving your algorithms environment access to learn.
 A huge part of RL is giving your algorithms environment access to learn.
 
 We are excited to introduce an Environment Spec for adding Open Environments for RL Training. This will allow you to focus on your experiments and allow everyone to bring their environments.
@@ -655,7 +652,6 @@ print("   ✅ Self-documenting code\n")
 The client **inherits from HTTPEnvClient** and implements 3 methods:
 
 1. `_step_payload()` - Convert action → JSON
-2. `_parse_result()` - Parse JSON → typed observation
 2. `_parse_result()` - Parse JSON → typed observation
 3. `_parse_state()` - Parse JSON → state
 
