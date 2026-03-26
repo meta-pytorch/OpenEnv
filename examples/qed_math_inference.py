@@ -92,13 +92,14 @@ def _tools_to_openai_format(tools: list) -> list[dict]:
     for tool in tools:
         properties: dict[str, Any] = {}
         required: list[str] = []
-        if tool.inputSchema and "properties" in tool.inputSchema:
-            for name, schema in tool.inputSchema["properties"].items():
+        input_schema = getattr(tool, "input_schema", None) or getattr(tool, "inputSchema", None) or {}
+        if input_schema and "properties" in input_schema:
+            for name, schema in input_schema["properties"].items():
                 properties[name] = {
                     "type": schema.get("type", "string"),
                     "description": schema.get("description", ""),
                 }
-            required = tool.inputSchema.get("required", [])
+            required = input_schema.get("required", [])
 
         openai_tools.append(
             {

@@ -89,4 +89,6 @@ HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
 
 # Run the FastAPI server
 # Use the installed package path (pyproject.toml maps server/ → qed_math_env.server)
-CMD ["uvicorn", "qed_math_env.server.app:app", "--host", "0.0.0.0", "--port", "8000"]
+# Disable WebSocket keepalive pings so long-running LLM judge calls (submit_proof)
+# don't trigger a "keepalive ping timeout" disconnect mid-grading.
+CMD ["uvicorn", "qed_math_env.server.app:app", "--host", "0.0.0.0", "--port", "8000", "--ws-ping-interval", "0"]
