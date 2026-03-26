@@ -1,7 +1,7 @@
 # Use the official Playwright Python image so browser binaries are already present.
 FROM mcr.microsoft.com/playwright/python:v1.58.0-noble
 
-gWORKDIR /app/env
+WORKDIR /app/env
 
 # Install only the extra packages this env still needs on top of the Playwright image.
 RUN apt-get update && apt-get install -y --no-install-recommends \
