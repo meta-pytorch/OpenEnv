@@ -11,6 +11,7 @@ A math proof environment that presents problems to agents and evaluates
 submitted proofs using LLM-based rubric grading (0-7 scale).
 """
 
+import asyncio
 import json
 import logging
 import os
@@ -30,12 +31,28 @@ import math_verify
 from fastmcp import FastMCP
 
 try:
-    from openenv.core.env_server.mcp_environment import MCPEnvironment
-    from openenv.core.env_server.mcp_types import CallToolAction, CallToolObservation
+    from openenv.core.env_server.mcp_environment import MCPEnvironment, MCP_TOOL_CALL_TIMEOUT
+    from openenv.core.env_server.mcp_types import (
+        CallToolAction,
+        CallToolObservation,
+        ListToolsAction,
+        ListToolsObservation,
+        Tool,
+        ToolError,
+        ToolErrorType,
+    )
     from openenv.core.env_server.types import Action, Observation, State
 except ImportError:
-    from openenv.core.env_server.mcp_environment import MCPEnvironment
-    from openenv.core.env_server.mcp_types import CallToolAction, CallToolObservation
+    from openenv.core.env_server.mcp_environment import MCPEnvironment, MCP_TOOL_CALL_TIMEOUT
+    from openenv.core.env_server.mcp_types import (
+        CallToolAction,
+        CallToolObservation,
+        ListToolsAction,
+        ListToolsObservation,
+        Tool,
+        ToolError,
+        ToolErrorType,
+    )
     from openenv.core.env_server.types import Action, Observation, State
 
 try:
@@ -553,8 +570,12 @@ class QEDMathEnvironment(MCPEnvironment):
             os.environ.get("JUDGE_API_KEY")
             or os.environ.get("OPENAI_API_KEY")
         )
+        judge_model = (
+            os.environ.get("JUDGE_MODEL")
+            or self._config.grader_model
+        )
         self._rubric = MathProofRubric(
-            grader_model=self._config.grader_model,
+            grader_model=judge_model,
             prompt_template=self._prompt_template,
             custom_threshold=self._config.custom_reward_threshold,
             api_base_url=judge_api_base_url,
@@ -568,6 +589,91 @@ class QEDMathEnvironment(MCPEnvironment):
         self._reset_count = 0
         self._attempt_count = 0
         self._current_max_attempts = max(1, int(self._config.max_attempts))
+
+    async def step_async(
+        self,
+        action: Any,
+        timeout_s: Optional[float] = None,
+        **kwargs: Any,
+    ) -> Any:
+        """Async step override — fixes the run_async_safely event-loop deadlock
+        described in https://github.com/meta-pytorch/OpenEnv/issues/455.
+
+        The WebSocket server detects this override and calls it directly on the
+        outer event loop instead of dispatching step() into a thread executor,
+        which would cause asyncio.run() inside run_async_safely to conflict with
+        the FastMCP server's anyio transport.
+        """
+        try:
+            from openenv.core.env_server.mcp_types import (
+                CallToolAction,
+                CallToolObservation,
+                ListToolsAction,
+                ListToolsObservation,
+                Tool,
+                ToolError,
+                ToolErrorType,
+            )
+        except ImportError:
+            from openenv_core.env_server.mcp_types import (  # type: ignore[no-redef]
+                CallToolAction,
+                CallToolObservation,
+                ListToolsAction,
+                ListToolsObservation,
+                Tool,
+                ToolError,
+                ToolErrorType,
+            )
+
+        MCP_TIMEOUT = 30.0
+
+        if isinstance(action, ListToolsAction):
+            try:
+                tools_result = await self._async_list_tools()
+                tools = [
+                    Tool(
+                        name=t.name,
+                        description=t.description or "",
+                        input_schema=t.inputSchema if hasattr(t, "inputSchema") else {},
+                    )
+                    for t in tools_result
+                ]
+                return ListToolsObservation(tools=tools)
+            except Exception as exc:
+                return ListToolsObservation(
+                    tools=[],
+                    metadata={"error": str(exc), "error_type": "list_tools_failed"},
+                )
+
+        if isinstance(action, CallToolAction):
+            timeout = timeout_s if timeout_s is not None else MCP_TIMEOUT
+            try:
+                result = await asyncio.wait_for(
+                    self._async_call_tool(action.tool_name, action.arguments),
+                    timeout=timeout,
+                )
+                return CallToolObservation(tool_name=action.tool_name, result=result)
+            except asyncio.TimeoutError:
+                return CallToolObservation(
+                    tool_name=action.tool_name,
+                    result=None,
+                    error=ToolError(
+                        error_type=ToolErrorType.TIMEOUT,
+                        message=f"Tool '{action.tool_name}' timed out after {timeout}s",
+                    ),
+                )
+            except Exception as exc:
+                return CallToolObservation(
+                    tool_name=action.tool_name,
+                    result=None,
+                    error=ToolError(
+                        error_type=ToolErrorType.EXECUTION_ERROR,
+                        message=str(exc),
+                    ),
+                )
+
+        # Non-MCP actions fall through to the sync _step_impl
+        return self._step_impl(action, timeout_s=timeout_s, **kwargs)
 
     def reset(
         self,
