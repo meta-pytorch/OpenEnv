@@ -625,7 +625,9 @@ class QEDMathEnvironment(MCPEnvironment):
                 ToolErrorType,
             )
 
-        MCP_TIMEOUT = 30.0
+        # LLM judge calls (submit_proof) can take several minutes; use a generous
+        # ceiling that matches MathProofRubric.timeout_seconds.
+        MCP_TIMEOUT = 600.0
 
         if isinstance(action, ListToolsAction):
             try:
