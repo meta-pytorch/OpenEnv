@@ -108,6 +108,9 @@ class TextArenaEnvironment(Environment):
         self.max_turns = max_turns
         self._env_kwargs = env_kwargs or {}
 
+        if max_turns is not None:
+            self._env_kwargs.setdefault("num_guesses", max_turns)
+
         self._ta_env = ta.make(env_id=env_id, **self._env_kwargs)
 
         self._state = TextArenaState(
