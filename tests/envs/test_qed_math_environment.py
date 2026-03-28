@@ -539,6 +539,13 @@ class TestGetProblemPayload:
         assert "problem" in payload
         assert "error" not in payload
         assert "problem_id" in payload
+        assert "reference_solution" not in payload
+
+    def test_answer_mode_includes_reference_solution(self):
+        env = _make_env_with_problem(ANSWER_PROBLEM)
+        env.reset()
+        payload = env.get_problem_payload()
+        assert payload["reference_solution"] == r"\boxed{4}"
 
     def test_grading_guidelines_payload_without_reset(self):
         env = _make_env()
