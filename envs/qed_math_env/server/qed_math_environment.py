@@ -12,13 +12,12 @@ submitted proofs using LLM-based rubric grading (0-7 scale).
 """
 
 import asyncio
+from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeoutError
 import json
 import logging
 import os
-import signal
 from datetime import datetime, timezone
 from dataclasses import dataclass
-from contextlib import contextmanager
 from pathlib import Path
 from datasets import load_dataset
 
@@ -88,29 +87,6 @@ class EmptyBoxedException(Exception):
 
 class TimeoutException(Exception):
     """Raised when verification computation times out."""
-
-
-@contextmanager
-def timeout(seconds: int = 1):
-    """QED-Nano-style timeout guard used around math_verify.verify."""
-
-    def timeout_handler(signum, frame):
-        raise TimeoutException("Computation timed out")
-
-    # Windows does not provide SIGALRM/signal.alarm.
-    sigalrm = getattr(signal, "SIGALRM", None)
-    alarm_fn = getattr(signal, "alarm", None)
-    if sigalrm is None or alarm_fn is None:
-        yield
-        return
-
-    original_handler = signal.signal(sigalrm, timeout_handler)
-    alarm_fn(seconds)
-    try:
-        yield
-    finally:
-        alarm_fn(0)
-        signal.signal(sigalrm, original_handler)
 
 
 def remove_reasoning(
@@ -604,6 +580,8 @@ class QEDMathEnvironment(MCPEnvironment):
         which would cause asyncio.run() inside run_async_safely to conflict with
         the FastMCP server's anyio transport.
         """
+        self._state.step_count += 1
+
         try:
             from openenv.core.env_server.mcp_types import (
                 CallToolAction,
@@ -729,7 +707,7 @@ class QEDMathEnvironment(MCPEnvironment):
                 rng = random.Random(seed)
                 self._current_problem = rng.choice(self._problems)
             else:
-                self._current_problem = self._problems[0]
+                self._current_problem = random.choice(self._problems)
         else:
             self._current_problem = None
 
@@ -939,18 +917,35 @@ class QEDMathEnvironment(MCPEnvironment):
                 "reward": 0.0,
             }
 
-        return {
+        problem_type = self._current_problem.get("problem_type", "proof")
+        evaluation_mode = self._current_problem.get("evaluation_mode")
+        if isinstance(evaluation_mode, str):
+            evaluation_mode = evaluation_mode.strip().lower()
+        else:
+            evaluation_mode = "answer" if problem_type == "answer" else "proof"
+        if evaluation_mode not in {"proof", "answer"}:
+            evaluation_mode = "proof"
+
+        payload = {
             "problem": self._current_problem.get("problem", ""),
-            "reference_solution": self._current_problem.get("reference_solution", ""),
             "grading_guidelines": self._current_grading_guidelines_text(),
             "problem_id": self._current_problem.get("problem_id", ""),
             "dataset_source": self._current_problem.get("dataset_source", ""),
-            "problem_type": self._current_problem.get("problem_type", "proof"),
+            "problem_type": problem_type,
             "max_attempts": self._current_max_attempts,
             "attempt_count": self._attempt_count,
             "done": False,
             "reward": 0.0,
         }
+
+        # Keep answer-mode parity with QED-Nano while preventing proof-mode
+        # agents from seeing the grading key via MCP.
+        if evaluation_mode == "answer":
+            payload["reference_solution"] = self._current_problem.get(
+                "reference_solution", ""
+            )
+
+        return payload
 
     def _verify_answer(
         self,
@@ -1003,13 +998,18 @@ class QEDMathEnvironment(MCPEnvironment):
             if not boxed_prediction_parsed:
                 raise ValueError("Failed to parse prediction.")
 
-            with timeout(1):
-                equivalent = math_verify.verify(
+            with ThreadPoolExecutor(max_workers=1) as executor:
+                future = executor.submit(
+                    math_verify.verify,
                     gold_parsed,
                     boxed_prediction_parsed,
                     strict=strict,
                     timeout_seconds=1,
                 )
+                try:
+                    equivalent = future.result(timeout=1)
+                except FuturesTimeoutError as exc:
+                    raise TimeoutException("Computation timed out") from exc
             return "correct" if equivalent else "wrong"
 
         except Exception as exc:  # noqa: BLE001
