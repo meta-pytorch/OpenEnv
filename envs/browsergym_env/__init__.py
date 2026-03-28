@@ -62,6 +62,7 @@ Evaluation Example (WebArena - requires backend):
 """
 
 from .client import BrowserGymEnv
+from .harness import BrowserGymSessionFactory, build_browsergym_action_tool_call
 from .models import BrowserGymAction, BrowserGymObservation, BrowserGymState
 
 __all__ = [
@@ -69,4 +70,6 @@ __all__ = [
     "BrowserGymAction",
     "BrowserGymObservation",
     "BrowserGymState",
+    "BrowserGymSessionFactory",
+    "build_browsergym_action_tool_call",
 ]
