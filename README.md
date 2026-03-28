@@ -2,7 +2,7 @@
 
 An e2e framework for creating, deploying and using isolated execution environments for agentic RL training, built using Gymnasium style simple APIs.
 
-[![PyPI](https://img.shields.io/pypi/v/openenv?color=blue)](https://pypi.org/project/openenv/)
+[![PyPI](https://img.shields.io/pypi/v/openenv-core?color=blue)](https://pypi.org/project/openenv-core/)
 [![Discord](https://img.shields.io/badge/Discord-OpenEnv-7289da?style=flat&logo=discord&logoColor=white)](https://discord.gg/YsTYBh6PD9)
 [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/meta-pytorch/OpenEnv/blob/main/examples/OpenEnv_Tutorial.ipynb)
 [![Docs](https://img.shields.io/badge/Docs-Explore-blue?logo=readthedocs&logoColor=white)](https://meta-pytorch.org/OpenEnv/)
@@ -359,22 +359,15 @@ See the [Oumi example](https://github.com/oumi-ai/oumi/blob/main/notebooks/Oumi%
 
 ## Example Environments
 
-### Echo Environment
-A simple environment that echoes back messages with metadata. Perfect for:
-- Testing the HTTP server infrastructure
-- Learning the framework basics
-- Verifying container deployment
+| Environment | Description |
+|---|---|
+| [Echo Environment](envs/echo_env/README.md) | Echoes back messages with metadata. Ideal for testing HTTP server infrastructure, learning framework basics, and verifying container deployment. |
+| [Coding Environment](envs/coding_env/README.md) | Sandboxed Python code execution via smolagents. Captures stdout/stderr/exit codes, supports persistent episode context, and provides detailed error handling. |
+| [Chess Environment](envs/chess_env/README.md) | Chess RL environment with configurable opponents and full rules support. |
+| [Atari Environment](envs/atari_env/README.md) | Classic Arcade Learning Environment tasks for RL benchmarking. |
+| [FinRL Environment](envs/finrl_env/README.md) | Financial market simulations for algorithmic trading experiments. |
 
-See: [`envs/echo_env/README.md`](envs/echo_env/README.md)
-
-### Coding Environment
-Executes arbitrary Python code in a sandboxed environment. Features:
-- Safe code execution using smolagents
-- Capture stdout, stderr, and exit codes
-- Persistent execution context within episodes
-- Error handling with detailed messages
-
-See: [`envs/coding_env/README.md`](envs/coding_env/README.md)
+> Browse the full catalog of community environments at [meta-pytorch.org/OpenEnv/environments](https://meta-pytorch.org/OpenEnv/environments/).
 
 ## Community Support & Acknowledgments
 This is an open and community-centric project. If you would like to add your name here, please put up a pull request and tag @jspisak for review. Ty!!

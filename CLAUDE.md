@@ -97,6 +97,7 @@ Skills are defined in `.claude/skills/` and run inline:
 | [`alignment-review`](.claude/skills/alignment-review/SKILL.md) | "review this code" | Two-tier review (bugs + alignment flags) |
 | [`pre-submit-pr`](.claude/skills/pre-submit-pr/SKILL.md) | "ready for PR?" | Comprehensive PR readiness check |
 | [`rfc-check`](.claude/skills/rfc-check/SKILL.md) | "do I need an RFC?" | Determine if RFC required |
+| [`generate-openenv-env`](.claude/skills/generate-openenv-env/SKILL.md) | "generate an env for textarena" | Build an OpenEnv env from a use case |
 
 **TDD Workflow Skills:**
 
