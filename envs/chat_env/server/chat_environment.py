@@ -18,7 +18,15 @@ from openenv.core.env_server.interfaces import (
     Transform,
 )
 
-from ..models import ChatAction, ChatObservation, ChatState
+# Support both in-repo and standalone imports
+try:
+    # In-repo imports (when running from OpenEnv repository)
+    from ..models import ChatAction, ChatObservation, ChatState
+except ImportError as e:
+    if "relative import" not in str(e) and "no known parent package" not in str(e):
+        raise
+    # Standalone imports (when running via uvicorn server.app:app)
+    from models import ChatAction, ChatObservation, ChatState
 
 
 class ChatEnvironment(Environment):

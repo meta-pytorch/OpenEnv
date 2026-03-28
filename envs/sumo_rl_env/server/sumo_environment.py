@@ -20,7 +20,15 @@ os.environ.setdefault("SUMO_HOME", "/usr/share/sumo")
 
 from openenv.core.env_server import Action, Environment, Observation
 
-from ..models import SumoAction, SumoObservation, SumoState
+# Support both in-repo and standalone imports
+try:
+    # In-repo imports (when running from OpenEnv repository)
+    from ..models import SumoAction, SumoObservation, SumoState
+except ImportError as e:
+    if "relative import" not in str(e) and "no known parent package" not in str(e):
+        raise
+    # Standalone imports (when running via uvicorn server.app:app)
+    from models import SumoAction, SumoObservation, SumoState
 
 # Import SUMO-RL
 try:

@@ -69,28 +69,39 @@ jobs:
         image:
           - name: echo-env
             dockerfile: envs/echo_env/server/Dockerfile
+            context: envs/echo_env
           - name: chat-env
             dockerfile: envs/chat_env/server/Dockerfile
+            context: envs/chat_env
           - name: coding-env
             dockerfile: envs/coding_env/server/Dockerfile
           - name: sumo-rl-env
             dockerfile: envs/sumo_rl_env/server/Dockerfile
+            context: envs/sumo_rl_env
           - name: atari-env
             dockerfile: envs/atari_env/server/Dockerfile
+            context: envs/atari_env
           - name: git-env
             dockerfile: envs/git_env/server/Dockerfile
+            context: envs/git_env
           - name: connect4_env
             dockerfile: envs/connect4_env/server/Dockerfile
+            context: envs/connect4_env
           - name: chess-env
             dockerfile: envs/chess_env/server/Dockerfile
+            context: envs/chess_env
           - name: tbench2-env
             dockerfile: envs/tbench2_env/server/Dockerfile
+            context: envs/tbench2_env
           - name: textarena-env
             dockerfile: envs/textarena_env/server/Dockerfile
+            context: envs/textarena_env
           - name: browsergym-env
             dockerfile: envs/browsergym_env/server/Dockerfile
+            context: envs/browsergym_env
           - name: snake-env
             dockerfile: envs/snake_env/server/Dockerfile
+            context: envs/snake_env
           - name: unity-env
             dockerfile: envs/unity_env/server/Dockerfile
             context: envs/unity_env
@@ -99,6 +110,7 @@ jobs:
             context: envs/openapp_env
           - name: maze-env
             dockerfile: envs/maze_env/server/Dockerfile
+            context: envs/maze_env
           - name: openspiel-env
             dockerfile: envs/openspiel_env/server/Dockerfile
             context: envs/openspiel_env

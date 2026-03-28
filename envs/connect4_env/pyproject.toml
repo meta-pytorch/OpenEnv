@@ -9,22 +9,17 @@ requires = ["setuptools>=45", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "openenv-maze_env"
+name = "openenv-connect4-env"
 version = "0.1.0"
-description = "Maze Env environment for OpenEnv"
+description = "Connect4 Environment for OpenEnv - classic two-player board game"
 requires-python = ">=3.10"
 dependencies = [
-    # Core OpenEnv runtime (provides FastAPI server + HTTP client types)
-    # install from github
     "openenv-core[core]>=0.2.2",
-    # Environment-specific dependencies
-    # Add all dependencies needed for your environment here
-    "numpy>=1.19.0",
     "fastapi>=0.115.0",
     "pydantic>=2.0.0",
     "uvicorn>=0.24.0",
     "requests>=2.31.0",
-    "matplotlib>=3.3.0",
+    "numpy>=1.24.0",
 ]
 
 [project.optional-dependencies]
@@ -33,12 +28,7 @@ dev = [
     "pytest-cov>=4.0.0",
 ]
 
-[project.scripts]
-# Server entry point - enables running via: uv run --project . server
-# or: python -m maze_env.server.app
-server = "maze_env.server.app:main"
-
 [tool.setuptools]
 include-package-data = true
-packages = ["maze_env", "maze_env.server"]
-package-dir = { "maze_env" = ".", "maze_env.server" = "server" }
+packages = ["connect4_env", "connect4_env.server"]
+package-dir = { "connect4_env" = ".", "connect4_env.server" = "server" }
