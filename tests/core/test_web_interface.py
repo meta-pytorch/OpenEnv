@@ -12,7 +12,6 @@ import json
 
 import pytest
 from fastapi.testclient import TestClient
-
 from openenv.core.env_server.interfaces import Environment
 from openenv.core.env_server.types import Action, Observation, State
 from openenv.core.env_server.web_interface import create_web_interface_app
@@ -123,7 +122,9 @@ def test_repl_web_state_before_reset_returns_conflict() -> None:
     assert "Call reset() first" in response.json()["detail"]
 
 
-def test_repl_web_reset_passes_context_and_task_prompt_without_echoing_hf_token() -> None:
+def test_repl_web_reset_passes_context_and_task_prompt_without_echoing_hf_token() -> (
+    None
+):
     """The REPL web flow should accept reset kwargs and keep the token out of state."""
     app = create_web_interface_app(
         REPLEnvironment,

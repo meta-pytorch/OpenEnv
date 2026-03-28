@@ -22,7 +22,7 @@ from datetime import datetime
 from typing import Any, Callable, Dict, List, Optional, Type
 
 import gradio as gr
-from fastapi import Body, FastAPI, HTTPException, WebSocket, WebSocketDisconnect, status
+from fastapi import Body, FastAPI, HTTPException, status, WebSocket, WebSocketDisconnect
 from fastapi.responses import RedirectResponse
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -356,7 +356,9 @@ class WebInterfaceManager:
         else:
             # Run sync reset in thread pool to avoid blocking event loop
             # and to support environments using sync libraries (e.g., Playwright)
-            observation = await self._run_sync_in_thread_pool(self.env.reset, **valid_kwargs)
+            observation = await self._run_sync_in_thread_pool(
+                self.env.reset, **valid_kwargs
+            )
         state: State = self.env.state
 
         # Serialize observation once using shared utility

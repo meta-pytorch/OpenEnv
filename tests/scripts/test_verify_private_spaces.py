@@ -43,7 +43,9 @@ def test_gradio_web_ok_html_rejects_non_gradio_html() -> None:
 def test_gradio_web_ok_reset_requires_observation_payload() -> None:
     response = make_response(content_type="application/json")
 
-    assert verify_private_spaces.gradio_web_ok_reset(response, {"observation": {"text": "ok"}})
+    assert verify_private_spaces.gradio_web_ok_reset(
+        response, {"observation": {"text": "ok"}}
+    )
     assert not verify_private_spaces.gradio_web_ok_reset(response, {"state": {}})
 
 
