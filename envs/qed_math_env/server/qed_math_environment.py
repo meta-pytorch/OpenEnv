@@ -560,6 +560,10 @@ class QEDMathEnvironment(MCPEnvironment):
         self._prompt_template = load_evaluator_prompt(self._config.prompt_name)
         self._problems: list[dict] = load_problems(self._config.dataset_path)
         self._current_problem: dict | None = None
+        self._gold_cache_signature = self._build_gold_cache_signature()
+        self._gold_cache_problem_count = len(self._problems)
+        self._gold_answer_cache: dict[tuple[str, tuple[bool, int, int]], str] = {}
+        self._build_gold_answer_cache()
         # Read judge credentials from JUDGE_* env vars (set in Docker) with
         # fallbacks to the standard OPENAI_* names for local development.
         judge_api_base_url = (
@@ -600,6 +604,59 @@ class QEDMathEnvironment(MCPEnvironment):
         self._reset_count = 0
         self._attempt_count = 0
         self._current_max_attempts = max(1, int(self._config.max_attempts))
+
+    def _build_gold_cache_signature(self) -> tuple[bool, int, int]:
+        """Return cache settings that affect answer-verifier behavior."""
+        return (
+            bool(self._config.verifier_strict),
+            int(self._config.verifier_numeric_precision),
+            int(self._config.verifier_float_rounding),
+        )
+
+    def _gold_cache_key(self, problem_id: str) -> tuple[str, tuple[bool, int, int]]:
+        """Build a stable answer-cache key for a specific problem id."""
+        return (problem_id, self._gold_cache_signature)
+
+    def _build_gold_answer_cache(self) -> None:
+        """Build cache of answer-mode gold references keyed by problem id/settings."""
+        self._gold_answer_cache = {}
+        for problem in self._problems:
+            evaluation_mode = problem.get("evaluation_mode", "proof")
+            if evaluation_mode != "answer":
+                continue
+
+            problem_id = str(problem.get("problem_id", "")).strip()
+            if not problem_id:
+                continue
+
+            reference_solution = str(problem.get("reference_solution", ""))
+            # Validate parseability once at cache-build time for earlier detection,
+            # but retain original text for worker-process parsing/verification.
+            try:
+                _parse_math_verify_expression(reference_solution)
+            except Exception:  # noqa: BLE001
+                logger.warning(
+                    "Failed to pre-parse answer-mode gold for problem_id=%s; deferring to runtime verifier.",
+                    problem_id,
+                )
+            self._gold_answer_cache[self._gold_cache_key(problem_id)] = reference_solution
+
+    def _refresh_gold_cache_if_needed(self) -> None:
+        """Refresh answer cache when verifier settings or problem set changes."""
+        current_signature = self._build_gold_cache_signature()
+        current_problem_count = len(self._problems)
+        if (
+            current_signature != self._gold_cache_signature
+            or current_problem_count != self._gold_cache_problem_count
+        ):
+            self._gold_cache_signature = current_signature
+            self._gold_cache_problem_count = current_problem_count
+            self._build_gold_answer_cache()
+
+    def _get_cached_gold_answer(self, problem_id: str, fallback: str) -> str:
+        """Get cached gold reference for answer-mode grading."""
+        self._refresh_gold_cache_if_needed()
+        return self._gold_answer_cache.get(self._gold_cache_key(problem_id), fallback)
 
     async def step_async(
         self,
@@ -714,6 +771,7 @@ class QEDMathEnvironment(MCPEnvironment):
             grading_guidelines, problem_id, and dataset_source.
         """
         selected_problem_id = kwargs.pop("problem_id", None)
+        self._refresh_gold_cache_if_needed()
 
         self._state = State(
             episode_id=episode_id or str(uuid4()),
@@ -1045,9 +1103,11 @@ class QEDMathEnvironment(MCPEnvironment):
         response = await self._verifier_service.verify_answer(
             prediction=submission,
             gold=expected_answer,
-            strict=True,
-            timeout_seconds=1,
+            strict=self._config.verifier_strict,
+            timeout_seconds=max(1, int(self._config.verifier_request_timeout_seconds)),
             max_prediction_length=1000,
+            numeric_precision=self._config.verifier_numeric_precision,
+            float_rounding=self._config.verifier_float_rounding,
         )
         answer_status = response.status
 
@@ -1061,13 +1121,15 @@ class QEDMathEnvironment(MCPEnvironment):
             metrics={
                 "verifier/rollouts/success": int(answer_status == "correct"),
                 "verifier/rollouts/failure": int(answer_status != "correct"),
-                "verifier/failures/timeout": 0,
+                "verifier/failures/timeout": int(answer_status == "timeout"),
                 "verifier/failures/rate_limit": 0,
                 "verifier/failures/no_input": 0,
                 "verifier/failures/no_score_tag": 0,
-                "verifier/failures/all_attempts_failed": 0,
-                "verifier/failures/num_retries": 0,
-                "verifier/runtime/latency_per_request": 0.0,
+                "verifier/failures/all_attempts_failed": int(
+                    answer_status in {"internal_error", "timeout"}
+                ),
+                "verifier/failures/num_retries": int(response.retry_count),
+                "verifier/runtime/latency_per_request": float(response.elapsed_ms),
                 "verifier/runtime/input_tokens": 0,
                 "verifier/runtime/output_tokens": 0,
             },
@@ -1108,7 +1170,15 @@ class QEDMathEnvironment(MCPEnvironment):
         evaluation_mode = self._current_problem.get("evaluation_mode", "proof")
 
         if evaluation_mode == "answer":
-            return await self._grade_answer_submission(grading_input, reference_solution)
+            problem_id = str(self._current_problem.get("problem_id", "")).strip()
+            cached_reference_solution = self._get_cached_gold_answer(
+                problem_id,
+                reference_solution,
+            )
+            return await self._grade_answer_submission(
+                grading_input,
+                cached_reference_solution,
+            )
 
         return await self._rubric.grade(
             grading_input,

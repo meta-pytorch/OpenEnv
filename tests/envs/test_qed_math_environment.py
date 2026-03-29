@@ -85,6 +85,7 @@ from qed_math_env.server.rubric import (  # noqa: E402
 from qed_math_env.server.math_verify_service import (  # noqa: E402
     MathVerifierService,
     VerifyRequest,
+    VerifyResponse,
     _verify_answer_worker,
 )
 
@@ -136,6 +137,8 @@ def _make_env_with_problem(raw_problem: dict) -> QEDMathEnvironment:
         raw_problem, 0, raw_problem.get("dataset_source", "test")
     )
     env._problems = [normalized]
+    env._gold_cache_problem_count = len(env._problems)
+    env._build_gold_answer_cache()
     return env
 
 
@@ -640,6 +643,33 @@ class TestGradeAnswerSubmission:
             result = await env._grade_answer_submission(r"\boxed{5}", r"\boxed{4}")
             assert result.score == 0
             assert result.reward == pytest.approx(0.0)
+        finally:
+            await env._verifier_service.stop()
+
+    @pytest.mark.asyncio
+    async def test_timeout_metrics_from_service(self):
+        env = _make_env()
+        try:
+            timeout_response = VerifyResponse(
+                request_id="req-timeout",
+                status="timeout",
+                elapsed_ms=12.5,
+                retry_count=1,
+                error_type="ClientTimeout",
+                error_message="simulated timeout",
+            )
+            with patch.object(
+                env._verifier_service,
+                "verify_answer",
+                new=AsyncMock(return_value=timeout_response),
+            ):
+                result = await env._grade_answer_submission(r"\boxed{4}", r"\boxed{4}")
+                assert result.score == 0
+                assert result.metrics["verifier/failures/timeout"] == 1
+                assert result.metrics["verifier/failures/num_retries"] == 1
+                assert result.metrics["verifier/runtime/latency_per_request"] == pytest.approx(
+                    12.5
+                )
         finally:
             await env._verifier_service.stop()
 
@@ -1217,6 +1247,107 @@ class TestMathVerifierService:
             assert response.request_id.startswith("req-")
         finally:
             await service.stop()
+
+    @pytest.mark.asyncio
+    async def test_queue_backpressure_rejects_when_saturated(self):
+        import asyncio
+
+        service = MathVerifierService(max_workers=1, queue_size=1)
+        await service.start()
+
+        gate_started = asyncio.Event()
+        gate_release = asyncio.Event()
+
+        async def slow_once(request):
+            gate_started.set()
+            await gate_release.wait()
+            return _verify_answer_worker(request)
+
+        try:
+            with patch.object(service, "_run_request_once", side_effect=slow_once):
+                task1 = asyncio.create_task(
+                    service.verify_answer(r"\boxed{1}", "1")
+                )
+                await gate_started.wait()
+
+                response2 = await service.verify_answer(r"\boxed{2}", "2")
+                assert response2.status == "internal_error"
+                assert response2.error_type == "QueueFull"
+
+                gate_release.set()
+                response1 = await task1
+                assert response1.status in {"correct", "wrong"}
+        finally:
+            await service.stop()
+
+    @pytest.mark.asyncio
+    async def test_retry_policy_retries_transient_timeout(self):
+        service = MathVerifierService(max_workers=1, max_retries=1)
+        await service.start()
+        call_count = 0
+
+        async def flaky_once(request):
+            nonlocal call_count
+            call_count += 1
+            if call_count == 1:
+                return VerifyResponse(
+                    request_id=request.request_id,
+                    status="timeout",
+                    elapsed_ms=1.0,
+                    retry_count=0,
+                    worker_id=None,
+                    worker_restarted=False,
+                    error_type="ClientTimeout",
+                    error_message="simulated timeout",
+                )
+            return _verify_answer_worker(request)
+
+        try:
+            with patch.object(service, "_run_request_once", side_effect=flaky_once):
+                response = await service.verify_answer(r"\boxed{4}", "4")
+            assert response.status == "correct"
+            assert response.retry_count == 1
+            assert call_count == 2
+        finally:
+            await service.stop()
+
+
+class TestGoldCache:
+    @pytest.mark.asyncio
+    async def test_answer_mode_grading_uses_cached_gold(self):
+        env = _make_env_with_problem(ANSWER_PROBLEM)
+        env.reset()
+
+        problem_id = env._current_problem["problem_id"]
+        env._gold_answer_cache[env._gold_cache_key(problem_id)] = r"\boxed{42}"
+
+        captured_expected: dict[str, str] = {}
+
+        async def fake_grade_answer_submission(submission: str, expected_answer: str):
+            captured_expected["value"] = expected_answer
+            return GradingResult(score=7, feedback="ok", reward=1.0)
+
+        with patch.object(
+            env,
+            "_grade_answer_submission",
+            new=fake_grade_answer_submission,
+        ):
+            await env._grade_submission(r"\boxed{42}")
+
+        assert captured_expected["value"] == r"\boxed{42}"
+        await env._verifier_service.stop()
+
+    def test_gold_cache_invalidation_on_config_change(self):
+        env = _make_env_with_problem(ANSWER_PROBLEM)
+        old_signature = env._gold_cache_signature
+
+        env._config.verifier_numeric_precision += 1
+        env._refresh_gold_cache_if_needed()
+
+        assert env._gold_cache_signature != old_signature
+        env.reset()
+        problem_id = env._current_problem["problem_id"]
+        assert env._gold_cache_key(problem_id) in env._gold_answer_cache
 
 
 # Integration tests (require running server)
