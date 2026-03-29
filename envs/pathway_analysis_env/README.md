@@ -4,16 +4,29 @@ A toy pathway analysis environment for [OpenEnv](https://github.com/meta-pytorch
 
 ## Overview
 
-Each episode hides a **true activated pathway** (e.g. "MAPK signaling"). The agent can inspect the dataset, run differential expression analysis, run pathway enrichment, and then submit a hypothesis. Rewards are deterministic and designed for validating environment mechanics, not biological realism.
+Each episode hides a **true activated pathway** (e.g. "MAPK signaling"). **Mode A (pipeline)** cases ship a count matrix plus per-sample metadata in JSON; differential expression uses **PyDESeq2** (Wald test) on genes that pass a **minimum total-count prefilter** (DESeq2-style), and enrichment uses **Fisher ORA** against the **same gene universe** with **SciPy Benjamini–Hochberg** q-values. The DE gene list for ORA can be restricted by **direction** (up / down / both) and **minimum |log2FC|**, matching common pathway-activation workflows. **Legacy** cases keep static top-gene / top-pathway lists for fast tests.
+
+Optional per-case **`analysis_options`** (see `server/analysis.py` defaults): `min_total_count`, `padj_alpha`, `de_query_direction` (`up` | `down` | `both`), `min_abs_log2fc`, `ora_min_pathway_genes` (skip tiny pathways).
+
+Observations include rich DE rows (`log2FoldChange`, `padj`), ORA tables, overlap summaries (genes supporting multiple top pathways), ambiguity flags when top hits are statistically close, an optional **`ask_expert`** budget with penalties, and an **HTML episode trace** path (`trace_path`) for auditing.
 
 ## Actions
 
-| Action | Description | Reward |
-|--------|-------------|--------|
-| `inspect_dataset` | View dataset metadata and available conditions | +0.1 |
-| `run_differential_expression` | Run DE analysis to get top differentially expressed genes | +0.3 |
-| `run_pathway_enrichment` | Run enrichment to get top enriched pathways | +0.5 |
-| `submit_answer` | Submit a pathway hypothesis (correct: +2.0, incorrect: -1.0) | +2.0 / -1.0 |
+| Action | Description | Reward (typical) |
+|--------|-------------|------------------|
+| `inspect_dataset` | View conditions, sample metadata, PyDESeq2 availability | +0.05 |
+| `run_differential_expression` | PyDESeq2 contrast (`condition_a`/`condition_b` or `default_contrast` in case JSON) | +0.35 pipeline / +0.25 legacy |
+| `run_pathway_enrichment` | Fisher ORA vs `pathway_genes` in the case | +0.5 |
+| `compare_pathways` | Exclusive vs shared DE support for `pathway_a` vs `pathway_b` | +0.15 |
+| `ask_expert` | Hint from case (`expert_hint`); uses budget; penalized | negative (see `expert_penalty`) |
+| `submit_answer` | Submit `hypothesis` pathway name (correct: +2.0, incorrect: -1.0) | terminal |
+
+**Strict mode** (`strict_mode` in JSON or `reset(strict=True)`): invalid contrasts or missing PyDESeq2 end the episode with a failure signal instead of silent fallback.
+
+## Scripts
+
+- `scripts/generate_curriculum_cases.py` — writes ramped synthetic cases under `data/curriculum/`.
+- `scripts/run_benchmark.py` — fixed policy + accuracy / action trace (`--json-out`).
 
 ## Quick Start
 
@@ -52,8 +65,14 @@ print(obs.message, 'done:', obs.done, 'reward:', obs.reward)
 ### Run the HTTP server
 
 ```bash
-uvicorn pathway_analysis_env.server.app:app --host 0.0.0.0 --port 8000
+cd envs/pathway_analysis_env
+uv run server
+# or: uvicorn pathway_analysis_env.server.app:app --host 0.0.0.0 --port 8000
 ```
+
+The Gradio UI (**Playground** + **Pathway lab**) is **on by default** for this app. To disable it (API-only server), set `ENABLE_WEB_INTERFACE=false` before starting.
+
+Open **http://localhost:8000/web** — use the **Visualization** tab for case selection, contrast fields, guided **Inspect → DE → ORA → Compare → Submit**, and sortable **DE / ORA** tables with JSON and trace path.
 
 ### Connect via client
 

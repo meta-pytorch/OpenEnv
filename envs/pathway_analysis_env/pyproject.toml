@@ -19,6 +19,11 @@ dependencies = [
     "pydantic>=2.0.0",
     "uvicorn>=0.24.0",
     "requests>=2.31.0",
+    "numpy>=1.24.0",
+    "pandas>=2.0.0",
+    "scipy>=1.10.0",
+    "pydeseq2>=0.4.0",
+    "anndata>=0.10.0",
 ]
 
 [project.optional-dependencies]

@@ -39,6 +39,9 @@ class PathwayEnv(EnvClient[PathwayAction, PathwayObservation, PathwayState]):
             "condition_b": action.condition_b,
             "gene_list": action.gene_list,
             "hypothesis": action.hypothesis,
+            "pathway_a": action.pathway_a,
+            "pathway_b": action.pathway_b,
+            "expert_question": action.expert_question,
         }
 
     def _parse_result(self, payload: Dict[str, Any]) -> StepResult[PathwayObservation]:
@@ -48,6 +51,13 @@ class PathwayEnv(EnvClient[PathwayAction, PathwayObservation, PathwayState]):
             available_conditions=obs_data.get("available_conditions", []),
             top_genes=obs_data.get("top_genes", []),
             top_pathways=obs_data.get("top_pathways", []),
+            de_genes=obs_data.get("de_genes", []),
+            pathway_enrichment=obs_data.get("pathway_enrichment", []),
+            pathway_comparison=obs_data.get("pathway_comparison"),
+            overlap_summary=obs_data.get("overlap_summary"),
+            statistical_ambiguity=obs_data.get("statistical_ambiguity"),
+            expert_message=obs_data.get("expert_message"),
+            trace_path=obs_data.get("trace_path"),
             done=obs_data.get("done", False),
             reward=obs_data.get("reward", 0.0),
             metadata=obs_data.get("metadata", {}),
@@ -67,4 +77,9 @@ class PathwayEnv(EnvClient[PathwayAction, PathwayObservation, PathwayState]):
             de_run=payload.get("de_run", False),
             enrichment_run=payload.get("enrichment_run", False),
             is_done=payload.get("is_done", False),
+            pipeline_mode=payload.get("pipeline_mode", False),
+            strict_mode=payload.get("strict_mode", False),
+            expert_calls_used=payload.get("expert_calls_used", 0),
+            expert_budget=payload.get("expert_budget", 0),
+            legacy_mode=payload.get("legacy_mode", False),
         )

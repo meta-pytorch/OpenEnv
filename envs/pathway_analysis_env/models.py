@@ -7,10 +7,9 @@
 """
 Data models for Pathway Analysis Environment.
 
-This module defines the Action, Observation, and State types for a toy
-pathway-inference task. An agent inspects omics metadata, runs differential
-expression and pathway enrichment analyses, then submits a hypothesis about
-which signaling pathway is activated.
+Supports pipeline-style episodes (count matrix + sample metadata + gene sets)
+with PyDESeq2 differential expression, Fisher ORA, overlap-aware summaries,
+optional expert calls, and HTML step traces.
 """
 
 from __future__ import annotations
@@ -25,13 +24,15 @@ class PathwayAction(Action):
     """
     Action for the Pathway Analysis environment.
 
-    Attributes:
-        action_type: One of "inspect_dataset", "run_differential_expression",
-            "run_pathway_enrichment", or "submit_answer".
-        condition_a: Optional condition label for DE comparison.
-        condition_b: Optional condition label for DE comparison.
-        gene_list: Optional gene list for targeted enrichment.
-        hypothesis: Pathway name to submit as the answer.
+    action_type:
+        - ``inspect_dataset``: describe available samples and conditions.
+        - ``run_differential_expression``: PyDESeq2 contrast (needs ``condition_a`` /
+          ``condition_b`` when using count-matrix cases).
+        - ``run_pathway_enrichment``: ORA on DE genes vs pathway gene sets.
+        - ``compare_pathways``: contrast exclusive vs shared DE support between two
+          pathways (``pathway_a``, ``pathway_b``).
+        - ``ask_expert``: curriculum / ablation hint with budget and penalty.
+        - ``submit_answer``: submit ``hypothesis`` pathway name and end episode.
     """
 
     action_type: str
@@ -39,44 +40,37 @@ class PathwayAction(Action):
     condition_b: Optional[str] = None
     gene_list: Optional[List[str]] = None
     hypothesis: Optional[str] = None
+    pathway_a: Optional[str] = None
+    pathway_b: Optional[str] = None
+    expert_question: Optional[str] = None
 
 
 class PathwayObservation(Observation):
-    """
-    Observation for the Pathway Analysis environment.
-
-    Inherits ``done``, ``reward``, and ``metadata`` from the base
-    ``Observation`` class.
-
-    Attributes:
-        message: Human-readable description of the observation.
-        available_conditions: Condition labels present in the dataset.
-        top_genes: Top differentially expressed genes (populated after DE).
-        top_pathways: Top enriched pathways (populated after enrichment).
-    """
+    """Observation with optional rich DE / ORA structures (JSON-serializable)."""
 
     message: str = ""
     available_conditions: List[str] = Field(default_factory=list)
     top_genes: List[str] = Field(default_factory=list)
     top_pathways: List[str] = Field(default_factory=list)
+    de_genes: List[Dict[str, Any]] = Field(default_factory=list)
+    pathway_enrichment: List[Dict[str, Any]] = Field(default_factory=list)
+    pathway_comparison: Optional[Dict[str, Any]] = None
+    overlap_summary: Optional[Dict[str, Any]] = None
+    statistical_ambiguity: Optional[Dict[str, Any]] = None
+    expert_message: Optional[str] = None
+    trace_path: Optional[str] = None
 
 
 class PathwayState(State):
-    """
-    State for the Pathway Analysis environment.
-
-    Attributes:
-        episode_id: Unique ID for the current episode.
-        step_count: Number of steps taken so far.
-        true_pathway: The hidden ground-truth pathway for this episode.
-        conditions: Condition labels in the loaded dataset.
-        de_run: Whether differential expression has been executed.
-        enrichment_run: Whether pathway enrichment has been executed.
-        is_done: Whether the episode has ended.
-    """
+    """Episode state including pipeline mode flags and expert budget."""
 
     true_pathway: str = ""
     conditions: List[str] = Field(default_factory=list)
     de_run: bool = False
     enrichment_run: bool = False
     is_done: bool = False
+    pipeline_mode: bool = False
+    strict_mode: bool = False
+    expert_calls_used: int = 0
+    expert_budget: int = 0
+    legacy_mode: bool = False
