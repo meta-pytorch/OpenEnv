@@ -9,6 +9,8 @@ description: >
   Mathematical proof generation and evaluation environment.
   Agents receive math problems, submit proofs, and receive LLM-based
   rubric grading (0-7 scale) with normalized rewards.
+  Answer-mode uses a process-based verifier service for concurrent rollout
+  safety (timeouts, retries, backpressure, worker restart).
 version: "0.1.0"
 
 # Environment configuration defaults (overridable via QEDMathConfig)
@@ -19,6 +21,13 @@ environment:
   discount_factor: 1.0
   buffer_tokens: 0
   max_tokens: 0
+  verifier_workers: 4
+  verifier_queue_size: 128
+  verifier_request_timeout_seconds: 5.0
+  verifier_max_retries: 1
+  verifier_strict: true
+  verifier_numeric_precision: 5
+  verifier_float_rounding: 10
 
 # Rubric definition
 rubric:
@@ -54,6 +63,15 @@ metrics:
     - verifier/failures/all_attempts_failed
     - verifier/failures/num_retries
     - verifier/runtime/latency_per_request
+    - verifier/requests/count
+    - verifier/requests/latency_ms
+    - verifier/requests/timeout_count
+    - verifier/requests/error_count
+    - verifier/queue/depth
+    - verifier/cache/hit_rate
+    - verifier/workers/restart_count
+    - verifier/workers/worker_restarted
+    - verifier/workers/heartbeat_lag_ms
     - verifier/runtime/input_tokens
     - verifier/runtime/output_tokens
   reward:
