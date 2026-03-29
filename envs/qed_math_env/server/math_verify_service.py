@@ -1,0 +1,361 @@
+# Copyright (c) Meta Platforms, Inc. and affiliates.
+# All rights reserved.
+#
+# This source code is licensed under the BSD-style license found in the
+# LICENSE file in the root directory of this source tree.
+
+"""
+Process-based math verification service for high-throughput answer grading.
+
+This service handles answer verification using math_verify in isolated worker
+processes to safely handle signal-based timeouts and enable concurrent grading.
+
+Architecture:
+- VerifierService: Async orchestrator that routes requests to worker processes
+- ProcessPoolExecutor: Manages worker process lifecycle
+- Request/response contract: Minimal serializable payloads
+- Status mapping: correct, wrong, no_answer, unparsable, timeout, internal_error
+"""
+
+import asyncio
+import logging
+import multiprocessing as mp
+import re
+from concurrent.futures import ProcessPoolExecutor
+from dataclasses import dataclass
+from functools import partial
+from typing import Optional
+
+import math_verify
+
+logger = logging.getLogger(__name__)
+
+
+@dataclass
+class VerifyRequest:
+    """Request payload for answer verification."""
+
+    request_id: str
+    prediction: str
+    gold: str
+    strict: bool = True
+    timeout_seconds: int = 1
+    max_prediction_length: int = 1000
+
+
+@dataclass
+class VerifyResponse:
+    """Response payload from verification."""
+
+    request_id: str
+    status: str  # correct, wrong, no_answer, unparsable, timeout, internal_error
+    elapsed_ms: float
+    retry_count: int = 0
+    worker_id: Optional[int] = None
+    worker_restarted: bool = False
+    error_type: Optional[str] = None
+    error_message: Optional[str] = None
+
+
+def _parse_math_verify_expression(value: str):
+    """Parse an expression with a boxed fallback for parser compatibility."""
+    parsed = math_verify.parse(value)
+    if parsed:
+        return parsed
+
+    boxed_match = re.search(r"\\boxed\{(.+?)\}", value)
+    if boxed_match:
+        return math_verify.parse(boxed_match.group(1))
+
+    return parsed
+
+
+class VerificationError(Exception):
+    """Base exception for verification failures."""
+
+
+class UnparsableException(VerificationError):
+    """Raised when a math answer cannot be parsed for verification."""
+
+
+class NoAnswerException(VerificationError):
+    """Raised when a model output does not contain a boxed final answer."""
+
+
+class EmptyBoxedException(VerificationError):
+    """Raised when a boxed final answer is present but empty."""
+
+
+def _extract_boxed_answer(text: str) -> str:
+    """Extract the content from the innermost \\boxed{...} block.
+
+    Handles nested braces correctly by tracking brace depth.
+    """
+    start_idx = text.rfind(r"\boxed{")
+    if start_idx == -1:
+        raise NoAnswerException()
+
+    start_idx += len(r"\boxed{")
+    depth = 1
+    end_idx = start_idx
+
+    while end_idx < len(text) and depth > 0:
+        if text[end_idx] == "{":
+            depth += 1
+        elif text[end_idx] == "}":
+            depth -= 1
+        end_idx += 1
+
+    if depth != 0:
+        raise UnparsableException()
+
+    answer = text[start_idx : end_idx - 1]
+    if not answer.strip():
+        raise EmptyBoxedException()
+
+    return answer
+
+
+def _verify_answer_worker(request: VerifyRequest) -> VerifyResponse:
+    """Worker process function that performs the actual verification.
+
+    This runs in an isolated process so that math_verify's signal-based timeout
+    works correctly (signal handlers only work in the main thread).
+
+    Args:
+        request: VerifyRequest with prediction, gold, and config
+
+    Returns:
+        VerifyResponse with status and metadata
+    """
+    import time
+
+    start_time = time.time()
+
+    try:
+        # Extract boxed answer
+        boxed_prediction = _extract_boxed_answer(request.prediction)
+
+        if len(boxed_prediction) > request.max_prediction_length:
+            status = "unparsable"
+        else:
+            # Parse both expressions
+            gold_parsed = _parse_math_verify_expression(request.gold)
+            boxed_prediction_parsed = _parse_math_verify_expression(
+                boxed_prediction
+            )
+
+            if not gold_parsed or not boxed_prediction_parsed:
+                status = "unparsable"
+            else:
+                # Verify equivalence
+                try:
+                    equivalent = math_verify.verify(
+                        gold_parsed,
+                        boxed_prediction_parsed,
+                        strict=request.strict,
+                        timeout_seconds=request.timeout_seconds,
+                    )
+                    status = "correct" if equivalent else "wrong"
+                except Exception as exc:
+                    if "timeout" in str(exc).lower():
+                        status = "timeout"
+                    else:
+                        status = "internal_error"
+                        return VerifyResponse(
+                            request_id=request.request_id,
+                            status=status,
+                            elapsed_ms=(time.time() - start_time) * 1000,
+                            error_type=type(exc).__name__,
+                            error_message=str(exc),
+                        )
+
+    except NoAnswerException:
+        status = "no_answer"
+    except (UnparsableException, EmptyBoxedException):
+        status = "unparsable"
+    except Exception as exc:
+        status = "internal_error"
+        return VerifyResponse(
+            request_id=request.request_id,
+            status=status,
+            elapsed_ms=(time.time() - start_time) * 1000,
+            error_type=type(exc).__name__,
+            error_message=str(exc),
+        )
+
+    elapsed_ms = (time.time() - start_time) * 1000
+    return VerifyResponse(
+        request_id=request.request_id,
+        status=status,
+        elapsed_ms=elapsed_ms,
+    )
+
+
+class MathVerifierService:
+    """Async service that manages a pool of verification worker processes.
+
+    This service:
+    - Routes verification requests to available worker processes
+    - Enforces timeouts and resource limits
+    - Maps all outcomes into stable status values
+    - Provides graceful startup/shutdown with cleanup
+
+    The service is designed to handle high-throughput concurrent requests
+    without blocking the main async loop (async step, async rollout, etc).
+
+    Example:
+        service = MathVerifierService(max_workers=4)
+        await service.start()
+        try:
+            response = await service.verify_answer(
+                prediction="\\\\boxed{4}",
+                gold="4",
+                strict=True,
+                timeout_seconds=1,
+            )
+            print(f"status: {response.status}")
+        finally:
+            await service.stop()
+    """
+
+    def __init__(
+        self,
+        max_workers: int = 2,
+        queue_size: int = 100,
+        request_timeout_seconds: float = 5.0,
+        max_retries: int = 1,
+        strict: bool = True,
+        numeric_precision: int = 5,
+        float_rounding: int = 10,
+    ):
+        """Initialize the verifier service.
+
+        Args:
+            max_workers: Number of worker processes in the pool.
+            queue_size: Maximum pending requests before backpressure.
+            request_timeout_seconds: Client-side timeout for worker responses.
+            max_retries: Max retry attempts for transient worker failures.
+            strict: Default strict mode for math_verify.
+            numeric_precision: Precision for numeric comparisons.
+            float_rounding: Decimal places for float rounding.
+        """
+        self.max_workers = max(1, max_workers)
+        self.queue_size = max(1, queue_size)
+        self.request_timeout_seconds = max(1.0, request_timeout_seconds)
+        self.max_retries = max(0, max_retries)
+        self.strict = strict
+        self.numeric_precision = numeric_precision
+        self.float_rounding = float_rounding
+        self._executor: Optional[ProcessPoolExecutor] = None
+        self._request_counter = 0
+
+    async def start(self) -> None:
+        """Start the worker process pool.
+
+        Safe to call multiple times (idempotent).
+        """
+        if self._executor is not None:
+            logger.debug("MathVerifierService already started")
+            return
+
+        self._executor = ProcessPoolExecutor(
+            max_workers=self.max_workers,
+            mp_context=mp.get_context("spawn"),
+        )
+        logger.info(
+            "MathVerifierService started with %d workers", self.max_workers
+        )
+
+    async def stop(self) -> None:
+        """Stop the worker process pool and clean up resources.
+
+        Safe to call multiple times (idempotent).
+        """
+        if self._executor is None:
+            logger.debug("MathVerifierService not running")
+            return
+
+        loop = asyncio.get_running_loop()
+        shutdown_call = partial(self._executor.shutdown, wait=True, cancel_futures=True)
+        await loop.run_in_executor(None, shutdown_call)
+        self._executor = None
+        logger.info("MathVerifierService stopped")
+
+    async def verify_answer(
+        self,
+        prediction: str,
+        gold: str,
+        strict: Optional[bool] = None,
+        timeout_seconds: Optional[int] = None,
+        max_prediction_length: int = 1000,
+    ) -> VerifyResponse:
+        """Verify an answer prediction against a gold reference.
+
+        This is the main async entry point for answer verification. It submits
+        the request to a worker process and awaits the result with a client-side
+        timeout.
+
+        Args:
+            prediction: The model's predicted answer (may contain \\boxed{...}).
+            gold: The reference answer (may contain \\boxed{...}).
+            strict: Whether to use strict equivalence checking. Defaults to config.
+            timeout_seconds: Worker timeout for math_verify.verify(). Defaults to 1.
+            max_prediction_length: Max length of boxed answer.
+
+        Returns:
+            VerifyResponse with status (correct, wrong, no_answer, unparsable, timeout, internal_error)
+        """
+        if self._executor is None:
+            await self.start()
+
+        self._request_counter += 1
+        request_id = f"req-{self._request_counter}"
+
+        request = VerifyRequest(
+            request_id=request_id,
+            prediction=prediction,
+            gold=gold,
+            strict=strict if strict is not None else self.strict,
+            timeout_seconds=timeout_seconds or 1,
+            max_prediction_length=max_prediction_length,
+        )
+
+        loop = asyncio.get_running_loop()
+
+        # Submit to worker process
+        try:
+            future = loop.run_in_executor(
+                self._executor,
+                _verify_answer_worker,
+                request,
+            )
+            response = await asyncio.wait_for(
+                future,
+                timeout=self.request_timeout_seconds,
+            )
+            return response
+
+        except asyncio.TimeoutError:
+            logger.warning(
+                "Verification request %s timed out after %.1fs",
+                request_id,
+                self.request_timeout_seconds,
+            )
+            return VerifyResponse(
+                request_id=request_id,
+                status="timeout",
+                elapsed_ms=self.request_timeout_seconds * 1000,
+                error_type="ClientTimeout",
+                error_message=f"Request timed out after {self.request_timeout_seconds}s",
+            )
+
+        except Exception as exc:
+            logger.exception("Verification request %s failed with exception", request_id)
+            return VerifyResponse(
+                request_id=request_id,
+                status="internal_error",
+                elapsed_ms=0.0,
+                error_type=type(exc).__name__,
+                error_message=str(exc),
+            )
