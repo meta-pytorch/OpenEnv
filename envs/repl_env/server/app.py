@@ -35,16 +35,20 @@ Environment Variables:
     LLM_MODEL: Model to use for llm_query/llm_query_batched (default: Qwen/Qwen3.5-9B)
 """
 
+import inspect
+import logging
 import os
 
 try:
     from openenv.core.env_server.http_server import create_app
 
     from ..models import REPLAction, REPLObservation
+    from .gradio_ui import build_repl_gradio_app
     from .repl_environment import REPLEnvironment
 except ImportError:
     from models import REPLAction, REPLObservation
     from openenv.core.env_server.http_server import create_app
+    from server.gradio_ui import build_repl_gradio_app
     from server.repl_environment import REPLEnvironment
 
 
@@ -57,6 +61,8 @@ REPL_CONTEXT_PREVIEW_LENGTH = int(os.environ.get("REPL_CONTEXT_PREVIEW_LENGTH", 
 REPL_RLM_MAX_DEPTH = int(os.environ.get("REPL_RLM_MAX_DEPTH", "2"))
 REPL_RLM_MAX_ITERATIONS = int(os.environ.get("REPL_RLM_MAX_ITERATIONS", "30"))
 # ==========================================
+
+_logger = logging.getLogger(__name__)
 
 # Log LLM configuration
 if HF_TOKEN:
@@ -85,14 +91,29 @@ def create_repl_environment() -> REPLEnvironment:
     )
 
 
-# Create the app with web interface and README integration
-app = create_app(
-    create_repl_environment,
-    REPLAction,
-    REPLObservation,
-    env_name="repl_env",
-    max_concurrent_envs=8,
-)
+# Create the app with web interface and README integration.
+_sig = inspect.signature(create_app)
+if "gradio_builder" in _sig.parameters:
+    app = create_app(
+        create_repl_environment,
+        REPLAction,
+        REPLObservation,
+        env_name="repl_env",
+        max_concurrent_envs=8,
+        gradio_builder=build_repl_gradio_app,
+    )
+else:
+    _logger.warning(
+        "Installed openenv-core does not support gradio_builder; "
+        "custom REPL Gradio tab will not be available."
+    )
+    app = create_app(
+        create_repl_environment,
+        REPLAction,
+        REPLObservation,
+        env_name="repl_env",
+        max_concurrent_envs=8,
+    )
 
 
 def main():
