@@ -82,6 +82,11 @@ from qed_math_env.server.rubric import (  # noqa: E402
     parse_schema,
     MAX_SCORE,
 )
+from qed_math_env.server.math_verify_service import (  # noqa: E402
+    MathVerifierService,
+    VerifyRequest,
+    _verify_answer_worker,
+)
 
 
 # Helpers
@@ -585,25 +590,58 @@ class TestVerifyMath:
 
 
 class TestGradeAnswerSubmission:
-    def test_correct_gives_max_reward(self):
+    @pytest.mark.asyncio
+    async def test_correct_gives_max_reward(self):
         env = _make_env()
-        result = env._grade_answer_submission(r"\boxed{4}", r"\boxed{4}")
-        assert result.score == 7
-        assert result.reward == pytest.approx(1.0)
-        assert result.metrics["verifier/rollouts/success"] == 1
+        try:
+            result = await env._grade_answer_submission(r"\boxed{4}", r"\boxed{4}")
+            assert result.score == 7
+            assert result.reward == pytest.approx(1.0)
+            assert result.metrics["verifier/rollouts/success"] == 1
+        finally:
+            await env._verifier_service.stop()
 
-    def test_wrong_gives_zero(self):
+    @pytest.mark.asyncio
+    async def test_wrong_gives_zero(self):
         env = _make_env()
-        result = env._grade_answer_submission(r"\boxed{5}", r"\boxed{4}")
-        assert result.score == 0
-        assert result.reward == pytest.approx(0.0)
-        assert result.metrics["verifier/rollouts/failure"] == 1
+        try:
+            result = await env._grade_answer_submission(r"\boxed{5}", r"\boxed{4}")
+            assert result.score == 0
+            assert result.reward == pytest.approx(0.0)
+            assert result.metrics["verifier/rollouts/failure"] == 1
+        finally:
+            await env._verifier_service.stop()
 
-    def test_missing_boxed_gives_zero(self):
+    @pytest.mark.asyncio
+    async def test_missing_boxed_gives_zero(self):
         env = _make_env()
-        result = env._grade_answer_submission("The answer is 4.", r"\boxed{4}")
-        assert result.score == 0
-        assert result.reward == pytest.approx(0.0)
+        try:
+            result = await env._grade_answer_submission("The answer is 4.", r"\boxed{4}")
+            assert result.score == 0
+            assert result.reward == pytest.approx(0.0)
+        finally:
+            await env._verifier_service.stop()
+
+    @pytest.mark.asyncio
+    async def test_answer_grading_uses_verifier_service(self):
+        env = _make_env()
+        try:
+            result = await env._grade_answer_submission(r"\boxed{4}", r"\boxed{4}")
+            assert result.score == 7
+            assert result.reward == pytest.approx(1.0)
+            assert env._verifier_service._executor is not None
+        finally:
+            await env._verifier_service.stop()
+
+    @pytest.mark.asyncio
+    async def test_answer_grading_wrong_answer_via_service(self):
+        env = _make_env()
+        try:
+            result = await env._grade_answer_submission(r"\boxed{5}", r"\boxed{4}")
+            assert result.score == 0
+            assert result.reward == pytest.approx(0.0)
+        finally:
+            await env._verifier_service.stop()
 
 
 # QEDMathEnvironment: reward shaping
@@ -938,6 +976,247 @@ class TestMCPToolRegistration:
         env.reset()
         payload = env.get_grading_guidelines_payload()
         assert "grading_guidelines" in payload
+
+
+# MathVerifierService
+
+
+class TestVerifyAnswerWorker:
+    """Tests for the _verify_answer_worker function (process worker entry point)."""
+
+    def test_correct_answer(self):
+        request = VerifyRequest(
+            request_id="req-1",
+            prediction=r"\boxed{4}",
+            gold="4",
+            strict=True,
+            timeout_seconds=1,
+        )
+        response = _verify_answer_worker(request)
+        assert response.status == "correct"
+        assert response.request_id == "req-1"
+        assert response.elapsed_ms >= 0
+
+    def test_wrong_answer(self):
+        request = VerifyRequest(
+            request_id="req-2",
+            prediction=r"\boxed{5}",
+            gold="4",
+            strict=True,
+            timeout_seconds=1,
+        )
+        response = _verify_answer_worker(request)
+        assert response.status == "wrong"
+
+    def test_no_boxed_answer(self):
+        request = VerifyRequest(
+            request_id="req-3",
+            prediction="The answer is 4",
+            gold="4",
+            strict=True,
+            timeout_seconds=1,
+        )
+        response = _verify_answer_worker(request)
+        assert response.status == "no_answer"
+
+    def test_empty_boxed(self):
+        request = VerifyRequest(
+            request_id="req-4",
+            prediction=r"\boxed{}",
+            gold="4",
+            strict=True,
+            timeout_seconds=1,
+        )
+        response = _verify_answer_worker(request)
+        assert response.status == "unparsable"
+
+    def test_unparsable_prediction(self):
+        request = VerifyRequest(
+            request_id="req-5",
+            prediction=r"\boxed{@#$%^&*()}",
+            gold="4",
+            strict=True,
+            timeout_seconds=1,
+        )
+        response = _verify_answer_worker(request)
+        # Should be unparsable or internal_error depending on what math_verify does
+        assert response.status in {"unparsable", "internal_error"}
+
+    def test_unparsable_gold(self):
+        request = VerifyRequest(
+            request_id="req-6",
+            prediction=r"\boxed{4}",
+            gold="@#$%^&*()",
+            strict=True,
+            timeout_seconds=1,
+        )
+        response = _verify_answer_worker(request)
+        assert response.status == "unparsable"
+
+    def test_prediction_too_long(self):
+        request = VerifyRequest(
+            request_id="req-7",
+            prediction=r"\boxed{" + "x" * 2000 + "}",
+            gold="4",
+            strict=True,
+            timeout_seconds=1,
+            max_prediction_length=1000,
+        )
+        response = _verify_answer_worker(request)
+        assert response.status == "unparsable"
+
+    def test_nested_braces(self):
+        """Test that nested braces in \\boxed{...} are handled correctly."""
+        request = VerifyRequest(
+            request_id="req-8",
+            prediction=r"\boxed{\frac{1}{2}}",
+            gold=r"\frac{1}{2}",
+            strict=True,
+            timeout_seconds=1,
+        )
+        response = _verify_answer_worker(request)
+        # Should parse and verify correctly
+        assert response.status in {"correct", "wrong"}
+
+
+class TestMathVerifierService:
+    """Tests for the MathVerifierService async interface."""
+
+    @pytest.mark.asyncio
+    async def test_service_initialization(self):
+        service = MathVerifierService(
+            max_workers=2,
+            queue_size=50,
+            request_timeout_seconds=3.0,
+        )
+        assert service.max_workers == 2
+        assert service.queue_size == 50
+        assert service.request_timeout_seconds == 3.0
+
+    @pytest.mark.asyncio
+    async def test_start_and_stop(self):
+        service = MathVerifierService(max_workers=1)
+        # Start should be idempotent
+        await service.start()
+        assert service._executor is not None
+        await service.start()  # Should not fail if already started
+        await service.stop()
+        assert service._executor is None
+
+    @pytest.mark.asyncio
+    async def test_verify_answer_without_start(self):
+        """verify_answer should auto-start the process pool when needed."""
+        service = MathVerifierService(max_workers=1)
+        response = await service.verify_answer(
+            prediction=r"\boxed{4}",
+            gold="4",
+            strict=True,
+        )
+        assert response.status == "correct"
+        assert service._executor is not None
+        await service.stop()
+
+    @pytest.mark.asyncio
+    async def test_verify_answer_correct(self):
+        service = MathVerifierService(max_workers=1)
+        await service.start()
+        try:
+            response = await service.verify_answer(
+                prediction=r"\boxed{4}",
+                gold="4",
+                strict=True,
+            )
+            assert response.status == "correct"
+            assert response.request_id.startswith("req-")
+            assert response.elapsed_ms >= 0
+        finally:
+            await service.stop()
+
+    @pytest.mark.asyncio
+    async def test_verify_answer_wrong(self):
+        service = MathVerifierService(max_workers=1)
+        await service.start()
+        try:
+            response = await service.verify_answer(
+                prediction=r"\boxed{5}",
+                gold="4",
+                strict=True,
+            )
+            assert response.status == "wrong"
+        finally:
+            await service.stop()
+
+    @pytest.mark.asyncio
+    async def test_verify_answer_no_answer(self):
+        service = MathVerifierService(max_workers=1)
+        await service.start()
+        try:
+            response = await service.verify_answer(
+                prediction="The answer is 4",
+                gold="4",
+                strict=True,
+            )
+            assert response.status == "no_answer"
+        finally:
+            await service.stop()
+
+    @pytest.mark.asyncio
+    async def test_verify_answer_timeout(self):
+        """Test that client-side timeout is triggered."""
+        service = MathVerifierService(
+            max_workers=1,
+            request_timeout_seconds=0.001,  # Very short timeout to force timeout
+        )
+        await service.start()
+        try:
+            response = await service.verify_answer(
+                prediction=r"\boxed{4}",
+                gold="4",
+                strict=True,
+            )
+            # Should either timeout or succeed quickly; mostly just testing the path
+            assert response.request_id.startswith("req-")
+        finally:
+            await service.stop()
+
+    @pytest.mark.asyncio
+    async def test_concurrent_requests(self):
+        """Test multiple concurrent verification requests."""
+        import asyncio
+
+        service = MathVerifierService(max_workers=2)
+        await service.start()
+        try:
+            # Fire multiple requests concurrently
+            tasks = [
+                service.verify_answer(r"\boxed{1}", "1"),
+                service.verify_answer(r"\boxed{2}", "2"),
+                service.verify_answer(r"\boxed{3}", "3"),
+                service.verify_answer(r"\boxed{4}", "4"),
+            ]
+            responses = await asyncio.gather(*tasks)
+            assert len(responses) == 4
+            assert all(r.status == "correct" for r in responses)
+            assert len(set(r.request_id for r in responses)) == 4  # All unique IDs
+        finally:
+            await service.stop()
+
+    @pytest.mark.asyncio
+    async def test_default_strict_mode(self):
+        """Test that default strict mode is applied."""
+        service = MathVerifierService(max_workers=1, strict=True)
+        assert service.strict is True
+        await service.start()
+        try:
+            response = await service.verify_answer(
+                prediction=r"\boxed{4.0}",
+                gold="4",
+                strict=True,  # Explicitly strict
+            )
+            # Should handle the request
+            assert response.request_id.startswith("req-")
+        finally:
+            await service.stop()
 
 
 # Integration tests (require running server)

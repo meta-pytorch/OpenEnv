@@ -61,6 +61,7 @@ except ImportError:
 
 from .mcp_server import register_mcp_tools
 from .rubric import GradingResult, MathProofRubric, length_penalty, parse_schema
+from .math_verify_service import MathVerifierService
 
 
 DEFAULT_EVALUATOR_PROMPT = (
@@ -141,6 +142,13 @@ class QEDMathConfig:
     buffer_tokens: int = 0
     max_tokens: int = 0
     reasoning_delimiters: list[str] | None = None
+    verifier_workers: int = 2
+    verifier_queue_size: int = 100
+    verifier_request_timeout_seconds: float = 5.0
+    verifier_max_retries: int = 1
+    verifier_strict: bool = True
+    verifier_numeric_precision: int = 5
+    verifier_float_rounding: int = 10
 
 
 def load_evaluator_prompt(prompt_name: str) -> str:
@@ -537,6 +545,13 @@ class QEDMathEnvironment(MCPEnvironment):
             buffer_tokens=base_config.buffer_tokens,
             max_tokens=base_config.max_tokens,
             reasoning_delimiters=base_config.reasoning_delimiters,
+            verifier_workers=base_config.verifier_workers,
+            verifier_queue_size=base_config.verifier_queue_size,
+            verifier_request_timeout_seconds=base_config.verifier_request_timeout_seconds,
+            verifier_max_retries=base_config.verifier_max_retries,
+            verifier_strict=base_config.verifier_strict,
+            verifier_numeric_precision=base_config.verifier_numeric_precision,
+            verifier_float_rounding=base_config.verifier_float_rounding,
         )
 
         self._dataset_path = self._config.dataset_path
@@ -565,6 +580,17 @@ class QEDMathEnvironment(MCPEnvironment):
             custom_threshold=self._config.custom_reward_threshold,
             api_base_url=judge_api_base_url,
             api_key=judge_api_key,
+        )
+        # Initialize verifier service for answer-mode grading.
+        # The service is started lazily on first verify_answer call or explicit start.
+        self._verifier_service = MathVerifierService(
+            max_workers=self._config.verifier_workers,
+            queue_size=self._config.verifier_queue_size,
+            request_timeout_seconds=self._config.verifier_request_timeout_seconds,
+            max_retries=self._config.verifier_max_retries,
+            strict=self._config.verifier_strict,
+            numeric_precision=self._config.verifier_numeric_precision,
+            float_rounding=self._config.verifier_float_rounding,
         )
         self._discount_factor = self._config.discount_factor
         self._buffer_tokens = self._config.buffer_tokens
@@ -956,26 +982,6 @@ class QEDMathEnvironment(MCPEnvironment):
 
         return payload
 
-    def _verify_answer(
-        self,
-        prediction: str,
-        gold: str,
-        strict: bool = True,
-        max_prediction_length: int = 1000,
-    ) -> str:
-        """QED-Nano-style answer verification entrypoint."""
-        if prediction.startswith("countdown"):
-            # QED-Nano routes this to verify_countdown; countdown mode is not
-            # part of QED-Math env right now, so keep status-only behavior.
-            return "unparsable"
-
-        return self._verify_math(
-            prediction=prediction,
-            gold=gold,
-            strict=strict,
-            max_prediction_length=max_prediction_length,
-        )
-
     @staticmethod
     def _verify_math(
         prediction: str,
@@ -1022,17 +1028,28 @@ class QEDMathEnvironment(MCPEnvironment):
                 return "no_answer"
             return "unparsable"
 
-    def _grade_answer_submission(
+    async def _grade_answer_submission(
         self,
         submission: str,
         expected_answer: str,
     ) -> GradingResult:
-        answer_status = self._verify_answer(
+        """Grade an answer submission using process-based verifier workers.
+
+        Args:
+            submission: The submitted answer (may contain \\boxed{...}).
+            expected_answer: The reference answer.
+
+        Returns:
+            GradingResult with score (0 or 7), feedback, and metrics.
+        """
+        response = await self._verifier_service.verify_answer(
             prediction=submission,
             gold=expected_answer,
             strict=True,
+            timeout_seconds=1,
             max_prediction_length=1000,
         )
+        answer_status = response.status
 
         score = 7 if answer_status == "correct" else 0
         feedback = f"answer_status={answer_status}"
@@ -1091,7 +1108,7 @@ class QEDMathEnvironment(MCPEnvironment):
         evaluation_mode = self._current_problem.get("evaluation_mode", "proof")
 
         if evaluation_mode == "answer":
-            return self._grade_answer_submission(grading_input, reference_solution)
+            return await self._grade_answer_submission(grading_input, reference_solution)
 
         return await self._rubric.grade(
             grading_input,
