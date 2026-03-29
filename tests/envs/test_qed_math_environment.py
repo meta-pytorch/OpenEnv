@@ -962,45 +962,31 @@ class TestQEDMathServerIntegration:
     def env(self):
         from qed_math_env.client import QEDMathEnv
 
-        with QEDMathEnv(base_url=self.BASE_URL) as e:
+        with QEDMathEnv(base_url=self.BASE_URL).sync() as e:
             yield e
 
     def test_reset_returns_problem(self, env):
-        import asyncio
-
-        obs = asyncio.get_event_loop().run_until_complete(env.reset())
+        obs = env.reset()
         assert obs is not None
 
     def test_list_tools_returns_three_tools(self, env):
-        import asyncio
-
-        tools = asyncio.get_event_loop().run_until_complete(env.list_tools())
+        tools = env.list_tools()
         names = {t.name for t in tools}
         assert {"get_problem", "submit_proof", "get_grading_guidelines"}.issubset(names)
 
     def test_get_problem_tool(self, env):
-        import asyncio
-
-        asyncio.get_event_loop().run_until_complete(env.reset())
-        result = asyncio.get_event_loop().run_until_complete(
-            env.call_tool("get_problem")
-        )
+        env.reset()
+        result = env.call_tool("get_problem")
         assert result is not None
 
     def test_get_grading_guidelines_tool(self, env):
-        import asyncio
-
-        asyncio.get_event_loop().run_until_complete(env.reset())
-        result = asyncio.get_event_loop().run_until_complete(
-            env.call_tool("get_grading_guidelines")
-        )
+        env.reset()
+        result = env.call_tool("get_grading_guidelines")
         assert result is not None
 
     def test_submit_proof_tool_returns_observation(self, env):
-        import asyncio
-
-        asyncio.get_event_loop().run_until_complete(env.reset())
-        result = asyncio.get_event_loop().run_until_complete(
-            env.call_tool("submit_proof", proof="Let a=2m and b=2n, so a+b=2(m+n).")
+        env.reset()
+        result = env.call_tool(
+            "submit_proof", proof="Let a=2m and b=2n, so a+b=2(m+n)."
         )
         assert result is not None

@@ -12,10 +12,10 @@ submitted proofs using LLM-based rubric grading (0-7 scale).
 """
 
 import asyncio
-from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeoutError
 import json
 import logging
 import os
+import re
 from datetime import datetime, timezone
 from dataclasses import dataclass
 from pathlib import Path
@@ -85,8 +85,17 @@ class EmptyBoxedException(Exception):
     """Raised when a boxed final answer is present but empty."""
 
 
-class TimeoutException(Exception):
-    """Raised when verification computation times out."""
+def _parse_math_verify_expression(value: str) -> Any:
+    """Parse an expression with a boxed fallback for parser compatibility."""
+    parsed = math_verify.parse(value)
+    if parsed:
+        return parsed
+
+    boxed_match = re.search(r"\\boxed\{(.+?)\}", value)
+    if boxed_match:
+        return math_verify.parse(boxed_match.group(1))
+
+    return parsed
 
 
 def remove_reasoning(
@@ -993,23 +1002,19 @@ class QEDMathEnvironment(MCPEnvironment):
             if len(boxed_prediction) > max_prediction_length:
                 raise UnparsableException()
 
-            gold_parsed = math_verify.parse(gold)
-            boxed_prediction_parsed = math_verify.parse(boxed_prediction)
+            gold_parsed = _parse_math_verify_expression(gold)
+            boxed_prediction_parsed = _parse_math_verify_expression(boxed_prediction)
+            if not gold_parsed:
+                raise ValueError("Failed to parse gold answer.")
             if not boxed_prediction_parsed:
                 raise ValueError("Failed to parse prediction.")
 
-            with ThreadPoolExecutor(max_workers=1) as executor:
-                future = executor.submit(
-                    math_verify.verify,
-                    gold_parsed,
-                    boxed_prediction_parsed,
-                    strict=strict,
-                    timeout_seconds=1,
-                )
-                try:
-                    equivalent = future.result(timeout=1)
-                except FuturesTimeoutError as exc:
-                    raise TimeoutException("Computation timed out") from exc
+            equivalent = math_verify.verify(
+                gold_parsed,
+                boxed_prediction_parsed,
+                strict=strict,
+                timeout_seconds=1,
+            )
             return "correct" if equivalent else "wrong"
 
         except Exception as exc:  # noqa: BLE001
