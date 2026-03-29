@@ -99,6 +99,51 @@ def test_build_sample_metadata_missing_sample():
         build_sample_metadata(["S1", "S2"], {"S1": "a"})
 
 
+def test_understand_experiment_design_summary():
+    env = PathwayEnvironment(case_file="toy_case_001.json")
+    env.reset()
+    obs = env.step(PathwayAction(action_type="understand_experiment_design"))
+    assert obs.experiment_design
+    assert obs.experiment_design.get("samples_per_condition")
+    assert env.state.design_understood is True
+    assert env.state.validated_reference is None
+
+
+@requires_pydeseq2
+def test_understand_validated_contrast_matches_explicit_de():
+    env = PathwayEnvironment(case_file="toy_case_001.json")
+    env.reset()
+    u = env.step(
+        PathwayAction(
+            action_type="understand_experiment_design",
+            condition_a="control",
+            condition_b="treated",
+        )
+    )
+    assert u.experiment_design and u.experiment_design.get("validated_contrast")
+    assert env.state.validated_reference == "control"
+    assert env.state.validated_alternate == "treated"
+    a = env.step(
+        PathwayAction(
+            action_type="run_differential_expression",
+            condition_a="control",
+            condition_b="treated",
+        )
+    )
+    env2 = PathwayEnvironment(case_file="toy_case_001.json")
+    env2.reset()
+    env2.step(
+        PathwayAction(
+            action_type="understand_experiment_design",
+            condition_a="control",
+            condition_b="treated",
+        )
+    )
+    b = env2.step(PathwayAction(action_type="run_differential_expression"))
+    assert a.de_genes and b.de_genes
+    assert [r.get("gene") for r in a.de_genes[:10]] == [r.get("gene") for r in b.de_genes[:10]]
+
+
 def test_no_step_after_episode_done():
     env = PathwayEnvironment(case_file="toy_case_legacy.json")
     env.reset()

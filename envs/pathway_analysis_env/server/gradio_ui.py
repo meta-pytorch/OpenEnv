@@ -83,10 +83,17 @@ def _state_markdown(st: Dict[str, Any]) -> str:
     done = "**Episode ended.** Reset to start over." if st.get("is_done") else ""
     conds = st.get("conditions") or []
     cond_line = ", ".join(f"`{c}`" for c in conds[:12]) if conds else "—"
+    vref = st.get("validated_reference")
+    valt = st.get("validated_alternate")
+    val_line = ""
+    if vref and valt:
+        val_line = f"\n\n**Validated contrast (for DE if fields empty):** `{vref}` → `{valt}`"
+    des = "✓" if st.get("design_understood") else "○"
     return (
         f"**Episode** {eid_short} · step **{st.get('step_count', 0)}** · {pipe} · {strict}\n\n"
         f"**Conditions in case:** {cond_line}\n\n"
-        f"**Pipeline:** DE {de_ok} · ORA {ora_ok} · **Expert calls** {expert}\n\n"
+        f"**Pipeline:** Design {des} · DE {de_ok} · ORA {ora_ok} · **Expert calls** {expert}"
+        f"{val_line}\n\n"
         f"{done}"
     ).strip()
 
@@ -109,6 +116,14 @@ def _observation_to_tables(
     ac = obs.get("available_conditions") or []
     if ac:
         lines.append("**Conditions (from last step):** " + ", ".join(f"`{c}`" for c in ac[:20]))
+
+    ed = obs.get("experiment_design")
+    if isinstance(ed, dict) and ed:
+        lines.append(
+            "**Experiment design (structured):**\n```json\n"
+            + json.dumps(ed, indent=2, default=str)[:8000]
+            + "\n```"
+        )
 
     md = "\n\n".join(lines)
 
@@ -275,6 +290,20 @@ def build_pathway_gradio_app(
             update_contrast=False,
         )
 
+    async def step_understand(cond_a: str, cond_b: str):
+        payload: Dict[str, Any] = {
+            "action_type": "understand_experiment_design",
+            "condition_a": (cond_a or "").strip() or None,
+            "condition_b": (cond_b or "").strip() or None,
+        }
+        data = await web_manager.step_environment(payload)
+        return _response(
+            data,
+            web_manager,
+            "Understand experiment design complete.",
+            update_contrast=False,
+        )
+
     async def step_de(cond_a: str, cond_b: str):
         payload: Dict[str, Any] = {
             "action_type": "run_differential_expression",
@@ -343,8 +372,10 @@ def build_pathway_gradio_app(
     with gr.Blocks(title=f"{display} — Pathway lab") as blocks:
         gr.Markdown(
             f"# Pathway lab\n\n"
-            f"Interactive **inspect → DE → ORA → compare → submit** workflow for `{display}`. "
-            f"Use the **Playground** tab for the generic action form.\n\n"
+            f"**Agent-style flow:** **(1) Groups & design** — how many conditions and samples per group. "
+            f"**(2) DGE** — pick reference vs alternate, then differential expression. "
+            f"**(3) Pathways** — ORA, compare, submit hypothesis. "
+            f"Buttons: Understand design → Inspect → Run DE → Run ORA → … Use **Playground** for raw actions.\n\n"
             f"---"
         )
 
@@ -366,7 +397,8 @@ def build_pathway_gradio_app(
         gr.Markdown("### Contrast (PyDESeq2 pipeline cases)")
         gr.Markdown(
             "*Reference* = baseline condition, *alternate* = treatment. "
-            "Reset fills these from the case when possible; edit if needed."
+            "Reset fills these from the case when possible; edit if needed. "
+            "**Understand design:** leave both empty for a structured summary only, or fill both to validate the contrast (used by **Run DE** when those fields are left empty)."
         )
         with gr.Row():
             cond_ref = gr.Textbox(
@@ -382,6 +414,7 @@ def build_pathway_gradio_app(
 
         gr.Markdown("#### Workflow")
         with gr.Row():
+            btn_ud = gr.Button("0 · Understand design", variant="secondary")
             btn_ins = gr.Button("1 · Inspect", variant="secondary")
             btn_de = gr.Button("2 · Run DE", variant="primary")
             btn_ora = gr.Button("3 · Run ORA", variant="primary")
@@ -449,6 +482,7 @@ def build_pathway_gradio_app(
         ]
 
         reset_btn.click(fn=do_reset, inputs=[case_dd], outputs=ui_outputs)
+        btn_ud.click(fn=step_understand, inputs=[cond_ref, cond_alt], outputs=ui_outputs)
         btn_ins.click(fn=step_inspect, outputs=ui_outputs)
         btn_de.click(fn=step_de, inputs=[cond_ref, cond_alt], outputs=ui_outputs)
         btn_ora.click(fn=step_ora, outputs=ui_outputs)

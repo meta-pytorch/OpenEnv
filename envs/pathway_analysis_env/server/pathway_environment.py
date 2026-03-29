@@ -160,7 +160,8 @@ class PathwayEnvironment(Environment):
             eid, self._trace_steps, str(self._case.get("case_id", ""))
         )
         return PathwayObservation(
-            message=msg + " Inspect, run DE, enrichment, compare pathways, or submit.",
+            message=msg
+            + " Use understand_experiment_design, inspect, run DE, enrichment, compare, or submit.",
             available_conditions=self._state.conditions,
             metadata={"case_id": self._case["case_id"], "pipeline_mode": pipeline},
             trace_path=trace_path,
@@ -233,6 +234,9 @@ class PathwayEnvironment(Environment):
             obs.trace_path = self._refresh_trace_file()
             return obs
 
+        if action.action_type == "understand_experiment_design":
+            return self._step_understand_experiment_design(action)
+
         if action.action_type == "run_differential_expression":
             return self._step_de(action)
 
@@ -255,6 +259,166 @@ class PathwayEnvironment(Environment):
         )
         obs.trace_path = self._refresh_trace_file()
         return obs
+
+    def _experiment_design_dict(self) -> Dict[str, Any]:
+        case = self._case
+        s = self._state
+        sample_ids = list(case.get("sample_ids") or [])
+        smd = case.get("sample_metadata") or {}
+        per: Dict[str, int] = {}
+        for sid in sample_ids:
+            c = smd.get(sid)
+            if c is not None:
+                per[c] = per.get(c, 0) + 1
+        conds = list(s.conditions)
+        return {
+            "case_id": case.get("case_id"),
+            "pipeline_mode": s.pipeline_mode,
+            "conditions": conds,
+            "n_groups": len(conds),
+            "n_samples": len(sample_ids),
+            "samples_per_condition": per,
+            "sample_ids": sample_ids,
+            "default_contrast": case.get("default_contrast"),
+            "experiment_metadata": case.get("experiment_metadata"),
+            "agent_workflow": (
+                "(1) Groups: use conditions + samples_per_condition to see how many groups and "
+                "replicates exist. (2) DGE: pick reference vs alternate for DESeq2 "
+                "(validate via understand_experiment_design or pass to run_differential_expression). "
+                "(3) Pathways: run_pathway_enrichment then compare/submit."
+            ),
+            "design_note": (
+                "Reference = baseline (denominator of log2 fold change); alternate = comparison arm "
+                "for DGE. Optionally set condition_a / condition_b here to validate before "
+                "run_differential_expression."
+            ),
+        }
+
+    def _validate_contrast_proposal(self, ref: str, alt: str) -> Optional[str]:
+        """Return an error message if invalid; None if the pair is usable for DESeq2."""
+        conds = set(self._state.conditions)
+        if ref not in conds or alt not in conds:
+            return "Reference and alternate must be among the case `conditions`."
+        if ref == alt:
+            return "Reference and alternate must be two different conditions."
+        sample_ids = list(self._case.get("sample_ids") or [])
+        smd = self._case.get("sample_metadata") or {}
+        if not sample_ids:
+            return None
+        per: Dict[str, int] = {}
+        for sid in sample_ids:
+            c = smd.get(sid)
+            if c is not None:
+                per[c] = per.get(c, 0) + 1
+        if per.get(ref, 0) < 1 or per.get(alt, 0) < 1:
+            return "Each contrast arm must have at least one sample in `sample_metadata`."
+        return None
+
+    def _step_understand_experiment_design(
+        self, action: PathwayAction
+    ) -> PathwayObservation:
+        s = self._state
+        design = self._experiment_design_dict()
+        ref_in = (action.condition_a or "").strip()
+        alt_in = (action.condition_b or "").strip()
+        has_both = bool(ref_in and alt_in)
+        has_partial = bool(ref_in or alt_in) and not has_both
+
+        if has_partial:
+            obs = PathwayObservation(
+                message=(
+                    "Provide both reference (condition_a) and alternate (condition_b) to "
+                    "validate a contrast, or leave both empty for a design summary only."
+                ),
+                available_conditions=s.conditions,
+                experiment_design=design,
+                reward=-0.02,
+                metadata={"step_count": s.step_count, "validation": "incomplete"},
+            )
+            self._trace(
+                "understand_experiment_design",
+                {"validation": "incomplete"},
+                obs.message,
+            )
+            obs.trace_path = self._refresh_trace_file()
+            return obs
+
+        if not has_both:
+            s.design_understood = True
+            msg = (
+                "Design summary: you have the groups (conditions) and sample counts per group. "
+                "Next, choose reference vs alternate for DGE (differential expression), then pathway "
+                "steps. Re-run this action with both conditions set to validate your contrast."
+            )
+            obs = PathwayObservation(
+                message=msg,
+                available_conditions=s.conditions,
+                experiment_design=design,
+                reward=0.05,
+                metadata={"step_count": s.step_count, "validation": "summary_only"},
+            )
+            self._trace("understand_experiment_design", {"mode": "summary"}, msg)
+            obs.trace_path = self._refresh_trace_file()
+            return obs
+
+        err = self._validate_contrast_proposal(ref_in, alt_in)
+        if err:
+            s.validated_reference = None
+            s.validated_alternate = None
+            s.design_understood = True
+            obs = PathwayObservation(
+                message=err,
+                available_conditions=s.conditions,
+                experiment_design=design,
+                reward=-0.05,
+                metadata={
+                    "step_count": s.step_count,
+                    "validation": "invalid",
+                },
+            )
+            self._trace(
+                "understand_experiment_design",
+                {"validation": "invalid", "proposal": [ref_in, alt_in]},
+                err,
+            )
+            obs.trace_path = self._refresh_trace_file()
+            return obs
+
+        s.validated_reference = ref_in
+        s.validated_alternate = alt_in
+        s.design_understood = True
+        design["validated_contrast"] = {"reference": ref_in, "alternate": alt_in}
+        msg = (
+            f"DGE contrast chosen: reference=`{ref_in}`, alternate=`{alt_in}` "
+            f"({len(s.conditions)} groups in study). "
+            "run_differential_expression will use this pair when DE omits conditions; "
+            "explicit DE fields override. Then run pathway enrichment."
+        )
+        obs = PathwayObservation(
+            message=msg,
+            available_conditions=s.conditions,
+            experiment_design=design,
+            reward=0.08,
+            metadata={"step_count": s.step_count, "validation": "valid"},
+        )
+        self._trace(
+            "understand_experiment_design",
+            {"validation": "valid", "contrast": [ref_in, alt_in]},
+            msg,
+        )
+        obs.trace_path = self._refresh_trace_file()
+        return obs
+
+    def _resolve_de_contrast(
+        self, action: PathwayAction
+    ) -> tuple[Optional[str], Optional[str]]:
+        """DESeq2 contrast: explicit action fields beat validated design, then default_contrast."""
+        dc = self._case.get("default_contrast") or {}
+        ar = (action.condition_a or "").strip()
+        ab = (action.condition_b or "").strip()
+        ref = ar or self._state.validated_reference or dc.get("reference")
+        alt = ab or self._state.validated_alternate or dc.get("alternate")
+        return ref, alt
 
     def _step_de(self, action: PathwayAction) -> PathwayObservation:
         s = self._state
@@ -285,12 +449,7 @@ class PathwayEnvironment(Environment):
                 metadata={"error": "missing_pydeseq2"},
             )
 
-        ref = action.condition_a or self._case.get("default_contrast", {}).get(
-            "reference"
-        )
-        alt = action.condition_b or self._case.get("default_contrast", {}).get(
-            "alternate"
-        )
+        ref, alt = self._resolve_de_contrast(action)
         if not ref or not alt:
             msg = "Specify condition_a (reference) and condition_b (alternate) for DESeq2."
             if s.strict_mode:

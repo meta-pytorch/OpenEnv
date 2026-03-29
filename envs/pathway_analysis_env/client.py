@@ -58,6 +58,7 @@ class PathwayEnv(EnvClient[PathwayAction, PathwayObservation, PathwayState]):
             statistical_ambiguity=obs_data.get("statistical_ambiguity"),
             expert_message=obs_data.get("expert_message"),
             trace_path=obs_data.get("trace_path"),
+            experiment_design=obs_data.get("experiment_design"),
             done=obs_data.get("done", False),
             reward=obs_data.get("reward", 0.0),
             metadata=obs_data.get("metadata", {}),
@@ -82,4 +83,7 @@ class PathwayEnv(EnvClient[PathwayAction, PathwayObservation, PathwayState]):
             expert_calls_used=payload.get("expert_calls_used", 0),
             expert_budget=payload.get("expert_budget", 0),
             legacy_mode=payload.get("legacy_mode", False),
+            design_understood=payload.get("design_understood", False),
+            validated_reference=payload.get("validated_reference"),
+            validated_alternate=payload.get("validated_alternate"),
         )

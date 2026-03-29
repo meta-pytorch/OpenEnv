@@ -26,6 +26,10 @@ class PathwayAction(Action):
 
     action_type:
         - ``inspect_dataset``: describe available samples and conditions.
+        - ``understand_experiment_design``: **(1)** Summarize groups (conditions, sample counts);
+          optionally **(2)** validate ``condition_a``/``condition_b`` as reference/alternate for
+          DGE (does not run DESeq2). Valid pairs feed ``run_differential_expression`` when DE omits
+          conditions. **(3)** Pathway steps follow DE.
         - ``run_differential_expression``: PyDESeq2 contrast (needs ``condition_a`` /
           ``condition_b`` when using count-matrix cases).
         - ``run_pathway_enrichment``: ORA on DE genes vs pathway gene sets.
@@ -59,6 +63,7 @@ class PathwayObservation(Observation):
     statistical_ambiguity: Optional[Dict[str, Any]] = None
     expert_message: Optional[str] = None
     trace_path: Optional[str] = None
+    experiment_design: Optional[Dict[str, Any]] = None
 
 
 class PathwayState(State):
@@ -74,3 +79,6 @@ class PathwayState(State):
     expert_calls_used: int = 0
     expert_budget: int = 0
     legacy_mode: bool = False
+    design_understood: bool = False
+    validated_reference: Optional[str] = None
+    validated_alternate: Optional[str] = None
