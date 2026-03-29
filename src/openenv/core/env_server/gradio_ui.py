@@ -19,6 +19,9 @@ import gradio as gr
 from .types import EnvironmentMetadata
 
 
+# -----------------------------
+# Utils
+# -----------------------------
 def _escape_md(text: str) -> str:
     return re.sub(r"([\\`*_\{\}\[\]()#+\-.!|~>])", r"\\\1", str(text))
 
@@ -66,6 +69,9 @@ def get_gradio_display_title(
     return f"OpenEnv Agentic Environment: {name}"
 
 
+# -----------------------------
+# Main App Builder
+# -----------------------------
 def build_gradio_app(
     web_manager: Any,
     action_fields: List[Dict[str, Any]],
@@ -79,7 +85,18 @@ def build_gradio_app(
     display_title = get_gradio_display_title(metadata, fallback=title)
 
     # -----------------------------
-    # Core Step Logic
+    # Helpers
+    # -----------------------------
+    def clear_inputs():
+        if is_chat_env:
+            return [""]
+        return [
+            False if f.get("type") == "checkbox" else None
+            for f in action_fields
+        ]
+
+    # -----------------------------
+    # Core Logic
     # -----------------------------
     async def step(action_data: Dict[str, Any]):
         try:
@@ -103,9 +120,10 @@ def build_gradio_app(
                 obs_md,
                 json.dumps(data, indent=2),
                 "Environment reset successfully.",
+                *clear_inputs(),  # 🔥 clear inputs
             )
         except Exception as e:
-            return ("", "", f"Error: {e}")
+            return ("", "", f"Error: {e}", *clear_inputs())
 
     def get_state_sync():
         try:
@@ -213,12 +231,12 @@ def build_gradio_app(
                             action_data = build_action(values)
                             obs_md, raw_json, status = await step(action_data)
 
-                            cleared = [
-                                False if f.get("type") == "checkbox" else None
-                                for f in action_fields
-                            ]
-
-                            return (obs_md, raw_json, status, *cleared)
+                            return (
+                                obs_md,
+                                raw_json,
+                                status,
+                                *clear_inputs(),
+                            )
 
                         step_fn = step_form
 
@@ -244,7 +262,7 @@ def build_gradio_app(
         # -----------------------------
         reset_btn.click(
             fn=reset_env,
-            outputs=[obs_display, raw_json, status],
+            outputs=[obs_display, raw_json, status, *step_inputs],
         )
 
         step_btn.click(
