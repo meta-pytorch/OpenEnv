@@ -21,6 +21,7 @@ import asyncio
 import logging
 import multiprocessing as mp
 import re
+import time
 from concurrent.futures import ProcessPoolExecutor
 from dataclasses import dataclass
 from functools import partial
@@ -41,6 +42,8 @@ class VerifyRequest:
     strict: bool = True
     timeout_seconds: int = 1
     max_prediction_length: int = 1000
+    numeric_precision: int = 5
+    float_rounding: int = 10
 
 
 @dataclass
@@ -242,13 +245,15 @@ class MathVerifierService:
         """
         self.max_workers = max(1, max_workers)
         self.queue_size = max(1, queue_size)
-        self.request_timeout_seconds = max(1.0, request_timeout_seconds)
+        self.request_timeout_seconds = max(0.001, float(request_timeout_seconds))
         self.max_retries = max(0, max_retries)
         self.strict = strict
         self.numeric_precision = numeric_precision
         self.float_rounding = float_rounding
-        self._executor: Optional[ProcessPoolExecutor] = None
+        self._executor: ProcessPoolExecutor | None = None
         self._request_counter = 0
+        self._admission_lock = asyncio.Lock()
+        self._inflight_requests = 0
 
     async def start(self) -> None:
         """Start the worker process pool.
@@ -282,63 +287,73 @@ class MathVerifierService:
         self._executor = None
         logger.info("MathVerifierService stopped")
 
-    async def verify_answer(
+    async def _try_admit_request(self) -> bool:
+        """Try to admit a request without blocking when saturated."""
+        async with self._admission_lock:
+            if self._inflight_requests >= self.queue_size:
+                return False
+            self._inflight_requests += 1
+            return True
+
+    async def _release_request_slot(self) -> None:
+        """Release a previously admitted request slot."""
+        async with self._admission_lock:
+            self._inflight_requests = max(0, self._inflight_requests - 1)
+
+    @staticmethod
+    def _is_retryable_response(response: VerifyResponse) -> bool:
+        """Return True when a response represents a transient infra failure."""
+        if response.status == "timeout":
+            return True
+
+        if response.status != "internal_error":
+            return False
+
+        retryable_error_types = {
+            "ClientTimeout",
+            "BrokenProcessPool",
+            "CancelledError",
+            "TimeoutError",
+            "EOFError",
+            "ConnectionResetError",
+            "ConnectionAbortedError",
+        }
+        if response.error_type in retryable_error_types:
+            return True
+
+        error_message = (response.error_message or "").lower()
+        retryable_fragments = [
+            "broken process pool",
+            "executor",
+            "cancelled",
+            "worker",
+            "connection reset",
+            "connection aborted",
+        ]
+        return any(fragment in error_message for fragment in retryable_fragments)
+
+    async def _run_request_once(
         self,
-        prediction: str,
-        gold: str,
-        strict: Optional[bool] = None,
-        timeout_seconds: Optional[int] = None,
-        max_prediction_length: int = 1000,
+        request: VerifyRequest,
     ) -> VerifyResponse:
-        """Verify an answer prediction against a gold reference.
-
-        This is the main async entry point for answer verification. It submits
-        the request to a worker process and awaits the result with a client-side
-        timeout.
-
-        Args:
-            prediction: The model's predicted answer (may contain \\boxed{...}).
-            gold: The reference answer (may contain \\boxed{...}).
-            strict: Whether to use strict equivalence checking. Defaults to config.
-            timeout_seconds: Worker timeout for math_verify.verify(). Defaults to 1.
-            max_prediction_length: Max length of boxed answer.
-
-        Returns:
-            VerifyResponse with status (correct, wrong, no_answer, unparsable, timeout, internal_error)
-        """
-        if self._executor is None:
-            await self.start()
-
-        self._request_counter += 1
-        request_id = f"req-{self._request_counter}"
-
-        request = VerifyRequest(
-            request_id=request_id,
-            prediction=prediction,
-            gold=gold,
-            strict=strict if strict is not None else self.strict,
-            timeout_seconds=timeout_seconds or 1,
-            max_prediction_length=max_prediction_length,
-        )
-
+        """Execute one verifier attempt without retries."""
         loop = asyncio.get_running_loop()
+        request_id = request.request_id
 
-        # Submit to worker process
         try:
             future = loop.run_in_executor(
                 self._executor,
                 _verify_answer_worker,
                 request,
             )
-            response = await asyncio.wait_for(
+            return await asyncio.wait_for(
                 future,
                 timeout=self.request_timeout_seconds,
             )
-            return response
 
         except asyncio.TimeoutError:
             logger.warning(
-                "Verification request %s timed out after %.1fs",
+                "Verification request %s timed out after %.3fs",
                 request_id,
                 self.request_timeout_seconds,
             )
@@ -359,3 +374,86 @@ class MathVerifierService:
                 error_type=type(exc).__name__,
                 error_message=str(exc),
             )
+
+    async def verify_answer(
+        self,
+        prediction: str,
+        gold: str,
+        strict: Optional[bool] = None,
+        timeout_seconds: Optional[int] = None,
+        max_prediction_length: int = 1000,
+        numeric_precision: Optional[int] = None,
+        float_rounding: Optional[int] = None,
+    ) -> VerifyResponse:
+        """Verify an answer prediction against a gold reference.
+
+        This is the main async entry point for answer verification. It submits
+        the request to a worker process and awaits the result with a client-side
+        timeout.
+
+        Args:
+            prediction: The model's predicted answer (may contain \\boxed{...}).
+            gold: The reference answer (may contain \\boxed{...}).
+            strict: Whether to use strict equivalence checking. Defaults to config.
+            timeout_seconds: Worker timeout for math_verify.verify(). Defaults to 1.
+            max_prediction_length: Max length of boxed answer.
+
+        Returns:
+            VerifyResponse with status (correct, wrong, no_answer, unparsable, timeout, internal_error)
+        """
+        if self._executor is None:
+            await self.start()
+
+        admitted = await self._try_admit_request()
+        if not admitted:
+            return VerifyResponse(
+                request_id=f"rejected-{self._request_counter + 1}",
+                status="internal_error",
+                elapsed_ms=0.0,
+                error_type="QueueFull",
+                error_message=(
+                    f"Verifier queue saturated: in_flight={self._inflight_requests}, "
+                    f"queue_size={self.queue_size}"
+                ),
+            )
+
+        self._request_counter += 1
+        request_id = f"req-{self._request_counter}"
+        started_at = time.perf_counter()
+
+        request = VerifyRequest(
+            request_id=request_id,
+            prediction=prediction,
+            gold=gold,
+            strict=strict if strict is not None else self.strict,
+            timeout_seconds=max(1, int(timeout_seconds or 1)),
+            max_prediction_length=max_prediction_length,
+            numeric_precision=(
+                numeric_precision
+                if numeric_precision is not None
+                else self.numeric_precision
+            ),
+            float_rounding=(
+                float_rounding
+                if float_rounding is not None
+                else self.float_rounding
+            ),
+        )
+
+        retry_count = 0
+        try:
+            while True:
+                response = await self._run_request_once(request)
+
+                if (
+                    retry_count < self.max_retries
+                    and self._is_retryable_response(response)
+                ):
+                    retry_count += 1
+                    continue
+
+                response.retry_count = retry_count
+                response.elapsed_ms = (time.perf_counter() - started_at) * 1000
+                return response
+        finally:
+            await self._release_request_slot()
