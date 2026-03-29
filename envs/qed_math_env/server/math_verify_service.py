@@ -254,6 +254,8 @@ class MathVerifierService:
         self._request_counter = 0
         self._admission_lock = asyncio.Lock()
         self._inflight_requests = 0
+        self._restart_lock = asyncio.Lock()
+        self._restart_count = 0
 
     async def start(self) -> None:
         """Start the worker process pool.
@@ -286,6 +288,52 @@ class MathVerifierService:
         await loop.run_in_executor(None, shutdown_call)
         self._executor = None
         logger.info("MathVerifierService stopped")
+
+    async def _restart_pool(self) -> None:
+        """Restart the worker pool after a fatal worker/executor failure."""
+        async with self._restart_lock:
+            await self.stop()
+            await self.start()
+            self._restart_count += 1
+
+    @staticmethod
+    def _requires_restart(response: VerifyResponse) -> bool:
+        """Return True when response indicates executor/worker death."""
+        if response.status != "internal_error":
+            return False
+
+        fatal_error_types = {
+            "BrokenProcessPool",
+            "EOFError",
+            "ConnectionResetError",
+            "ConnectionAbortedError",
+        }
+        if response.error_type in fatal_error_types:
+            return True
+
+        msg = (response.error_message or "").lower()
+        fatal_fragments = [
+            "broken process pool",
+            "process terminated",
+            "worker process",
+            "connection reset",
+            "connection aborted",
+            "child process",
+        ]
+        return any(fragment in msg for fragment in fatal_fragments)
+
+    async def health_probe(self) -> dict[str, int | bool | str]:
+        """Return lightweight health status for long-lived training runs."""
+        executor_running = self._executor is not None
+        status = "healthy" if executor_running else "stopped"
+        return {
+            "status": status,
+            "executor_running": executor_running,
+            "inflight_requests": self._inflight_requests,
+            "queue_size": self.queue_size,
+            "max_workers": self.max_workers,
+            "restart_count": self._restart_count,
+        }
 
     async def _try_admit_request(self) -> bool:
         """Try to admit a request without blocking when saturated."""
@@ -441,6 +489,7 @@ class MathVerifierService:
         )
 
         retry_count = 0
+        worker_restarted = False
         try:
             while True:
                 response = await self._run_request_once(request)
@@ -449,10 +498,14 @@ class MathVerifierService:
                     retry_count < self.max_retries
                     and self._is_retryable_response(response)
                 ):
+                    if self._requires_restart(response):
+                        await self._restart_pool()
+                        worker_restarted = True
                     retry_count += 1
                     continue
 
                 response.retry_count = retry_count
+                response.worker_restarted = worker_restarted
                 response.elapsed_ms = (time.perf_counter() - started_at) * 1000
                 return response
         finally:

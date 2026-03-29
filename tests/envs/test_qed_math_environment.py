@@ -28,7 +28,6 @@ from __future__ import annotations
 
 import json
 import sys
-import tempfile
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -65,11 +64,7 @@ from qed_math_env.models import (  # noqa: E402
     ProofSubmissionObservation,
 )
 from qed_math_env.server.qed_math_environment import (  # noqa: E402
-    QEDMathConfig,
     QEDMathEnvironment,
-    UnparsableException,
-    NoAnswerException,
-    EmptyBoxedException,
     _normalize_problem,
     load_problems,
     remove_reasoning,
@@ -670,8 +665,19 @@ class TestGradeAnswerSubmission:
                 assert result.metrics["verifier/runtime/latency_per_request"] == pytest.approx(
                     12.5
                 )
+                assert "verifier/workers/restart_count" in result.metrics
+                assert "verifier/workers/worker_restarted" in result.metrics
+                assert "verifier/queue/depth" in result.metrics
         finally:
             await env._verifier_service.stop()
+
+    @pytest.mark.asyncio
+    async def test_shutdown_verifier_service_hook(self):
+        env = _make_env()
+        await env._grade_answer_submission(r"\boxed{4}", r"\boxed{4}")
+        assert env._verifier_service._executor is not None
+        await env.shutdown_verifier_service()
+        assert env._verifier_service._executor is None
 
 
 # QEDMathEnvironment: reward shaping
@@ -1308,6 +1314,90 @@ class TestMathVerifierService:
             assert response.status == "correct"
             assert response.retry_count == 1
             assert call_count == 2
+        finally:
+            await service.stop()
+
+    @pytest.mark.asyncio
+    async def test_worker_crash_restarts_pool_and_redispatches(self):
+        service = MathVerifierService(max_workers=1, max_retries=1)
+        await service.start()
+        call_count = 0
+        restart_calls = {"count": 0}
+        original_restart = service._restart_pool
+
+        async def crashing_once(request):
+            nonlocal call_count
+            call_count += 1
+            if call_count == 1:
+                return VerifyResponse(
+                    request_id=request.request_id,
+                    status="internal_error",
+                    elapsed_ms=1.0,
+                    error_type="BrokenProcessPool",
+                    error_message="broken process pool simulated",
+                )
+            return _verify_answer_worker(request)
+
+        async def restart_wrapper():
+            restart_calls["count"] += 1
+            await original_restart()
+
+        try:
+            with patch.object(service, "_run_request_once", side_effect=crashing_once):
+                with patch.object(service, "_restart_pool", side_effect=restart_wrapper):
+                    response = await service.verify_answer(r"\boxed{4}", "4")
+
+            assert response.status == "correct"
+            assert response.retry_count == 1
+            assert response.worker_restarted is True
+            assert restart_calls["count"] == 1
+
+            health = await service.health_probe()
+            assert health["restart_count"] >= 1
+        finally:
+            await service.stop()
+
+    @pytest.mark.asyncio
+    async def test_no_retry_for_unparsable_outputs(self):
+        service = MathVerifierService(max_workers=1, max_retries=3)
+        await service.start()
+        call_count = 0
+
+        async def unparsable_once(request):
+            nonlocal call_count
+            call_count += 1
+            return VerifyResponse(
+                request_id=request.request_id,
+                status="unparsable",
+                elapsed_ms=1.0,
+                error_type=None,
+                error_message=None,
+            )
+
+        try:
+            with patch.object(service, "_run_request_once", side_effect=unparsable_once):
+                response = await service.verify_answer("not boxed", "4")
+
+            assert response.status == "unparsable"
+            assert response.retry_count == 0
+            assert call_count == 1
+        finally:
+            await service.stop()
+
+    @pytest.mark.asyncio
+    async def test_health_probe_reports_runtime_state(self):
+        service = MathVerifierService(max_workers=1, queue_size=3)
+        before_start = await service.health_probe()
+        assert before_start["status"] == "stopped"
+        assert before_start["executor_running"] is False
+
+        await service.start()
+        try:
+            after_start = await service.health_probe()
+            assert after_start["status"] == "healthy"
+            assert after_start["executor_running"] is True
+            assert after_start["queue_size"] == 3
+            assert after_start["max_workers"] == 1
         finally:
             await service.stop()
 
