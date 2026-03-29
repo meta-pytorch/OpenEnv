@@ -6,6 +6,9 @@
 
 """
 Gradio-based web UI for OpenEnv environments.
+
+Replaces the legacy HTML/JavaScript interface when ENABLE_WEB_INTERFACE is set.
+Mount at /web via gr.mount_gradio_app() from create_web_interface_app().
 """
 
 from __future__ import annotations
@@ -19,14 +22,13 @@ import gradio as gr
 from .types import EnvironmentMetadata
 
 
-# -----------------------------
-# Utils
-# -----------------------------
 def _escape_md(text: str) -> str:
+    """Escape Markdown special characters in user-controlled content."""
     return re.sub(r"([\\`*_\{\}\[\]()#+\-.!|~>])", r"\\\1", str(text))
 
 
 def _format_observation(data: Dict[str, Any]) -> str:
+    """Format reset/step response for Markdown display."""
     lines: List[str] = []
     obs = data.get("observation", {})
 
@@ -56,6 +58,7 @@ def _format_observation(data: Dict[str, Any]) -> str:
 
 
 def _readme_section(metadata: Optional[EnvironmentMetadata]) -> str:
+    """README content for the left panel."""
     if not metadata or not metadata.readme_content:
         return "*No README available.*"
     return metadata.readme_content
@@ -65,13 +68,11 @@ def get_gradio_display_title(
     metadata: Optional[EnvironmentMetadata],
     fallback: str = "OpenEnv Environment",
 ) -> str:
+    """Return the title used for the Gradio app (browser tab and Blocks)."""
     name = metadata.name if metadata else fallback
     return f"OpenEnv Agentic Environment: {name}"
 
 
-# -----------------------------
-# Main App Builder
-# -----------------------------
 def build_gradio_app(
     web_manager: Any,
     action_fields: List[Dict[str, Any]],
@@ -80,14 +81,26 @@ def build_gradio_app(
     title: str = "OpenEnv Environment",
     quick_start_md: Optional[str] = None,
 ) -> gr.Blocks:
+    """
+    Build a Gradio Blocks app for the OpenEnv web interface.
+
+    Args:
+        web_manager: WebInterfaceManager (reset/step_environment, get_state).
+        action_fields: Field dicts from _extract_action_fields(action_cls).
+        metadata: Environment metadata for README/name.
+        is_chat_env: If True, single message textbox; else form from action_fields.
+        title: App title (overridden by metadata.name when present).
+        quick_start_md: Optional Quick Start markdown.
+
+    Returns:
+        gr.Blocks to mount with gr.mount_gradio_app(app, blocks, path="/web").
+    """
 
     readme_content = _readme_section(metadata)
     display_title = get_gradio_display_title(metadata, fallback=title)
 
-    # -----------------------------
-    # Helpers
-    # -----------------------------
-    def clear_inputs():
+    def clear_inputs() -> List[Any]:
+        """Return cleared values for all input components."""
         if is_chat_env:
             return [""]
         return [
@@ -95,10 +108,8 @@ def build_gradio_app(
             for f in action_fields
         ]
 
-    # -----------------------------
-    # Core Logic
-    # -----------------------------
     async def step(action_data: Dict[str, Any]):
+        """Execute a single environment step and format the response."""
         try:
             data = await web_manager.step_environment(action_data)
             obs_md = _format_observation(data)
@@ -112,6 +123,7 @@ def build_gradio_app(
             return ("", "", f"Error: {e}")
 
     async def reset_env():
+        """Reset the environment and return the initial observation."""
         try:
             data = await web_manager.reset_environment()
             obs_md = _format_observation(data)
@@ -120,25 +132,22 @@ def build_gradio_app(
                 obs_md,
                 json.dumps(data, indent=2),
                 "Environment reset successfully.",
-                *clear_inputs(),  # 🔥 clear inputs
+                *clear_inputs(),
             )
         except Exception as e:
             return ("", "", f"Error: {e}", *clear_inputs())
 
     def get_state_sync():
+        """Fetch the current environment state synchronously."""
         try:
             data = web_manager.get_state()
             return json.dumps(data, indent=2)
         except Exception as e:
             return f"Error: {e}"
 
-    # -----------------------------
-    # UI
-    # -----------------------------
     with gr.Blocks(title=display_title) as demo:
         with gr.Row():
 
-            # LEFT PANEL
             with gr.Column(scale=1, elem_classes="col-left"):
                 if quick_start_md:
                     with gr.Accordion("Quick Start", open=True):
@@ -147,7 +156,6 @@ def build_gradio_app(
                 with gr.Accordion("README", open=False):
                     gr.Markdown(readme_content)
 
-            # RIGHT PANEL
             with gr.Column(scale=2, elem_classes="col-right"):
                 obs_display = gr.Markdown(
                     value="# Playground\n\nClick **Reset** to start a new episode."
@@ -155,9 +163,6 @@ def build_gradio_app(
 
                 with gr.Group():
 
-                    # -----------------------------
-                    # CHAT MODE
-                    # -----------------------------
                     if is_chat_env:
                         action_input = gr.Textbox(
                             label="Action message",
@@ -167,6 +172,7 @@ def build_gradio_app(
                         step_inputs = [action_input]
 
                         async def step_chat(message: str):
+                            """Handle chat-style step input."""
                             if not (message and str(message).strip()):
                                 return ("", "", "Please enter an action message.", "")
 
@@ -177,9 +183,6 @@ def build_gradio_app(
 
                         step_fn = step_chat
 
-                    # -----------------------------
-                    # FORM MODE
-                    # -----------------------------
                     else:
                         step_inputs = []
 
@@ -214,7 +217,8 @@ def build_gradio_app(
 
                             step_inputs.append(inp)
 
-                        def build_action(values):
+                        def build_action(values: List[Any]) -> Dict[str, Any]:
+                            """Convert UI input values into action dictionary."""
                             action_data = {}
                             for val, field in zip(values, action_fields):
                                 name = field["name"]
@@ -228,6 +232,7 @@ def build_gradio_app(
                             return action_data
 
                         async def step_form(*values):
+                            """Handle form-based step input."""
                             action_data = build_action(values)
                             obs_md, raw_json, status = await step(action_data)
 
@@ -240,16 +245,16 @@ def build_gradio_app(
 
                         step_fn = step_form
 
-                    # -----------------------------
-                    # BUTTONS
-                    # -----------------------------
                     with gr.Row():
                         step_btn = gr.Button("Step", variant="primary")
                         reset_btn = gr.Button("Reset", variant="secondary")
                         state_btn = gr.Button("Get state", variant="secondary")
 
                     with gr.Row():
-                        status = gr.Textbox(label="Status", interactive=False)
+                        status = gr.Textbox(
+                            label="Status",
+                            interactive=False,
+                        )
 
                     raw_json = gr.Code(
                         label="Raw JSON response",
@@ -257,9 +262,6 @@ def build_gradio_app(
                         interactive=False,
                     )
 
-        # -----------------------------
-        # EVENT WIRING
-        # -----------------------------
         reset_btn.click(
             fn=reset_env,
             outputs=[obs_display, raw_json, status, *step_inputs],
