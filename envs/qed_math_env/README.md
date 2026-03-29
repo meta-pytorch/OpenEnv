@@ -21,12 +21,14 @@ Mathematical proof generation and evaluation environment for OpenEnv, ported fro
 ## Features
 
 - **LLM-based rubric grading** (0–7 scale) via any OpenAI-compatible endpoint
-- **Answer-mode verification** using `math_verify` for `\boxed{}` answers
+- **Process-based answer verification service** (`math_verify` in worker processes)
+- **Backpressure + retries + worker restart** for robust concurrent rollout operation
+- **Gold-answer cache** keyed by `problem_id` and verifier normalization settings
 - **Flexible dataset loading**: local JSONL/JSON, Hugging Face Hub, or built-in bootstrap problems
 - **Reward shaping**: discount factor, length penalty, and optional score thresholding
 - **Reasoning stripping**: configurable delimiters (e.g. `<think>...</think>`) removed before grading
 - **Multi-step problems**: configurable max attempts with per-attempt feedback
-- **Verifier metrics**: QED-Nano-compatible metrics surfaced in observation metadata, ready for TrackIO / WandB
+- **Verifier metrics**: rollout/staging counters and health signals surfaced in observation metadata, ready for TrackIO / WandB
 - **MCP tool interface**: `get_problem`, `submit_proof`, `get_grading_guidelines`
 
 ## Quick Start
@@ -114,6 +116,7 @@ qed_math_env/
     ├── __init__.py
     ├── app.py               # FastAPI server (create_app factory)
     ├── qed_math_environment.py  # QEDMathEnvironment (MCPEnvironment)
+    ├── math_verify_service.py   # Process-pool verifier service + health/metrics
     ├── mcp_server.py        # MCP tool registration
     ├── rubric.py            # MathProofRubric + GradingResult
     └── Dockerfile
@@ -134,6 +137,13 @@ The environment is configured via `QEDMathConfig`:
 | `buffer_tokens` | `0` | Length penalty zone width. `0` disables the penalty. |
 | `max_tokens` | `0` | Max token limit for length penalty computation |
 | `reasoning_delimiters` | `None` | Delimiter strings to strip reasoning (e.g. `["</think>"]`) |
+| `verifier_workers` | `max(2, min(8, cpu_count//2))` | Number of process workers used for answer-mode verification |
+| `verifier_queue_size` | `verifier_workers * 32` | Max in-flight verifier requests before backpressure |
+| `verifier_request_timeout_seconds` | `5.0` | Per-request client-side timeout when awaiting worker response |
+| `verifier_max_retries` | `1` | Retry budget for transient verifier infra failures |
+| `verifier_strict` | `True` | Strict `math_verify` equivalence mode |
+| `verifier_numeric_precision` | `5` | Numeric precision setting used in verifier request contract |
+| `verifier_float_rounding` | `10` | Float rounding setting used in verifier request contract |
 
 Environment variables:
 - `OPENAI_API_KEY` — API key for the grader LLM
@@ -171,10 +181,10 @@ The environment normalizes many dataset formats automatically:
 
 | Canonical Field | Accepted Aliases |
 |----------------|------------------|
-| `problem` | `question`, `problem_statement`, `prompt` |
-| `reference_solution` | `solution`, `human_solution`, `answer`, `ground_truth` |
-| `grading_guidelines` | `rubrics`, `marking_scheme`, `rubric` |
-| `problem_id` | `id`, `uid`, `index` |
+| `problem` | `task`, `Problem` |
+| `reference_solution` | `solution`, `answer`, `Solution` |
+| `grading_guidelines` | `rubrics`, `schema`, `schema_0`, `Grading guidelines`, `details` |
+| `problem_id` | `id` |
 | `original_problem` | Used for RC-stream problems where the actor prompt differs from grading prompt |
 
 ## Observation Space
@@ -224,7 +234,7 @@ The reward pipeline follows QED-Nano conventions:
 4. **Discount factor**: `reward *= discount_factor ** output_length_tokens`
 5. **Length penalty**: Linear penalty when output approaches `max_tokens`
 
-For answer-mode problems (`evaluation_mode: "answer"`), `math_verify` is used instead of LLM grading: `\boxed{}` answers are extracted and verified against the gold answer.
+For answer-mode problems (`evaluation_mode: "answer"`), grading is routed through the process-based verifier service: `\boxed{}` answers are extracted and verified against cached gold answers, with timeout/retry/backpressure handling for concurrent rollouts.
 
 ## Verifier Metrics
 
@@ -241,6 +251,15 @@ Every `submit_proof` call emits verifier metrics in `metadata["verifier_metrics"
 | `verifier/failures/all_attempts_failed` | 1 if all retries exhausted |
 | `verifier/failures/num_retries` | Number of retries used |
 | `verifier/runtime/latency_per_request` | Grading wall-clock time (seconds) |
+| `verifier/requests/count` | Total verifier requests processed by the service |
+| `verifier/requests/latency_ms` | Service-level average request latency |
+| `verifier/requests/timeout_count` | Service-level timeout counter |
+| `verifier/requests/error_count` | Service-level internal error counter |
+| `verifier/queue/depth` | Current in-flight verifier queue depth |
+| `verifier/cache/hit_rate` | Gold-answer cache hit rate |
+| `verifier/workers/restart_count` | Worker-pool restart count |
+| `verifier/workers/worker_restarted` | 1 if current request required worker restart |
+| `verifier/workers/heartbeat_lag_ms` | Time since last verifier activity |
 | `verifier/runtime/input_tokens` | Estimated input tokens |
 | `verifier/runtime/output_tokens` | Estimated output tokens |
 | `reward/base` | Pre-shaping reward |
@@ -280,5 +299,10 @@ config = GRPOConfig(
 ## Deployment
 
 ```bash
+# Optional: run rollout/staging verifier validation first
+PYTHONPATH=src:envs uv run python scripts/qed_math_verifier_staging_validation.py \
+  --workers 4 --queue-size 128 --concurrency 64 --requests 2000 \
+  --max-timeout-rate 0.05 --max-error-rate 0.02
+
 openenv push
 ```
