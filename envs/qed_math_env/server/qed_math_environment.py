@@ -574,6 +574,8 @@ class QEDMathEnvironment(MCPEnvironment):
         self._gold_cache_signature = self._build_gold_cache_signature()
         self._gold_cache_problem_count = len(self._problems)
         self._gold_answer_cache: dict[tuple[str, tuple[bool, int, int]], str] = {}
+        self._gold_cache_hits = 0
+        self._gold_cache_misses = 0
         self._build_gold_answer_cache()
         # Read judge credentials from JUDGE_* env vars (set in Docker) with
         # fallbacks to the standard OPENAI_* names for local development.
@@ -667,7 +669,20 @@ class QEDMathEnvironment(MCPEnvironment):
     def _get_cached_gold_answer(self, problem_id: str, fallback: str) -> str:
         """Get cached gold reference for answer-mode grading."""
         self._refresh_gold_cache_if_needed()
-        return self._gold_answer_cache.get(self._gold_cache_key(problem_id), fallback)
+        key = self._gold_cache_key(problem_id)
+        if key in self._gold_answer_cache:
+            self._gold_cache_hits += 1
+            return self._gold_answer_cache[key]
+
+        self._gold_cache_misses += 1
+        return fallback
+
+    def _gold_cache_hit_rate(self) -> float:
+        """Return cache hit rate for answer-mode gold lookup."""
+        total = self._gold_cache_hits + self._gold_cache_misses
+        if total == 0:
+            return 0.0
+        return float(self._gold_cache_hits) / float(total)
 
     async def step_async(
         self,
@@ -1101,6 +1116,7 @@ class QEDMathEnvironment(MCPEnvironment):
         self,
         submission: str,
         expected_answer: str,
+        problem_id: str = "",
     ) -> GradingResult:
         """Grade an answer submission using process-based verifier workers.
 
@@ -1122,6 +1138,16 @@ class QEDMathEnvironment(MCPEnvironment):
         )
         answer_status = response.status
         verifier_health = await self._verifier_service.health_probe()
+        verifier_service_metrics = await self._verifier_service.metrics_snapshot()
+
+        logger.info(
+            "qed_math_verifier_result request_id=%s problem_id=%s evaluation_mode=answer status=%s elapsed_ms=%.3f retry_count=%d",
+            response.request_id,
+            problem_id,
+            answer_status,
+            float(response.elapsed_ms),
+            int(response.retry_count),
+        )
 
         score = 7 if answer_status == "correct" else 0
         feedback = f"answer_status={answer_status}"
@@ -1149,6 +1175,24 @@ class QEDMathEnvironment(MCPEnvironment):
                 "verifier/queue/depth": int(
                     verifier_health.get("inflight_requests", 0)
                 ),
+                "verifier/requests/count": int(
+                    verifier_service_metrics.get("verifier/requests/count", 0)
+                ),
+                "verifier/requests/latency_ms": float(
+                    verifier_service_metrics.get("verifier/requests/latency_ms", 0.0)
+                ),
+                "verifier/requests/timeout_count": int(
+                    verifier_service_metrics.get("verifier/requests/timeout_count", 0)
+                ),
+                "verifier/requests/error_count": int(
+                    verifier_service_metrics.get("verifier/requests/error_count", 0)
+                ),
+                "verifier/workers/heartbeat_lag_ms": float(
+                    verifier_service_metrics.get(
+                        "verifier/workers/heartbeat_lag_ms", 0.0
+                    )
+                ),
+                "verifier/cache/hit_rate": self._gold_cache_hit_rate(),
                 "verifier/runtime/input_tokens": 0,
                 "verifier/runtime/output_tokens": 0,
             },
@@ -1201,6 +1245,7 @@ class QEDMathEnvironment(MCPEnvironment):
             return await self._grade_answer_submission(
                 grading_input,
                 cached_reference_solution,
+                problem_id=problem_id,
             )
 
         return await self._rubric.grade(

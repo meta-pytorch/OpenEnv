@@ -1401,6 +1401,24 @@ class TestMathVerifierService:
         finally:
             await service.stop()
 
+    @pytest.mark.asyncio
+    async def test_metrics_snapshot_tracks_rollout_counters(self):
+        service = MathVerifierService(max_workers=1, queue_size=4)
+        await service.start()
+        try:
+            await service.verify_answer(r"\boxed{4}", "4")
+            await service.verify_answer(r"\boxed{5}", "4")
+            await service.verify_answer("no boxed answer", "4")
+
+            metrics = await service.metrics_snapshot()
+            assert metrics["verifier/requests/count"] >= 3
+            assert metrics["verifier/requests/latency_ms"] >= 0
+            assert metrics["verifier/requests/timeout_count"] >= 0
+            assert metrics["verifier/requests/error_count"] >= 0
+            assert metrics["verifier/workers/heartbeat_lag_ms"] >= 0
+        finally:
+            await service.stop()
+
 
 class TestGoldCache:
     @pytest.mark.asyncio
@@ -1413,7 +1431,11 @@ class TestGoldCache:
 
         captured_expected: dict[str, str] = {}
 
-        async def fake_grade_answer_submission(submission: str, expected_answer: str):
+        async def fake_grade_answer_submission(
+            submission: str,
+            expected_answer: str,
+            problem_id: str = "",
+        ):
             captured_expected["value"] = expected_answer
             return GradingResult(score=7, feedback="ok", reward=1.0)
 
@@ -1438,6 +1460,21 @@ class TestGoldCache:
         env.reset()
         problem_id = env._current_problem["problem_id"]
         assert env._gold_cache_key(problem_id) in env._gold_answer_cache
+
+    @pytest.mark.asyncio
+    async def test_cache_hit_rate_surfaces_in_verifier_metrics(self):
+        env = _make_env_with_problem(ANSWER_PROBLEM)
+        env.reset()
+
+        await env._grade_submission(r"\boxed{4}")
+        payload = await env.submit_proof_payload(r"\boxed{4}")
+        verifier_metrics = payload["metadata"]["verifier_metrics"]
+
+        assert "verifier/cache/hit_rate" in verifier_metrics
+        assert verifier_metrics["verifier/cache/hit_rate"] >= 0.0
+        assert verifier_metrics["verifier/cache/hit_rate"] <= 1.0
+
+        await env._verifier_service.stop()
 
 
 # Integration tests (require running server)
