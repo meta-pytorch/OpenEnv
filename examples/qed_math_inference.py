@@ -40,18 +40,17 @@ VERBOSE       Set to "0" to suppress step-level output (default: 1)
 from __future__ import annotations
 
 import asyncio
+import importlib
 import json
 import os
 import sys
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 from openai import OpenAI
 
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 sys.path.insert(0, str(Path(__file__).parent.parent / "envs"))
-
-from qed_math_env.client import QEDMathEnv
 
 # ---------------------------------------------------------------------------
 # Configuration
@@ -82,11 +81,14 @@ For proof-based problems:
 - Write a rigorous, step-by-step proof.
 - State every non-trivial claim and justify it.
 
-Be concise but complete. You have at most one submission, so make it count.
+For multi-step problems:
+- If submit_proof returns done=false, continue refining and submit again.
+
+Be concise but complete.
 """
 
 
-def _tools_to_openai_format(tools: list) -> list[dict]:
+def _tools_to_openai_format(tools: list) -> list[dict[str, Any]]:
     """Convert MCP tool descriptors to OpenAI function-calling format."""
     openai_tools = []
     for tool in tools:
@@ -124,9 +126,9 @@ def _tools_to_openai_format(tools: list) -> list[dict]:
 
 
 async def run_episode(
-    env: QEDMathEnv,
+    env: Any,
     client: OpenAI,
-    tools: list[dict],
+    tools: list[dict[str, Any]],
     episode_num: int,
 ) -> dict[str, Any]:
     """Run a single QED Math episode and return a result summary dict."""
@@ -146,7 +148,7 @@ async def run_episode(
         )
         print(f"{'=' * 60}")
 
-    chat_history = [
+    chat_history: list[dict[str, Any]] = [
         {"role": "system", "content": SYSTEM_PROMPT},
         {"role": "user", "content": "Please solve the math problem."},
     ]
@@ -166,8 +168,8 @@ async def run_episode(
 
         response = client.chat.completions.create(
             model=MODEL,
-            messages=chat_history,
-            tools=tools,
+            messages=cast(Any, chat_history),
+            tools=cast(Any, tools),
             tool_choice="required",
             max_completion_tokens=MAX_TOKENS,
         )
@@ -176,11 +178,24 @@ async def run_episode(
 
         # Extract tool call (fall back to submit_proof if the model returns text only)
         if message.tool_calls:
-            tool_call_obj = message.tool_calls[0]
-            tool_name = tool_call_obj.function.name
-            tool_args = json.loads(tool_call_obj.function.arguments)
-            tool_call_id = tool_call_obj.id
-            raw_arguments = tool_call_obj.function.arguments
+            tool_call_obj = cast(Any, message.tool_calls[0])
+            function_payload = getattr(tool_call_obj, "function", None)
+
+            if function_payload is not None:
+                tool_name = str(getattr(function_payload, "name", "submit_proof"))
+                raw_arguments = str(getattr(function_payload, "arguments", "{}"))
+                try:
+                    tool_args = json.loads(raw_arguments)
+                except json.JSONDecodeError:
+                    tool_args = {"proof": raw_arguments}
+            else:
+                # Custom/unknown tool-call shape: fall back to submit_proof.
+                tool_name = "submit_proof"
+                raw_input = getattr(tool_call_obj, "input", "")
+                tool_args = {"proof": str(raw_input)}
+                raw_arguments = json.dumps(tool_args)
+
+            tool_call_id = str(getattr(tool_call_obj, "id", "fallback"))
         else:
             tool_name = "submit_proof"
             tool_args = {"proof": message.content or ""}
@@ -246,21 +261,30 @@ async def run_episode(
             preview = result_text[:200]
             print(f"Result: {preview}{'...' if len(result_text) > 200 else ''}")
 
-        # Check if episode ended (submit_proof returns done=True)
+        # Check if episode ended (submit_proof may be multi-attempt for
+        # multi-step problems).
         if tool_name == "submit_proof":
-            done = True
             final_reward = float(result_dict.get("reward") or 0.0)
             final_score = int(result_dict.get("score") or 0)
+            done = bool(result_dict.get("done", True))
             if VERBOSE:
-                outcome = "CORRECT" if result_dict.get("is_correct") else "INCORRECT"
-                print(
-                    f"\nOutcome: {outcome}  score={final_score}/7  reward={final_reward:.3f}"
-                )
+                if done:
+                    outcome = "CORRECT" if result_dict.get("is_correct") else "INCORRECT"
+                    print(
+                        f"\nOutcome: {outcome}  score={final_score}/7  reward={final_reward:.3f}"
+                    )
+                else:
+                    attempts_remaining = int(result_dict.get("attempts_remaining", 0))
+                    print(
+                        "\nSubmission graded but episode continues  "
+                        f"score={final_score}/7  reward={final_reward:.3f}  "
+                        f"attempts_remaining={attempts_remaining}"
+                    )
                 feedback = result_dict.get("feedback", "")
                 if feedback and not result_dict.get("is_correct"):
                     print(f"Feedback: {feedback[:300]}")
         else:
-            done = result_dict.get("done", False)
+            done = bool(result_dict.get("done", False))
 
         if not done:
             chat_history.append(
@@ -297,6 +321,9 @@ async def async_main() -> None:
         )
 
     client = OpenAI(base_url=API_BASE_URL, api_key=API_KEY)
+
+    qed_math_env_module = importlib.import_module("qed_math_env.client")
+    QEDMathEnv = qed_math_env_module.QEDMathEnv
 
     async with QEDMathEnv(base_url=QED_MATH_URL) as env:
         # Discover tools and convert to OpenAI format

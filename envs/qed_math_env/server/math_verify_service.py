@@ -256,6 +256,12 @@ class MathVerifierService:
         self._inflight_requests = 0
         self._restart_lock = asyncio.Lock()
         self._restart_count = 0
+        self._metrics_lock = asyncio.Lock()
+        self._requests_total = 0
+        self._timeouts_total = 0
+        self._errors_total = 0
+        self._latency_total_ms = 0.0
+        self._last_activity_monotonic = time.perf_counter()
 
     async def start(self) -> None:
         """Start the worker process pool.
@@ -322,10 +328,14 @@ class MathVerifierService:
         ]
         return any(fragment in msg for fragment in fatal_fragments)
 
-    async def health_probe(self) -> dict[str, int | bool | str]:
+    async def health_probe(self) -> dict[str, str | bool | int | float]:
         """Return lightweight health status for long-lived training runs."""
         executor_running = self._executor is not None
         status = "healthy" if executor_running else "stopped"
+        heartbeat_lag_ms = max(
+            0.0,
+            (time.perf_counter() - self._last_activity_monotonic) * 1000,
+        )
         return {
             "status": status,
             "executor_running": executor_running,
@@ -333,7 +343,40 @@ class MathVerifierService:
             "queue_size": self.queue_size,
             "max_workers": self.max_workers,
             "restart_count": self._restart_count,
+            "heartbeat_lag_ms": heartbeat_lag_ms,
         }
+
+    async def metrics_snapshot(self) -> dict[str, float | int]:
+        """Return rollout-oriented verifier metrics snapshot."""
+        async with self._metrics_lock:
+            requests_count = self._requests_total
+            latency_avg_ms = (
+                self._latency_total_ms / requests_count if requests_count > 0 else 0.0
+            )
+            heartbeat_lag_ms = max(
+                0.0,
+                (time.perf_counter() - self._last_activity_monotonic) * 1000,
+            )
+            return {
+                "verifier/requests/count": requests_count,
+                "verifier/requests/latency_ms": latency_avg_ms,
+                "verifier/requests/timeout_count": self._timeouts_total,
+                "verifier/requests/error_count": self._errors_total,
+                "verifier/workers/restart_count": self._restart_count,
+                "verifier/queue/depth": self._inflight_requests,
+                "verifier/workers/heartbeat_lag_ms": heartbeat_lag_ms,
+            }
+
+    async def _record_result_metrics(self, response: VerifyResponse) -> None:
+        """Update aggregate counters for rollout/staging observability."""
+        async with self._metrics_lock:
+            self._requests_total += 1
+            self._latency_total_ms += max(0.0, float(response.elapsed_ms))
+            if response.status == "timeout":
+                self._timeouts_total += 1
+            if response.status == "internal_error":
+                self._errors_total += 1
+            self._last_activity_monotonic = time.perf_counter()
 
     async def _try_admit_request(self) -> bool:
         """Try to admit a request without blocking when saturated."""
@@ -507,6 +550,7 @@ class MathVerifierService:
                 response.retry_count = retry_count
                 response.worker_restarted = worker_restarted
                 response.elapsed_ms = (time.perf_counter() - started_at) * 1000
+                await self._record_result_metrics(response)
                 return response
         finally:
             await self._release_request_slot()
