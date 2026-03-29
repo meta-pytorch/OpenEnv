@@ -148,7 +148,10 @@ class FleetMCPClient:
                     # Handle Fleet MCP's base64_image format - convert to OpenAI format
                     if isinstance(parsed, dict) and "base64_image" in parsed:
                         data_url = parsed["base64_image"]
-                        return [{"type": "image_url", "image_url": {"url": data_url}}]
+                        if data_url is not None:
+                            return [{"type": "image_url", "image_url": {"url": data_url}}]
+                        # base64_image was null — screenshot capture failed, return as text
+                        return "Screenshot capture failed (null image)"
                     return parsed
                 except json.JSONDecodeError:
                     return texts[0]
