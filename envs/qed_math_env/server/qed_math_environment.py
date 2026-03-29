@@ -17,7 +17,7 @@ import logging
 import os
 import re
 from datetime import datetime, timezone
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from datasets import load_dataset
 
@@ -72,6 +72,17 @@ DEFAULT_EVALUATOR_PROMPT = (
 logger = logging.getLogger(__name__)
 
 DatasetSource = str | dict[str, Any] | list[str | dict[str, Any]] | None
+
+
+def _default_verifier_workers() -> int:
+    """Choose a conservative worker default for shared training hosts."""
+    cpu_count = os.cpu_count() or 2
+    return max(2, min(8, cpu_count // 2 or 1))
+
+
+def _default_verifier_queue_size() -> int:
+    """Default queue size proportional to worker count for burst tolerance."""
+    return _default_verifier_workers() * 32
 
 
 class UnparsableException(Exception):
@@ -142,8 +153,8 @@ class QEDMathConfig:
     buffer_tokens: int = 0
     max_tokens: int = 0
     reasoning_delimiters: list[str] | None = None
-    verifier_workers: int = 2
-    verifier_queue_size: int = 100
+    verifier_workers: int = field(default_factory=_default_verifier_workers)
+    verifier_queue_size: int = field(default_factory=_default_verifier_queue_size)
     verifier_request_timeout_seconds: float = 5.0
     verifier_max_retries: int = 1
     verifier_strict: bool = True
@@ -1110,6 +1121,7 @@ class QEDMathEnvironment(MCPEnvironment):
             float_rounding=self._config.verifier_float_rounding,
         )
         answer_status = response.status
+        verifier_health = await self._verifier_service.health_probe()
 
         score = 7 if answer_status == "correct" else 0
         feedback = f"answer_status={answer_status}"
@@ -1130,10 +1142,21 @@ class QEDMathEnvironment(MCPEnvironment):
                 ),
                 "verifier/failures/num_retries": int(response.retry_count),
                 "verifier/runtime/latency_per_request": float(response.elapsed_ms),
+                "verifier/workers/restart_count": int(
+                    verifier_health.get("restart_count", 0)
+                ),
+                "verifier/workers/worker_restarted": int(response.worker_restarted),
+                "verifier/queue/depth": int(
+                    verifier_health.get("inflight_requests", 0)
+                ),
                 "verifier/runtime/input_tokens": 0,
                 "verifier/runtime/output_tokens": 0,
             },
         )
+
+    async def shutdown_verifier_service(self) -> None:
+        """Explicit async shutdown hook for deterministic test and run cleanup."""
+        await self._verifier_service.stop()
 
     def _strip_reasoning(self, text: str) -> str:
         """Strip reasoning traces using configured delimiters."""
