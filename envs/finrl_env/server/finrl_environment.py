@@ -16,15 +16,18 @@ from uuid import uuid4
 
 import numpy as np
 
-try:
-    # Prefer legacy /app/src/core import path in staged HF deployments.
-    from core.env_server.interfaces import Environment
-    from core.env_server.types import State
-except ImportError:
-    from openenv.core.env_server.interfaces import Environment
-    from openenv.core.env_server.types import State
+from openenv.core.env_server.interfaces import Environment
+from openenv.core.env_server.types import State
 
-from ..models import FinRLAction, FinRLObservation
+# Support both in-repo and standalone imports
+try:
+    # In-repo imports (when running from OpenEnv repository)
+    from ..models import FinRLAction, FinRLObservation
+except ImportError as e:
+    if "relative import" not in str(e) and "no known parent package" not in str(e):
+        raise
+    # Standalone imports (when running via uvicorn server.app:app)
+    from models import FinRLAction, FinRLObservation
 
 
 def _json_safe(value: Any) -> Any:
