@@ -473,7 +473,11 @@ create_environment_dockerfile() {
         fi
     fi
 
-    if ! grep -q '^ENV ENABLE_WEB_INTERFACE=' "$stage_dir/Dockerfile"; then
+    if grep -q '^ENV ENABLE_WEB_INTERFACE=' "$stage_dir/Dockerfile"; then
+        sed_inplace \
+            's/^ENV ENABLE_WEB_INTERFACE=.*/ENV ENABLE_WEB_INTERFACE=true/' \
+            "$stage_dir/Dockerfile"
+    else
         ensure_trailing_newline "$stage_dir/Dockerfile"
         echo "" >> "$stage_dir/Dockerfile"
         echo "ENV ENABLE_WEB_INTERFACE=true" >> "$stage_dir/Dockerfile"
