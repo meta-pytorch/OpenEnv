@@ -30,5 +30,5 @@ with env.sync() as client:
 
 - [Installation](installation.md) - Detailed setup options and usage patterns
 - [Core Concepts](concepts.md) - Understand the key abstractions
-- [Explore Environments](environments/index.md) - See all available environments
+- [Explore Environments](environments.md) - See all available environments
 - [Build Your Own](guides/first-environment.md) - Create a custom environment
