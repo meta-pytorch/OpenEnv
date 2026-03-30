@@ -617,6 +617,10 @@ class QEDMathEnvironment(MCPEnvironment):
         self._reset_count = 0
         self._attempt_count = 0
         self._current_max_attempts = max(1, int(self._config.max_attempts))
+        # Token count injected by the training harness via the HTTP step request
+        # Set in step_async before the MCP dispatch
+        # consumed and cleared in submit_proof_payload.
+        self._pending_output_length_tokens: int = 0
 
     def _build_gold_cache_signature(self) -> tuple[bool, int, int]:
         """Return cache settings that affect answer-verifier behavior."""
@@ -744,6 +748,14 @@ class QEDMathEnvironment(MCPEnvironment):
                 )
 
         if isinstance(action, CallToolAction):
+            # Capture harness-supplied token count before MCP dispatch so
+            # submit_proof_payload can use it without the agent touching it.
+            if action.tool_name == "submit_proof":
+                raw = kwargs.get("output_length_tokens", 0)
+                try:
+                    self._pending_output_length_tokens = max(0, int(raw))
+                except (TypeError, ValueError):
+                    self._pending_output_length_tokens = 0
             timeout = timeout_s if timeout_s is not None else MCP_TIMEOUT
             try:
                 result = await asyncio.wait_for(
@@ -847,7 +859,11 @@ class QEDMathEnvironment(MCPEnvironment):
 
         return ProblemObservation(
             problem=self._current_problem.get("problem", ""),
-            reference_solution=self._current_problem.get("reference_solution", ""),
+            reference_solution=(
+                self._current_problem.get("reference_solution", "")
+                if self._current_problem.get("evaluation_mode", "proof") == "answer"
+                else ""
+            ),
             grading_guidelines=parse_schema(
                 self._current_problem.get("grading_guidelines", "") or ""
             ),
@@ -1269,8 +1285,8 @@ class QEDMathEnvironment(MCPEnvironment):
 
         Args:
             reward: Base normalized reward from grading.
-            output_length_tokens: Token count of the agent's generation.
-                When 0 or negative, shaping is skipped.
+            output_length_tokens: Server-side token count of the proof text.
+                When 0 or negative (empty submission), shaping is skipped.
 
         Returns:
             Shaped reward.
@@ -1287,16 +1303,11 @@ class QEDMathEnvironment(MCPEnvironment):
 
         return reward
 
-    async def submit_proof_payload(
-        self, proof: str, output_length_tokens: int = 0
-    ) -> dict:
+    async def submit_proof_payload(self, proof: str) -> dict:
         """Payload for MCP tool submit_proof.
 
         Args:
             proof: The proof text submitted by the agent.
-            output_length_tokens: Optional token count of the agent generation.
-                When provided (>0), discount factor and length penalty are
-                applied to the reward, matching QED-Nano training semantics.
         """
         if self._current_problem is None:
             return ProofSubmissionObservation(
@@ -1329,10 +1340,10 @@ class QEDMathEnvironment(MCPEnvironment):
         else:
             result = await self._grade_submission(proof)
 
-        # Apply discount factor and length penalty when token count provided.
-        shaped_reward = self._apply_reward_shaping(
-            result.reward, output_length_tokens
-        )
+        # Use harness-supplied token count only
+        output_length_tokens = self._pending_output_length_tokens
+        self._pending_output_length_tokens = 0  # consume
+        shaped_reward = self._apply_reward_shaping(result.reward, output_length_tokens)
 
         success_threshold = _coerce_positive_int(
             self._current_problem.get("success_score_threshold"),

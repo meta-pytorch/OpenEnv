@@ -77,7 +77,7 @@ async with QEDMathEnv(base_url="http://localhost:8000") as env:
     # Call tools by name
     problem = await env.call_tool("get_problem")
     guidelines = await env.call_tool("get_grading_guidelines")
-    result = await env.call_tool("submit_proof", proof="...", output_length_tokens=256)
+    result = await env.call_tool("submit_proof", proof="...")
 ```
 
 ## Building & Running
@@ -221,10 +221,14 @@ The environment normalizes many dataset formats automatically:
 | Tool | Description | Parameters |
 |------|-------------|------------|
 | `get_problem` | Return current problem statement and metadata | — |
-| `submit_proof` | Submit a proof for LLM-based rubric grading | `proof` (str, required), `output_length_tokens` (int, optional) |
+| `submit_proof` | Submit a proof for LLM-based rubric grading | `proof` (str, required) |
 | `get_grading_guidelines` | Return the rubric/marking scheme | — |
 
-## Reward Computation
+> **Note:** `output_length_tokens` is **not** an agent-supplied parameter. Token counts are
+> injected by the training harness via the HTTP step request body (see [Reward Shaping](#reward-shaping))
+> to preserve reward integrity — the agent cannot influence its own discount factor.
+
+## Reward Shaping
 
 The reward pipeline follows QED-Nano conventions:
 
@@ -235,6 +239,22 @@ The reward pipeline follows QED-Nano conventions:
 5. **Length penalty**: Linear penalty when output approaches `max_tokens`
 
 For answer-mode problems (`evaluation_mode: "answer"`), grading is routed through the process-based verifier service: `\boxed{}` answers are extracted and verified against cached gold answers, with timeout/retry/backpressure handling for concurrent rollouts.
+
+### Harness-injected token count
+
+Steps 4 and 5 require the full generation length (including any reasoning trace that is stripped before grading). This value cannot come from the agent — it is supplied by the training harness as an out-of-band field in the HTTP step request body, mirroring the [`StateUsageTracker`](https://github.com/PrimeIntellect-ai/verifiers/blob/main/verifiers/utils/usage_utils.py) pattern from PrimeIntellect/verifiers:
+
+```python
+# Training harness (pseudocode)
+completion_tokens = llm_call.usage.completion_tokens  # from inference API
+
+step_response = await openenv_client.step(
+    action=CallToolAction(tool_name="submit_proof", arguments={"proof": proof_text}),
+    output_length_tokens=completion_tokens,  # injected here, not via MCP tool
+)
+```
+
+When `output_length_tokens` is absent (local testing, eval without a training loop) shaping is skipped entirely — no estimation is attempted, consistent with verifiers' behaviour of returning `None` from `StateUsageTracker.snapshot()` when no usage was recorded.
 
 ## Verifier Metrics
 
