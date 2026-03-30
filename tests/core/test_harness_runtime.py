@@ -225,6 +225,29 @@ class TestSessionMCPBridge:
         assert response["error"]["message"] == "Method not found"
         assert response["id"] == 7
 
+    def test_unknown_tool_returns_jsonrpc_error(self):
+        env = FakeSyncEnv()
+        session = StepEnvSessionAdapter(
+            client=env,
+            task="bridge-task",
+            tool_specs=[],
+            action_builder=lambda name, arguments: None,
+            initial_messages_builder=lambda result, task: [],
+        )
+        bridge = SessionMCPBridge(session)
+
+        response = bridge.handle_request(
+            {
+                "jsonrpc": "2.0",
+                "id": 9,
+                "method": "tools/call",
+                "params": {"name": "missing", "arguments": {}},
+            }
+        )
+
+        assert response["error"]["message"] == "Unknown tool: missing"
+        assert response["id"] == 9
+
 
 class TestMCPHarnessAdapter:
     """Tests for the white-box MCP-first harness adapter."""

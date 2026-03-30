@@ -363,10 +363,29 @@ class SessionMCPBridge:
                     request_id=request_id,
                 ).model_dump()
 
-            result = self.session.call_tool(
-                params["name"],
-                dict(params.get("arguments", {})),
-            )
+            try:
+                result = self.session.call_tool(
+                    params["name"],
+                    dict(params.get("arguments", {})),
+                )
+            except KeyError as exc:
+                return JsonRpcResponse.error_response(
+                    JsonRpcErrorCode.METHOD_NOT_FOUND,
+                    message=str(exc.args[0]) if exc.args else "Method not found",
+                    request_id=request_id,
+                ).model_dump()
+            except ValueError as exc:
+                return JsonRpcResponse.error_response(
+                    JsonRpcErrorCode.INVALID_PARAMS,
+                    message=str(exc),
+                    request_id=request_id,
+                ).model_dump()
+            except Exception as exc:
+                return JsonRpcResponse.error_response(
+                    JsonRpcErrorCode.INTERNAL_ERROR,
+                    message=str(exc),
+                    request_id=request_id,
+                ).model_dump()
             return JsonRpcResponse.success(
                 {
                     "data": result.data,
