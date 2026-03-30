@@ -19,7 +19,7 @@ _REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(_REPO_ROOT / "src"))
 sys.path.insert(0, str(_REPO_ROOT / "envs"))
 
-from openenv.core import HarnessRunLimits
+from openenv.core.harness import HarnessRunLimits
 
 from browsergym_harness_eval_common import (
     DEFAULT_BENCHMARK,

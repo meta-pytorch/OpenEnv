@@ -28,14 +28,17 @@ Core components for OpenEnv - a framework for building HTTP-based agentic enviro
 - **Container Providers**: Pluggable architecture for running containers (Docker, Kubernetes, etc.)
 - **Type System**: Strongly-typed Action/Observation/State interfaces
 - **Web Interface**: Optional web UI for interacting with environments
-- **Harness Sessions**: `ResourceSessionFactory`, `StepEnvSessionAdapter`, and
-  `HarnessAdapter` for MCP-first training/evaluation harnesses
+- **Experimental Harness Helpers**: `openenv.core.harness` provides
+  `ResourceSessionFactory`, `StepEnvSessionAdapter`, and `HarnessAdapter` for
+  MCP-first training/evaluation harnesses
 
-## Harness Sessions
+## Experimental Harness Helpers
 
 OpenEnv now includes an additive harness-facing layer for cases where a rollout
 driver should interact with environment resources through tools instead of
-calling `reset()` / `step()` directly.
+calling `reset()` / `step()` directly. These helpers are currently
+experimental while RFC 005 remains in review, so import them from
+`openenv.core.harness`.
 
 Core pieces:
 

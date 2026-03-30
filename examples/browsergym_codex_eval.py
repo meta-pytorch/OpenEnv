@@ -23,7 +23,12 @@ _REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(_REPO_ROOT / "src"))
 sys.path.insert(0, str(_REPO_ROOT / "envs"))
 
-from openenv.core import CLIHarnessAdapter, HarnessEvent, HarnessRolloutResult, HarnessRunLimits
+from openenv.core.harness import (
+    CLIHarnessAdapter,
+    HarnessEvent,
+    HarnessRolloutResult,
+    HarnessRunLimits,
+)
 
 from browsergym_harness_eval_common import (
     DEFAULT_BENCHMARK,
@@ -94,7 +99,9 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def build_codex_prompt(initial_messages: list[dict[str, object]], max_steps: int) -> str:
+def build_codex_prompt(
+    initial_messages: list[dict[str, object]], max_steps: int
+) -> str:
     initial_context = "\n\n".join(
         str(message.get("content", "")).strip()
         for message in initial_messages
@@ -132,7 +139,9 @@ def build_codex_runner(
         prompt_path.write_text(prompt_text, encoding="utf-8")
 
         with tempfile.TemporaryDirectory(prefix="browsergym-codex-home-") as codex_home:
-            with tempfile.TemporaryDirectory(prefix="browsergym-codex-cwd-") as codex_cwd:
+            with tempfile.TemporaryDirectory(
+                prefix="browsergym-codex-cwd-"
+            ) as codex_cwd:
                 env = dict(os.environ)
                 env["CODEX_HOME"] = codex_home
 
@@ -221,8 +230,7 @@ def build_codex_runner(
 def main() -> None:
     args = parse_args()
     artifact_root = Path(
-        args.artifact_dir
-        or tempfile.mkdtemp(prefix="browsergym-codex-artifacts-")
+        args.artifact_dir or tempfile.mkdtemp(prefix="browsergym-codex-artifacts-")
     ).resolve()
 
     with start_browsergym_runtime(

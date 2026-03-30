@@ -17,14 +17,14 @@ sys.path.insert(0, os.path.join(_REPO_ROOT, "examples"))
 from browsergym_env import BrowserGymAction, BrowserGymObservation, BrowserGymState
 from browsergym_env.harness import BrowserGymSessionFactory
 from browsergym_harness_eval_common import (
-    SessionMCPHttpServer,
     build_openai_model_step,
     extract_browsergym_action,
     run_white_box_episode,
+    SessionMCPHttpServer,
     summarize_episodes,
 )
-from openenv.core import HarnessRunLimits, SessionMCPBridge
 from openenv.core.client_types import StepResult
+from openenv.core.harness import HarnessRunLimits, SessionMCPBridge
 
 
 class FakeBrowserGymClient:
@@ -108,9 +108,7 @@ class FakeOpenAIClient:
 def test_extract_browsergym_action_tolerates_common_outputs():
     assert extract_browsergym_action("click('13')") == "click('13')"
     assert extract_browsergym_action("Action: click('13')") == "click('13')"
-    assert (
-        extract_browsergym_action("```text\nclick('13')\n```") == "click('13')"
-    )
+    assert extract_browsergym_action("```text\nclick('13')\n```") == "click('13')"
     assert extract_browsergym_action("I am not sure what to do.") == "noop()"
 
 

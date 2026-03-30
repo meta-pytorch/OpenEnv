@@ -18,7 +18,7 @@ from browsergym_env.harness import (
     BrowserGymSessionFactory,
     build_browsergym_action_tool_call,
 )
-from openenv.core import (
+from openenv.core.harness import (
     CLIHarnessAdapter,
     HarnessRolloutResult,
     HarnessRunLimits,
@@ -295,7 +295,7 @@ def _finalize_episode(
         transcript=rollout.messages,
         final_state=_rollout_final_state(rollout),
     )
-    reward = float(verify.reward or 0.0)
+    reward = float(verify.env_reward or 0.0)
     done = bool(verify.done or rollout.done)
     step_count = int(verify.metrics.get("step_count", len(rollout.tool_trace)))
     success = reward > 0.0

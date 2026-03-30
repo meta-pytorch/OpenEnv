@@ -351,11 +351,15 @@ def reward_repetition(completions, **kwargs):
 ## Harness-driven rollouts
 
 For environments that should be driven through a tool-oriented harness instead
-of a bespoke `reset()` / `step()` loop, use the harness runtime in
-`openenv.core`:
+of a bespoke `reset()` / `step()` loop, use the experimental harness runtime in
+`openenv.core.harness`:
 
 ```python
-from openenv.core import HarnessRunLimits, MCPHarnessAdapter, build_harness_rollout_func
+from openenv.core.harness import (
+    HarnessRunLimits,
+    MCPHarnessAdapter,
+    build_harness_rollout_func,
+)
 from envs.browsergym_env.harness import BrowserGymSessionFactory
 
 session_factory = BrowserGymSessionFactory(client_factory=lambda: BrowserGymEnv(base_url=space_url))

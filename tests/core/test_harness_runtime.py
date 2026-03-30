@@ -10,7 +10,13 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from typing import Any
-from openenv.core import (
+
+import pytest
+from openenv.core.client_types import StepResult
+from openenv.core.env_server.mcp_types import Tool
+from openenv.core.env_server.types import State
+from openenv.core.harness import (
+    build_harness_rollout_func,
     CLIHarnessAdapter,
     HarnessEvent,
     HarnessRolloutResult,
@@ -21,11 +27,7 @@ from openenv.core import (
     StepEnvSessionAdapter,
     ToolResult,
     VerifyResult,
-    build_harness_rollout_func,
 )
-from openenv.core.client_types import StepResult
-from openenv.core.env_server.mcp_types import Tool
-from openenv.core.env_server.types import State
 from openenv.core.llm_client import LLMResponse, ToolCall
 
 
@@ -126,8 +128,10 @@ class TestStepEnvSessionAdapter:
         assert tool_result.done is False
         assert tool_result.metadata["reward"] == 0.25
 
-        verify_result = session.verify(transcript=[{"role": "assistant", "content": ""}])
-        assert verify_result.reward == 0.25
+        verify_result = session.verify(
+            transcript=[{"role": "assistant", "content": ""}]
+        )
+        assert verify_result.env_reward == 0.25
         assert verify_result.done is False
         assert verify_result.metrics["step_count"] == 1
 
@@ -153,7 +157,7 @@ class TestStepEnvSessionAdapter:
                         "state": state,
                     }
                 )
-                or VerifyResult(reward=9.0, done=True, metrics={"kind": "custom"})
+                or VerifyResult(env_reward=9.0, done=True, metrics={"kind": "custom"})
             ),
         )
 
@@ -162,7 +166,7 @@ class TestStepEnvSessionAdapter:
             final_state={"terminal": True},
         )
 
-        assert result.reward == 9.0
+        assert result.env_reward == 9.0
         assert result.done is True
         assert result.metrics == {"kind": "custom"}
         assert seen["final_state"] == {"terminal": True}
@@ -317,7 +321,7 @@ class TestMCPHarnessAdapter:
 
             def verify(self, transcript, final_state=None):
                 self.verified = True
-                return VerifyResult(reward=1.0)
+                return VerifyResult(env_reward=1.0)
 
             def close(self):
                 pass
@@ -367,7 +371,11 @@ class TestBuildHarnessRolloutFunc:
 
             def verify(self, transcript, final_state=None):
                 order.append("verify")
-                return VerifyResult(reward=1.0, done=True, metrics={"verified": True})
+                return VerifyResult(
+                    env_reward=1.0,
+                    done=True,
+                    metrics={"verified": True},
+                )
 
             def close(self):
                 order.append("close")
@@ -407,6 +415,54 @@ class TestBuildHarnessRolloutFunc:
         assert result["verify_metrics"] == [{"verified": True}]
         assert factory.created_tasks == [("task-a", None, None)]
         assert order == ["model", "tool", "verify", "close"]
+
+    def test_rollout_func_rejects_verify_reward_mismatch(self):
+        class RecordingSession:
+            def initial_messages(self):
+                return [{"role": "user", "content": "task"}]
+
+            def list_tools(self):
+                return [
+                    Tool(
+                        name="finish",
+                        description="Finish the task",
+                        input_schema={"type": "object", "properties": {}},
+                    )
+                ]
+
+            def call_tool(self, name, arguments):
+                return ToolResult(
+                    data={"reward": 1.0},
+                    done=True,
+                    metadata={"reward": 1.0},
+                )
+
+            def verify(self, transcript, final_state=None):
+                return VerifyResult(env_reward=0.5, done=True)
+
+            def close(self):
+                pass
+
+        factory = RecordingSessionFactory(session=RecordingSession())
+        rollout_func = build_harness_rollout_func(
+            session_factory=factory,
+            harness_adapter=MCPHarnessAdapter(),
+            model_step_builder=lambda trainer, session: (
+                lambda messages, tools, sampling: ModelStepResult(
+                    response=LLMResponse(
+                        content="calling tool",
+                        tool_calls=[ToolCall(id="call-1", name="finish", args={})],
+                    ),
+                )
+            ),
+            limits=HarnessRunLimits(max_turns=1),
+        )
+
+        with pytest.raises(
+            ValueError,
+            match="verify.env_reward must forward the environment reward",
+        ):
+            rollout_func(["task-a"], trainer=object())
 
 
 class TestCLIHarnessAdapter:

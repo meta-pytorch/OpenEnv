@@ -31,6 +31,8 @@ surface can be reused by white-box training and black-box evaluation harnesses.
 
 from __future__ import annotations
 
+import re
+
 from browsergym_env import BrowserGymEnv
 from browsergym_env.harness import (
     BrowserGymSessionFactory,
@@ -38,7 +40,7 @@ from browsergym_env.harness import (
 )
 from transformers import AutoTokenizer
 
-from openenv.core import (
+from openenv.core.harness import (
     HarnessRunLimits,
     MCPHarnessAdapter,
     ModelStepResult,
@@ -57,13 +59,52 @@ Reply with exactly one BrowserGym action such as:
 - noop()
 """
 
+_ACTION_PREFIX_RE = re.compile(r"^(action|next action)\s*[:-]\s*", re.IGNORECASE)
+_ACTION_PATTERN = re.compile(
+    r"(click|fill|send_keys|scroll|noop)\s*\(.*?\)",
+    re.IGNORECASE | re.DOTALL,
+)
+
+
+def _extract_browsergym_action(response_text: str) -> str:
+    if not response_text:
+        return "noop()"
+
+    for raw_line in response_text.splitlines():
+        line = _ACTION_PREFIX_RE.sub("", raw_line.strip().strip("`"))
+        if not line:
+            continue
+        if match := _ACTION_PATTERN.search(line):
+            action = re.sub(r"\s+", " ", match.group(0).strip()).rstrip(";")
+            open_paren = action.find("(")
+            if open_paren > 0:
+                return f"{action[:open_paren].lower()}{action[open_paren:]}"
+            return action
+
+    if match := _ACTION_PATTERN.search(response_text):
+        action = re.sub(r"\s+", " ", match.group(0).strip()).rstrip(";")
+        open_paren = action.find("(")
+        if open_paren > 0:
+            return f"{action[:open_paren].lower()}{action[open_paren:]}"
+        return action
+    return "noop()"
+
+
+def _build_safe_browsergym_tool_call(response_text: str):
+    try:
+        return build_browsergym_action_tool_call(
+            _extract_browsergym_action(response_text),
+        )
+    except ValueError:
+        return build_browsergym_action_tool_call("noop()")
+
 
 def build_trl_browsergym_model_step(trainer, tokenizer: AutoTokenizer):
     """Wrap TRL generation so the harness can drive BrowserGym via tool calls."""
 
     def model_step(messages, tools, sampling):
         prompt_text = tokenizer.apply_chat_template(
-            messages,
+            [{"role": "system", "content": SYSTEM_PROMPT.strip()}, *messages],
             add_generation_prompt=True,
             tokenize=False,
         )
@@ -72,7 +113,7 @@ def build_trl_browsergym_model_step(trainer, tokenizer: AutoTokenizer):
             rollout_output["completion_ids"],
             skip_special_tokens=True,
         )
-        tool_call = build_browsergym_action_tool_call(completion_text.strip())
+        tool_call = _build_safe_browsergym_tool_call(completion_text)
         return ModelStepResult(
             response=LLMResponse(
                 content=completion_text,
@@ -86,7 +127,9 @@ def build_trl_browsergym_model_step(trainer, tokenizer: AutoTokenizer):
     return model_step
 
 
-def build_browsergym_rollout_func(space_url: str, tokenizer: AutoTokenizer, max_steps: int):
+def build_browsergym_rollout_func(
+    space_url: str, tokenizer: AutoTokenizer, max_steps: int
+):
     """Create a TRL rollout function backed by BrowserGym sessions."""
 
     session_factory = BrowserGymSessionFactory(
@@ -104,4 +147,8 @@ def build_browsergym_rollout_func(space_url: str, tokenizer: AutoTokenizer, max_
     )
 
 
-__all__ = ["SYSTEM_PROMPT", "build_browsergym_rollout_func", "build_trl_browsergym_model_step"]
+__all__ = [
+    "SYSTEM_PROMPT",
+    "build_browsergym_rollout_func",
+    "build_trl_browsergym_model_step",
+]

@@ -19,8 +19,13 @@ from envs.browsergym_env.harness import (
     BrowserGymSessionFactory,
     build_browsergym_action_tool_call,
 )
-from openenv.core import HarnessRunLimits, MCPHarnessAdapter, ModelStepResult, build_harness_rollout_func
 from openenv.core.client_types import StepResult
+from openenv.core.harness import (
+    build_harness_rollout_func,
+    HarnessRunLimits,
+    MCPHarnessAdapter,
+    ModelStepResult,
+)
 from openenv.core.llm_client import LLMResponse
 
 
@@ -112,7 +117,7 @@ def test_browsergym_tool_calls_match_plain_env_rewards():
 
     assert tool_result.done is True
     assert tool_result.metadata["reward"] == plain_result.reward
-    assert verify_result.reward == plain_result.reward
+    assert verify_result.env_reward == plain_result.reward
     assert verify_result.done == plain_result.done
     session.close()
 
@@ -131,6 +136,13 @@ def test_browsergym_action_text_parser():
     assert scroll.args == {"direction": "down"}
     assert noop.name == "noop"
     assert noop.args == {}
+
+
+def test_browsergym_fill_parser_supports_embedded_quote():
+    fill = build_browsergym_action_tool_call('fill("42", "O\'Brien")')
+
+    assert fill.name == "fill"
+    assert fill.args == {"bid": "42", "text": "O'Brien"}
 
 
 def test_browsergym_session_factory_works_with_generic_rollout_helper():

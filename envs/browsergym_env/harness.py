@@ -5,8 +5,8 @@ from __future__ import annotations
 import re
 from typing import Any
 
-from openenv.core import StepEnvSessionAdapter, ToolResult, VerifyResult
 from openenv.core.env_server.mcp_types import Tool
+from openenv.core.harness import StepEnvSessionAdapter, ToolResult, VerifyResult
 from openenv.core.llm_client import ToolCall
 
 from .models import BrowserGymAction
@@ -76,8 +76,7 @@ def build_browsergym_action_str(tool_name: str, arguments: dict[str, Any]) -> st
         return f"click({_quote(str(arguments['bid']))})"
     if tool_name == "fill":
         return (
-            f"fill({_quote(str(arguments['bid']))}, "
-            f"{_quote(str(arguments['text']))})"
+            f"fill({_quote(str(arguments['bid']))}, {_quote(str(arguments['text']))})"
         )
     if tool_name == "send_keys":
         return f"send_keys({_quote(str(arguments['text']))})"
@@ -91,7 +90,9 @@ def build_browsergym_action_str(tool_name: str, arguments: dict[str, Any]) -> st
 
 def _format_browsergym_prompt(observation: Any, task: Any) -> str:
     goal = getattr(observation, "goal", "") or (task or "")
-    page_text = getattr(observation, "axtree_txt", "") or getattr(observation, "text", "")
+    page_text = getattr(observation, "axtree_txt", "") or getattr(
+        observation, "text", ""
+    )
     error = getattr(observation, "error", "")
 
     parts = []
@@ -156,7 +157,7 @@ def _build_browsergym_verify(
         "transcript_length": len(transcript),
     }
     return VerifyResult(
-        reward=reward,
+        env_reward=reward,
         done=done,
         metrics=metrics,
         artifacts=artifacts,
@@ -207,11 +208,12 @@ class BrowserGymSessionFactory:
         )
 
 
-_CLICK_RE = re.compile(r"^click\(\s*['\"](?P<bid>.+?)['\"]\s*\)$")
+_CLICK_RE = re.compile(r"^click\(\s*(?P<q>['\"])(?P<bid>.+?)(?P=q)\s*\)$")
 _FILL_RE = re.compile(
-    r"^fill\(\s*['\"](?P<bid>.+?)['\"]\s*,\s*['\"](?P<text>.*)['\"]\s*\)$"
+    r"^fill\(\s*(?P<bq>['\"])(?P<bid>.+?)(?P=bq)\s*,\s*"
+    r"(?P<tq>['\"])(?P<text>.*?)(?P=tq)\s*\)$"
 )
-_SEND_KEYS_RE = re.compile(r"^send_keys\(\s*['\"](?P<text>.*)['\"]\s*\)$")
+_SEND_KEYS_RE = re.compile(r"^send_keys\(\s*(?P<q>['\"])(?P<text>.*?)(?P=q)\s*\)$")
 _SCROLL_RE = re.compile(r"^scroll\(\s*['\"]?(?P<direction>up|down)['\"]?\s*\)$")
 _NOOP_RE = re.compile(r"^noop\(\s*\)$")
 

@@ -4,7 +4,11 @@
 # This source code is licensed under the BSD-style license found in the
 # LICENSE file in the root directory of this source tree.
 
-"""Harness and session abstractions for training and evaluation."""
+"""Experimental harness helpers for training and evaluation.
+
+These helpers live outside the stable ``openenv.core`` package surface while
+RFC 005 is still under review. Import them from ``openenv.core.harness``.
+"""
 
 from __future__ import annotations
 
@@ -33,9 +37,13 @@ class ToolResult:
 
 @dataclass
 class VerifyResult:
-    """Final reward and artifacts produced after a rollout completes."""
+    """Final rollout data produced after a rollout completes.
 
-    reward: float | None = None
+    ``env_reward`` must forward reward already produced inside the environment.
+    It must not synthesize a new reward in the orchestration layer.
+    """
+
+    env_reward: float | None = None
     done: bool = False
     metrics: dict[str, Any] = field(default_factory=dict)
     artifacts: dict[str, Any] = field(default_factory=dict)
@@ -124,7 +132,11 @@ class ResourceSession(ABC):
         transcript: list[Message],
         final_state: Any | None = None,
     ) -> VerifyResult:
-        """Score a rollout after the harness has stopped."""
+        """Finalize a rollout after the harness has stopped.
+
+        This hook may add metrics or artifacts and may forward the final reward
+        already produced by the environment.
+        """
 
     @abstractmethod
     def close(self) -> None:
@@ -183,6 +195,44 @@ def _state_to_data(state: Any) -> Any:
     if hasattr(state, "model_dump"):
         return state.model_dump()
     return state
+
+
+def _tool_result_reward(tool_result: ToolResult) -> float | None:
+    """Extract the environment reward already emitted by a tool result."""
+
+    reward = tool_result.metadata.get("reward")
+    if reward is None and isinstance(tool_result.data, dict):
+        reward = tool_result.data.get("reward")
+    if reward is None:
+        return None
+    return float(reward)
+
+
+def _resolve_env_reward(
+    rollout: HarnessRolloutResult,
+    verify: VerifyResult,
+) -> float:
+    """Resolve the final environment reward without allowing external synthesis."""
+
+    trace_reward: float | None = None
+    for entry in reversed(rollout.tool_trace):
+        trace_reward = _tool_result_reward(entry.result)
+        if trace_reward is not None:
+            break
+
+    verify_reward = None if verify.env_reward is None else float(verify.env_reward)
+    if (
+        trace_reward is not None
+        and verify_reward is not None
+        and verify_reward != trace_reward
+    ):
+        raise ValueError(
+            "verify.env_reward must forward the environment reward from the rollout"
+        )
+
+    if trace_reward is not None:
+        return trace_reward
+    return verify_reward or 0.0
 
 
 class StepEnvSessionAdapter(ResourceSession):
@@ -277,7 +327,7 @@ class StepEnvSessionAdapter(ResourceSession):
             metrics["step_count"] = state["step_count"]
 
         return VerifyResult(
-            reward=reward,
+            env_reward=reward,
             done=done,
             metrics=metrics,
             artifacts={
@@ -605,7 +655,7 @@ def build_harness_rollout_func(
                 all_prompt_ids.append(list(rollout.prompt_ids))
                 all_completion_ids.append(list(rollout.completion_ids))
                 all_logprobs.append(list(rollout.logprobs))
-                rewards.append(float(verify.reward or 0.0))
+                rewards.append(_resolve_env_reward(rollout, verify))
                 verify_metrics.append(dict(verify.metrics))
             finally:
                 session.close()

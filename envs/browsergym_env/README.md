@@ -82,7 +82,11 @@ factory:
 ```python
 from browsergym_env import BrowserGymEnv
 from browsergym_env.harness import BrowserGymSessionFactory
-from openenv.core import HarnessRunLimits, MCPHarnessAdapter, build_harness_rollout_func
+from openenv.core.harness import (
+    HarnessRunLimits,
+    MCPHarnessAdapter,
+    build_harness_rollout_func,
+)
 
 session_factory = BrowserGymSessionFactory(
     client_factory=lambda: BrowserGymEnv(base_url="https://openenv-browsergym-env.hf.space"),
