@@ -45,7 +45,9 @@ tools:
     description: Submit a proof for LLM-based rubric grading
     parameters:
       - proof (str, required)
-      - output_length_tokens (int, optional)
+    # output_length_tokens is NOT an MCP parameter. It is injected by the
+    # training harness as an extra field on the HTTP StepRequest body so the
+    # agent cannot influence its own reward-shaping inputs.
   - name: get_grading_guidelines
     description: Return the rubric/marking scheme for the current problem
 

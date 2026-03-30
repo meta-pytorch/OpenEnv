@@ -43,16 +43,13 @@ def register_mcp_tools(mcp: FastMCP, env: "QEDMathEnvironment") -> None:
         return env.get_problem_payload()
 
     @mcp.tool
-    async def submit_proof(proof: str, output_length_tokens: int = 0) -> dict:
+    async def submit_proof(proof: str) -> dict:
         """Submit a proof attempt and return grading output.
 
         Args:
             proof: The proof text to grade.
-            output_length_tokens: Optional token count of the agent generation.
-                When provided (>0), discount factor and length penalty are
-                applied to the reward (matches QED-Nano training semantics).
         """
-        return await env.submit_proof_payload(proof, output_length_tokens)
+        return await env.submit_proof_payload(proof)
 
     @mcp.tool
     def get_grading_guidelines() -> dict:
