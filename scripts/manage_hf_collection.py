@@ -154,6 +154,22 @@ def ensure_collection_privacy(
         logger.warning(f"Could not set collection visibility for {collection_slug}: {exc}")
 
 
+def resolve_explicit_collection_slug(api: HfApi, explicit_slug: str) -> str:
+    """Resolve a user-facing collection slug alias to the canonical Hub slug."""
+    try:
+        collection = api.get_collection(explicit_slug)
+    except Exception as exc:
+        logger.warning(
+            f"Could not resolve explicit collection slug '{explicit_slug}'; using it as-is: {exc}"
+        )
+        return explicit_slug
+
+    resolved_slug = getattr(collection, "slug", None) or explicit_slug
+    if resolved_slug != explicit_slug:
+        logger.info(f"Resolved collection slug alias '{explicit_slug}' -> '{resolved_slug}'")
+    return resolved_slug
+
+
 def resolve_collection_slug(
     api: HfApi,
     namespace: str,
@@ -165,8 +181,9 @@ def resolve_collection_slug(
 ) -> str:
     """Resolve, create, and/or enforce visibility for a collection."""
     if explicit_slug:
-        ensure_collection_privacy(api, explicit_slug, private, dry_run)
-        return explicit_slug
+        resolved_slug = resolve_explicit_collection_slug(api, explicit_slug)
+        ensure_collection_privacy(api, resolved_slug, private, dry_run)
+        return resolved_slug
 
     existing = find_collection_by_title(api, namespace, title)
     if existing:
