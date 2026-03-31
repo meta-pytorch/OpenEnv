@@ -101,37 +101,36 @@ This is the only pattern used — all 29 environment doc pages follow it. Do not
 
 Edit `docs/source/environments.md` to add two things:
 
-**A card** inside the existing `{grid}` block (place alphabetically):
+* **A card** inside the existing `{grid}` block (place alphabetically):
 
-````markdown
-````{grid-item-card} My Environment
-:class-card: sd-border-1
+  ````markdown
+  ````{grid-item-card} My Environment
+  :class-card: sd-border-1
 
-Short one-line description of the environment.
+  Short one-line description of the environment.
 
-+++
-```{button-link} environments/<name>.html
-:color: primary
-:outline:
+  +++
+  ```{button-link} environments/<name>.html
+  :color: primary
+  :outline:
 
-{octicon}`file;1em` Docs
-```
-```{button-link} https://huggingface.co/spaces/<org>/<name>
-:color: warning
-:outline:
+  {octicon}`file;1em` Docs
+  ```
+  ```{button-link} https://huggingface.co/spaces/<org>/<name>
+  :color: warning
+  :outline:
 
-🤗 Hugging Face
-```
-````
-````
+  🤗 Hugging Face
+  ```
+  ````
 
-The Hugging Face button is optional — omit it if the environment isn't deployed to a Space.
+  The Hugging Face button is optional — omit it if the environment isn't deployed to a Space.
 
-**A toctree entry** in the `{toctree}` block at the bottom of the file (place alphabetically):
+* **A toctree entry** in the `{toctree}` block at the bottom of the file (place alphabetically):
 
-```
-environments/<name>
-```
+  ```
+  environments/<name>
+  ```
 
 ### Verify
 
