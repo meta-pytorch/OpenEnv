@@ -17,6 +17,7 @@ from typing import Any, List, Tuple
 try:
     from openenv.core.rubrics.trajectory import ExponentialDiscountingTrajectoryRubric
 except ModuleNotFoundError:
+
     class ExponentialDiscountingTrajectoryRubric:
         """Compatibility fallback when the installed core lacks rubrics."""
 
