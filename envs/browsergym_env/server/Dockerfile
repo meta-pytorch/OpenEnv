@@ -1,5 +1,5 @@
-# Use the official Playwright Python image so browser binaries are already present.
-FROM mcr.microsoft.com/playwright/python:v1.58.0-noble
+# Use the matching Playwright Python image for browsergym-core 0.14.3.
+FROM mcr.microsoft.com/playwright/python:v1.44.0-jammy
 
 # Set working directory
 WORKDIR /app/env
