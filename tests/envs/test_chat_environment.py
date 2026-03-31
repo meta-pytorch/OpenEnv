@@ -7,8 +7,6 @@ import sys
 
 import pytest
 
-torch = pytest.importorskip("torch")
-
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
 
 from envs.chat_env.server.chat_environment import ChatEnvironment
@@ -28,12 +26,12 @@ class SimpleTokenizer:
         text = "".join(message["content"] for message in conversation)
         tokens = [ord(ch) % 256 for ch in text]
         if return_tensors == "pt":
-            return torch.tensor([tokens], dtype=torch.long)
+            return [tokens]
         return tokens
 
     def decode(self, token_ids, skip_special_tokens: bool = False, **kwargs) -> str:
         del skip_special_tokens, kwargs
-        if isinstance(token_ids, torch.Tensor):
+        if hasattr(token_ids, "tolist") and callable(token_ids.tolist):
             token_ids = token_ids.tolist()
         return "".join(chr(token) for token in token_ids)
 
