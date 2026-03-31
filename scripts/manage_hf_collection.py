@@ -133,25 +133,42 @@ def find_collection_by_title(api: HfApi, namespace: str, title: str):
     return None
 
 
-def ensure_collection_privacy(
-    api: HfApi, collection_slug: str, private: bool, dry_run: bool
+def ensure_collection_metadata(
+    api: HfApi,
+    collection_slug: str,
+    *,
+    title: Optional[str],
+    description: Optional[str],
+    private: bool,
+    dry_run: bool,
 ) -> None:
-    """Ensure collection privacy metadata matches desired state."""
+    """Ensure collection metadata matches the desired state."""
     state = "private" if private else "public"
     if dry_run:
-        logger.info(f"[DRY RUN] Would set collection visibility to {state}: {collection_slug}")
+        logger.info(
+            f"[DRY RUN] Would set collection metadata to visibility={state}: {collection_slug}"
+        )
         return
 
     try:
-        api.update_collection_metadata(collection_slug=collection_slug, private=private)
-        logger.info(f"✓ Collection visibility set to {state}: {collection_slug}")
+        api.update_collection_metadata(
+            collection_slug=collection_slug,
+            title=title,
+            description=description,
+            private=private,
+        )
+        logger.info(f"✓ Collection metadata synced ({state}): {collection_slug}")
     except TypeError:
         # Backward compatibility for older hub versions (best effort).
-        logger.warning(
-            "Installed huggingface_hub may not support collection privacy metadata updates."
-        )
+        try:
+            api.update_collection_metadata(collection_slug=collection_slug, private=private)
+            logger.info(
+                f"✓ Collection visibility set to {state}: {collection_slug}"
+            )
+        except Exception as exc:
+            logger.warning(f"Could not set collection visibility for {collection_slug}: {exc}")
     except Exception as exc:
-        logger.warning(f"Could not set collection visibility for {collection_slug}: {exc}")
+        logger.warning(f"Could not sync collection metadata for {collection_slug}: {exc}")
 
 
 def resolve_explicit_collection_slug(api: HfApi, explicit_slug: str) -> str:
@@ -182,14 +199,28 @@ def resolve_collection_slug(
     """Resolve, create, and/or enforce visibility for a collection."""
     if explicit_slug:
         resolved_slug = resolve_explicit_collection_slug(api, explicit_slug)
-        ensure_collection_privacy(api, resolved_slug, private, dry_run)
+        ensure_collection_metadata(
+            api,
+            resolved_slug,
+            title=title,
+            description=description,
+            private=private,
+            dry_run=dry_run,
+        )
         return resolved_slug
 
     existing = find_collection_by_title(api, namespace, title)
     if existing:
         slug = existing.slug
         logger.info(f"Using existing collection: {slug}")
-        ensure_collection_privacy(api, slug, private, dry_run)
+        ensure_collection_metadata(
+            api,
+            slug,
+            title=title,
+            description=description,
+            private=private,
+            dry_run=dry_run,
+        )
         return slug
 
     if dry_run:
@@ -213,7 +244,14 @@ def resolve_collection_slug(
             description=description,
             exists_ok=True,
         )
-        ensure_collection_privacy(api, collection.slug, private, dry_run=False)
+        ensure_collection_metadata(
+            api,
+            collection.slug,
+            title=title,
+            description=description,
+            private=private,
+            dry_run=False,
+        )
 
     logger.info(f"✓ Created collection: {collection.slug}")
     return collection.slug
