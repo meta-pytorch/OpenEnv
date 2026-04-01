@@ -51,6 +51,9 @@ jobs:
           pip install -e ".[docs]"
           pip install -e ./envs/openspiel_env
 
+      - name: Check environment docs are in sync
+        run: python scripts/sync_env_docs.py --check
+
       - name: Setup Pages
         uses: actions/configure-pages@v5
 
