@@ -232,7 +232,7 @@ def remove_card(content, slug):
     """Remove a card block matching the given slug."""
     pattern = re.compile(
         rf"````\{{grid-item-card\}}[^\n]*\n"
-        rf".*?"
+        rf"(?:(?!````\{{grid-item-card\}}).)*?"
         rf"```\{{button-link\}}\s*environments/{re.escape(slug)}\.html.*?"
         rf"````\n?",
         re.DOTALL,
