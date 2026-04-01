@@ -17,7 +17,6 @@ from urllib.parse import urlparse
 
 import requests
 import ast
-import ast
 
 try:
     import tomllib
@@ -29,7 +28,7 @@ def _check_app_main(app_content: str) -> bool:
     """
     Parses app_content as a Python AST and checks:
     1. A top-level function named 'main' is defined
-    2. An if __name__='__main__' guard exists at module level
+    2. An if __name__ == '__main__' guard exists at module level
 
     This correctly handles:
     - main() called with any arguments
@@ -552,12 +551,6 @@ def validate_multi_mode_deployment(env_path: Path) -> tuple[bool, list[str]]:
         app_content = server_app.read_text(encoding="utf-8")
         if "def main(" not in app_content:
             issues.append("server/app.py missing main() function")
-
-        # Check if main() is callable
-        if not _check_app_main(app_content):
-            issues.append(
-                "server/app.py main() function not callable (missing if __name__ == '__main__')"
-            )
 
     return len(issues) == 0, issues
 

@@ -14,7 +14,6 @@ from unittest.mock import patch
 
 from openenv.cli.__main__ import app
 from openenv.cli._validation import validate_running_environment, _check_app_main
-from openenv.cli._validation import validate_running_environment, _check_app_main
 from typer.testing import CliRunner
 
 
