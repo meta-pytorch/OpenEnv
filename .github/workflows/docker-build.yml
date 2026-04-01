@@ -86,6 +86,8 @@ jobs:
             context: envs/git_env
           - name: connect4_env
             dockerfile: envs/connect4_env/server/Dockerfile
+          - name: minesweeper-env
+            dockerfile: src/envs/minesweeper_env/server/Dockerfile
             context: envs/connect4_env
           - name: chess-env
             dockerfile: envs/chess_env/server/Dockerfile
