@@ -524,11 +524,8 @@ pytest tests/envs/test_browsergym_env.py
 
 ```bash
 # Install in development mode
-cd /path/to/OpenEnv
-pip install -e .
-
-# Install BrowserGym
-pip install browsergym browsergym-miniwob browsergym-webarena
+cd envs/browsergym_env
+uv sync
 
 # Run the server locally
 cd envs/browsergym_env/server
@@ -549,8 +546,7 @@ browsergym_env/
     ├── __init__.py
     ├── app.py               # FastAPI application
     ├── browsergym_environment.py  # Environment implementation
-    ├── Dockerfile           # Container specification
-    └── requirements.txt     # Python dependencies
+    └── Dockerfile           # Container specification
 ```
 
 ## References
