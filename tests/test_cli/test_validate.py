@@ -13,7 +13,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from openenv.cli.__main__ import app
-from openenv.cli._validation import validate_running_environment
+from openenv.cli._validation import validate_running_environment, _check_app_main
 from typer.testing import CliRunner
 
 
@@ -224,3 +224,22 @@ def test_validate_command_rejects_mixed_path_and_url(tmp_path: Path) -> None:
 
     assert result.exit_code != 0
     assert "Cannot combine a local path argument with --url" in result.output
+
+def test_check_app_main_passes_with_args() -> None:
+    """main(port=8000) should still pass the main check."""
+    app_content = (
+        "def main(port=7860):\n"
+        "    return None\n\n"
+        "if __name__ == '__main__':\n"
+        "    main(port=8000)\n"
+    )
+    assert _check_app_main(app_content) is True
+
+
+def test_check_app_main_fails_without_guard() -> None:
+    """A file without __main__ guard should fail."""
+    app_content = (
+        "def main():\n"
+        "    return None\n"
+    )
+    assert _check_app_main(app_content) is False

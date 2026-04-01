@@ -16,12 +16,67 @@ from typing import Any
 from urllib.parse import urlparse
 
 import requests
+import ast
 
 try:
     import tomllib
 except ModuleNotFoundError:
     import tomli as tomllib
 
+def _check_app_main(app_content: str) -> bool:
+    """
+    Parses app_content as a Python AST and checks:
+    1. A top-level function named 'main' is defined
+    2. An if __name__='__main__' guard exists at module level
+
+    This correctly handles:
+    - main() called with any arguments
+    - 'def main' appearing in comments or strings (ignored)
+    - Any valid Python whitespaces/formatting
+    """
+    try:
+        tree = ast.parse(app_content)
+    except SyntaxError:
+        return False                 # unparseable file always fails 
+    
+    has_main_def = False
+    has_name_guard = False
+
+    for node in tree.body:
+        # Check 1: is there a top-level "def main(...)"? 
+        if isinstance(node, ast.FunctionDef) and node.name == "main":
+            has_main_def = True
+
+        # Check 2: is there an if __name__ == "__main__" guard? 
+        if isinstance(node, ast.If):
+            test = node.test
+            # Matches: __name__ == "__main__" or "__main__" == __name__ 
+            if isinstance(test, ast.Compare):
+                left = test.left
+                comparators = test.comparators
+                ops = test.ops
+                if (
+                    len(ops) == 1
+                    and isinstance(ops[0], ast.Eq)
+                    and len(comparators) == 1
+                ):
+                    # __name__ == "__main__"
+                    if (
+                        isinstance(left, ast.Name)
+                        and left.id == "__name__"
+                        and isinstance(comparators[0], ast.Constant)
+                        and comparators[0].value == "__main__"
+                    ):
+                        has_name_guard = True
+                    # "__main__" == __name__
+                    if (
+                        isinstance(left, ast.Constant)
+                        and left.value == "__main__"
+                        and isinstance(comparators[0], ast.Name)
+                        and comparators[0].id == "__name__"
+                    ):
+                        has_name_guard=True
+    return has_name_guard and has_main_def
 
 def _make_criterion(
     criterion_id: str,
@@ -496,7 +551,7 @@ def validate_multi_mode_deployment(env_path: Path) -> tuple[bool, list[str]]:
             issues.append("server/app.py missing main() function")
 
         # Check if main() is callable
-        if "__name__" not in app_content or "main()" not in app_content:
+        if not _check_app_main(app_content) :
             issues.append(
                 "server/app.py main() function not callable (missing if __name__ == '__main__')"
             )
