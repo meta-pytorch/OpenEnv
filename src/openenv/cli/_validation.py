@@ -551,6 +551,10 @@ def validate_multi_mode_deployment(env_path: Path) -> tuple[bool, list[str]]:
         app_content = server_app.read_text(encoding="utf-8")
         if "def main(" not in app_content:
             issues.append("server/app.py missing main() function")
+        elif not _check_app_main(app_content):
+            issues.append(
+                "server/app.py main() function not callable (missing if __name__ == '__main__')"
+            )
 
     return len(issues) == 0, issues
 
