@@ -203,6 +203,11 @@ def insert_card(content, card_block):
     marker = "\n`````\n\n```{tip}"
     if marker not in content:
         marker = "\n`````\n"
+    if marker not in content:
+        raise RuntimeError(
+            "Could not find grid closing marker in environments.md. "
+            "The file structure may have changed — add the card manually."
+        )
     return content.replace(marker, f"\n{card_block}\n{marker}", 1)
 
 
@@ -214,7 +219,10 @@ def insert_toctree_entry(content, entry):
         re.DOTALL,
     )
     if not match:
-        return content
+        raise RuntimeError(
+            "Could not find toctree block in environments.md. "
+            "The file structure may have changed — add the entry manually."
+        )
     before = content[: match.end(2)]
     after = content[match.end(2) :]
     return before + entry + "\n" + after
