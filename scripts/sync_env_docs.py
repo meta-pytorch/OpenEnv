@@ -78,7 +78,7 @@ def get_toctree_slugs(content):
 
 def get_card_slugs(content):
     """Extract environment slugs from card button-links in environments.md."""
-    return re.findall(r"button-link\}\s*environments/(\w+)\.html", content)
+    return re.findall(r"button-link\}\s*environments/([\w-]+)\.html", content)
 
 
 # ---------------------------------------------------------------------------
@@ -95,12 +95,12 @@ def parse_frontmatter(env_dir):
         text = f.read()
     if not text.startswith("---"):
         return {}
-    end = text.index("---", 3)
     try:
+        end = text.index("---", 3)
         import yaml
 
         return yaml.safe_load(text[3:end]) or {}
-    except Exception:
+    except (ValueError, Exception):
         return {}
 
 
@@ -112,8 +112,11 @@ def parse_description(env_dir):
     with open(readme) as f:
         text = f.read()
     if text.startswith("---"):
-        end = text.index("---", 3)
-        text = text[end + 3 :].strip()
+        try:
+            end = text.index("---", 3)
+            text = text[end + 3 :].strip()
+        except ValueError:
+            pass
     lines = text.splitlines()
     found_h1 = False
     desc_lines = []
