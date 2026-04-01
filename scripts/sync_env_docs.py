@@ -63,7 +63,7 @@ def get_existing_stub_mapping():
 def get_toctree_slugs(content):
     """Extract environment slugs from the toctree block."""
     match = re.search(
-        r"```\{toctree\}\s*\n:hidden:\n:maxdepth:\s*1\n\n(.*?)```",
+        r"```\{toctree\}[^\n]*\n(?:[^\n]*\n)*?\n(.*?)```",
         content,
         re.DOTALL,
     )
@@ -214,7 +214,7 @@ def insert_card(content, card_block):
 def insert_toctree_entry(content, entry):
     """Append a toctree entry at the end of the toctree block."""
     match = re.search(
-        r"(```\{toctree\}\s*\n:hidden:\n:maxdepth:\s*1\n\n)(.*?)(```)",
+        r"(```\{toctree\}[^\n]*\n(?:[^\n]*\n)*?\n)(.*?)(```)",
         content,
         re.DOTALL,
     )
