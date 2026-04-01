@@ -24,6 +24,8 @@ dependencies = [
     "smolagents>=1.22.0,<2",
     # LLM support via HuggingFace Inference API
     "huggingface_hub>=0.20.0",
+    # REPL custom Gradio tab on /web
+    "gradio>=4.0.0",
 ]
 
 [project.optional-dependencies]

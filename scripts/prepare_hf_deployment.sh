@@ -19,6 +19,7 @@ Environment selection:
 Deployment options:
   --base-sha <sha|tag>             openenv-base image ref suffix (default: latest)
   --hf-namespace <user|org>        HF namespace to deploy to (default: HF_NAMESPACE or openenv)
+  --repo-id <owner/repo>           Exact HF Space repo to update (single-env only)
   --space-suffix <suffix>          Suffix appended to each space name
                                    (default: -<openenv-version>, e.g. -0.2.1)
   --private                        Create/update spaces as private (default)
@@ -89,6 +90,7 @@ fi
 BASE_IMAGE_SHA=""
 BASE_IMAGE_REF=""
 HF_NAMESPACE="${HF_NAMESPACE:-}"
+SPACE_REPO_OVERRIDE="${SPACE_REPO_OVERRIDE:-}"
 SPACE_SUFFIX="${SPACE_SUFFIX:-}"
 STAGING_DIR="hf-staging"
 HUB_TAG="openenv"
@@ -178,6 +180,10 @@ while [[ $# -gt 0 ]]; do
             ;;
         --hf-namespace|--namespace|--hf-user|--hf-username)
             HF_NAMESPACE="$2"
+            shift 2
+            ;;
+        --repo-id|--space-repo)
+            SPACE_REPO_OVERRIDE="$2"
             shift 2
             ;;
         --space-suffix|--suffix)
@@ -318,6 +324,15 @@ discover_all_envs() {
 
 if [ "$DEPLOY_ALL" = true ]; then
     discover_all_envs
+fi
+
+if [ -n "$SPACE_REPO_OVERRIDE" ]; then
+    if [ ${#SELECTED_ENVS[@]} -ne 1 ]; then
+        error "--repo-id requires exactly one selected environment"
+    fi
+    if ! printf "%s" "$SPACE_REPO_OVERRIDE" | grep -Eq '^[^/]+/[^/]+$'; then
+        error "Invalid --repo-id '$SPACE_REPO_OVERRIDE' (expected owner/repo)"
+    fi
 fi
 
 if [ ${#SELECTED_ENVS[@]} -eq 0 ]; then
@@ -559,6 +574,7 @@ ensure_readme_front_matter_tags() {
 create_readme() {
     local env_name="$1"
     local stage_dir="$2"
+    local space_repo="$3"
     local readme_source="envs/$env_name/README.md"
     local output_readme="$stage_dir/README.md"
     local env_class="Env"
@@ -586,7 +602,7 @@ create_readme() {
 
 This Space is built from OpenEnv environment \`$env_name\`.
 
-- Space URL: \`https://huggingface.co/spaces/$HF_NAMESPACE/${env_name}${SPACE_SUFFIX}\`
+- Space URL: \`https://huggingface.co/spaces/$space_repo\`
 - OpenEnv pinned ref: \`$OPENENV_VERSION\`
 - Hub tag: \`$HUB_TAG\`
 
@@ -595,7 +611,7 @@ This Space is built from OpenEnv environment \`$env_name\`.
 \`\`\`python
 from envs.$env_name import $env_class
 
-env = $env_class(base_url="https://huggingface.co/spaces/$HF_NAMESPACE/${env_name}${SPACE_SUFFIX}")
+env = $env_class(base_url="https://huggingface.co/spaces/$space_repo")
 \`\`\`
 README_EOF
         tail -n "+$((closing_line + 1))" "$readme_source" >> "$output_readme"
@@ -613,7 +629,7 @@ tags:
 
 # ${env_name} Environment
 
-Space URL: \`https://huggingface.co/spaces/$HF_NAMESPACE/${env_name}${SPACE_SUFFIX}\`
+Space URL: \`https://huggingface.co/spaces/$space_repo\`
 
 OpenEnv pinned ref: \`$OPENENV_VERSION\`
 
@@ -637,6 +653,7 @@ README_EOF
 prepare_stage() {
     local env_name="$1"
     local stage_dir="$2"
+    local space_repo="$3"
 
     rm -rf "$stage_dir"
     mkdir -p "$stage_dir/envs"
@@ -672,13 +689,23 @@ prepare_stage() {
     pin_openenv_refs_in_pyproject "$stage_dir/envs/$env_name/pyproject.toml"
 
     create_environment_dockerfile "$env_name" "$stage_dir"
-    create_readme "$env_name" "$stage_dir"
+    create_readme "$env_name" "$stage_dir" "$space_repo"
+}
+
+resolve_space_repo() {
+    local env_name="$1"
+    if [ -n "$SPACE_REPO_OVERRIDE" ]; then
+        printf "%s" "$SPACE_REPO_OVERRIDE"
+    else
+        printf "%s/%s%s" "$HF_NAMESPACE" "$env_name" "$SPACE_SUFFIX"
+    fi
 }
 
 deploy_env() {
     local env_name="$1"
-    local stage_dir="$STAGING_DIR/$HF_NAMESPACE/$env_name$SPACE_SUFFIX"
-    local space_repo="$HF_NAMESPACE/${env_name}${SPACE_SUFFIX}"
+    local space_repo
+    space_repo=$(resolve_space_repo "$env_name")
+    local stage_dir="$STAGING_DIR/$space_repo"
 
     if ! is_deployable_env "$env_name"; then
         warn "Skipping '$env_name' (missing Dockerfile or README.md)"
@@ -687,7 +714,7 @@ deploy_env() {
     fi
 
     log "Preparing $env_name (OpenEnv ref: $OPENENV_VERSION, base image: $BASE_IMAGE_REF)"
-    prepare_stage "$env_name" "$stage_dir" || return 1
+    prepare_stage "$env_name" "$stage_dir" "$space_repo" || return 1
 
     if [ "$DRY_RUN" = true ]; then
         log "[dry-run] Would create/update space: $space_repo"
