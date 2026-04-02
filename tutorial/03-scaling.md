@@ -283,7 +283,7 @@ with MyEnv(base_url="http://localhost:8080") as env:
 
 ### Scaling expectations
 
-![Scaling Expectations](../tutorial/images/scaling.png)
+![Scaling Expectations](images/scaling.png)
 
 | Setup | Containers | Sessions/container | Total capacity | Throughput |
 |-------|------------|-------------------|----------------|------------|
