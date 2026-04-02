@@ -497,7 +497,7 @@ def validate_multi_mode_deployment(env_path: Path) -> tuple[bool, list[str]]:
             issues.append("server/app.py missing main() function")
 
         # Accept main() invocations with or without arguments.
-        if "__name__" not in app_content or re.search(r"\bmain\s*\([^)]*\)", app_content) is None:
+        if "__name__" not in app_content or re.search(r"(?<!def )\bmain\s*\([^)]*\)", app_content) is None:
             issues.append(
                 "server/app.py main() function not callable (missing if __name__ == '__main__')"
             )
