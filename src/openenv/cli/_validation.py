@@ -11,6 +11,7 @@ This module provides functions to check if environments are properly
 configured for multi-mode deployment (Docker, direct Python, notebooks, clusters).
 """
 
+import re
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
@@ -495,8 +496,8 @@ def validate_multi_mode_deployment(env_path: Path) -> tuple[bool, list[str]]:
         if "def main(" not in app_content:
             issues.append("server/app.py missing main() function")
 
-        # Check if main() is callable
-        if "__name__" not in app_content or "main()" not in app_content:
+        # Accept main() invocations with or without arguments.
+        if "__name__" not in app_content or re.search(r"\bmain\s*\([^)]*\)", app_content) is None:
             issues.append(
                 "server/app.py main() function not callable (missing if __name__ == '__main__')"
             )
