@@ -38,7 +38,7 @@ OpenEnv uses WebSocket connections (`/ws`) instead of stateless HTTP for environ
 
 WebSocket is a communication protocol that provides a persistent, bidirectional connection between client and server. Unlike HTTP—where each request opens a new connection, sends data, receives a response, and closes—a WebSocket connection stays open for the duration of a session.
 
-![WebSocket vs HTTP](../tutorial/images/websocket.png)
+![WebSocket vs HTTP](images/websocket.png)
 
 For RL environments, this matters because a typical episode involves dozens to thousands of sequential `step()` calls. With HTTP, each step incurs TCP handshake overhead (~10-50ms). With WebSocket, messages are sent as lightweight frames (~0.1ms overhead) over the existing connection.
 
