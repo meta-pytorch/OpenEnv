@@ -101,6 +101,8 @@ Expected env variables:
 - `HF_TOKEN`
 - optional: `IMAGE_NAME`, `INFERENCE_PORT`, `TEMPERATURE`, `MAX_TOKENS`
 
+Template file: `.env.example`
+
 Run baseline:
 
 ```bash
