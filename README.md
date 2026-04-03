@@ -60,7 +60,7 @@ with EchoEnv(base_url="https://openenv-echo-env.hf.space").sync() as client:
     print(result.observation.echoed_message)
 ```
 
-For a detailed quick start, check out the [docs page](https://meta-pytorch.org/OpenEnv/quickstart/).
+For a detailed quick start, check out the [docs page](https://meta-pytorch.org/OpenEnv/auto_getting_started/index.html).
 
 ## OpenEnv on partner platforms:
 
