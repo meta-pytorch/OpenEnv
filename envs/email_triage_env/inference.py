@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import importlib
 import json
 import os
 import subprocess
@@ -9,17 +8,20 @@ from dataclasses import dataclass
 from typing import Any, List, Optional
 
 import requests
+from openai import OpenAI
 
 
 BENCHMARK = "email_triage_env"
-IMAGE_NAME = os.getenv("IMAGE_NAME", "email-triage-env-openenv:latest")
 API_BASE_URL = os.getenv("API_BASE_URL", "https://router.huggingface.co/v1")
 MODEL_NAME = os.getenv("MODEL_NAME", "meta-llama/Meta-Llama-3-8B-Instruct")
-HF_TOKEN = os.getenv("HF_TOKEN", "")
-TEMPERATURE = float(os.getenv("TEMPERATURE", "0.0"))
-MAX_TOKENS = int(os.getenv("MAX_TOKENS", "200"))
-PORT = int(os.getenv("INFERENCE_PORT", "8012"))
-CONTAINER_NAME = os.getenv("INFERENCE_CONTAINER_NAME", "email-triage-inference-run")
+HF_TOKEN = os.getenv("HF_TOKEN")
+LOCAL_IMAGE_NAME = os.getenv("LOCAL_IMAGE_NAME")
+
+IMAGE_NAME = LOCAL_IMAGE_NAME or "email-triage-env-openenv:latest"
+TEMPERATURE = 0.0
+MAX_TOKENS = 200
+PORT = 8012
+CONTAINER_NAME = "email-triage-inference-run"
 
 TASKS = [("easy", 11), ("medium", 22), ("hard", 33)]
 
@@ -95,18 +97,14 @@ def _parse_model_action(text: str, subject: str, body: str) -> ParsedAction:
         return _heuristic_action(subject, body)
 
 
-def _build_openai_client() -> Optional[Any]:
+def _build_openai_client() -> Optional[OpenAI]:
     if not HF_TOKEN:
         return None
-    try:
-        openai_module = importlib.import_module("openai")
-        return openai_module.OpenAI(base_url=API_BASE_URL, api_key=HF_TOKEN)
-    except Exception:
-        return None
+    return OpenAI(base_url=API_BASE_URL, api_key=HF_TOKEN)
 
 
 def _query_model(
-    client: Optional[Any],
+    client: Optional[OpenAI],
     subject: str,
     body_snippet: str,
     sender_domain: str,
@@ -173,7 +171,7 @@ def _wait_for_health(base_url: str, timeout_s: float = 45.0) -> None:
     raise RuntimeError("Environment did not become healthy in time")
 
 
-def _run_task(base_url: str, client: Optional[Any], task_name: str, seed: int) -> float:
+def _run_task(base_url: str, client: Optional[OpenAI], task_name: str, seed: int) -> float:
     log_start(task=task_name, env=BENCHMARK, model=MODEL_NAME)
 
     reset_payload = {"difficulty": task_name, "seed": seed}

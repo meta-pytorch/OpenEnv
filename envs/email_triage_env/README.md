@@ -99,7 +99,7 @@ Expected env variables:
 - `API_BASE_URL`
 - `MODEL_NAME`
 - `HF_TOKEN`
-- optional: `IMAGE_NAME`, `INFERENCE_PORT`, `TEMPERATURE`, `MAX_TOKENS`
+- optional: `LOCAL_IMAGE_NAME`
 
 Template file: `.env.example`
 
