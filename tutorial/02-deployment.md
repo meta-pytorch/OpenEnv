@@ -410,7 +410,7 @@ from echo_env import EchoEnv, EchoAction
 
 # Async (recommended)
 async def main():
-    async with EchoEnv(base_url="http://localhost:8000") as env:
+    async with EchoEnv(base_url="http://localhost:7860") as env:
         result = await env.reset()
         print(result.observation)
         result = await env.step(EchoAction(message="Hello"))
