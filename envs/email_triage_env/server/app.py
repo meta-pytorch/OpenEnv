@@ -3,8 +3,12 @@ try:
 except ImportError:
     from core.env_server import create_app
 
-from ..models import EmailTriageAction, EmailTriageObservation
-from .email_triage_environment import EmailTriageEnvironment
+try:
+    from envs.email_triage_env.models import EmailTriageAction, EmailTriageObservation
+    from envs.email_triage_env.server.email_triage_environment import EmailTriageEnvironment
+except ImportError:
+    from models import EmailTriageAction, EmailTriageObservation
+    from server.email_triage_environment import EmailTriageEnvironment
 
 
 app = create_app(

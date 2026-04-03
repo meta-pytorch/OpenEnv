@@ -9,7 +9,10 @@ except ImportError:
     from core.client_types import StepResult
     from core.env_client import EnvClient
 
-from .models import EmailTriageAction, EmailTriageObservation, EmailTriageState
+try:
+    from .models import EmailTriageAction, EmailTriageObservation, EmailTriageState
+except ImportError:
+    from models import EmailTriageAction, EmailTriageObservation, EmailTriageState
 
 
 class EmailTriageEnv(EnvClient[EmailTriageAction, EmailTriageObservation, EmailTriageState]):
@@ -30,6 +33,7 @@ class EmailTriageEnv(EnvClient[EmailTriageAction, EmailTriageObservation, EmailT
             sender=obs_p["sender"],
             sender_domain=obs_p["sender_domain"],
             is_internal=obs_p["is_internal"],
+            task_id=obs_p["task_id"],
             reward=obs_p["reward"],
             done=obs_p["done"],
             metadata=obs_p.get("metadata", {}),
@@ -48,4 +52,5 @@ class EmailTriageEnv(EnvClient[EmailTriageAction, EmailTriageObservation, EmailT
             step_count=payload.get("step_count", 0),
             total_reward=payload.get("total_reward", 0.0),
             difficulty=payload.get("difficulty", "medium"),
+            current_task=payload.get("current_task", "medium"),
         )

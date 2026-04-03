@@ -12,6 +12,7 @@ except ImportError:
 
 EmailCategory = Literal["billing", "support", "spam", "urgent", "marketing", "other"]
 Difficulty = Literal["easy", "medium", "hard"]
+TaskId = Literal["easy", "medium", "hard"]
 
 
 class EmailTriageAction(Action):
@@ -27,9 +28,11 @@ class EmailTriageObservation(Observation):
     sender: str
     sender_domain: str
     is_internal: bool
+    task_id: TaskId
     info: Optional[Dict[str, Any]] = None
 
 
 class EmailTriageState(State):
     total_reward: float = 0.0
     difficulty: Difficulty = "medium"
+    current_task: TaskId = "medium"

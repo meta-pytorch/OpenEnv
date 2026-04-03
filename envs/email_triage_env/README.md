@@ -1,108 +1,137 @@
 # Email Triage Environment
 
-## Overview
+## Problem and Motivation
 
-This environment simulates high-volume inbox triage for support operations. The agent receives one incoming email per episode and must make operational decisions that mirror real customer support workflows at scale.
+This environment models a real customer operations workflow: triaging inbound emails at scale.
+Agents must decide category, urgency, and escalation behavior under noisy message content.
 
-## Task Definition
+## Action and Observation Space
 
-For each email, the agent predicts:
+Action (`EmailTriageAction`):
 
 - `category`: one of `billing`, `support`, `spam`, `urgent`, `marketing`, `other`
-- `priority`: integer in range `1` to `5`
-- `should_escalate`: boolean flag for whether the email should be escalated
+- `priority`: integer in `[1, 5]`
+- `should_escalate`: boolean
 
-## Dataset
+Observation (`EmailTriageObservation`):
 
-The environment uses a synthetic-but-realistic dataset of 100+ labeled emails stored at:
+- `email_id`, `subject`, `body_snippet`, `sender`, `sender_domain`, `is_internal`
+- `task_id`: one of `easy`, `medium`, `hard`
+- `reward`, `done`, `metadata`, `info`
 
-- `envs/email_triage_env/server/email_triage_dataset.json`
+State (`EmailTriageState`):
 
-Each record includes sender and message content plus ground-truth labels:
+- `episode_id`, `step_count`, `total_reward`, `difficulty`, `current_task`
 
-- `true_category`
-- `true_priority`
-- `needs_escalation`
-- `difficulty`
+## Tasks and Difficulty Progression
 
-The dataset was generated offline using LLM tooling and then validated into a stable JSON benchmark.
+The environment exposes three deterministic tasks via `reset(difficulty=...)` or `reset(task_id=...)`:
+
+1. `easy`: category classification
+2. `medium`: category + priority quality
+3. `hard`: full triage (category + priority + escalation safety)
 
 ## Programmatic Graders
 
-Reward is computed from explicit grader functions:
+Base graders (`server/graders.py`):
 
-- `category_grader`: exact-match category accuracy
-- `priority_grader`: bucketed scoring (low/med/high) with partial credit
-- `escalation_grader`: escalation decision correctness with strong penalties for harmful mismatches
+- `category_grader`: exact category match
+- `priority_grader`: bucket-based partial credit (`low/med/high`)
+- `escalation_grader`: escalation correctness with harmful mismatch handling
 
-## Reward Function
+Task graders (`server/graders.py`):
 
-Final reward is a linear combination:
+- `easy_task_grader`
+- `medium_task_grader`
+- `hard_task_grader`
+- `task_grader` dispatcher
 
-- `1.0 * category_score`
-- `0.5 * priority_score`
-- `0.5 * escalation_score`
+All task graders are deterministic and return scores in `[0.0, 1.0]`.
 
-Additional safety penalties are applied for harmful decisions:
+## Reward Design
+
+Reward is shaped per task with weighted partial progress:
+
+- Easy emphasizes category correctness
+- Medium emphasizes category + priority
+- Hard emphasizes category + priority + escalation
+
+Additional penalties are applied for harmful behavior:
 
 - escalating spam
-- failing to escalate urgent incidents
+- not escalating urgent incidents
 
-## Edge Cases Covered
+## Dataset
 
-- Spam misclassification as urgent: receives strong negative shaping due to wrong category and harmful escalation.
-- Urgent incident with no escalation: receives an explicit safety penalty even if category or priority are otherwise reasonable.
-- Ambiguous subject lines: records with weak lexical cues still require balanced category, priority, and escalation decisions.
+- Path: `envs/email_triage_env/server/email_triage_dataset.json`
+- Size: 120 synthetic-but-realistic labeled emails
+- Labels include: `true_category`, `true_priority`, `needs_escalation`, `difficulty`
 
-## Folder Layout
+## OpenEnv Metadata
 
-```text
-envs/
-  email_triage_env/
-    __init__.py
-    models.py
-    client.py
-    README.md
-    server/
-      email_triage_environment.py
-      graders.py
-      app.py
-      Dockerfile
-      email_triage_dataset.json
-```
+Environment metadata is defined in `openenv.yaml`:
+
+- runtime: `fastapi`
+- app: `server.app:app`
+- port: `8000`
 
 ## Build and Run
 
-From repo root:
+From OpenEnv repo root:
 
 ```bash
-docker build -t email-triage-env -f envs/email_triage_env/server/Dockerfile .
-docker run -p 8000:8000 email-triage-env
+docker build -t email-triage-env-openenv -f envs/email_triage_env/server/Dockerfile .
+docker run -p 8000:8000 email-triage-env-openenv
 ```
 
-If Docker says port 8000 is already in use, run on a different host port:
+Docs endpoint:
+
+```text
+http://localhost:8000/docs
+```
+
+## Baseline Inference Script
+
+Required script: `inference.py` (included at env root).
+
+Expected env variables:
+
+- `API_BASE_URL`
+- `MODEL_NAME`
+- `HF_TOKEN`
+- optional: `IMAGE_NAME`, `INFERENCE_PORT`, `TEMPERATURE`, `MAX_TOKENS`
+
+Run baseline:
 
 ```bash
-docker run -p 8001:8000 email-triage-env
+cd envs/email_triage_env
+python inference.py
 ```
 
-## Python Quick Test
+The script prints structured logs in required format:
+
+- `[START] ...`
+- `[STEP] ...`
+- `[END] ...`
+
+## Quick Async Client Test
 
 ```python
 import asyncio
 
-from envs.email_triage_env import EmailTriageEnv, EmailTriageAction
+from envs.email_triage_env import EmailTriageAction, EmailTriageEnv
 
 
 async def main() -> None:
-  env = await EmailTriageEnv.from_docker_image("email-triage-env:latest")
-  result = await env.reset()
-  print(result.observation.subject)
+    env = await EmailTriageEnv.from_docker_image("email-triage-env-openenv:latest", port=8010)
+    result = await env.reset(difficulty="hard", seed=123)
+    print(result.observation.subject)
 
-  action = EmailTriageAction(category="billing", priority=3, should_escalate=False)
-  result = await env.step(action)
-  print(result.observation.reward, result.observation.info)
-  await env.close()
+    action = EmailTriageAction(category="billing", priority=3, should_escalate=False)
+    result = await env.step(action)
+    print(result.observation.reward)
+    print(result.observation.info)
+    await env.close()
 
 
 asyncio.run(main())
