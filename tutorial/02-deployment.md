@@ -419,7 +419,7 @@ async def main():
 asyncio.run(main())
 
 # Sync (using .sync() wrapper)
-with EchoEnv(base_url="http://localhost:8000").sync() as env:
+with EchoEnv(base_url="http://localhost:7860").sync() as env:
     result = env.reset()
     print(result.observation)
     result = env.step(EchoAction(message="Hello"))
