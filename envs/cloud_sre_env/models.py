@@ -81,7 +81,8 @@ class AlertInfo:
 # ─── OpenEnv Action / Observation / State ────────────────────────────────────
 
 
-@dataclass
+from pydantic import Field
+
 class SREAction(Action):
     """
     An action the agent submits to step().
@@ -93,17 +94,16 @@ class SREAction(Action):
     """
     command: str = "wait"
     resource_id: Optional[str] = None
-    params: Dict[str, str] = field(default_factory=dict)
+    params: Dict[str, str] = Field(default_factory=dict)
 
 
-@dataclass
 class SREObservation(Observation):
     """
     The full observation returned by state() and step().
     Contains everything the agent can see about the infrastructure.
     """
-    resources: List[dict] = field(default_factory=list)
-    alerts: List[dict] = field(default_factory=list)
+    resources: List[dict] = Field(default_factory=list)
+    alerts: List[dict] = Field(default_factory=list)
     total_hourly_cost: float = 0.0
     system_uptime: float = 100.0
     step_number: int = 0
@@ -112,7 +112,6 @@ class SREObservation(Observation):
     task_description: str = ""
 
 
-@dataclass
 class SREState(State):
     """
     Episode state tracking for the Cloud SRE environment.
