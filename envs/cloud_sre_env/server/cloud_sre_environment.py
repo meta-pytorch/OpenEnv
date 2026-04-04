@@ -709,6 +709,7 @@ class CloudSREEnvironment(Environment):
             return -0.05, f"Error: '{resource_id}' not found"
 
         old_size = resource.get("instance_size", "unknown")
+        pre_mutation_cpu = resource.get("cpu_utilization", 0)
 
         if resource.get("type") == ResourceType.RDS.value:
             if target_size not in RDS_PRICING:
@@ -727,7 +728,7 @@ class CloudSREEnvironment(Environment):
 
         self._resolve_alerts_for(resource_id)
         reward = 0.08
-        if resource.get("cpu_utilization", 0) > 80:
+        if pre_mutation_cpu > 80:
             reward += 0.05
         return reward, f"Scaled '{resource_id}' from {old_size} to {target_size}"
 
