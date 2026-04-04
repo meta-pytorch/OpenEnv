@@ -116,6 +116,7 @@ jobs:
             context: envs/openspiel_env
           - name: cloud-sre-env
             dockerfile: envs/cloud_sre_env/server/Dockerfile
+            context: .
 
     steps:
       - name: Checkout code
