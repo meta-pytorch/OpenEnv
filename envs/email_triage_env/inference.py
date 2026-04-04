@@ -15,6 +15,9 @@ BENCHMARK = "email_triage_env"
 API_BASE_URL = os.getenv("API_BASE_URL", "https://router.huggingface.co/v1")
 MODEL_NAME = os.getenv("MODEL_NAME", "meta-llama/Meta-Llama-3-8B-Instruct")
 HF_TOKEN = os.getenv("HF_TOKEN")
+GROQ_API_KEY = os.getenv("GROQ_API_KEY")
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+API_KEY = os.getenv("API_KEY") or GROQ_API_KEY or HF_TOKEN or OPENAI_API_KEY
 LOCAL_IMAGE_NAME = os.getenv("LOCAL_IMAGE_NAME")
 
 IMAGE_NAME = LOCAL_IMAGE_NAME or "email-triage-env-openenv:latest"
@@ -98,9 +101,9 @@ def _parse_model_action(text: str, subject: str, body: str) -> ParsedAction:
 
 
 def _build_openai_client() -> Optional[OpenAI]:
-    if not HF_TOKEN:
+    if not API_KEY:
         return None
-    return OpenAI(base_url=API_BASE_URL, api_key=HF_TOKEN)
+    return OpenAI(base_url=API_BASE_URL, api_key=API_KEY)
 
 
 def _query_model(

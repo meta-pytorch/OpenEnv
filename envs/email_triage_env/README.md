@@ -98,8 +98,16 @@ Expected env variables:
 
 - `API_BASE_URL`
 - `MODEL_NAME`
-- `HF_TOKEN`
+- one API key variable: `API_KEY` (recommended) or `HF_TOKEN` or `GROQ_API_KEY` or `OPENAI_API_KEY`
 - optional: `LOCAL_IMAGE_NAME`
+
+Groq example:
+
+```bash
+API_BASE_URL=https://api.groq.com/openai/v1
+MODEL_NAME=llama-3.3-70b-versatile
+GROQ_API_KEY=your_groq_key
+```
 
 Template file: `.env.example`
 
