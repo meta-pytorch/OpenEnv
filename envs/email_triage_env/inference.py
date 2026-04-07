@@ -144,7 +144,16 @@ def _query_model(
 
 
 def _docker_cleanup(container_name: str) -> None:
-    subprocess.run(["docker", "rm", "-f", container_name], capture_output=True, text=True)
+    try:
+        subprocess.run(
+            ["docker", "rm", "-f", container_name],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+    except Exception:
+        # Cleanup failures should never break score emission.
+        pass
 
 
 def _docker_available() -> bool:
@@ -218,20 +227,29 @@ def _start_container(port: int, container_name: str) -> str:
     errors: List[str] = []
 
     def _run_with_image(image_name: str) -> subprocess.CompletedProcess[str]:
-        return subprocess.run(
-            [
-                "docker",
-                "run",
-                "-d",
-                "--name",
-                container_name,
-                "-p",
-                f"{port}:8000",
-                image_name,
-            ],
-            capture_output=True,
-            text=True,
-        )
+        try:
+            return subprocess.run(
+                [
+                    "docker",
+                    "run",
+                    "-d",
+                    "--name",
+                    container_name,
+                    "-p",
+                    f"{port}:8000",
+                    image_name,
+                ],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+        except Exception as exc:
+            return subprocess.CompletedProcess(
+                args=["docker", "run", image_name],
+                returncode=1,
+                stdout="",
+                stderr=str(exc),
+            )
 
     candidates = _candidate_images()
     for candidate in candidates:
@@ -330,4 +348,9 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except Exception as exc:
+        error_str = str(exc).replace(" ", "_")
+        log_step(step=0, action="startup", reward=0.0, done=True, error=error_str)
+        print("FINAL_AVG_SCORE=0.000", flush=True)
