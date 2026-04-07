@@ -1,4 +1,5 @@
-FROM ghcr.io/meta-pytorch/openenv-base:latest
+ARG BASE_IMAGE=ghcr.io/meta-pytorch/openenv-base:latest
+FROM ${BASE_IMAGE}
 
 WORKDIR /app
 
