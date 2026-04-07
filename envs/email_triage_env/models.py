@@ -7,7 +7,10 @@ from pydantic import Field
 try:
     from openenv.core.env_server.types import Action, Observation, State
 except ImportError:
-    from core.env_server.types import Action, Observation, State
+    try:
+        from openenv_core.env_server.types import Action, Observation, State
+    except ImportError:
+        from core.env_server.types import Action, Observation, State
 
 
 EmailCategory = Literal["billing", "support", "spam", "urgent", "marketing", "other"]

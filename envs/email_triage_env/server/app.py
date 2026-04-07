@@ -1,7 +1,10 @@
 try:
     from openenv.core.env_server import create_app
 except ImportError:
-    from core.env_server import create_app
+    try:
+        from openenv_core.env_server import create_app
+    except ImportError:
+        from core.env_server import create_app
 
 try:
     from envs.email_triage_env.models import EmailTriageAction, EmailTriageObservation

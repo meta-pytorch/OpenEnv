@@ -7,7 +7,10 @@ from typing import Any, Dict, List, Optional
 try:
     from openenv.core.env_server import Environment
 except ImportError:
-    from core.env_server import Environment
+    try:
+        from openenv_core.env_server import Environment
+    except ImportError:
+        from core.env_server import Environment
 
 try:
     from envs.email_triage_env.models import (
