@@ -178,6 +178,8 @@ def _pick_port(preferred: int) -> int:
 def _candidate_images() -> List[str]:
     candidates = [
         IMAGE_NAME,
+        "test:latest",
+        "test",
         "email-triage-env-openenv:latest",
         "email-triage-env-opening:latest",
         "email-triage-env-openenv",
@@ -206,10 +208,13 @@ def _image_missing(stderr_text: str) -> bool:
 
 
 def _build_local_image(image_name: str) -> None:
-    dockerfile = "server/Dockerfile"
-    if not os.path.exists(dockerfile):
-        dockerfile = os.path.join("envs", "email_triage_env", "server", "Dockerfile")
-    if not os.path.exists(dockerfile):
+    dockerfiles = [
+        "Dockerfile",
+        "server/Dockerfile",
+        os.path.join("envs", "email_triage_env", "server", "Dockerfile"),
+    ]
+    dockerfile = next((path for path in dockerfiles if os.path.exists(path)), None)
+    if not dockerfile:
         raise RuntimeError("Dockerfile_not_found_for_email_triage_env")
 
     build_res = subprocess.run(
