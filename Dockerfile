@@ -1,16 +1,11 @@
-FROM python:3.11-slim
+FROM ghcr.io/meta-pytorch/openenv-base:latest
 
 WORKDIR /app
 
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    build-essential \
- && rm -rf /var/lib/apt/lists/*
-
 COPY . /app
 
-RUN pip install --no-cache-dir fastapi uvicorn requests pydantic openai \
- && pip install --no-cache-dir -e /app
-
+# Reuse dependencies bundled in openenv-base to reduce build-time network failures.
+ENV PYTHONPATH=/app/src:/app
 ENV HOST=0.0.0.0
 ENV PORT=8000
 
