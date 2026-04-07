@@ -2,13 +2,18 @@ from __future__ import annotations
 
 import json
 import os
+import socket
 import subprocess
 import time
+import uuid
 from dataclasses import dataclass
 from typing import Any, List, Optional
 
 import requests
-from openai import OpenAI
+try:
+    from openai import OpenAI
+except Exception:  # pragma: no cover - optional at runtime
+    OpenAI = None  # type: ignore
 
 
 BENCHMARK = "email_triage_env"
@@ -101,7 +106,7 @@ def _parse_model_action(text: str, subject: str, body: str) -> ParsedAction:
 
 
 def _build_openai_client() -> Optional[OpenAI]:
-    if not API_KEY:
+    if not API_KEY or OpenAI is None:
         return None
     return OpenAI(base_url=API_BASE_URL, api_key=API_KEY)
 
@@ -138,27 +143,117 @@ def _query_model(
         return _heuristic_action(subject, body_snippet)
 
 
-def _docker_cleanup() -> None:
-    subprocess.run(["docker", "rm", "-f", CONTAINER_NAME], capture_output=True, text=True)
+def _docker_cleanup(container_name: str) -> None:
+    subprocess.run(["docker", "rm", "-f", container_name], capture_output=True, text=True)
 
 
-def _start_container() -> None:
-    _docker_cleanup()
-    subprocess.run(
-        [
-            "docker",
-            "run",
-            "-d",
-            "--name",
-            CONTAINER_NAME,
-            "-p",
-            f"{PORT}:8000",
-            IMAGE_NAME,
-        ],
-        check=True,
+def _docker_available() -> bool:
+    try:
+        subprocess.run(["docker", "version"], check=True, capture_output=True, text=True)
+        return True
+    except Exception:
+        return False
+
+
+def _pick_port(preferred: int) -> int:
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+        sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        if sock.connect_ex(("127.0.0.1", preferred)) != 0:
+            return preferred
+
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+        sock.bind(("127.0.0.1", 0))
+        return int(sock.getsockname()[1])
+
+
+def _candidate_images() -> List[str]:
+    candidates = [
+        IMAGE_NAME,
+        "email-triage-env-openenv:latest",
+        "email-triage-env-opening:latest",
+        "email-triage-env-openenv",
+        "email-triage-env-opening",
+    ]
+    cwd_name = os.path.basename(os.getcwd()).replace("_", "-")
+    if cwd_name:
+        candidates.append(f"{cwd_name}:latest")
+
+    deduped: List[str] = []
+    seen = set()
+    for item in candidates:
+        if item and item not in seen:
+            deduped.append(item)
+            seen.add(item)
+    return deduped
+
+
+def _image_missing(stderr_text: str) -> bool:
+    text = stderr_text.lower()
+    return (
+        "pull access denied" in text
+        or "unable to find image" in text
+        or "no such image" in text
+    )
+
+
+def _build_local_image(image_name: str) -> None:
+    dockerfile = "server/Dockerfile"
+    if not os.path.exists(dockerfile):
+        dockerfile = os.path.join("envs", "email_triage_env", "server", "Dockerfile")
+    if not os.path.exists(dockerfile):
+        raise RuntimeError("Dockerfile_not_found_for_email_triage_env")
+
+    build_res = subprocess.run(
+        ["docker", "build", "-t", image_name, "-f", dockerfile, "."],
         capture_output=True,
         text=True,
     )
+    if build_res.returncode != 0:
+        msg = (build_res.stderr or build_res.stdout or "docker_build_failed").strip()
+        raise RuntimeError(f"docker_build_failed:{msg}")
+
+
+def _start_container(port: int, container_name: str) -> str:
+    _docker_cleanup(container_name)
+    errors: List[str] = []
+
+    def _run_with_image(image_name: str) -> subprocess.CompletedProcess[str]:
+        return subprocess.run(
+            [
+                "docker",
+                "run",
+                "-d",
+                "--name",
+                container_name,
+                "-p",
+                f"{port}:8000",
+                image_name,
+            ],
+            capture_output=True,
+            text=True,
+        )
+
+    candidates = _candidate_images()
+    for candidate in candidates:
+        run_res = _run_with_image(candidate)
+        if run_res.returncode == 0:
+            return candidate
+        err = (run_res.stderr or run_res.stdout or "docker_run_failed").strip()
+        errors.append(f"{candidate} -> {err}")
+
+    build_target = candidates[0] if candidates else IMAGE_NAME
+    try:
+        _build_local_image(build_target)
+        run_res = _run_with_image(build_target)
+        if run_res.returncode == 0:
+            return build_target
+        err = (run_res.stderr or run_res.stdout or "docker_run_failed_after_build").strip()
+        errors.append(f"{build_target} -> {err}")
+    except Exception as exc:
+        errors.append(str(exc))
+
+    concise = " | ".join(errors[-3:]) if errors else "docker_run_failed"
+    raise RuntimeError(f"container_start_failed:{concise}")
 
 
 def _wait_for_health(base_url: str, timeout_s: float = 45.0) -> None:
@@ -212,18 +307,26 @@ def _run_task(base_url: str, client: Optional[OpenAI], task_name: str, seed: int
 
 def main() -> None:
     client = _build_openai_client()
-    base_url = f"http://127.0.0.1:{PORT}"
+    runtime_port = _pick_port(PORT)
+    runtime_container_name = f"{CONTAINER_NAME}-{uuid.uuid4().hex[:8]}"
+    base_url = f"http://127.0.0.1:{runtime_port}"
 
-    _start_container()
+    scores: List[float] = []
     try:
+        if not _docker_available():
+            raise RuntimeError("docker_not_available")
+        _start_container(runtime_port, runtime_container_name)
         _wait_for_health(base_url)
-        scores = []
         for task_name, seed in TASKS:
             scores.append(_run_task(base_url, client, task_name, seed))
-        overall = sum(scores) / len(scores)
-        print(f"FINAL_AVG_SCORE={overall:.3f}", flush=True)
+    except Exception as exc:
+        error_str = str(exc).replace(" ", "_")
+        log_step(step=0, action="startup", reward=0.0, done=True, error=error_str)
     finally:
-        _docker_cleanup()
+        _docker_cleanup(runtime_container_name)
+
+    overall = sum(scores) / len(scores) if scores else 0.0
+    print(f"FINAL_AVG_SCORE={overall:.3f}", flush=True)
 
 
 if __name__ == "__main__":
