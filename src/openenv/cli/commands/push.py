@@ -407,18 +407,22 @@ def _create_hf_space(
     repo_id: str,
     api: HfApi,
     private: bool = False,
+    hardware: str | None = None,
 ) -> None:
     """Create a Hugging Face Space if it doesn't exist."""
     console.print(f"[bold cyan]Creating/verifying space: {repo_id}[/bold cyan]")
 
     try:
-        api.create_repo(
-            repo_id=repo_id,
-            repo_type="space",
-            space_sdk="docker",
-            private=private,
-            exist_ok=True,
-        )
+        create_kwargs: dict = {
+            "repo_id": repo_id,
+            "repo_type": "space",
+            "space_sdk": "docker",
+            "private": private,
+            "exist_ok": True,
+        }
+        if hardware is not None:
+            create_kwargs["space_hardware"] = hardware
+        api.create_repo(**create_kwargs)
         console.print(f"[bold green]✓[/bold green] Space {repo_id} is ready")
     except Exception as e:
         # Space might already exist, which is okay with exist_ok=True
@@ -532,6 +536,14 @@ def push(
             help="Optional additional ignore file with newline-separated glob patterns to exclude from Hugging Face uploads",
         ),
     ] = None,
+    hardware: Annotated[
+        str | None,
+        typer.Option(
+            "--hardware",
+            "-H",
+            help="Request hardware for HuggingFace Space (e.g. t4-medium, cpu-basic). See HF docs for options.",
+        ),
+    ] = None,
 ) -> None:
     """
     Push an OpenEnv environment to Hugging Face Spaces or a custom Docker registry.
@@ -570,6 +582,9 @@ def push(
 
         # Push privately with custom base image
         $ openenv push --private --base-image ghcr.io/meta-pytorch/openenv-base:latest
+
+        # Push with GPU hardware
+        $ openenv push --hardware t4-medium
     """
     # Handle interface flag logic
     if no_interface and interface:
@@ -701,7 +716,7 @@ def push(
 
         # Create/verify space (no-op if exists; needed when pushing to own new repo)
         if not create_pr:
-            _create_hf_space(repo_id, api, private=private)
+            _create_hf_space(repo_id, api, private=private, hardware=hardware)
         # When create_pr we rely on upload_folder to create branch and PR
 
         # Upload files
