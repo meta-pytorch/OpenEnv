@@ -70,7 +70,6 @@ PYTHONPATH=src uv run python -m openenv.cli push <environment-dir> --repo-id <us
 - `--no-interface`: Disable the web interface (deploy API-only)
 - `--base-image <image>`: Override the base Docker image
 - `--hardware <hw>` / `-H <hw>`: Request Hugging Face Space hardware (e.g. `t4-medium`, `a10g-small`, `cpu-basic`)
-- `--count N` / `-n N`: Deploy N instances with auto-suffixed repo IDs (e.g. `env-1`, `env-2`). Cannot be used with `--registry` or `--create-pr`.
 
 ### 5. Verify Deployment
 
@@ -103,12 +102,6 @@ PYTHONPATH=src uv run python -m openenv.cli push envs/echo_env --repo-id usernam
 
 ```bash
 PYTHONPATH=src uv run python -m openenv.cli push envs/carla_env --repo-id username/carla-env --hardware t4-medium
-```
-
-### Deploy 3 instances of echo_env
-
-```bash
-PYTHONPATH=src uv run python -m openenv.cli push envs/echo_env --repo-id username/echo-env --count 3
 ```
 
 ### Deploy with custom base image
