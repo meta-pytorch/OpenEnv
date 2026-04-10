@@ -541,7 +541,7 @@ def push(
         typer.Option(
             "--hardware",
             "-H",
-            help="Request hardware for HuggingFace Space (e.g. t4-medium, cpu-basic). See HF docs for options.",
+            help="Request hardware for Hugging Face Space (e.g. t4-medium, cpu-basic). See HF docs for options.",
         ),
     ] = None,
 ) -> None:

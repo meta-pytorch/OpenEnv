@@ -1,17 +1,17 @@
 ---
 name: deploy-hf
-description: Deploy an OpenEnv environment to HuggingFace Spaces. Use when asked to deploy, push to HuggingFace, or update a space.
+description: Deploy an OpenEnv environment to Hugging Face Spaces. Use when asked to deploy, push to Hugging Face, or update a space.
 allowed-tools: Bash, Read
 ---
 
-# Deploy to HuggingFace Spaces
+# Deploy to Hugging Face Spaces
 
-Deploy an OpenEnv environment to HuggingFace Spaces using the OpenEnv CLI.
+Deploy an OpenEnv environment to Hugging Face Spaces using the OpenEnv CLI.
 
 ## When to Use This Skill
 
-- User asks to "deploy to HuggingFace"
-- User says "push to HuggingFace Spaces"
+- User asks to "deploy to Hugging Face"
+- User says "push to Hugging Face Spaces"
 - User wants to update an existing space
 - After implementing new features that need to be tested in production
 
@@ -20,7 +20,7 @@ Deploy an OpenEnv environment to HuggingFace Spaces using the OpenEnv CLI.
 Before deploying, ensure:
 1. The environment has an `openenv.yaml` file
 2. The environment has a `server/Dockerfile`
-3. You have HuggingFace credentials configured (automatic via huggingface-cli)
+3. You have Hugging Face credentials configured (automatic via huggingface-cli)
 
 ## Instructions
 
@@ -63,13 +63,13 @@ PYTHONPATH=src uv run python -m openenv.cli push <environment-dir> --repo-id <us
 
 **Parameters**:
 - `<environment-dir>`: Path to environment (e.g., `envs/carla_env`)
-- `--repo-id`: HuggingFace Spaces repository ID (e.g., `sergiopaniego/carla-env-real-updated`)
+- `--repo-id`: Hugging Face Spaces repository ID (e.g., `sergiopaniego/carla-env-real-updated`)
 
 **Optional flags**:
 - `--private`: Deploy as a private space
 - `--no-interface`: Disable the web interface (deploy API-only)
 - `--base-image <image>`: Override the base Docker image
-- `--hardware <hw>` / `-H <hw>`: Request HuggingFace Space hardware (e.g. `t4-medium`, `a10g-small`, `cpu-basic`)
+- `--hardware <hw>` / `-H <hw>`: Request Hugging Face Space hardware (e.g. `t4-medium`, `a10g-small`, `cpu-basic`)
 - `--count N` / `-n N`: Deploy N instances with auto-suffixed repo IDs (e.g. `env-1`, `env-2`). Cannot be used with `--registry` or `--create-pr`.
 
 ### 5. Verify Deployment
@@ -122,7 +122,7 @@ PYTHONPATH=src uv run python -m openenv.cli push envs/browser_env --repo-id user
 Report deployment status:
 
 ```
-## HuggingFace Deployment
+## Hugging Face Deployment
 
 ### Environment
 - Environment: <env-name>
@@ -187,7 +187,7 @@ PYTHONPATH=src uv run python -m openenv.cli push carla_env --repo-id ...
 
 ### Error: "Authentication required"
 
-**Solution**: Login to HuggingFace CLI first:
+**Solution**: Login to Hugging Face CLI first:
 ```bash
 huggingface-cli login
 ```
@@ -197,7 +197,7 @@ huggingface-cli login
 **Solutions**:
 1. Check Dockerfile syntax and dependencies
 2. Verify hardware requirements (GPU spaces need `--hardware` setting on HF)
-3. Check space logs on HuggingFace for detailed errors
+3. Check space logs on Hugging Face for detailed errors
 4. Ensure `openenv.yaml` is valid
 
 ## Common Environments
@@ -212,15 +212,15 @@ huggingface-cli login
 
 ## Notes
 
-- Deployment requires HuggingFace authentication (automatic if `huggingface-cli` is logged in)
+- Deployment requires Hugging Face authentication (automatic if `huggingface-cli` is logged in)
 - By default, spaces are **public** (use `--private` for private spaces)
 - By default, **web interface is enabled** (use `--no-interface` for API-only)
 - GPU spaces can request hardware via `--hardware` (e.g. `--hardware t4-medium`)
 - Build times vary: CPU (~5 min), GPU with CARLA (~30-60 min)
-- The CLI automatically moves Dockerfile to repository root for HuggingFace compatibility
+- The CLI automatically moves Dockerfile to repository root for Hugging Face compatibility
 
 ## Related Documentation
 
 - [DEPLOYMENT_GUIDE.md](../../envs/carla_env/DEPLOYMENT_GUIDE.md) - Detailed deployment modes
 - [README.md](../../README.md) - OpenEnv overview
-- HuggingFace Spaces Docs: https://huggingface.co/docs/hub/spaces
+- Hugging Face Spaces Docs: https://huggingface.co/docs/hub/spaces
