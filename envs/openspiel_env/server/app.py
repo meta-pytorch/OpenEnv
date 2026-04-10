@@ -24,6 +24,7 @@ Environment variables:
     OPENSPIEL_GAME: Game name to serve (default: "catch")
     OPENSPIEL_AGENT_PLAYER: Agent player ID (default: 0)
     OPENSPIEL_OPPONENT_POLICY: Opponent policy (default: "random")
+    MAX_CONCURRENT_ENVS: Maximum concurrent WebSocket sessions (default: 8)
 """
 
 import os
