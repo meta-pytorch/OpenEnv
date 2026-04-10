@@ -761,13 +761,12 @@ def push(
                     create_pr=False,
                     ignore_patterns=ignore_patterns,
                 )
+                console.print(
+                    f"  Visit: https://huggingface.co/spaces/{instance_repo_id}"
+                )
             console.print(
                 f"\n[bold green]✓ All {count} instances deployed![/bold green]"
             )
-            for i in range(1, count + 1):
-                console.print(
-                    f"Visit instance {i}: https://huggingface.co/spaces/{base_repo_id}-{i}"
-                )
         else:
             # Create/verify space (no-op if exists; needed when pushing to own new repo)
             if not create_pr:
