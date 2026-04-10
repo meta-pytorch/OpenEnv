@@ -316,7 +316,7 @@ def test_push_uses_hardware_option(tmp_path: Path) -> None:
 
         # Verify create_repo was called with space_hardware="t4-medium"
         mock_api.create_repo.assert_called_once()
-        call_kwargs = mock_api.create_repo.call_args[1]
+        call_kwargs = mock_api.create_repo.call_args.kwargs
         assert call_kwargs["space_hardware"] == "t4-medium"
 
 
@@ -343,7 +343,7 @@ def test_push_default_hardware_is_none(tmp_path: Path) -> None:
 
         # Verify create_repo was called without space_hardware
         mock_api.create_repo.assert_called_once()
-        call_kwargs = mock_api.create_repo.call_args[1]
+        call_kwargs = mock_api.create_repo.call_args.kwargs
         assert "space_hardware" not in call_kwargs
 
 
