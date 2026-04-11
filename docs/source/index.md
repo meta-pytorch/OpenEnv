@@ -77,7 +77,9 @@ New to OpenEnv? Follow our recommended learning path:
 
 2. **[Build Your Own Environment](auto_getting_started/environment-builder)** — The complete reference guide for creating, packaging, and deploying custom environments with Docker and Hugging Face Hub.
 
-3. **[Explore Environments](environments)** — Browse pre-built environments for games, coding, web browsing, and more.
+3. **[Simulation vs Production Mode](simulation-vs-production)** — Understand when to use the training loop, when to expose MCP directly, and how tools behave in each mode.
+
+4. **[Explore Environments](environments)** — Browse pre-built environments for games, coding, web browsing, and more.
 
 ## How Can I Contribute?
 
@@ -93,6 +95,7 @@ OpenEnv is currently in an experimental stage. You should expect bugs, incomplet
 :hidden:
 
 auto_getting_started/index
+simulation-vs-production
 tutorials/index
 environments
 customizing-web-ui
