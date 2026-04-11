@@ -83,7 +83,7 @@ Production mode is for exposing tools directly.
 
 In production mode, clients should interact with MCP tools as a service instead of driving the environment through `reset()` and `step()` as a trajectory loop.
 
-Production mode keeps the MCP surface and removes simulation control routes.
+Production mode keeps the MCP surface and removes the HTTP simulation control routes.
 
 ### Production-Mode Routes
 
@@ -93,7 +93,15 @@ When an `HTTPEnvServer` registers routes in production mode, OpenEnv does **not*
 - `/step`
 - `/state`
 
-Instead, the environment exposes MCP access for direct tool interaction.
+It still registers `/ws`, because the WebSocket transport remains part of the infrastructure boundary.
+
+That does **not** mean `/ws` should be exposed to agents.
+
+- `/ws` is for orchestration and simulation control
+- `/mcp` is the agent-facing boundary
+- production deployments should restrict `/ws` at the network, auth, or gateway layer if agents can reach the service directly
+
+In other words, production mode removes the HTTP simulation endpoints, but operators must still treat `/ws` as infrastructure-only.
 
 This is the right mode when:
 
