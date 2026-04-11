@@ -432,9 +432,13 @@ def _has_main_guard_call(app_content: str) -> bool:
     try:
         tree = ast.parse(app_content)
     except SyntaxError:
-        return "__name__" in app_content and "main(" in app_content
+        return (
+            "__name__" in app_content
+            and "__main__" in app_content
+            and "main(" in app_content
+        )
 
-    for node in ast.walk(tree):
+    for node in ast.iter_child_nodes(tree):
         if not isinstance(node, ast.If):
             continue
 

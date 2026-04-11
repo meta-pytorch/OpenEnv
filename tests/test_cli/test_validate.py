@@ -233,6 +233,39 @@ def test_validate_command_accepts_main_call_with_arguments(tmp_path: Path) -> No
     assert "[OK]" in result.output
 
 
+def test_validate_command_rejects_nested_main_guard(tmp_path: Path) -> None:
+    """Local validation requires the __main__ guard at module scope."""
+    env_dir = tmp_path / "test_env"
+    _write_minimal_valid_env(env_dir)
+    (env_dir / "server" / "app.py").write_text(
+        "def main():\n    return None\n\n"
+        "def wrapper():\n"
+        "    if __name__ == '__main__':\n"
+        "        main()\n"
+    )
+
+    result = runner.invoke(app, ["validate", str(env_dir)])
+
+    assert result.exit_code != 0
+    assert "main() function not callable" in result.output
+
+
+def test_validate_command_syntax_error_fallback_requires_dunder_main(
+    tmp_path: Path,
+) -> None:
+    """Syntax-error fallback still requires the literal __main__ guard string."""
+    env_dir = tmp_path / "test_env"
+    _write_minimal_valid_env(env_dir)
+    (env_dir / "server" / "app.py").write_text(
+        "def main(:\n    return None\n\nif __name__ ==\n    main(\n"
+    )
+
+    result = runner.invoke(app, ["validate", str(env_dir)])
+
+    assert result.exit_code != 0
+    assert "main() function not callable" in result.output
+
+
 def test_validate_command_rejects_mixed_path_and_url(tmp_path: Path) -> None:
     """CLI rejects mixing a local path argument with --url mode."""
     env_dir = tmp_path / "test_env"
