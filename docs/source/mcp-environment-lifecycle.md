@@ -161,7 +161,6 @@ Usually the action is flowing correctly, but through the async WebSocket path ra
 
 ## Related Reading
 
-- [Simulation vs Production Mode](simulation-vs-production.md)
 - [Core API](core.md)
 - [Echo environment](environments/echo.md)
 - [FinQA environment](environments/finqa.md)
