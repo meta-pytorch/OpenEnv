@@ -252,6 +252,50 @@ class TestSessionMCPBridge:
         assert response["error"]["message"] == "Unknown tool: missing"
         assert response["id"] == 9
 
+    def test_value_error_returns_invalid_params_error(self):
+        class ValueErrorSession:
+            def list_tools(self):
+                return []
+
+            def call_tool(self, name, arguments):
+                raise ValueError("bad arguments")
+
+        bridge = SessionMCPBridge(ValueErrorSession())
+
+        response = bridge.handle_request(
+            {
+                "jsonrpc": "2.0",
+                "id": 10,
+                "method": "tools/call",
+                "params": {"name": "finish", "arguments": {}},
+            }
+        )
+
+        assert response["error"]["message"] == "bad arguments"
+        assert response["id"] == 10
+
+    def test_unexpected_tool_error_returns_internal_error(self):
+        class FailingSession:
+            def list_tools(self):
+                return []
+
+            def call_tool(self, name, arguments):
+                raise RuntimeError("bridge exploded")
+
+        bridge = SessionMCPBridge(FailingSession())
+
+        response = bridge.handle_request(
+            {
+                "jsonrpc": "2.0",
+                "id": 11,
+                "method": "tools/call",
+                "params": {"name": "finish", "arguments": {}},
+            }
+        )
+
+        assert response["error"]["message"] == "bridge exploded"
+        assert response["id"] == 11
+
 
 class TestMCPHarnessAdapter:
     """Tests for the white-box MCP-first harness adapter."""

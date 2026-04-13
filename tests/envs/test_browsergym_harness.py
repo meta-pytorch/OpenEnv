@@ -12,6 +12,8 @@ import os
 import sys
 from typing import Any
 
+import pytest
+
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
 
 from envs.browsergym_env import BrowserGymAction, BrowserGymObservation, BrowserGymState
@@ -140,6 +142,13 @@ def test_browsergym_action_text_parser():
 
 def test_browsergym_fill_parser_supports_embedded_quote():
     fill = build_browsergym_action_tool_call('fill("42", "O\'Brien")')
+
+    assert fill.name == "fill"
+    assert fill.args == {"bid": "42", "text": "O'Brien"}
+
+
+def test_browsergym_fill_parser_supports_single_quoted_embedded_quote():
+    fill = build_browsergym_action_tool_call("fill('42', 'O'Brien')")
 
     assert fill.name == "fill"
     assert fill.args == {"bid": "42", "text": "O'Brien"}
