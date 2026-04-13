@@ -374,8 +374,10 @@ rollout_func = build_harness_rollout_func(
 
 This keeps token sampling and logprob collection in the trainer for white-box
 RL, while moving environment interaction behind a reusable MCP-style session
-surface. See `tutorial/examples/browsergym_harness.py` for a concrete BrowserGym
-example.
+surface. If your training setup already uses an `environment_factory`, treat
+`client_factory` as the per-rollout constructor that produces a fresh
+`BrowserGymEnv` for each session. See `tutorial/examples/browsergym_harness.py`
+for a concrete BrowserGym example.
 
 ---
 
