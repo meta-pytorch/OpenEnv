@@ -137,9 +137,9 @@ class FleetTaskEnv:
         # Auto-select TTL based on modality if not explicitly provided
         if ttl_seconds is not None:
             self.ttl_seconds = ttl_seconds
-        elif self.modality == "computer_use":
+        elif self.modality in ("computer_use", "browser_use"):
             self.ttl_seconds = (
-                1800  # 30 min — CUA rollouts are slow (browser + inference)
+                1800  # 30 min — CUA/BU rollouts are slow (browser + inference)
             )
         else:
             self.ttl_seconds = (
@@ -265,7 +265,7 @@ class FleetTaskEnv:
         env_spec = self._build_env_spec()
         # computer_use: MCP-enabled container with browser infra (port 8081 aggregator)
         # tool_use: standard container with per-env MCP server (port 3003)
-        image_type = "mcp" if self.modality == "computer_use" else "standard"
+        image_type = "mcp" if self.modality in ("computer_use", "browser_use") else "standard"
         self._orch, self._tools = await FleetEnvClient.from_fleet_async(
             api_key=self.api_key,
             env_key=env_spec,
@@ -385,7 +385,7 @@ class FleetTaskEnv:
             ]
 
         # For computer_use, filter to only the 'computer' tool
-        if self.modality == "computer_use":
+        if self.modality in ("computer_use", "browser_use"):
             computer_tools = [
                 t
                 for t in self._tools_cache
@@ -443,7 +443,7 @@ class FleetTaskEnv:
 
         # For computer_use, take initial screenshot so VL model can see the screen
         # This is critical for VL models - without visual input they're blind
-        if self.modality == "computer_use" and self._tools:
+        if self.modality in ("computer_use", "browser_use") and self._tools:
             try:
                 screenshot_result = await self._tools.call_tool(
                     "computer", {"action": "screenshot"}
