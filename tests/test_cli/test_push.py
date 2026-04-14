@@ -293,6 +293,60 @@ def test_push_uses_private_option(tmp_path: Path) -> None:
         assert call_args.kwargs["private"] is True
 
 
+def test_push_uses_hardware_option(tmp_path: Path) -> None:
+    """Test that push respects --hardware option."""
+    _create_test_openenv_env(tmp_path)
+
+    with (
+        patch("openenv.cli.commands.push.whoami") as mock_whoami,
+        patch("openenv.cli.commands.push.login") as mock_login,
+        patch("openenv.cli.commands.push.HfApi") as mock_hf_api_class,
+    ):
+        mock_whoami.return_value = {"name": "testuser"}
+        mock_login.return_value = None  # Prevent actual login prompt
+        mock_api = MagicMock()
+        mock_hf_api_class.return_value = mock_api
+
+        old_cwd = os.getcwd()
+        try:
+            os.chdir(str(tmp_path))
+            result = runner.invoke(app, ["push", "--hardware", "t4-medium"])
+        finally:
+            os.chdir(old_cwd)
+
+        # Verify create_repo was called with space_hardware="t4-medium"
+        mock_api.create_repo.assert_called_once()
+        call_kwargs = mock_api.create_repo.call_args.kwargs
+        assert call_kwargs["space_hardware"] == "t4-medium"
+
+
+def test_push_default_hardware_is_none(tmp_path: Path) -> None:
+    """Test that push does not pass space_hardware when --hardware is not specified."""
+    _create_test_openenv_env(tmp_path)
+
+    with (
+        patch("openenv.cli.commands.push.whoami") as mock_whoami,
+        patch("openenv.cli.commands.push.login") as mock_login,
+        patch("openenv.cli.commands.push.HfApi") as mock_hf_api_class,
+    ):
+        mock_whoami.return_value = {"name": "testuser"}
+        mock_login.return_value = None  # Prevent actual login prompt
+        mock_api = MagicMock()
+        mock_hf_api_class.return_value = mock_api
+
+        old_cwd = os.getcwd()
+        try:
+            os.chdir(str(tmp_path))
+            result = runner.invoke(app, ["push"])
+        finally:
+            os.chdir(old_cwd)
+
+        # Verify create_repo was called without space_hardware
+        mock_api.create_repo.assert_called_once()
+        call_kwargs = mock_api.create_repo.call_args.kwargs
+        assert "space_hardware" not in call_kwargs
+
+
 def test_push_uses_base_image_option(tmp_path: Path) -> None:
     """Test that push respects --base-image option."""
     _create_test_openenv_env(tmp_path)
