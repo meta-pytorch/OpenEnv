@@ -18,7 +18,15 @@ from openenv.core.env_server.interfaces import (
     Transform,
 )
 
-from ..models import ChatAction, ChatObservation, ChatState
+# Support both in-repo and standalone imports
+try:
+    # In-repo imports (when running from OpenEnv repository)
+    from ..models import ChatAction, ChatObservation, ChatState
+except ImportError as e:
+    if "relative import" not in str(e) and "no known parent package" not in str(e):
+        raise
+    # Standalone imports (when running via uvicorn server.app:app)
+    from models import ChatAction, ChatObservation, ChatState
 
 
 class ChatEnvironment(Environment):
@@ -121,12 +129,14 @@ class ChatEnvironment(Environment):
         Returns:
             ChatObservation: The updated observation with the new tokens added.
         """
+        action_tokens = torch.tensor(action.tokens, dtype=torch.long)
+
         # Store the tokens directly from the action
-        self._state.history_tokens.append(action.tokens)
+        self._state.history_tokens.append(action_tokens)
 
         # Decode tokens to text and add as a message to history
         decoded_text = self.tokenizer.decode(
-            action.tokens.squeeze(), skip_special_tokens=True
+            action_tokens.squeeze(), skip_special_tokens=True
         )
         assistant_message: Message = {"role": "assistant", "content": decoded_text}
         self._state.history_messages.append(assistant_message)
@@ -152,7 +162,7 @@ class ChatEnvironment(Environment):
 
         observation = ChatObservation(
             messages=self._state.history_messages.copy(),  # Copy to prevent external mutation
-            tokens=flattened_tokens,
+            tokens=flattened_tokens.tolist(),
         )
 
         transformed = self._apply_transform(observation)
@@ -162,7 +172,7 @@ class ChatEnvironment(Environment):
             # If transform returns base Observation, convert back to ChatObservation
             return ChatObservation(
                 messages=getattr(transformed, "messages", []),
-                tokens=getattr(transformed, "tokens", torch.tensor([])),
+                tokens=getattr(transformed, "tokens", []),
                 done=transformed.done,
                 reward=transformed.reward,
             )
@@ -197,4 +207,4 @@ class ChatEnvironment(Environment):
 
         tokens = self._tokenize_conversation([message])
 
-        return ChatAction(tokens=tokens)
+        return ChatAction(tokens=tokens.flatten().tolist())
