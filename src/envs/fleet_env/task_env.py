@@ -162,6 +162,8 @@ class FleetTaskEnv:
         self._reward_computed = False
         self.final_reward: Optional[float] = None
         self._submitted_answer: Optional[str] = None
+        self._browser_lease = None  # BrowserLeaseResult for browser_use
+        self._browser_cluster_name: Optional[str] = None
 
         # Feedback for hint generation (accumulated during rollout)
         self._tool_errors: List[str] = []
@@ -263,19 +265,50 @@ class FleetTaskEnv:
             return
 
         env_spec = self._build_env_spec()
-        # computer_use: MCP-enabled container with browser infra (port 8081 aggregator)
+
+        # browser_use: standard image + separate browser lease (sidecar)
+        # computer_use: MCP-enabled container with browser infra (port 8081)
         # tool_use: standard container with per-env MCP server (port 3003)
-        image_type = "mcp" if self.modality in ("computer_use", "browser_use") else "standard"
-        self._orch, self._tools = await FleetEnvClient.from_fleet_async(
+        if self.modality == "browser_use":
+            image_type = "standard"
+            skip_mcp = True  # Browser lease provides MCP, not the env
+        elif self.modality == "computer_use":
+            image_type = "mcp"
+            skip_mcp = False
+        else:
+            image_type = "standard"
+            skip_mcp = False
+
+        self._orch, env_tools = await FleetEnvClient.from_fleet_async(
             api_key=self.api_key,
             env_key=env_spec,
             data_key=self._get_data_key(),
             data_version=self._get_data_version(),
             env_variables=self._get_env_variables(),
             image_type=image_type,
+            skip_mcp=skip_mcp,
             ttl_seconds=self.ttl_seconds,
             request_timeout_s=self.request_timeout_s,
         )
+
+        if self.modality == "browser_use":
+            from .browser_lease import create_browser_lease, extract_cluster_name
+
+            root_url = str(self._orch._fleet_env.urls.root)
+            self._browser_cluster_name = extract_cluster_name(root_url)
+            self._browser_lease = await create_browser_lease(
+                cluster_name=self._browser_cluster_name,
+                instance_url=root_url,
+                ttl_seconds=self.ttl_seconds,
+            )
+            # Use browser's MCP (computer tool) instead of env's MCP
+            self._tools = FleetMCPTools(
+                api_key=self.api_key,
+                mcp_urls=(self._browser_lease.mcp_url,),
+                initial_wait=0,  # Browser already healthchecked
+            )
+        else:
+            self._tools = env_tools
 
     async def reset_async(self, seed: Optional[int] = None) -> Dict[str, Any]:
         """Reset episode state and return initial observation.
@@ -794,6 +827,21 @@ class FleetTaskEnv:
                     )
                     self._rollout_completed_emitted = True
 
+            # Cleanup browser lease before env
+            if self._browser_lease:
+                try:
+                    from .browser_lease import delete_browser_lease
+
+                    asyncio.run(
+                        delete_browser_lease(
+                            self._browser_cluster_name,
+                            self._browser_lease.lease_id,
+                        )
+                    )
+                except Exception:
+                    pass
+                self._browser_lease = None
+
             if self._orch:
                 try:
                     self._orch.close()
@@ -804,6 +852,7 @@ class FleetTaskEnv:
             self._orch = None
             self._tools = None
             self._tools_cache = None
+            self._browser_lease = None
             self._done = True
             self._rollout_started = False
             clear_task_context()
@@ -822,6 +871,19 @@ class FleetTaskEnv:
                 self.final_reward = await self._compute_reward()
                 self._reward_computed = True
 
+            # Cleanup browser lease before env
+            if self._browser_lease:
+                try:
+                    from .browser_lease import delete_browser_lease
+
+                    await delete_browser_lease(
+                        self._browser_cluster_name,
+                        self._browser_lease.lease_id,
+                    )
+                except Exception:
+                    pass
+                self._browser_lease = None
+
             if self._orch:
                 try:
                     await self._orch.close_async()
@@ -831,6 +893,7 @@ class FleetTaskEnv:
             self._orch = None
             self._tools = None
             self._tools_cache = None
+            self._browser_lease = None
             self._done = True
             self._rollout_started = False
             clear_task_context()

@@ -175,12 +175,17 @@ class FleetEnvClient(HTTPEnvClient[Action, Observation]):
         region: Optional[str] = None,
         ttl_seconds: Optional[int] = 3600,
         env_variables: Optional[Dict[str, Any]] = None,
+        skip_mcp: bool = False,
         **kwargs: Any,
-    ) -> Tuple["FleetEnvClient", FleetMCPTools]:
+    ) -> Tuple["FleetEnvClient", Optional[FleetMCPTools]]:
         """Async version of from_fleet() — does not block the event loop.
 
         Uses AsyncFleet.make() for provisioning and asyncio.sleep() for retries,
         allowing other async trajectories to progress while waiting.
+
+        Args:
+            skip_mcp: If True, skip MCP tools creation (caller will provide its own).
+                Used for browser_use where the browser lease provides the MCP endpoint.
         """
         try:
             from fleet._async import AsyncFleet
@@ -274,12 +279,14 @@ class FleetEnvClient(HTTPEnvClient[Action, Observation]):
         )
 
         root = env.urls.root
-        # Pick MCP endpoint based on modality:
-        # - computer_use (image_type="mcp"): aggregator on port 8081 (has computer tool + API tools)
-        # - tool_use: per-env MCP server on port 3003 (API tools only)
-        if image_type == "mcp":
+
+        if skip_mcp:
+            mcp_urls = ()
+        elif image_type == "mcp":
+            # computer_use: aggregator on port 8081 (has computer tool + API tools)
             mcp_urls = (f"{root}api/v1/mcp",)
         else:
+            # tool_use: per-env MCP server on port 3003 (API tools only)
             mcp_urls = (f"{root}mcp",)
 
         orch = cls(
@@ -289,7 +296,7 @@ class FleetEnvClient(HTTPEnvClient[Action, Observation]):
             mcp_urls=mcp_urls,
             **kwargs,
         )
-        tools = FleetMCPTools(api_key=api_key, mcp_urls=mcp_urls)
+        tools = FleetMCPTools(api_key=api_key, mcp_urls=mcp_urls) if mcp_urls else None
         return orch, tools
 
     # ------------------------------------------------------------------
