@@ -83,14 +83,15 @@ def _browser_api_base_url(cluster_name: str) -> str:
     return f"https://api.browser.{cluster_name}.fleetai.com"
 
 
+_BROWSER_API_TOKEN_FALLBACK = "bb46d985-763a-47bf-a67a-c2c98ba6e1d9"
+
+
 def _resolve_token() -> str:
-    for var in ("BROWSER_API_TOKEN", "DRIVER_API_TOKEN", "FLEET_API_KEY"):
+    for var in ("BROWSER_API_TOKEN", "DRIVER_API_TOKEN"):
         val = os.getenv(var, "").strip()
         if val:
             return val
-    raise ValueError(
-        "Browser API token not found. Set BROWSER_API_TOKEN or FLEET_API_KEY."
-    )
+    return _BROWSER_API_TOKEN_FALLBACK
 
 
 def _allowed_hosts(instance_host: str) -> list[str]:
