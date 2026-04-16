@@ -407,18 +407,22 @@ def _create_hf_space(
     repo_id: str,
     api: HfApi,
     private: bool = False,
+    hardware: str | None = None,
 ) -> None:
     """Create a Hugging Face Space if it doesn't exist."""
     console.print(f"[bold cyan]Creating/verifying space: {repo_id}[/bold cyan]")
 
     try:
-        api.create_repo(
-            repo_id=repo_id,
-            repo_type="space",
-            space_sdk="docker",
-            private=private,
-            exist_ok=True,
-        )
+        create_kwargs: dict = {
+            "repo_id": repo_id,
+            "repo_type": "space",
+            "space_sdk": "docker",
+            "private": private,
+            "exist_ok": True,
+        }
+        if hardware is not None:
+            create_kwargs["space_hardware"] = hardware
+        api.create_repo(**create_kwargs)
         console.print(f"[bold green]✓[/bold green] Space {repo_id} is ready")
     except Exception as e:
         # Space might already exist, which is okay with exist_ok=True
@@ -532,6 +536,23 @@ def push(
             help="Optional additional ignore file with newline-separated glob patterns to exclude from Hugging Face uploads",
         ),
     ] = None,
+    hardware: Annotated[
+        str | None,
+        typer.Option(
+            "--hardware",
+            "-H",
+            help="Request hardware for Hugging Face Space (e.g. t4-medium, cpu-basic). See HF docs for options.",
+        ),
+    ] = None,
+    count: Annotated[
+        int,
+        typer.Option(
+            "--count",
+            "-n",
+            help="Number of Space instances to deploy. Each gets a numeric suffix (e.g. env-1, env-2).",
+            min=1,
+        ),
+    ] = 1,
 ) -> None:
     """
     Push an OpenEnv environment to Hugging Face Spaces or a custom Docker registry.
@@ -570,7 +591,23 @@ def push(
 
         # Push privately with custom base image
         $ openenv push --private --base-image ghcr.io/meta-pytorch/openenv-base:latest
+
+        # Push with GPU hardware
+        $ openenv push --hardware t4-medium
     """
+    # Validate --count flag combinations
+    if count > 1 and registry:
+        console.print(
+            "[bold red]Error:[/bold red] --count cannot be used with --registry",
+        )
+        raise typer.Exit(1)
+
+    if count > 1 and create_pr:
+        console.print(
+            "[bold red]Error:[/bold red] --count cannot be used with --create-pr",
+        )
+        raise typer.Exit(1)
+
     # Handle interface flag logic
     if no_interface and interface:
         console.print(
@@ -699,20 +736,48 @@ def push(
             enable_interface=enable_interface,
         )
 
-        # Create/verify space (no-op if exists; needed when pushing to own new repo)
-        if not create_pr:
-            _create_hf_space(repo_id, api, private=private)
-        # When create_pr we rely on upload_folder to create branch and PR
+        if count > 1:
+            base_repo_id = repo_id
+            for i in range(1, count + 1):
+                instance_repo_id = f"{base_repo_id}-{i}"
+                console.print(
+                    f"\n[bold cyan][{i}/{count}] Deploying {instance_repo_id}...[/bold cyan]"
+                )
+                _create_hf_space(
+                    instance_repo_id, api, private=private, hardware=hardware
+                )
+                _upload_to_hf_space(
+                    instance_repo_id,
+                    staging_dir,
+                    api,
+                    private=private,
+                    create_pr=False,
+                    ignore_patterns=ignore_patterns,
+                )
+            console.print(
+                f"\n[bold green]✓ All {count} instances deployed![/bold green]"
+            )
+            for i in range(1, count + 1):
+                console.print(
+                    f"Visit instance {i}: https://huggingface.co/spaces/{base_repo_id}-{i}"
+                )
+        else:
+            # Create/verify space (no-op if exists; needed when pushing to own new repo)
+            if not create_pr:
+                _create_hf_space(repo_id, api, private=private, hardware=hardware)
+            # When create_pr we rely on upload_folder to create branch and PR
 
-        # Upload files
-        _upload_to_hf_space(
-            repo_id,
-            staging_dir,
-            api,
-            private=private,
-            create_pr=create_pr,
-            ignore_patterns=ignore_patterns,
-        )
+            # Upload files
+            _upload_to_hf_space(
+                repo_id,
+                staging_dir,
+                api,
+                private=private,
+                create_pr=create_pr,
+                ignore_patterns=ignore_patterns,
+            )
 
-        console.print("\n[bold green]✓ Deployment complete![/bold green]")
-        console.print(f"Visit your space at: https://huggingface.co/spaces/{repo_id}")
+            console.print("\n[bold green]✓ Deployment complete![/bold green]")
+            console.print(
+                f"Visit your space at: https://huggingface.co/spaces/{repo_id}"
+            )
