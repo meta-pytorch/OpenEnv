@@ -1,7 +1,6 @@
 # Use the official Playwright Python image so browser binaries are already present.
 FROM mcr.microsoft.com/playwright/python:v1.58.0-noble
 
-# Set working directory
 WORKDIR /app/env
 
 # Install only the extra packages this env still needs on top of the Playwright image.
@@ -12,6 +11,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
+# Install uv
+RUN curl -LsSf https://astral.sh/uv/install.sh | sh && \
+    mv /root/.local/bin/uv /usr/local/bin/uv && \
+    mv /root/.local/bin/uvx /usr/local/bin/uvx
+
 # Copy environment files first (for better caching)
 # Build context should be envs/browsergym_env/ (not server/ or repo root)
 COPY . .
@@ -19,14 +23,22 @@ COPY . .
 # Make start script executable
 RUN chmod +x /app/env/server/start.sh
 
-RUN pip install --no-cache-dir uv
-RUN uv pip install --system --no-cache -e .
+# Install Python dependencies using uv sync
+RUN --mount=type=cache,target=/root/.cache/uv \
+    if [ -f uv.lock ]; then \
+        uv sync --frozen --no-editable; \
+    else \
+        uv sync --no-editable; \
+    fi
 
 # Install MiniWoB++ from a pinned snapshot to avoid flaky Hub-time git clones.
 ARG MINIWOB_COMMIT=7fd85d71a4b60325c6585396ec4f48377d049838
 RUN mkdir -p /app/miniwob-plusplus && \
     curl -L "https://github.com/Farama-Foundation/miniwob-plusplus/archive/${MINIWOB_COMMIT}.tar.gz" \
     | tar -xz --strip-components=1 -C /app/miniwob-plusplus
+
+# Set PATH to use the virtual environment
+ENV PATH="/app/env/.venv/bin:$PATH"
 
 # Set environment variables
 ENV PYTHONUNBUFFERED=1
@@ -57,7 +69,7 @@ EXPOSE 8888
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
-    CMD curl -f http://localhost:8000/health || exit 1
+    CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')" || exit 1
 
 # Run the server using the start script
 CMD ["/app/env/server/start.sh"]

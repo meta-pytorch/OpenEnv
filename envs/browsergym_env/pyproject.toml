@@ -37,3 +37,9 @@ package-dir = { "browsergym_env" = ".", "browsergym_env.server" = "server" }
 
 [tool.setuptools.package-data]
 browsergym_env = ["**/*.yaml", "**/*.yml", "**/*.md"]
+
+[tool.uv]
+# libwebarena==0.0.4 (pulled in by browsergym-webarena>=0.13.1) pins beartype==0.12.0
+# on Windows, conflicting with openenv-core's beartype>=0.20.0 requirement.
+# Override to allow a compatible version on all platforms.
+override-dependencies = ["beartype>=0.20.0"]
