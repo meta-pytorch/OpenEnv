@@ -27,6 +27,47 @@ app = typer.Typer(help="Push an OpenEnv environment to Hugging Face Spaces")
 DEFAULT_PUSH_IGNORE_PATTERNS = [".*", "__pycache__", "*.pyc"]
 
 
+def _parse_kv_pairs(raw_pairs: list[str], *, flag: str) -> dict[str, str]:
+    """Parse a list of 'KEY=VALUE' strings into a dict.
+
+    Splits only on the first '=', so values can contain '='. Later entries
+    override earlier ones with the same key (repeated CLI flags still work).
+    """
+    parsed: dict[str, str] = {}
+    for entry in raw_pairs:
+        if "=" not in entry:
+            raise typer.BadParameter(
+                f"Invalid {flag} format: {entry!r}. Expected KEY=VALUE."
+            )
+        key, value = entry.split("=", 1)
+        key = key.strip()
+        if not key:
+            raise typer.BadParameter(
+                f"Invalid {flag} format: {entry!r}. Key cannot be empty."
+            )
+        parsed[key] = value
+    return parsed
+
+
+def _apply_space_variables_and_secrets(
+    repo_id: str,
+    variables: dict[str, str],
+    secrets: dict[str, str],
+    api: HfApi,
+) -> None:
+    """Configure Space-level variables and secrets on a deployed repo.
+
+    Idempotent: add_space_variable/secret with the same key overwrites.
+    Secret values are never logged — only the key is printed.
+    """
+    for key, value in variables.items():
+        api.add_space_variable(repo_id=repo_id, key=key, value=value)
+        console.print(f"[bold green]✓[/bold green] Set variable {key} on {repo_id}")
+    for key, value in secrets.items():
+        api.add_space_secret(repo_id=repo_id, key=key, value=value)
+        console.print(f"[bold green]✓[/bold green] Set secret {key} on {repo_id}")
+
+
 def _path_matches_pattern(relative_path: Path, pattern: str) -> bool:
     """Return True if a relative path matches an exclude pattern."""
     normalized_pattern = pattern.strip()
@@ -553,6 +594,21 @@ def push(
             min=1,
         ),
     ] = 1,
+    env_vars: Annotated[
+        list[str] | None,
+        typer.Option(
+            "--env-var",
+            "-e",
+            help="Public Space variable as KEY=VALUE (repeatable). Overrides matching keys from openenv.yaml variables:.",
+        ),
+    ] = None,
+    secrets: Annotated[
+        list[str] | None,
+        typer.Option(
+            "--secret",
+            help="Private Space secret as KEY=VALUE (repeatable). Value is never logged.",
+        ),
+    ] = None,
 ) -> None:
     """
     Push an OpenEnv environment to Hugging Face Spaces or a custom Docker registry.
@@ -594,6 +650,12 @@ def push(
 
         # Push with GPU hardware
         $ openenv push --hardware t4-medium
+
+        # Set a public Space variable (overrides openenv.yaml variables:)
+        $ openenv push -e OPENSPIEL_GAME=tic_tac_toe -e MAX_STEPS=100
+
+        # Set a private Space secret (value never logged)
+        $ openenv push --secret OPENAI_API_KEY=sk-...
     """
     # Validate --count flag combinations
     if count > 1 and registry:
@@ -654,6 +716,19 @@ def push(
     )
     env_name, manifest = _validate_openenv_directory(env_dir)
     console.print(f"[bold green]✓[/bold green] Found OpenEnv environment: {env_name}")
+
+    # Parse and merge Space variables (yaml < CLI) and secrets (CLI only).
+    yaml_variables_raw = manifest.get("variables") or {}
+    if not isinstance(yaml_variables_raw, dict):
+        raise typer.BadParameter(
+            "openenv.yaml 'variables' must be a mapping of KEY: value"
+        )
+    merged_variables: dict[str, str] = {
+        str(k): str(v) for k, v in yaml_variables_raw.items()
+    }
+    cli_variables = _parse_kv_pairs(env_vars or [], flag="--env-var")
+    merged_variables.update(cli_variables)
+    cli_secrets = _parse_kv_pairs(secrets or [], flag="--secret")
 
     # Handle custom registry push
     if registry:
@@ -754,6 +829,9 @@ def push(
                     create_pr=False,
                     ignore_patterns=ignore_patterns,
                 )
+                _apply_space_variables_and_secrets(
+                    instance_repo_id, merged_variables, cli_secrets, api
+                )
             console.print(
                 f"\n[bold green]✓ All {count} instances deployed![/bold green]"
             )
@@ -776,6 +854,13 @@ def push(
                 create_pr=create_pr,
                 ignore_patterns=ignore_patterns,
             )
+
+            # Skip variable/secret configuration in PR mode since the target
+            # repo's live environment should only change when the PR is merged.
+            if not create_pr:
+                _apply_space_variables_and_secrets(
+                    repo_id, merged_variables, cli_secrets, api
+                )
 
             console.print("\n[bold green]✓ Deployment complete![/bold green]")
             console.print(

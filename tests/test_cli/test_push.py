@@ -1042,3 +1042,358 @@ def test_push_count_with_create_pr_errors(tmp_path: Path) -> None:
     assert (
         "--create-pr" in result.output.lower() or "create-pr" in result.output.lower()
     )
+
+
+def test_push_sets_space_variable_from_cli(tmp_path: Path) -> None:
+    """-e KEY=VALUE triggers add_space_variable after upload."""
+    _create_test_openenv_env(tmp_path)
+
+    with (
+        patch("openenv.cli.commands.push.whoami") as mock_whoami,
+        patch("openenv.cli.commands.push.login") as mock_login,
+        patch("openenv.cli.commands.push.HfApi") as mock_hf_api_class,
+    ):
+        mock_whoami.return_value = {"name": "testuser"}
+        mock_login.return_value = None
+        mock_api = MagicMock()
+        mock_hf_api_class.return_value = mock_api
+
+        old_cwd = os.getcwd()
+        try:
+            os.chdir(str(tmp_path))
+            result = runner.invoke(
+                app,
+                ["push", "-e", "OPENSPIEL_GAME=tic_tac_toe"],
+            )
+        finally:
+            os.chdir(old_cwd)
+
+        assert result.exit_code == 0, result.output
+        mock_api.add_space_variable.assert_called_once()
+        call_kwargs = mock_api.add_space_variable.call_args.kwargs
+        assert call_kwargs["repo_id"] == "testuser/test_env"
+        assert call_kwargs["key"] == "OPENSPIEL_GAME"
+        assert call_kwargs["value"] == "tic_tac_toe"
+        mock_api.add_space_secret.assert_not_called()
+
+
+def test_push_sets_space_secret_from_cli(tmp_path: Path) -> None:
+    """--secret KEY=VALUE triggers add_space_secret after upload."""
+    _create_test_openenv_env(tmp_path)
+
+    with (
+        patch("openenv.cli.commands.push.whoami") as mock_whoami,
+        patch("openenv.cli.commands.push.login") as mock_login,
+        patch("openenv.cli.commands.push.HfApi") as mock_hf_api_class,
+    ):
+        mock_whoami.return_value = {"name": "testuser"}
+        mock_login.return_value = None
+        mock_api = MagicMock()
+        mock_hf_api_class.return_value = mock_api
+
+        old_cwd = os.getcwd()
+        try:
+            os.chdir(str(tmp_path))
+            result = runner.invoke(
+                app,
+                ["push", "--secret", "OPENAI_API_KEY=sk-super-secret-123"],
+            )
+        finally:
+            os.chdir(old_cwd)
+
+        assert result.exit_code == 0, result.output
+        mock_api.add_space_secret.assert_called_once()
+        call_kwargs = mock_api.add_space_secret.call_args.kwargs
+        assert call_kwargs["repo_id"] == "testuser/test_env"
+        assert call_kwargs["key"] == "OPENAI_API_KEY"
+        assert call_kwargs["value"] == "sk-super-secret-123"
+        mock_api.add_space_variable.assert_not_called()
+
+
+def test_push_secret_value_is_not_logged(tmp_path: Path) -> None:
+    """Secret values must never appear in CLI output (only the key)."""
+    _create_test_openenv_env(tmp_path)
+
+    secret_value = "sk-super-secret-do-not-leak"
+
+    with (
+        patch("openenv.cli.commands.push.whoami") as mock_whoami,
+        patch("openenv.cli.commands.push.login") as mock_login,
+        patch("openenv.cli.commands.push.HfApi") as mock_hf_api_class,
+    ):
+        mock_whoami.return_value = {"name": "testuser"}
+        mock_login.return_value = None
+        mock_api = MagicMock()
+        mock_hf_api_class.return_value = mock_api
+
+        old_cwd = os.getcwd()
+        try:
+            os.chdir(str(tmp_path))
+            result = runner.invoke(
+                app,
+                ["push", "--secret", f"OPENAI_API_KEY={secret_value}"],
+            )
+        finally:
+            os.chdir(old_cwd)
+
+        assert result.exit_code == 0, result.output
+        assert secret_value not in result.output
+        # Key itself should be mentioned so the user sees confirmation
+        assert "OPENAI_API_KEY" in result.output
+
+
+def test_push_loads_variables_from_openenv_yaml(tmp_path: Path) -> None:
+    """variables: in openenv.yaml are applied via add_space_variable."""
+    import yaml
+
+    _create_test_openenv_env(tmp_path)
+    # Overwrite openenv.yaml adding a variables section
+    manifest = {
+        "spec_version": 1,
+        "name": "test_env",
+        "type": "space",
+        "runtime": "fastapi",
+        "app": "server.app:app",
+        "port": 8000,
+        "variables": {
+            "OPENSPIEL_GAME": "tic_tac_toe",
+            "MAX_STEPS": "100",
+        },
+    }
+    with open(tmp_path / "openenv.yaml", "w") as f:
+        yaml.dump(manifest, f)
+
+    with (
+        patch("openenv.cli.commands.push.whoami") as mock_whoami,
+        patch("openenv.cli.commands.push.login") as mock_login,
+        patch("openenv.cli.commands.push.HfApi") as mock_hf_api_class,
+    ):
+        mock_whoami.return_value = {"name": "testuser"}
+        mock_login.return_value = None
+        mock_api = MagicMock()
+        mock_hf_api_class.return_value = mock_api
+
+        old_cwd = os.getcwd()
+        try:
+            os.chdir(str(tmp_path))
+            result = runner.invoke(app, ["push"])
+        finally:
+            os.chdir(old_cwd)
+
+        assert result.exit_code == 0, result.output
+        assert mock_api.add_space_variable.call_count == 2
+        vars_seen = {
+            call.kwargs["key"]: call.kwargs["value"]
+            for call in mock_api.add_space_variable.call_args_list
+        }
+        assert vars_seen == {
+            "OPENSPIEL_GAME": "tic_tac_toe",
+            "MAX_STEPS": "100",
+        }
+
+
+def test_push_cli_env_var_overrides_yaml(tmp_path: Path) -> None:
+    """-e on CLI overrides the same key from openenv.yaml variables."""
+    import yaml
+
+    _create_test_openenv_env(tmp_path)
+    manifest = {
+        "spec_version": 1,
+        "name": "test_env",
+        "type": "space",
+        "runtime": "fastapi",
+        "app": "server.app:app",
+        "port": 8000,
+        "variables": {"OPENSPIEL_GAME": "catch"},
+    }
+    with open(tmp_path / "openenv.yaml", "w") as f:
+        yaml.dump(manifest, f)
+
+    with (
+        patch("openenv.cli.commands.push.whoami") as mock_whoami,
+        patch("openenv.cli.commands.push.login") as mock_login,
+        patch("openenv.cli.commands.push.HfApi") as mock_hf_api_class,
+    ):
+        mock_whoami.return_value = {"name": "testuser"}
+        mock_login.return_value = None
+        mock_api = MagicMock()
+        mock_hf_api_class.return_value = mock_api
+
+        old_cwd = os.getcwd()
+        try:
+            os.chdir(str(tmp_path))
+            result = runner.invoke(
+                app,
+                ["push", "-e", "OPENSPIEL_GAME=tic_tac_toe"],
+            )
+        finally:
+            os.chdir(old_cwd)
+
+        assert result.exit_code == 0, result.output
+        # Exactly one call for OPENSPIEL_GAME with CLI value
+        assert mock_api.add_space_variable.call_count == 1
+        kwargs = mock_api.add_space_variable.call_args.kwargs
+        assert kwargs["key"] == "OPENSPIEL_GAME"
+        assert kwargs["value"] == "tic_tac_toe"
+
+
+def test_push_rejects_env_var_without_equals(tmp_path: Path) -> None:
+    """-e KEY (no =) must fail with a clear error and not call HfApi."""
+    _create_test_openenv_env(tmp_path)
+
+    with (
+        patch("openenv.cli.commands.push.whoami") as mock_whoami,
+        patch("openenv.cli.commands.push.login") as mock_login,
+        patch("openenv.cli.commands.push.HfApi") as mock_hf_api_class,
+    ):
+        mock_whoami.return_value = {"name": "testuser"}
+        mock_login.return_value = None
+        mock_api = MagicMock()
+        mock_hf_api_class.return_value = mock_api
+
+        old_cwd = os.getcwd()
+        try:
+            os.chdir(str(tmp_path))
+            result = runner.invoke(app, ["push", "-e", "NO_EQUALS_HERE"])
+        finally:
+            os.chdir(old_cwd)
+
+        assert result.exit_code != 0
+        assert (
+            "key=value" in result.output.lower()
+            or "invalid" in result.output.lower()
+            or "format" in result.output.lower()
+        )
+        mock_api.add_space_variable.assert_not_called()
+
+
+def test_push_rejects_env_var_with_empty_key(tmp_path: Path) -> None:
+    """-e =VALUE must fail with a clear error."""
+    _create_test_openenv_env(tmp_path)
+
+    with (
+        patch("openenv.cli.commands.push.whoami") as mock_whoami,
+        patch("openenv.cli.commands.push.login") as mock_login,
+        patch("openenv.cli.commands.push.HfApi") as mock_hf_api_class,
+    ):
+        mock_whoami.return_value = {"name": "testuser"}
+        mock_login.return_value = None
+        mock_api = MagicMock()
+        mock_hf_api_class.return_value = mock_api
+
+        old_cwd = os.getcwd()
+        try:
+            os.chdir(str(tmp_path))
+            result = runner.invoke(app, ["push", "-e", "=value_only"])
+        finally:
+            os.chdir(old_cwd)
+
+        assert result.exit_code != 0
+        mock_api.add_space_variable.assert_not_called()
+
+
+def test_push_env_var_value_can_contain_equals(tmp_path: Path) -> None:
+    """-e KEY=a=b=c splits only on first '=' so values with '=' are preserved."""
+    _create_test_openenv_env(tmp_path)
+
+    with (
+        patch("openenv.cli.commands.push.whoami") as mock_whoami,
+        patch("openenv.cli.commands.push.login") as mock_login,
+        patch("openenv.cli.commands.push.HfApi") as mock_hf_api_class,
+    ):
+        mock_whoami.return_value = {"name": "testuser"}
+        mock_login.return_value = None
+        mock_api = MagicMock()
+        mock_hf_api_class.return_value = mock_api
+
+        old_cwd = os.getcwd()
+        try:
+            os.chdir(str(tmp_path))
+            result = runner.invoke(app, ["push", "-e", "TOKEN=a=b=c"])
+        finally:
+            os.chdir(old_cwd)
+
+        assert result.exit_code == 0, result.output
+        kwargs = mock_api.add_space_variable.call_args.kwargs
+        assert kwargs["key"] == "TOKEN"
+        assert kwargs["value"] == "a=b=c"
+
+
+def test_push_no_variables_is_backward_compatible(tmp_path: Path) -> None:
+    """Without -e/--secret and without variables: in yaml, no HF var APIs are called."""
+    _create_test_openenv_env(tmp_path)
+
+    with (
+        patch("openenv.cli.commands.push.whoami") as mock_whoami,
+        patch("openenv.cli.commands.push.login") as mock_login,
+        patch("openenv.cli.commands.push.HfApi") as mock_hf_api_class,
+    ):
+        mock_whoami.return_value = {"name": "testuser"}
+        mock_login.return_value = None
+        mock_api = MagicMock()
+        mock_hf_api_class.return_value = mock_api
+
+        old_cwd = os.getcwd()
+        try:
+            os.chdir(str(tmp_path))
+            result = runner.invoke(app, ["push"])
+        finally:
+            os.chdir(old_cwd)
+
+        assert result.exit_code == 0, result.output
+        mock_api.add_space_variable.assert_not_called()
+        mock_api.add_space_secret.assert_not_called()
+
+
+def test_push_count_applies_variables_to_all_instances(tmp_path: Path) -> None:
+    """--count N pushes variables and secrets to each of the N instances."""
+    _create_test_openenv_env(tmp_path)
+
+    with (
+        patch("openenv.cli.commands.push.whoami") as mock_whoami,
+        patch("openenv.cli.commands.push.login") as mock_login,
+        patch("openenv.cli.commands.push.HfApi") as mock_hf_api_class,
+    ):
+        mock_whoami.return_value = {"name": "testuser"}
+        mock_login.return_value = None
+        mock_api = MagicMock()
+        mock_hf_api_class.return_value = mock_api
+
+        old_cwd = os.getcwd()
+        try:
+            os.chdir(str(tmp_path))
+            result = runner.invoke(
+                app,
+                [
+                    "push",
+                    "--repo-id",
+                    "testuser/my-env",
+                    "--count",
+                    "3",
+                    "-e",
+                    "OPENSPIEL_GAME=tic_tac_toe",
+                    "--secret",
+                    "TOKEN=abc",
+                ],
+            )
+        finally:
+            os.chdir(old_cwd)
+
+        assert result.exit_code == 0, result.output
+        var_repo_ids = sorted(
+            call.kwargs["repo_id"]
+            for call in mock_api.add_space_variable.call_args_list
+        )
+        secret_repo_ids = sorted(
+            call.kwargs["repo_id"] for call in mock_api.add_space_secret.call_args_list
+        )
+        assert var_repo_ids == [
+            "testuser/my-env-1",
+            "testuser/my-env-2",
+            "testuser/my-env-3",
+        ]
+        assert secret_repo_ids == [
+            "testuser/my-env-1",
+            "testuser/my-env-2",
+            "testuser/my-env-3",
+        ]

@@ -4,3 +4,9 @@ type: space
 runtime: fastapi
 app: server.app:app
 port: 8000
+
+# Public Space variables applied by `openenv push`.
+# Override per-push with CLI: `openenv push -e OPENSPIEL_GAME=tic_tac_toe`.
+# For private values (API keys, tokens), use `--secret KEY=VALUE` on the CLI.
+variables:
+  OPENSPIEL_GAME: catch
