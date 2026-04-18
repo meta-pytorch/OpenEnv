@@ -107,6 +107,52 @@ def test_openai_provider_builds_llm_client(tmp_path: Path, mock_pipeline):
     assert kwargs["api_key"] == "sk-test"
 
 
+def test_llm_endpoint_uses_llm_teacher_with_default_provider(
+    tmp_path: Path, mock_pipeline
+):
+    llm_step = MagicMock(name="llm_step")
+    scripted_step = MagicMock(name="scripted_step")
+
+    with (
+        patch(
+            "openenv.cli.commands.collect._build_llm_model_step",
+            return_value=llm_step,
+        ) as build_llm,
+        patch(
+            "openenv.cli.commands.collect._build_scripted_model_step",
+            return_value=scripted_step,
+        ) as build_scripted,
+    ):
+        result = runner.invoke(
+            app,
+            [
+                "collect",
+                "openspiel:tic_tac_toe",
+                "--base-url",
+                "https://example.hf.space",
+                "--output-dir",
+                str(tmp_path),
+                "--llm-endpoint",
+                "http://localhost",
+                "--model",
+                "Qwen/Qwen2.5-7B-Instruct",
+            ],
+        )
+
+    assert result.exit_code == 0, result.output
+    build_llm.assert_called_once()
+    build_scripted.assert_not_called()
+    assert (
+        mock_pipeline["runner_instance"].run.call_args.kwargs["model_step"] is llm_step
+    )
+    metadata = (
+        mock_pipeline["serializer_cls"]
+        .return_value.write_metadata.call_args.args[0]
+    )
+    assert metadata["provider"] == "openai-compatible"
+    assert metadata["llm_endpoint"] == "http://localhost"
+
+
 def test_push_to_hub_triggers_upload(tmp_path: Path, mock_pipeline):
     with (
         patch("openenv.cli.commands.collect.push_to_hf_hub") as push_mock,

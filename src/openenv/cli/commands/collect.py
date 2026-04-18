@@ -56,6 +56,18 @@ For each turn, inspect the observation and call the provided tool with a
 valid argument. Only call one tool per turn."""
 
 
+def _uses_llm_teacher(provider: str, llm_endpoint: str | None) -> bool:
+    """Return whether this collect job should use an LLM-backed teacher."""
+    return llm_endpoint is not None or provider != "scripted"
+
+
+def _teacher_provider_label(provider: str, llm_endpoint: str | None) -> str:
+    """Normalize the provider label shown in metadata and CLI output."""
+    if llm_endpoint is not None:
+        return "openai-compatible"
+    return provider
+
+
 def _resolve_api_key(provider: str) -> str:
     for name in _PROVIDER_API_KEY_ENVS.get(provider, []):
         value = os.getenv(name)
@@ -279,9 +291,12 @@ def collect(
     ] = None,
 ) -> None:
     """Collect rollouts from a deployed OpenEnv environment."""
-    if provider != "scripted" and not model:
+    uses_llm_teacher = _uses_llm_teacher(provider, llm_endpoint)
+    teacher_provider = _teacher_provider_label(provider, llm_endpoint)
+
+    if uses_llm_teacher and not model:
         raise typer.BadParameter(
-            f"--model is required when --provider={provider!r}.",
+            "--model is required when using a hosted provider or --llm-endpoint.",
             param_hint="--model",
         )
 
@@ -291,17 +306,17 @@ def collect(
         {
             "env": env,
             "env_base_url": base_url,
-            "provider": provider,
+            "provider": teacher_provider,
             "model": model,
+            "llm_endpoint": llm_endpoint,
+            "llm_port": llm_port if llm_endpoint else None,
             "num_episodes_requested": num_episodes,
             "temperature": temperature,
             "keep_losses": keep_losses,
         }
     )
 
-    if provider == "scripted":
-        model_step = _build_scripted_model_step()
-    else:
+    if uses_llm_teacher:
         model_step = _build_llm_model_step(
             provider=provider,
             model=model,  # type: ignore[arg-type]  # validated above
@@ -310,6 +325,8 @@ def collect(
             temperature=temperature,
             max_tokens=max_tokens,
         )
+    else:
+        model_step = _build_scripted_model_step()
 
     should_keep = None if keep_losses else (lambda record: record.reward >= 0.0)
 
@@ -321,7 +338,10 @@ def collect(
     )
 
     console.print(f"[cyan]Env server:[/cyan] {base_url}")
-    console.print(f"[cyan]Teacher:[/cyan] {provider}" + (f"/{model}" if model else ""))
+    console.print(
+        f"[cyan]Teacher:[/cyan] {teacher_provider}"
+        + (f"/{model}" if model else "")
+    )
     console.print(f"[cyan]Output:[/cyan] {output_dir}")
 
     result = collect_runner.run(

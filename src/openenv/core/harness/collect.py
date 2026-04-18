@@ -19,7 +19,6 @@ The serialized schema is designed to be consumed directly by TRL's
 
 from __future__ import annotations
 
-import asyncio
 import json
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
@@ -29,6 +28,7 @@ from huggingface_hub import HfApi
 
 from ..env_server.mcp_types import Tool
 from ..llm_client import LLMClient
+from ..utils import run_async_safely
 from . import (
     _resolve_env_reward,
     HarnessAdapter,
@@ -257,11 +257,12 @@ class CollectRunner:
         rewards: list[float] = []
 
         for episode_id in planned_ids:
+            # Preserve task-to-episode alignment even when resume skips ids.
+            task = self._next_task()
             if episode_id in already:
                 num_skipped += 1
                 continue
 
-            task = self._next_task()
             session = self._session_factory.create(task=task, episode_id=episode_id)
             try:
                 rollout = self._harness_adapter.run_white_box(
@@ -348,7 +349,7 @@ def build_model_step(
             k: v for k, v in sampling.items() if k in _SUPPORTED_SAMPLING_KEYS
         }
 
-        response = asyncio.run(
+        response = run_async_safely(
             llm_client.complete_with_tools(
                 messages=effective_messages,
                 tools=tool_dicts,

@@ -466,6 +466,34 @@ class TestCollectRunner:
 
         assert [call["task"] for call in factory.created] == ["a", "b", "c"]
 
+    def test_resume_consumes_task_slots_for_skipped_episodes(self, tmp_path: Path):
+        first_runner = CollectRunner(
+            session_factory=_FakeFactory(),
+            harness_adapter=_FakeAdapter(),
+            serializer=RolloutSerializer(tmp_path),
+            tasks=iter(["a", "b"]),
+        )
+        first_runner.run(model_step=_noop_model_step, num_episodes=2)
+
+        resumed_factory = _FakeFactory()
+        resumed_runner = CollectRunner(
+            session_factory=resumed_factory,
+            harness_adapter=_FakeAdapter(),
+            serializer=RolloutSerializer(tmp_path),
+            tasks=iter(["a", "b", "c", "d"]),
+        )
+        resumed_runner.run(model_step=_noop_model_step, num_episodes=4)
+
+        assert [call["task"] for call in resumed_factory.created] == ["c", "d"]
+        payloads = [
+            json.loads(line)
+            for line in (tmp_path / "results.jsonl").read_text().strip().splitlines()
+        ]
+        assert payloads[2]["episode_id"] == "ep-000002"
+        assert payloads[2]["task"] == "c"
+        assert payloads[3]["episode_id"] == "ep-000003"
+        assert payloads[3]["task"] == "d"
+
     def test_collect_result_reports_success_rate(self, tmp_path: Path):
         factory = _FakeFactory(reward_map={0: 1.0, 1: 0.0, 2: 1.0, 3: 1.0})
         runner = CollectRunner(
@@ -607,6 +635,16 @@ class TestBuildModelStep:
         assert len(result.response.tool_calls) == 1
         assert result.response.tool_calls[0].name == "play_move"
         assert result.response.tool_calls[0].args == {"action_id": 0}
+
+    @pytest.mark.asyncio
+    async def test_runs_safely_inside_existing_event_loop(self):
+        client = _RecordingLLMClient(LLMResponse(content="ok", tool_calls=[]))
+        step = build_model_step(client)
+
+        result = step([{"role": "user", "content": "play"}], [], {})
+
+        assert result.response.content == "ok"
+        assert client.calls[0]["messages"] == [{"role": "user", "content": "play"}]
 
 
 def _populated_output_dir(tmp_path: Path) -> Path:
