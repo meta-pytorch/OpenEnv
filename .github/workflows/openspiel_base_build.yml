@@ -37,7 +37,7 @@ jobs:
 
       - name: Extract metadata for base image
         id: meta
-        uses: docker/metadata-action@v5
+        uses: docker/metadata-action@v6
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-base
           tags: |
@@ -80,7 +80,7 @@ jobs:
 
       - name: Extract metadata for OpenSpiel base image
         id: meta-openspiel-base
-        uses: docker/metadata-action@v5
+        uses: docker/metadata-action@v6
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-openspiel-base
           tags: |
