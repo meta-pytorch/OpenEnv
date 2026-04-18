@@ -17,7 +17,14 @@ from .env_server import *  # noqa: F403
 if TYPE_CHECKING:
     from .env_client import EnvClient
     from .generic_client import GenericAction, GenericEnvClient
-    from .llm_client import LLMClient, OpenAIClient
+    from .llm_client import (
+        AnthropicClient,
+        create_llm_client,
+        LLMClient,
+        LLMResponse,
+        OpenAIClient,
+        ToolCall,
+    )
     from .mcp_client import MCPClientBase, MCPToolClient
     from .sync_client import SyncEnvClient
 
@@ -28,8 +35,12 @@ __all__ = [
     "GenericAction",
     "MCPClientBase",
     "MCPToolClient",
+    "AnthropicClient",
     "LLMClient",
+    "LLMResponse",
     "OpenAIClient",
+    "ToolCall",
+    "create_llm_client",
 ] + env_server.__all__  # type: ignore
 
 
@@ -40,8 +51,12 @@ _LAZY_ATTRS = {
     "GenericAction": (".generic_client", "GenericAction"),
     "MCPClientBase": (".mcp_client", "MCPClientBase"),
     "MCPToolClient": (".mcp_client", "MCPToolClient"),
+    "AnthropicClient": (".llm_client", "AnthropicClient"),
     "LLMClient": (".llm_client", "LLMClient"),
+    "LLMResponse": (".llm_client", "LLMResponse"),
     "OpenAIClient": (".llm_client", "OpenAIClient"),
+    "ToolCall": (".llm_client", "ToolCall"),
+    "create_llm_client": (".llm_client", "create_llm_client"),
 }
 
 
