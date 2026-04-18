@@ -21,6 +21,9 @@ That's OpenEnv. Type-safe. Isolated. Production-ready. 🎯
 
 </div>
 
+!!! note "Prefer the short path?"
+    If you want the fastest route before working through the full onboarding tutorial, start with the [Quick Start](../quickstart.md), browse environments in the [openenv organization](https://huggingface.co/openenv), or explore the [Environment Hub collection](https://huggingface.co/collections/openenv/environment-hub).
+
 ## Why OpenEnv?
 
 Let's take a trip down memory lane:
