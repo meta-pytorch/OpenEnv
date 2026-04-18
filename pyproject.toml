@@ -53,7 +53,7 @@ docs = [
     "sphinx==7.2.6",
     "pytorch-sphinx-theme2",
     "sphinxcontrib.katex==0.9.10",
-    "docutils>=0.18.1,<0.21",
+    "docutils>=0.18.1,<0.23",
     "sphinx-design==0.6.1",
     "sphinxcontrib-mermaid==1.0.0",
     "myst-parser",
