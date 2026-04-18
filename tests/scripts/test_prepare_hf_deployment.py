@@ -76,7 +76,9 @@ def test_prepare_hf_deployment_overrides_disabled_web_interface(tmp_path: Path) 
     assert result.returncode == 0, result.stderr
 
     staged_dockerfiles = [
-        path for path in staging_dir.rglob("Dockerfile") if path.parent.name == "chat_env-0.2.3"
+        path
+        for path in staging_dir.rglob("Dockerfile")
+        if path.parent.name == "chat_env-0.2.3"
     ]
     assert len(staged_dockerfiles) == 1
     staged_dockerfile = staged_dockerfiles[0]

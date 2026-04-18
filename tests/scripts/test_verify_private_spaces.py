@@ -8,8 +8,6 @@ import sys
 from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
-import pytest
-
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "scripts"))
 import verify_private_spaces
@@ -102,7 +100,9 @@ def test_probe_space_dispatches_gradio_web(mock_probe_gradio_web_space) -> None:
 def test_main_probes_ready_domain_while_app_starting(capsys) -> None:
     runtime = SimpleNamespace(
         stage="APP_STARTING",
-        raw={"domains": [{"domain": "openenv-echo-env-0-2-3.hf.space", "stage": "READY"}]},
+        raw={
+            "domains": [{"domain": "openenv-echo-env-0-2-3.hf.space", "stage": "READY"}]
+        },
     )
     fake_info = SimpleNamespace(runtime=runtime)
     fake_api = Mock()
@@ -123,7 +123,9 @@ def test_main_probes_ready_domain_while_app_starting(capsys) -> None:
         ),
         patch("verify_private_spaces.get_token", return_value="hf_test_token"),
         patch("verify_private_spaces.HfApi", return_value=fake_api),
-        patch("verify_private_spaces.probe_space", return_value=[{"ok": True}]) as mock_probe_space,
+        patch(
+            "verify_private_spaces.probe_space", return_value=[{"ok": True}]
+        ) as mock_probe_space,
     ):
         verify_private_spaces.main()
 

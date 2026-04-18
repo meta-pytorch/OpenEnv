@@ -2,14 +2,17 @@
 
 from __future__ import annotations
 
-from pathlib import Path
 import tomllib
+from pathlib import Path
 
 
 def test_browsergym_default_dependencies_match_miniwob_runtime() -> None:
     """Default installs should avoid the known WebArena/playwright resolver conflict."""
     pyproject_path = (
-        Path(__file__).resolve().parents[2] / "envs" / "browsergym_env" / "pyproject.toml"
+        Path(__file__).resolve().parents[2]
+        / "envs"
+        / "browsergym_env"
+        / "pyproject.toml"
     )
     data = tomllib.loads(pyproject_path.read_text())
     dependencies = data["project"]["dependencies"]

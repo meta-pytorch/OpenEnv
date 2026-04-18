@@ -434,7 +434,9 @@ class TestResolveCollectionSlug:
         """Explicit user-facing slugs should resolve to the canonical Hub slug."""
         mock_api = Mock()
         mock_collection = Mock()
-        mock_collection.slug = "openenv/openenv-environment-hub-69a154b16387f8b33a978dd7"
+        mock_collection.slug = (
+            "openenv/openenv-environment-hub-69a154b16387f8b33a978dd7"
+        )
         mock_api.get_collection.return_value = mock_collection
 
         result = manage_hf_collection.resolve_collection_slug(
@@ -448,7 +450,9 @@ class TestResolveCollectionSlug:
         )
 
         assert result == "openenv/openenv-environment-hub-69a154b16387f8b33a978dd7"
-        mock_api.get_collection.assert_called_once_with("openenv/openenv-environment-hub")
+        mock_api.get_collection.assert_called_once_with(
+            "openenv/openenv-environment-hub"
+        )
         mock_api.update_collection_metadata.assert_called_once_with(
             collection_slug="openenv/openenv-environment-hub-69a154b16387f8b33a978dd7",
             title="OpenEnv Environment Hub",
@@ -456,7 +460,9 @@ class TestResolveCollectionSlug:
             private=False,
         )
 
-    def test_resolve_collection_slug_falls_back_to_explicit_alias_on_lookup_failure(self):
+    def test_resolve_collection_slug_falls_back_to_explicit_alias_on_lookup_failure(
+        self,
+    ):
         """Lookup failures should fall back to the user-provided explicit slug."""
         mock_api = Mock()
         mock_api.get_collection.side_effect = Exception("lookup failed")

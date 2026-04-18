@@ -32,7 +32,9 @@ def test_tbench2_reset_uses_default_task_id(monkeypatch, tmp_path: Path):
     (task_dir / "instruction.md").write_text("Solve the terminal task.\n")
 
     monkeypatch.setattr(
-        tbench2_env_environment, "_require_terminal_toolkit", lambda: _FakeTerminalToolkit
+        tbench2_env_environment,
+        "_require_terminal_toolkit",
+        lambda: _FakeTerminalToolkit,
     )
 
     env = Tbench2Environment(

@@ -26,4 +26,3 @@ def test_canonical_dockerfiles_enable_web_interface(env_name: str) -> None:
     dockerfile_text = dockerfile.read_text()
 
     assert "ENV ENABLE_WEB_INTERFACE=true" in dockerfile_text
-
