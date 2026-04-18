@@ -150,6 +150,7 @@ class Tbench2Environment(Environment[Tbench2Action, Tbench2Observation, Tbench2S
             use_docker_backend=False,
             session_logs_dir=session_logs_dir,
             safe_mode=self.safe_mode,
+            install_dependencies=["pytest"],
         )
 
         self._state = Tbench2State(
