@@ -58,7 +58,7 @@ docs = [
     "sphinxcontrib-mermaid==1.0.0",
     "myst-parser",
     "sphinxext-opengraph",
-    "sphinx-sitemap==2.7.1",
+    "sphinx-sitemap==2.9.0",
     "sphinx-gallery>=0.14.0",
     "matplotlib",
     "nest-asyncio",
