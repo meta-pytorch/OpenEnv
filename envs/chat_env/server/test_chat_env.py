@@ -12,7 +12,7 @@ Proper unit tests with assertions to verify correct behavior.
 
 from openenv.core.env_server.interfaces import Message
 
-from ..models import ChatAction
+from ..models import ChatAction, ChatObservation, ChatState
 from .chat_environment import ChatEnvironment
 
 
@@ -205,6 +205,22 @@ def test_direct_token_action():
     )
 
     print("✓ test_direct_token_action passed")
+
+
+def test_chat_models_use_message_shape():
+    """Test that chat models accept the shared Message structure."""
+    conversation: list[Message] = [
+        {"role": "system", "content": "You are a helpful assistant."},
+        {"role": "user", "content": "Hello"},
+    ]
+
+    state = ChatState(history_messages=conversation)
+    observation = ChatObservation(messages=conversation)
+
+    assert state.history_messages == conversation
+    assert observation.messages == conversation
+
+    print("✓ test_chat_models_use_message_shape passed")
 
 
 def test_empty_tokens_validation():

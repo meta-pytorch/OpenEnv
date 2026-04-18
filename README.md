@@ -60,7 +60,7 @@ with EchoEnv(base_url="https://openenv-echo-env.hf.space").sync() as client:
     print(result.observation.echoed_message)
 ```
 
-For a detailed quick start, check out the [docs page](https://meta-pytorch.org/OpenEnv/quickstart/).
+For a detailed quick start, check out the [docs page](https://meta-pytorch.org/OpenEnv/auto_getting_started/index.html).
 
 ## OpenEnv on partner platforms:
 
@@ -367,12 +367,12 @@ See the [Oumi example](https://github.com/oumi-ai/oumi/blob/main/notebooks/Oumi%
 | [Atari Environment](envs/atari_env/README.md) | Classic Arcade Learning Environment tasks for RL benchmarking. |
 | [FinRL Environment](envs/finrl_env/README.md) | Financial market simulations for algorithmic trading experiments. |
 
-> Browse the full catalog of community environments at [meta-pytorch.org/OpenEnv/environments](https://meta-pytorch.org/OpenEnv/environments/).
+> Browse the full catalog of community environments at [meta-pytorch.org/OpenEnv/environments](https://meta-pytorch.org/OpenEnv/environments.html).
 
 ## Community Support & Acknowledgments
 This is an open and community-centric project. If you would like to add your name here, please put up a pull request and tag @jspisak for review. Ty!!
 
-Supporters include: Meta-PyTorch, Hugging Face, [Scaler AI Labs](https://scalerailabs.com), [Patronus AI](https://patronus.ai), [Surge AI](https://surgehq.ai), [LastMile AI](https://www.lastmileai.dev), Unsloth AI, Reflection AI, vLLM, SkyRL (UC-Berkeley), LightningAI, Axolotl AI, Stanford Scaling Intelligence Lab, Mithril, [OpenMined](https://openmined.org/), [Fleet AI](https://fleetai.com), [Halluminate](https://halluminate.ai/), [Turing](https://www.turing.com/), [Scale AI](https://scale.com/) ..
+Supporters include: Meta-PyTorch, Hugging Face, [Scaler AI Labs](https://scalerailabs.com), [Patronus AI](https://patronus.ai), [Surge AI](https://surgehq.ai), [LastMile AI](https://www.lastmileai.dev), Unsloth AI, Reflection AI, vLLM, SkyRL (UC-Berkeley), LightningAI, Axolotl AI, Stanford Scaling Intelligence Lab, Mithril, [OpenMined](https://openmined.org/), [Fleet AI](https://fleetai.com), [Halluminate](https://halluminate.ai/), [Turing](https://www.turing.com/), [Scale AI](https://scale.com/), [Scorecard](https://www.scorecard.io/) ..
 
 And we'd also like to acknowledge the team at Farama Foundation as the OpenEnv API was heavily inspired by the work you all have done on Gymnasium. Cheers!
 

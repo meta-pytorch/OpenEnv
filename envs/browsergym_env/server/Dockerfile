@@ -19,8 +19,8 @@ COPY . .
 # Make start script executable
 RUN chmod +x /app/env/server/start.sh
 
-# Install Python dependencies using pip install -e . (from pyproject.toml)
-RUN pip install --no-cache-dir -e .
+RUN pip install --no-cache-dir uv
+RUN uv pip install --system --no-cache -e .
 
 # Ensure the installed Playwright package has a matching Chromium runtime.
 RUN python -m playwright install chromium

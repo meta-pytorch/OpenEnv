@@ -275,6 +275,26 @@ Calendar tool-use environment exposing a Calendar Gym through the OpenEnv reset/
 ```
 ````
 
+````{grid-item-card} CARLA
+:class-card: sd-border-1
+
+Embodied evaluation environment for testing LLM decision-making in a full 3D driving simulator with irreversible consequences and ethical trolley scenarios.
+
++++
+```{button-link} environments/carla.html
+:color: primary
+:outline:
+
+{octicon}`file;1em` Docs
+```
+```{button-link} https://huggingface.co/spaces/sergiopaniego/carla-env
+:color: warning
+:outline:
+
+🤗 Hugging Face
+```
+````
+
 ````{grid-item-card} Chess
 :class-card: sd-border-1
 
@@ -515,6 +535,7 @@ environments/websearch
 environments/browsergym
 environments/repl
 environments/calendar
+environments/carla
 environments/chess
 environments/connect4
 environments/dm_control

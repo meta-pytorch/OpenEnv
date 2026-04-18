@@ -95,6 +95,9 @@ class BrowserGymEnvironment(Environment):
     provide unified access to multiple web navigation benchmarks.
     """
 
+    SUPPORTS_CONCURRENT_SESSIONS = True
+    REQUIRES_SINGLE_THREAD_EXECUTOR = True
+
     def __init__(
         self,
         benchmark: str = "miniwob",
