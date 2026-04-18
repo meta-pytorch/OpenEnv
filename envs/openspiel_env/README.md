@@ -121,6 +121,10 @@ The `openenv push` command will:
 - `--env-var`, `-e`: Public Space variable as `KEY=VALUE` (repeatable). Overrides matching keys from `variables:` in openenv.yaml.
 - `--secret`: Private Space secret as `KEY=VALUE` (repeatable). Value is never logged.
 
+Space variables and secrets are only applied on direct Hugging Face Space
+pushes. They are not supported with `--registry`, and they cannot be staged via
+`--create-pr`.
+
 ### Examples
 
 ```bash

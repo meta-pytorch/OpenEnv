@@ -10,6 +10,7 @@ import os
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
+import yaml
 from openenv.cli.__main__ import app
 from typer.testing import CliRunner
 
@@ -19,8 +20,6 @@ runner = CliRunner()
 
 def _create_test_openenv_env(env_dir: Path, env_name: str = "test_env") -> None:
     """Create a complete OpenEnv environment for testing."""
-    import yaml
-
     # Create openenv.yaml
     manifest = {
         "spec_version": 1,
@@ -1144,8 +1143,6 @@ def test_push_secret_value_is_not_logged(tmp_path: Path) -> None:
 
 def test_push_loads_variables_from_openenv_yaml(tmp_path: Path) -> None:
     """variables: in openenv.yaml are applied via add_space_variable."""
-    import yaml
-
     _create_test_openenv_env(tmp_path)
     # Overwrite openenv.yaml adding a variables section
     manifest = {
@@ -1194,8 +1191,6 @@ def test_push_loads_variables_from_openenv_yaml(tmp_path: Path) -> None:
 
 def test_push_cli_env_var_overrides_yaml(tmp_path: Path) -> None:
     """-e on CLI overrides the same key from openenv.yaml variables."""
-    import yaml
-
     _create_test_openenv_env(tmp_path)
     manifest = {
         "spec_version": 1,
@@ -1265,6 +1260,37 @@ def test_push_rejects_env_var_without_equals(tmp_path: Path) -> None:
             or "format" in result.output.lower()
         )
         mock_api.add_space_variable.assert_not_called()
+
+
+def test_push_rejects_secret_without_equals_without_leaking_value(
+    tmp_path: Path,
+) -> None:
+    """Malformed --secret must fail without echoing the secret value."""
+    _create_test_openenv_env(tmp_path)
+
+    secret_value = "sk-super-secret-do-not-leak"
+
+    with (
+        patch("openenv.cli.commands.push.whoami") as mock_whoami,
+        patch("openenv.cli.commands.push.login") as mock_login,
+        patch("openenv.cli.commands.push.HfApi") as mock_hf_api_class,
+    ):
+        mock_whoami.return_value = {"name": "testuser"}
+        mock_login.return_value = None
+        mock_api = MagicMock()
+        mock_hf_api_class.return_value = mock_api
+
+        old_cwd = os.getcwd()
+        try:
+            os.chdir(str(tmp_path))
+            result = runner.invoke(app, ["push", "--secret", secret_value])
+        finally:
+            os.chdir(old_cwd)
+
+        assert result.exit_code != 0
+        assert secret_value not in result.output
+        assert "key=value" in result.output.lower()
+        mock_api.add_space_secret.assert_not_called()
 
 
 def test_push_rejects_env_var_with_empty_key(tmp_path: Path) -> None:
@@ -1397,3 +1423,109 @@ def test_push_count_applies_variables_to_all_instances(tmp_path: Path) -> None:
             "testuser/my-env-2",
             "testuser/my-env-3",
         ]
+
+
+def test_push_rejects_non_mapping_variables_block(tmp_path: Path) -> None:
+    """Falsey non-dict variables blocks must still be rejected."""
+    _create_test_openenv_env(tmp_path)
+    manifest = {
+        "spec_version": 1,
+        "name": "test_env",
+        "type": "space",
+        "runtime": "fastapi",
+        "app": "server.app:app",
+        "port": 8000,
+        "variables": [],
+    }
+    with open(tmp_path / "openenv.yaml", "w") as f:
+        yaml.dump(manifest, f)
+
+    old_cwd = os.getcwd()
+    try:
+        os.chdir(str(tmp_path))
+        result = runner.invoke(app, ["push"])
+    finally:
+        os.chdir(old_cwd)
+
+    assert result.exit_code != 0
+    assert "variables" in result.output.lower()
+    assert "mapping" in result.output.lower()
+
+
+def test_push_registry_rejects_space_settings_flags(tmp_path: Path) -> None:
+    """Custom registry pushes must reject Space-only flags."""
+    _create_test_openenv_env(tmp_path)
+
+    old_cwd = os.getcwd()
+    try:
+        os.chdir(str(tmp_path))
+        result = runner.invoke(
+            app,
+            [
+                "push",
+                "--registry",
+                "docker.io/testuser",
+                "-e",
+                "OPENSPIEL_GAME=tic_tac_toe",
+            ],
+        )
+    finally:
+        os.chdir(old_cwd)
+
+    assert result.exit_code != 0
+    assert "--registry" in result.output
+    assert "--env-var" in result.output
+
+
+def test_push_create_pr_rejects_space_settings_flags(tmp_path: Path) -> None:
+    """PR uploads cannot apply Space-only flags before merge."""
+    _create_test_openenv_env(tmp_path)
+
+    old_cwd = os.getcwd()
+    try:
+        os.chdir(str(tmp_path))
+        result = runner.invoke(
+            app,
+            [
+                "push",
+                "--repo-id",
+                "testuser/test_env",
+                "--create-pr",
+                "--secret",
+                "OPENAI_API_KEY=sk-super-secret",
+            ],
+        )
+    finally:
+        os.chdir(old_cwd)
+
+    assert result.exit_code != 0
+    assert "--create-pr" in result.output
+    assert "--secret" in result.output
+
+
+def test_push_exits_cleanly_if_setting_space_variable_fails(tmp_path: Path) -> None:
+    """HF variable configuration errors should not surface a traceback."""
+    _create_test_openenv_env(tmp_path)
+
+    with (
+        patch("openenv.cli.commands.push.whoami") as mock_whoami,
+        patch("openenv.cli.commands.push.login") as mock_login,
+        patch("openenv.cli.commands.push.HfApi") as mock_hf_api_class,
+    ):
+        mock_whoami.return_value = {"name": "testuser"}
+        mock_login.return_value = None
+        mock_api = MagicMock()
+        mock_api.add_space_variable.side_effect = RuntimeError("permission denied")
+        mock_hf_api_class.return_value = mock_api
+
+        old_cwd = os.getcwd()
+        try:
+            os.chdir(str(tmp_path))
+            result = runner.invoke(app, ["push", "-e", "OPENSPIEL_GAME=catch"])
+        finally:
+            os.chdir(old_cwd)
+
+        assert result.exit_code != 0
+        assert "failed to set variable openspiel_game" in result.output.lower()
+        assert "permission denied" in result.output.lower()
+        assert "traceback" not in result.output.lower()

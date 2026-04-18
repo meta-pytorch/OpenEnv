@@ -362,6 +362,9 @@ Key options:
 - `--secret KEY=VALUE`: set a private Space secret (repeatable); value is never logged
 
 The command validates your `openenv.yaml`, injects Hugging Face frontmatter when needed, and uploads the prepared bundle.
+Space variables and secrets are only applied on direct Hugging Face Space pushes;
+they are not available for `--registry`, and they cannot be staged through
+`--create-pr`.
 
 #### Declaring public variables in `openenv.yaml`
 

@@ -27,6 +27,13 @@ app = typer.Typer(help="Push an OpenEnv environment to Hugging Face Spaces")
 DEFAULT_PUSH_IGNORE_PATTERNS = [".*", "__pycache__", "*.pyc"]
 
 
+def _format_kv_entry_for_error(entry: str, *, flag: str) -> str:
+    """Redact secret values from CLI parse errors."""
+    if flag == "--secret":
+        return "<redacted>"
+    return repr(entry)
+
+
 def _parse_kv_pairs(raw_pairs: list[str], *, flag: str) -> dict[str, str]:
     """Parse a list of 'KEY=VALUE' strings into a dict.
 
@@ -35,15 +42,16 @@ def _parse_kv_pairs(raw_pairs: list[str], *, flag: str) -> dict[str, str]:
     """
     parsed: dict[str, str] = {}
     for entry in raw_pairs:
+        entry_display = _format_kv_entry_for_error(entry, flag=flag)
         if "=" not in entry:
             raise typer.BadParameter(
-                f"Invalid {flag} format: {entry!r}. Expected KEY=VALUE."
+                f"Invalid {flag} format: {entry_display}. Expected KEY=VALUE."
             )
         key, value = entry.split("=", 1)
         key = key.strip()
         if not key:
             raise typer.BadParameter(
-                f"Invalid {flag} format: {entry!r}. Key cannot be empty."
+                f"Invalid {flag} format: {entry_display}. Key cannot be empty."
             )
         parsed[key] = value
     return parsed
@@ -61,10 +69,18 @@ def _apply_space_variables_and_secrets(
     Secret values are never logged — only the key is printed.
     """
     for key, value in variables.items():
-        api.add_space_variable(repo_id=repo_id, key=key, value=value)
+        try:
+            api.add_space_variable(repo_id=repo_id, key=key, value=value)
+        except Exception as e:
+            console.print(f"[bold red]✗[/bold red] Failed to set variable {key}: {e}")
+            raise typer.Exit(1) from e
         console.print(f"[bold green]✓[/bold green] Set variable {key} on {repo_id}")
     for key, value in secrets.items():
-        api.add_space_secret(repo_id=repo_id, key=key, value=value)
+        try:
+            api.add_space_secret(repo_id=repo_id, key=key, value=value)
+        except Exception as e:
+            console.print(f"[bold red]✗[/bold red] Failed to set secret {key}: {e}")
+            raise typer.Exit(1) from e
         console.print(f"[bold green]✓[/bold green] Set secret {key} on {repo_id}")
 
 
@@ -718,10 +734,20 @@ def push(
     console.print(f"[bold green]✓[/bold green] Found OpenEnv environment: {env_name}")
 
     # Parse and merge Space variables (yaml < CLI) and secrets (CLI only).
-    yaml_variables_raw = manifest.get("variables") or {}
-    if not isinstance(yaml_variables_raw, dict):
+    yaml_variables_raw = manifest.get("variables")
+    if yaml_variables_raw is None:
+        yaml_variables_raw = {}
+    elif not isinstance(yaml_variables_raw, dict):
         raise typer.BadParameter(
             "openenv.yaml 'variables' must be a mapping of KEY: value"
+        )
+    if registry and (env_vars or secrets):
+        raise typer.BadParameter(
+            "--env-var/--secret cannot be used with --registry because custom registry pushes do not configure Hugging Face Space settings"
+        )
+    if create_pr and (env_vars or secrets):
+        raise typer.BadParameter(
+            "--env-var/--secret cannot be used with --create-pr because Space settings are only applied to the live Space after merge"
         )
     merged_variables: dict[str, str] = {
         str(k): str(v) for k, v in yaml_variables_raw.items()
@@ -729,6 +755,14 @@ def push(
     cli_variables = _parse_kv_pairs(env_vars or [], flag="--env-var")
     merged_variables.update(cli_variables)
     cli_secrets = _parse_kv_pairs(secrets or [], flag="--secret")
+    if registry and merged_variables:
+        console.print(
+            "[bold yellow]⚠[/bold yellow] openenv.yaml variables: are only applied to Hugging Face Spaces and will be ignored with --registry"
+        )
+    if create_pr and merged_variables:
+        console.print(
+            "[bold yellow]⚠[/bold yellow] openenv.yaml variables: are not applied when using --create-pr; configure them after the PR is merged"
+        )
 
     # Handle custom registry push
     if registry:
