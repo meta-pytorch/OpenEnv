@@ -7,6 +7,7 @@
 """Tests for the openenv push command."""
 
 import os
+import re
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -16,6 +17,12 @@ from typer.testing import CliRunner
 
 
 runner = CliRunner()
+ANSI_ESCAPE_RE = re.compile(r"\x1b\[[0-9;]*m")
+
+
+def _strip_ansi(text: str) -> str:
+    """Remove ANSI escape sequences from CLI output for stable assertions."""
+    return ANSI_ESCAPE_RE.sub("", text)
 
 
 def _create_test_openenv_env(env_dir: Path, env_name: str = "test_env") -> None:
@@ -1472,9 +1479,10 @@ def test_push_registry_rejects_space_settings_flags(tmp_path: Path) -> None:
     finally:
         os.chdir(old_cwd)
 
+    clean_output = _strip_ansi(result.output)
     assert result.exit_code != 0
-    assert "--registry" in result.output
-    assert "--env-var" in result.output
+    assert "--registry" in clean_output
+    assert "--env-var" in clean_output
 
 
 def test_push_create_pr_rejects_space_settings_flags(tmp_path: Path) -> None:
@@ -1498,9 +1506,10 @@ def test_push_create_pr_rejects_space_settings_flags(tmp_path: Path) -> None:
     finally:
         os.chdir(old_cwd)
 
+    clean_output = _strip_ansi(result.output)
     assert result.exit_code != 0
-    assert "--create-pr" in result.output
-    assert "--secret" in result.output
+    assert "--create-pr" in clean_output
+    assert "--secret" in clean_output
 
 
 def test_push_exits_cleanly_if_setting_space_variable_fails(tmp_path: Path) -> None:
