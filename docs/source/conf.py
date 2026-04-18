@@ -85,7 +85,7 @@ html_static_path = ["_static"]
 
 html_theme_options = {
     "navigation_with_keys": False,
-    "analytics_id": "GTM-NPLPKN5G",
+    "analytics_id": "GTM-T8XT4PS",
     "header_links_before_dropdown": 7,
     "logo": {
         "text": "OpenEnv",
