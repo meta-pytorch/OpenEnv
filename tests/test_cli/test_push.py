@@ -293,6 +293,60 @@ def test_push_uses_private_option(tmp_path: Path) -> None:
         assert call_args.kwargs["private"] is True
 
 
+def test_push_uses_hardware_option(tmp_path: Path) -> None:
+    """Test that push respects --hardware option."""
+    _create_test_openenv_env(tmp_path)
+
+    with (
+        patch("openenv.cli.commands.push.whoami") as mock_whoami,
+        patch("openenv.cli.commands.push.login") as mock_login,
+        patch("openenv.cli.commands.push.HfApi") as mock_hf_api_class,
+    ):
+        mock_whoami.return_value = {"name": "testuser"}
+        mock_login.return_value = None  # Prevent actual login prompt
+        mock_api = MagicMock()
+        mock_hf_api_class.return_value = mock_api
+
+        old_cwd = os.getcwd()
+        try:
+            os.chdir(str(tmp_path))
+            result = runner.invoke(app, ["push", "--hardware", "t4-medium"])
+        finally:
+            os.chdir(old_cwd)
+
+        # Verify create_repo was called with space_hardware="t4-medium"
+        mock_api.create_repo.assert_called_once()
+        call_kwargs = mock_api.create_repo.call_args.kwargs
+        assert call_kwargs["space_hardware"] == "t4-medium"
+
+
+def test_push_default_hardware_is_none(tmp_path: Path) -> None:
+    """Test that push does not pass space_hardware when --hardware is not specified."""
+    _create_test_openenv_env(tmp_path)
+
+    with (
+        patch("openenv.cli.commands.push.whoami") as mock_whoami,
+        patch("openenv.cli.commands.push.login") as mock_login,
+        patch("openenv.cli.commands.push.HfApi") as mock_hf_api_class,
+    ):
+        mock_whoami.return_value = {"name": "testuser"}
+        mock_login.return_value = None  # Prevent actual login prompt
+        mock_api = MagicMock()
+        mock_hf_api_class.return_value = mock_api
+
+        old_cwd = os.getcwd()
+        try:
+            os.chdir(str(tmp_path))
+            result = runner.invoke(app, ["push"])
+        finally:
+            os.chdir(old_cwd)
+
+        # Verify create_repo was called without space_hardware
+        mock_api.create_repo.assert_called_once()
+        call_kwargs = mock_api.create_repo.call_args.kwargs
+        assert "space_hardware" not in call_kwargs
+
+
 def test_push_uses_base_image_option(tmp_path: Path) -> None:
     """Test that push respects --base-image option."""
     _create_test_openenv_env(tmp_path)
@@ -851,3 +905,140 @@ def test_push_create_pr_sets_upload_flag_and_skips_create_repo(tmp_path: Path) -
         assert call_kwargs.get("create_pr") is True
         # When create_pr we do not create the repo (target repo must exist)
         mock_api.create_repo.assert_not_called()
+
+
+def test_push_count_deploys_multiple_spaces(tmp_path: Path) -> None:
+    """Test that --count 3 calls create_repo and upload_folder 3 times with suffixed repo IDs."""
+    _create_test_openenv_env(tmp_path)
+
+    with (
+        patch("openenv.cli.commands.push.whoami") as mock_whoami,
+        patch("openenv.cli.commands.push.login") as mock_login,
+        patch("openenv.cli.commands.push.HfApi") as mock_hf_api_class,
+    ):
+        mock_whoami.return_value = {"name": "testuser"}
+        mock_login.return_value = None
+        mock_api = MagicMock()
+        mock_hf_api_class.return_value = mock_api
+
+        old_cwd = os.getcwd()
+        try:
+            os.chdir(str(tmp_path))
+            result = runner.invoke(
+                app,
+                ["push", "--repo-id", "testuser/my-env", "--count", "3"],
+            )
+        finally:
+            os.chdir(old_cwd)
+
+        assert result.exit_code == 0
+
+        # Verify create_repo was called 3 times with suffixed repo IDs
+        assert mock_api.create_repo.call_count == 3
+        create_repo_ids = [
+            call.kwargs["repo_id"] for call in mock_api.create_repo.call_args_list
+        ]
+        assert create_repo_ids == [
+            "testuser/my-env-1",
+            "testuser/my-env-2",
+            "testuser/my-env-3",
+        ]
+
+        # Verify upload_folder was called 3 times with suffixed repo IDs
+        assert mock_api.upload_folder.call_count == 3
+        upload_repo_ids = [
+            call.kwargs["repo_id"] for call in mock_api.upload_folder.call_args_list
+        ]
+        assert upload_repo_ids == [
+            "testuser/my-env-1",
+            "testuser/my-env-2",
+            "testuser/my-env-3",
+        ]
+
+        # Verify progress messages in output
+        assert "[1/3]" in result.output
+        assert "[2/3]" in result.output
+        assert "[3/3]" in result.output
+        assert "All 3 instances deployed" in result.output
+
+
+def test_push_count_one_is_default_behavior(tmp_path: Path) -> None:
+    """Test that --count 1 behaves exactly like no flag (no suffix)."""
+    _create_test_openenv_env(tmp_path)
+
+    with (
+        patch("openenv.cli.commands.push.whoami") as mock_whoami,
+        patch("openenv.cli.commands.push.login") as mock_login,
+        patch("openenv.cli.commands.push.HfApi") as mock_hf_api_class,
+    ):
+        mock_whoami.return_value = {"name": "testuser"}
+        mock_login.return_value = None
+        mock_api = MagicMock()
+        mock_hf_api_class.return_value = mock_api
+
+        old_cwd = os.getcwd()
+        try:
+            os.chdir(str(tmp_path))
+            result = runner.invoke(
+                app,
+                ["push", "--repo-id", "testuser/my-env", "--count", "1"],
+            )
+        finally:
+            os.chdir(old_cwd)
+
+        assert result.exit_code == 0
+
+        # Verify create_repo was called once without suffix
+        mock_api.create_repo.assert_called_once()
+        assert mock_api.create_repo.call_args.kwargs["repo_id"] == "testuser/my-env"
+
+        # Verify upload_folder was called once without suffix
+        mock_api.upload_folder.assert_called_once()
+        assert mock_api.upload_folder.call_args.kwargs["repo_id"] == "testuser/my-env"
+
+
+def test_push_count_with_registry_errors(tmp_path: Path) -> None:
+    """Test that --count 2 --registry fails with error."""
+    _create_test_openenv_env(tmp_path)
+
+    old_cwd = os.getcwd()
+    try:
+        os.chdir(str(tmp_path))
+        result = runner.invoke(
+            app,
+            ["push", "--count", "2", "--registry", "docker.io/user"],
+        )
+    finally:
+        os.chdir(old_cwd)
+
+    assert result.exit_code != 0
+    assert "--count" in result.output.lower() or "count" in result.output.lower()
+    assert "--registry" in result.output.lower() or "registry" in result.output.lower()
+
+
+def test_push_count_with_create_pr_errors(tmp_path: Path) -> None:
+    """Test that --count 2 --create-pr fails with error."""
+    _create_test_openenv_env(tmp_path)
+
+    old_cwd = os.getcwd()
+    try:
+        os.chdir(str(tmp_path))
+        result = runner.invoke(
+            app,
+            [
+                "push",
+                "--repo-id",
+                "testuser/my-env",
+                "--count",
+                "2",
+                "--create-pr",
+            ],
+        )
+    finally:
+        os.chdir(old_cwd)
+
+    assert result.exit_code != 0
+    assert "--count" in result.output.lower() or "count" in result.output.lower()
+    assert (
+        "--create-pr" in result.output.lower() or "create-pr" in result.output.lower()
+    )

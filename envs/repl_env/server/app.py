@@ -33,6 +33,7 @@ Usage:
 Environment Variables:
     HF_TOKEN: Fallback HuggingFace API token (client token takes priority)
     LLM_MODEL: Model to use for llm_query/llm_query_batched (default: Qwen/Qwen3.5-9B)
+    MAX_CONCURRENT_ENVS: Maximum concurrent WebSocket sessions (default: 8)
 """
 
 import inspect
@@ -60,6 +61,7 @@ REPL_MAX_OUTPUT_LENGTH = int(os.environ.get("REPL_MAX_OUTPUT_LENGTH", "8192"))
 REPL_CONTEXT_PREVIEW_LENGTH = int(os.environ.get("REPL_CONTEXT_PREVIEW_LENGTH", "500"))
 REPL_RLM_MAX_DEPTH = int(os.environ.get("REPL_RLM_MAX_DEPTH", "2"))
 REPL_RLM_MAX_ITERATIONS = int(os.environ.get("REPL_RLM_MAX_ITERATIONS", "30"))
+MAX_CONCURRENT_ENVS = int(os.environ.get("MAX_CONCURRENT_ENVS", "8"))
 # ==========================================
 
 _logger = logging.getLogger(__name__)
@@ -99,7 +101,7 @@ if "gradio_builder" in _sig.parameters:
         REPLAction,
         REPLObservation,
         env_name="repl_env",
-        max_concurrent_envs=8,
+        max_concurrent_envs=MAX_CONCURRENT_ENVS,
         gradio_builder=build_repl_gradio_app,
     )
 else:
@@ -112,7 +114,7 @@ else:
         REPLAction,
         REPLObservation,
         env_name="repl_env",
-        max_concurrent_envs=8,
+        max_concurrent_envs=MAX_CONCURRENT_ENVS,
     )
 
 
