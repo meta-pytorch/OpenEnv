@@ -31,7 +31,7 @@ Then use the environment:
 
 ```python
 import asyncio
-from echo_env import EchoAction, EchoEnv
+from echo_env import CallToolAction, EchoEnv
 
 async def main():
     # Connect to a running Space (async context manager)
@@ -41,9 +41,14 @@ async def main():
         print(result.observation.echoed_message)  # "Echo environment ready!"
 
         # Send messages
-        result = await client.step(EchoAction(message="Hello, World!"))
-        print(result.observation.echoed_message)  # "Hello, World!"
-        print(result.reward)  # 1.3 (based on message length)
+        result = await client.step(
+            CallToolAction(
+                tool_name="echo_message",
+                arguments={"message": "Hello, World!"},
+            )
+        )
+        print(result.observation.result)  # "Hello, World!"
+        print(result.reward)
 
 asyncio.run(main())
 ```
@@ -51,13 +56,18 @@ asyncio.run(main())
 **Synchronous usage** is also supported via the `.sync()` wrapper:
 
 ```python
-from echo_env import EchoAction, EchoEnv
+from echo_env import CallToolAction, EchoEnv
 
 # Use .sync() for synchronous context manager
 with EchoEnv(base_url="https://openenv-echo-env.hf.space").sync() as client:
     result = client.reset()
-    result = client.step(EchoAction(message="Hello, World!"))
-    print(result.observation.echoed_message)
+    result = client.step(
+        CallToolAction(
+            tool_name="echo_message",
+            arguments={"message": "Hello, World!"},
+        )
+    )
+    print(result.observation.result)
 ```
 
 For a detailed quick start, check out the [docs page](https://meta-pytorch.org/OpenEnv/auto_getting_started/index.html).
@@ -239,7 +249,7 @@ See [`envs/README.md`](envs/README.md) for a complete guide on building environm
 
 To use an environment:
 1. Install the client: `pip install git+https://huggingface.co/spaces/openenv/echo-env`
-2. Import: `from echo_env import EchoAction, EchoEnv`
+2. Import: `from echo_env import CallToolAction, EchoEnv`
 3. Use async (recommended) or sync API:
 
 **Async (recommended):**
