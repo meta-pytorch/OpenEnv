@@ -1,5 +1,5 @@
-Quick Start
-===========
+Interactive Tutorials
+=====================
 
 This section provides a hands-on introduction to reinforcement learning (RL) and OpenEnv through a series of interactive tutorials. Whether you're new to RL or looking to learn how OpenEnv simplifies building and deploying environments, these tutorials will guide you through the fundamentals.
 

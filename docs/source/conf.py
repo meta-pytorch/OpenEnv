@@ -88,7 +88,7 @@ html_js_files = ["cookie-banner.js"]
 html_theme_options = {
     "navigation_with_keys": False,
     "analytics_id": "GTM-T8XT4PS",
-    "header_links_before_dropdown": 7,
+    "header_links_before_dropdown": 8,
     "logo": {
         "text": "OpenEnv",
     },
