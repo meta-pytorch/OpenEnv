@@ -343,6 +343,9 @@ class OpenCodeSessionFactory(ResourceSessionFactory):
         cap_flag = ""
         if self._config.proxy_max_tokens_cap is not None:
             cap_flag = f"--max-tokens-cap {self._config.proxy_max_tokens_cap} "
+        thinking_flag = ""
+        if self._config.proxy_disable_thinking:
+            thinking_flag = "--disable-thinking "
         proxy_cmd = (
             "cd /home/user/proxy && "
             "python interception.py "
@@ -352,6 +355,7 @@ class OpenCodeSessionFactory(ResourceSessionFactory):
             f"--port {_PROXY_PORT} "
             f"--top-logprobs {self._config.proxy_top_logprobs} "
             f"{cap_flag}"
+            f"{thinking_flag}"
             f"> {_PROXY_LOG_PATH} 2>&1"
         )
         proxy_job = sandbox.start_bg(proxy_cmd)

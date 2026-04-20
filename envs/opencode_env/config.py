@@ -61,6 +61,10 @@ class OpenCodeConfig(BaseModel):
     proxy_max_tokens_cap: int | None = 16384
     # Per-turn top-k logprobs the proxy requests from the upstream.
     proxy_top_logprobs: int = 5
+    # Disable reasoning/thinking mode for Qwen3 / Qwen3.5 models. Proxy sets
+    # ``extra_body.chat_template_kwargs.enable_thinking=false`` on forwarded
+    # requests. Ignored by providers that don't support the field.
+    proxy_disable_thinking: bool = False
 
 
 _PROVIDER_NPM = {

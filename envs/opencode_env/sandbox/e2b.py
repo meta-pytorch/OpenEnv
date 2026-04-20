@@ -118,12 +118,20 @@ class E2BSandboxHandle:
         *,
         envs: dict[str, str] | None = None,
         cwd: str | None = None,
+        timeout: float = 0,
     ) -> BgJob:
+        """Start a background command.
+
+        ``timeout=0`` disables E2B's server-side command deadline (the default
+        is 60s, which would otherwise kill long-running agent processes).
+        Sandbox lifetime still bounds the job.
+        """
         handle = self._sbx.commands.run(
             cmd,
             envs=envs,
             cwd=cwd,
             background=True,
+            timeout=timeout,
         )
         return E2BBgJob(handle)
 

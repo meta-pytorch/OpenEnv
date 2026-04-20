@@ -16,6 +16,7 @@ See ``envs/opencode_env/README.md`` for usage.
 
 from .config import OpenCodeConfig, Provider
 from .harness import OpenCodeSession, OpenCodeSessionFactory
+from .live_watch import RolloutSummary, collect_rollout_summary, print_rollout_summary
 from .sandbox import E2BSandboxBackend, SandboxBackend, SandboxHandle
 from .task import OpenCodeTask
 
@@ -26,6 +27,9 @@ __all__ = [
     "OpenCodeTask",
     "E2BSandboxBackend",
     "Provider",
+    "RolloutSummary",
     "SandboxBackend",
     "SandboxHandle",
+    "collect_rollout_summary",
+    "print_rollout_summary",
 ]

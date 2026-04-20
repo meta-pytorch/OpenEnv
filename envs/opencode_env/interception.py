@@ -69,6 +69,9 @@ class ProxyConfig:
     # here avoids spurious upstream 400s without requiring the caller to know
     # per-model limits.
     max_tokens_cap: int | None = 16384
+    # Disable Qwen-style reasoning/thinking by injecting
+    # ``chat_template_kwargs.enable_thinking=false`` into forwarded requests.
+    disable_thinking: bool = False
 
 
 @dataclass
@@ -181,6 +184,13 @@ def _prepare_forwarded_body(body: dict[str, Any], cfg: ProxyConfig) -> dict[str,
             value = forwarded.get(key)
             if isinstance(value, int) and value > cfg.max_tokens_cap:
                 forwarded[key] = cfg.max_tokens_cap
+
+    if cfg.disable_thinking:
+        # vLLM applies chat_template_kwargs to the tokenizer's chat template
+        # for Qwen3/Qwen3.5 models, turning off <think>...</think> generation.
+        extra = forwarded.setdefault("chat_template_kwargs", {})
+        extra.setdefault("enable_thinking", False)
+
     return forwarded
 
 
@@ -539,6 +549,11 @@ def main() -> None:
         default=None,
         help="Clamp max_tokens/max_completion_tokens on forwarded requests.",
     )
+    parser.add_argument(
+        "--disable-thinking",
+        action="store_true",
+        help="Inject chat_template_kwargs.enable_thinking=false (Qwen3/Qwen3.5).",
+    )
     args = parser.parse_args()
 
     cfg = ProxyConfig(
@@ -550,6 +565,7 @@ def main() -> None:
         top_logprobs=args.top_logprobs,
         request_timeout_s=args.request_timeout,
         max_tokens_cap=args.max_tokens_cap,
+        disable_thinking=args.disable_thinking,
     )
     serve(cfg)
 
