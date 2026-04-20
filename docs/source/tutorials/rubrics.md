@@ -237,12 +237,12 @@ The `TrajectoryRubric` keeps the trajectory in CPU memory. If your observation c
 
 Rubrics are **server-side**. Each environment declares its rubric in `__init__`, and `step` runs it via the `_apply_rubric` helper. The base `Environment` class accepts the rubric through its constructor and stores it as `self.rubric`.
 
-Here is a complete minimal environment that composes a `Gate` with a `WeightedSum` and exposes the reward through its observation:
+Here is a complete minimal environment that composes a `Sequential` gate-then-`WeightedSum` pipeline and exposes the reward through its observation:
 
 ```python
 from openenv.core.env_server.interfaces import Environment
 from openenv.core.env_server.types import Action, Observation, State
-from openenv.core.rubrics import Gate, Rubric, WeightedSum
+from openenv.core.rubrics import Gate, Rubric, Sequential, WeightedSum
 
 
 class CodeAction(Action):
@@ -276,7 +276,6 @@ class StyleRubric(Rubric):
         return 1.0 if action.code.count("\n\n\n") == 0 else 0.6
 
 
-def build_code_rubric() -> Rubric:
 def build_code_rubric() -> Rubric:
     return Sequential(
         Gate(CompilesRubric(), threshold=1.0),  # gate everything on compilation
