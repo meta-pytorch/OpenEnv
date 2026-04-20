@@ -44,18 +44,23 @@ spec_version: 1
 
 ## Models (Pydantic)
 
-```python
-from pydantic import BaseModel
+Custom `Action`, `Observation`, and `State` types subclass the base classes from `openenv.core.env_server.types` — not `pydantic.BaseModel` directly. The base `Observation` already carries `done` and `reward` fields, which `step()` populates; `Action` and `State` add metadata plumbing used by the server.
 
-class MyAction(BaseModel):
+```python
+from openenv.core.env_server.types import Action, Observation, State
+
+
+class MyAction(Action):
     command: str
     args: list[str] = []
 
-class MyObservation(BaseModel):
+
+class MyObservation(Observation):
     output: str
     success: bool
 
-class MyState(BaseModel):
+
+class MyState(State):
     history: list[str] = []
 ```
 
