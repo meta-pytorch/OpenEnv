@@ -547,17 +547,23 @@ class OpenCodeSessionFactory(ResourceSessionFactory):
         )
         proxy_job = sandbox.start_bg(proxy_cmd)
 
-        # Wait for the proxy to start listening.
-        for _ in range(40):
+        # Wait for the proxy to start listening. Uvicorn's cold boot inside
+        # E2B can take anywhere from <1s to ~30s depending on pip-install
+        # caching and sandbox load — 10s was too tight and produced false
+        # failures. 60s cap at 0.5s intervals gives plenty of slack without
+        # blocking forever on a genuinely stuck proxy.
+        import time
+
+        attempts = 120
+        interval_s = 0.5
+        for _ in range(attempts):
             r = sandbox.exec(
                 f"curl -sf http://127.0.0.1:{_PROXY_PORT}/healthz",
                 timeout=5,
             )
             if r.exit_code == 0:
                 break
-            import time
-
-            time.sleep(0.25)
+            time.sleep(interval_s)
         else:
             log = ""
             try:
@@ -566,7 +572,7 @@ class OpenCodeSessionFactory(ResourceSessionFactory):
                 pass
             proxy_job.kill()
             raise RuntimeError(
-                f"proxy did not start within 10s. log:\n{log[-2000:]}"
+                f"proxy did not start within {attempts * interval_s:.0f}s. log:\n{log[-2000:]}"
             )
 
         base_url_override = f"http://127.0.0.1:{_PROXY_PORT}/v1"
