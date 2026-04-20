@@ -72,6 +72,12 @@ class ProxyConfig:
     # Disable Qwen-style reasoning/thinking by injecting
     # ``chat_template_kwargs.enable_thinking=false`` into forwarded requests.
     disable_thinking: bool = False
+    # Override the ``model`` field on every forwarded request. Some opencode
+    # builds emit a stripped model id (e.g. ``Qwen3.5-4B`` instead of the
+    # ``Qwen/Qwen3.5-4B`` the upstream serves) for their internal
+    # title-generation call. Setting this to the exact upstream model id
+    # bypasses that mismatch.
+    model_override: str | None = None
 
 
 @dataclass
@@ -191,6 +197,9 @@ def _prepare_forwarded_body(body: dict[str, Any], cfg: ProxyConfig) -> dict[str,
         extra = forwarded.setdefault("chat_template_kwargs", {})
         extra.setdefault("enable_thinking", False)
 
+    if cfg.model_override:
+        forwarded["model"] = cfg.model_override
+
     return forwarded
 
 
@@ -255,10 +264,57 @@ async def _proxy_streaming(
     original_body: dict[str, Any],
     trace_file: Any,
     turn_idx: int,
-) -> StreamingResponse:
-    """Stream SSE from upstream to the client while accumulating the full response."""
+) -> Response:
+    """Forward an SSE stream while accumulating the full response.
+
+    Opens the upstream stream and inspects the status. On non-2xx, reads the
+    full body (an error JSON, not SSE) and returns it to the caller as a
+    regular JSON response — previously we silently emitted an empty
+    ``text/event-stream`` which opencode interpreted as an empty assistant
+    turn. Both the error body and the latency are written to the trace file
+    so debugging a broken rollout doesn't require another round-trip.
+    """
 
     start = time.time()
+
+    # Open the stream outside the generator so we can branch on status before
+    # committing to a streaming response shape.
+    upstream_cm = client.stream(
+        "POST",
+        upstream_url,
+        content=json.dumps(forwarded_body),
+        headers=headers,
+    )
+    upstream = await upstream_cm.__aenter__()
+
+    if upstream.status_code >= 400:
+        # Upstream responded with an error body (not SSE). Read it fully and
+        # return as a non-streaming JSON payload.
+        error_bytes = await upstream.aread()
+        await upstream_cm.__aexit__(None, None, None)
+        latency = time.time() - start
+        try:
+            error_json = json.loads(error_bytes.decode() or "{}")
+        except Exception:
+            error_json = {"error": error_bytes.decode(errors="replace")[:4000]}
+        record = _build_turn_record(
+            turn_idx=turn_idx,
+            request_body=forwarded_body,
+            response_json={
+                "choices": [],
+                "usage": None,
+                "upstream_status": upstream.status_code,
+                "upstream_error": error_json,
+            },
+            latency_s=latency,
+        )
+        trace_file.write(record.to_json() + "\n")
+        print(
+            f"[proxy] turn {turn_idx}: upstream {upstream.status_code}: "
+            f"{str(error_json)[:400]}",
+            flush=True,
+        )
+        return JSONResponse(content=error_json, status_code=upstream.status_code)
 
     async def _stream() -> Any:
         accumulated: dict[str, Any] = {
@@ -268,13 +324,7 @@ async def _proxy_streaming(
             "logprobs_by_idx": {},
         }
         last_chunk: dict[str, Any] = {}
-
-        async with client.stream(
-            "POST",
-            upstream_url,
-            content=json.dumps(forwarded_body),
-            headers=headers,
-        ) as upstream:
+        try:
             async for line in upstream.aiter_lines():
                 if not line:
                     yield "\n"
@@ -291,6 +341,8 @@ async def _proxy_streaming(
                     continue
                 last_chunk = chunk
                 _accumulate_stream_chunk(chunk, accumulated)
+        finally:
+            await upstream_cm.__aexit__(None, None, None)
 
         latency = time.time() - start
         response_json = _assemble_streamed_response(last_chunk, accumulated)
@@ -554,6 +606,11 @@ def main() -> None:
         action="store_true",
         help="Inject chat_template_kwargs.enable_thinking=false (Qwen3/Qwen3.5).",
     )
+    parser.add_argument(
+        "--model-override",
+        default=None,
+        help="Rewrite the `model` field on every forwarded request.",
+    )
     args = parser.parse_args()
 
     cfg = ProxyConfig(
@@ -566,6 +623,7 @@ def main() -> None:
         request_timeout_s=args.request_timeout,
         max_tokens_cap=args.max_tokens_cap,
         disable_thinking=args.disable_thinking,
+        model_override=args.model_override,
     )
     serve(cfg)
 

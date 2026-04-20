@@ -264,6 +264,82 @@ class OpenCodeSessionFactory(ResourceSessionFactory):
         return session
 
     # ------------------------------------------------------------------
+    def _wait_for_sandbox_ready(
+        self,
+        sandbox: SandboxHandle,
+        *,
+        attempts: int = 15,
+        delay_s: float = 1.0,
+    ) -> None:
+        """Probe the sandbox until it can execute a trivial command.
+
+        E2B (and other backends) sometimes return a handle before the guest
+        is fully ready. Issue ``echo ok`` with short timeouts until it
+        succeeds — the Harbor/verifiers reference projects do something
+        similar via ``wait_for_creation``. Returns silently on success;
+        raises ``RuntimeError`` if the probe never succeeds.
+        """
+        import time
+
+        last_err = ""
+        for _ in range(attempts):
+            try:
+                r = sandbox.exec("echo ok", timeout=5)
+                if r.exit_code == 0 and "ok" in (r.stdout or ""):
+                    return
+                last_err = (r.stderr or r.stdout or "").strip() or f"exit={r.exit_code}"
+            except Exception as exc:  # noqa: BLE001
+                last_err = f"{type(exc).__name__}: {exc}"
+            time.sleep(delay_s)
+        raise RuntimeError(
+            f"sandbox did not become ready within {attempts * delay_s:.0f}s "
+            f"(last error: {last_err})"
+        )
+
+    def _exec_with_retry(
+        self,
+        sandbox: SandboxHandle,
+        cmd: str,
+        *,
+        timeout: float,
+        attempts: int = 3,
+        backoff_s: float = 3.0,
+        label: str = "cmd",
+    ):
+        """Run ``sandbox.exec`` with exponential backoff on transient failures.
+
+        Transient is defined as ``exit_code != 0`` AND empty stderr (SIGKILL
+        / network blip signature) OR an exception during exec. A final
+        failure is raised as ``RuntimeError`` with the last exit code +
+        stderr so the caller has something to debug with.
+        """
+        import time
+
+        last_stdout = ""
+        last_stderr = ""
+        last_exit = 0
+        for i in range(attempts):
+            try:
+                r = sandbox.exec(cmd, timeout=timeout)
+                if r.exit_code == 0:
+                    return r
+                last_stdout = r.stdout or ""
+                last_stderr = r.stderr or ""
+                last_exit = r.exit_code
+                # Non-empty stderr usually means the command failed for a
+                # deterministic reason — don't retry, surface it.
+                if last_stderr.strip():
+                    break
+            except Exception as exc:  # noqa: BLE001
+                last_stderr = f"{type(exc).__name__}: {exc}"
+                last_exit = -1
+            if i + 1 < attempts:
+                time.sleep(backoff_s * (2**i))
+        raise RuntimeError(
+            f"{label} failed after {attempts} attempts "
+            f"(exit={last_exit}, stderr={last_stderr!r}, stdout_tail={last_stdout[-400:]!r})"
+        )
+
     def _bootstrap_sandbox(
         self,
         sandbox: SandboxHandle,
@@ -271,14 +347,18 @@ class OpenCodeSessionFactory(ResourceSessionFactory):
     ) -> None:
         """Install OpenCode, write config + task files, run optional setup."""
 
-        install = sandbox.exec(
+        # Stage 1: wait for the sandbox to be responsive.
+        self._wait_for_sandbox_ready(sandbox)
+
+        # Stage 2: install opencode with retries (curl | bash is flaky).
+        self._exec_with_retry(
+            sandbox,
             build_install_cmd(self._config),
             timeout=self._install_timeout_s,
+            attempts=3,
+            backoff_s=3.0,
+            label="opencode install",
         )
-        if install.exit_code != 0:
-            raise RuntimeError(
-                f"opencode install failed ({install.exit_code}): {install.stderr}"
-            )
 
         sandbox.write_text(
             opencode_config_path(self._config),
@@ -296,14 +376,14 @@ class OpenCodeSessionFactory(ResourceSessionFactory):
             sandbox.write_text(remote_path, content)
 
         if self._config.extra_setup_shell:
-            r = sandbox.exec(
+            self._exec_with_retry(
+                sandbox,
                 self._config.extra_setup_shell,
                 timeout=self._setup_timeout_s,
+                attempts=2,
+                backoff_s=2.0,
+                label="extra_setup_shell",
             )
-            if r.exit_code != 0:
-                raise RuntimeError(
-                    f"extra_setup_shell failed ({r.exit_code}): {r.stderr}"
-                )
 
         if task.setup_shell:
             r = sandbox.exec(task.setup_shell, timeout=self._setup_timeout_s)
@@ -320,16 +400,17 @@ class OpenCodeSessionFactory(ResourceSessionFactory):
 
         Returns ``(proxy_bg_job, base_url_override, proxy_trace_path)``.
         """
-        # Install proxy deps.
-        install = sandbox.exec(
+        # Install proxy deps with retries. pip can transiently fail due to
+        # PyPI connectivity or a sandbox not yet fully ready.
+        self._exec_with_retry(
+            sandbox,
             "pip install --quiet 'fastapi>=0.104' 'uvicorn[standard]>=0.24' "
             "'httpx>=0.27' 2>&1 | tail -20",
             timeout=180,
+            attempts=3,
+            backoff_s=2.0,
+            label="proxy deps install",
         )
-        if install.exit_code != 0:
-            raise RuntimeError(
-                f"proxy deps install failed: {install.stderr or install.stdout}"
-            )
 
         # Upload the proxy module into the sandbox (standalone copy — avoids
         # depending on openenv.* inside the sandbox Python).
@@ -346,6 +427,14 @@ class OpenCodeSessionFactory(ResourceSessionFactory):
         thinking_flag = ""
         if self._config.proxy_disable_thinking:
             thinking_flag = "--disable-thinking "
+        # Force the upstream model id on every forwarded request. opencode's
+        # internal title-generation call sometimes strips the provider prefix
+        # (e.g. sends ``Qwen3.5-4B`` instead of ``Qwen/Qwen3.5-4B``) which the
+        # upstream vLLM then rejects with a 404.
+        model_override_flag = ""
+        upstream_model = self._config.model.split("/", 1)[-1]
+        if upstream_model:
+            model_override_flag = f"--model-override '{upstream_model}' "
         proxy_cmd = (
             "cd /home/user/proxy && "
             "python interception.py "
@@ -356,6 +445,7 @@ class OpenCodeSessionFactory(ResourceSessionFactory):
             f"--top-logprobs {self._config.proxy_top_logprobs} "
             f"{cap_flag}"
             f"{thinking_flag}"
+            f"{model_override_flag}"
             f"> {_PROXY_LOG_PATH} 2>&1"
         )
         proxy_job = sandbox.start_bg(proxy_cmd)
