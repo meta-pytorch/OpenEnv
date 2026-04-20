@@ -42,6 +42,10 @@ class _FakeSandbox:
 
     def exec(self, cmd, *, envs=None, cwd=None, timeout=60):
         self.exec_calls.append((cmd, envs))
+        # Health probe: the factory issues ``echo ok`` up to 15 times before
+        # doing anything else. The fake sandbox is "ready" on the first try.
+        if cmd.strip() == "echo ok":
+            return ExecResult(0, "ok\n", "")
         if "opencode.ai/install" in cmd:
             return ExecResult(self._install_exit, "opencode 0.0.0\n", "")
         return ExecResult(self._setup_exit, "", "")
