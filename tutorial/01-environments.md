@@ -391,12 +391,9 @@ We've wrapped **6 OpenSpiel games** following the OpenEnv pattern:
 
 This shows how OpenEnv can wrap **any** existing RL library!
 
-The client inherits from `HTTPEnvClient` and declares how actions and observations cross the wire:
+The client (`envs/openspiel_env/client.py`) inherits from `HTTPEnvClient` and declares how actions and observations cross the wire:
 
 ```python
-from envs.openspiel_env.client import OpenSpielEnv
-
-
 class OpenSpielEnv(HTTPEnvClient[OpenSpielAction, OpenSpielObservation]):
     def _step_payload(self, action: OpenSpielAction) -> dict:
         """Convert typed action to JSON for HTTP."""
