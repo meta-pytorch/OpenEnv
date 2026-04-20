@@ -40,13 +40,14 @@ print(rubric.last_score)              # latest score is cached on the rubric
 
 ### Optional hooks for observability
 
-You can attach hooks without subclassing — useful for logging every component's score without polluting `forward`:
+You can attach hooks without subclassing — useful for logging every component's score without polluting `forward`. Post-hooks run after `forward` completes and see the returned score; pre-hooks run before `forward` and are handy for input validation or instrumentation. When a rubric is async, hooks are awaited transparently.
 
 ```python
 def log_score(rubric, action, obs, result):
     print(f"{type(rubric).__name__}: {result:.2f}")
 
-rubric.register_forward_hook(log_score)
+rubric.register_forward_hook(log_score)              # fires after forward()
+rubric.register_forward_pre_hook(lambda r, a, o: None)  # fires before forward()
 ```
 
 ### State dict
@@ -129,7 +130,7 @@ class MultiGameRubric(Rubric):
         return self.games[observation.game_id](action, observation)
 ```
 
-`RubricList` and `RubricDict` do not aggregate on their own — calling them directly raises. Their job is auto-registration (so their children show up in `named_rubrics()`) and indexed access.
+`RubricList` and `RubricDict` do not aggregate on their own — calling them directly raises. Their job is auto-registration (so their children show up in `named_rubrics()`) and indexed access. Reach for them when the parent rubric needs to pick a child *at runtime* based on the observation — if the set of children is fixed, plain attributes are simpler.
 
 ### Introspection: `named_rubrics()`
 
@@ -205,7 +206,7 @@ from openenv.core.rubrics import TrajectoryRubric
 class WinLossRubric(TrajectoryRubric):
     def score_trajectory(self, trajectory) -> float:
         _, final_obs = trajectory[-1]
-        return final_obs.final_reward   # +1 win, -1 loss, 0 draw
+        return final_obs.reward   # +1 win, -1 loss, 0 draw
 
     def compute_step_rewards(self):
         # Credit assignment: distribute the final score across steps however you like.
@@ -214,6 +215,10 @@ class WinLossRubric(TrajectoryRubric):
 ```
 
 `forward(action, obs)` returns `intermediate_reward` (default `0.0`) until `observation.done` is `True`, then calls `score_trajectory`. After the episode ends, training code can pull per-step rewards via `rubric.compute_step_rewards()`.
+
+:::{caution}
+If `observation.done` never becomes `True`, `score_trajectory` is never called and the trajectory grows unbounded in memory. Make sure `step` flips `done` on every terminal transition, and call `self._reset_rubric()` in `Environment.reset` so trajectories do not leak across episodes.
+:::
 
 For the common exponentially-discounted case, subclass `ExponentialDiscountingTrajectoryRubric` instead and only implement `score_trajectory`:
 
