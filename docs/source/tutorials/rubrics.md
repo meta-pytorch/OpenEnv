@@ -277,13 +277,16 @@ class StyleRubric(Rubric):
 
 
 def build_code_rubric() -> Rubric:
-    return WeightedSum(
-        [
-            Gate(CompilesRubric(), threshold=1.0),  # gate everything on compilation
-            TestsPassRubric(),
-            StyleRubric(),
-        ],
-        weights=[0.1, 0.7, 0.2],
+def build_code_rubric() -> Rubric:
+    return Sequential(
+        Gate(CompilesRubric(), threshold=1.0),  # gate everything on compilation
+        WeightedSum(
+            [
+                TestsPassRubric(),
+                StyleRubric(),
+            ],
+            weights=[0.7, 0.3],
+        ),
     )
 
 
