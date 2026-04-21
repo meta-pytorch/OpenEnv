@@ -364,6 +364,13 @@ def _accumulate_stream_chunk(chunk: dict[str, Any], acc: dict[str, Any]) -> None
         content = delta.get("content")
         if content:
             acc["content_by_idx"].setdefault(idx, []).append(content)
+        # HF-Router's Qwen thinking mode streams the chain-of-thought under a
+        # separate ``reasoning`` field (per Together/Scaleway). Accumulate it
+        # so the assembled response surfaces it — otherwise it's dropped and
+        # proxy_turn observability is lost for thinking-mode rollouts.
+        reasoning = delta.get("reasoning")
+        if reasoning:
+            acc.setdefault("reasoning_by_idx", {}).setdefault(idx, []).append(reasoning)
         for tc in delta.get("tool_calls") or []:
             tc_idx = tc.get("index", 0)
             bucket = acc["tool_calls_by_idx"].setdefault(
@@ -406,6 +413,9 @@ def _assemble_streamed_response(
         content = "".join(acc["content_by_idx"].get(idx, []))
         if content:
             message["content"] = content
+        reasoning = "".join((acc.get("reasoning_by_idx") or {}).get(idx, []))
+        if reasoning:
+            message["reasoning"] = reasoning
         if tool_calls:
             message["tool_calls"] = tool_calls
         choice: dict[str, Any] = {

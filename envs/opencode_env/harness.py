@@ -39,6 +39,7 @@ from .opencode_runtime import (
     instruction_path,
     opencode_config_path,
     system_prompt_path,
+    workdir_path,
 )
 from .sandbox.base import BgJob, SandboxBackend, SandboxHandle
 from .task import OpenCodeTask
@@ -194,30 +195,64 @@ class OpenCodeSession(ResourceSession):
                 raise RuntimeError("Agent not started; call start_agent() first.")
             return self._bg_job.wait(timeout=budget)
 
-        # driver == "serve" — poll session state until idle/no-longer-busy
+        # driver == "serve" — poll session state until idle/no-longer-busy.
+        #
+        # opencode's ``GET /session/status`` returns ``{sid: {"type": "busy"|"idle", ...}}``.
+        # The prior code read ``status.get("idle")`` which is always None → the
+        # session was never detected as idle and we always hit the timeout.
+        import logging
+
+        _log = logging.getLogger(__name__)
+
         assert self.serve_client is not None and self.serve_session_id is not None
         deadline = time.time() + budget
         last_msg_count = -1
         stable_ticks = 0
+        last_status_type: str | None = None
+        last_log_ts = 0.0
+        _log.info(
+            "wait_for_completion: serve session=%s budget=%.1fs",
+            self.serve_session_id, budget,
+        )
         while time.time() < deadline:
+            status_type: str | None = None
             try:
                 status_map = self.serve_client.get_all_status()
-                status = status_map.get(self.serve_session_id)
-                if status and status.get("idle"):
+                status = status_map.get(self.serve_session_id) or {}
+                status_type = status.get("type")
+                # Clean idle signal — opencode reports "idle" when the agent
+                # stops producing parts (end of turn or end of run).
+                if status_type == "idle":
+                    _log.info("wait_for_completion: idle detected for %s", self.serve_session_id)
                     return 0
-            except Exception:
-                pass
+            except Exception as exc:  # noqa: BLE001
+                _log.debug("wait_for_completion: get_all_status exc=%r", exc)
             try:
                 msgs = self.serve_client.list_messages(self.serve_session_id)
-                if len(msgs) == last_msg_count:
+                n = len(msgs)
+                if n == last_msg_count:
                     stable_ticks += 1
-                    if stable_ticks >= 6:  # 3s without a new message
+                    # 6s without a new message OR status change — treat as idle.
+                    if stable_ticks >= 12:
+                        _log.info(
+                            "wait_for_completion: stale msgs=%d ticks=%d — treating as idle",
+                            n, stable_ticks,
+                        )
                         return 0
                 else:
-                    last_msg_count = len(msgs)
+                    last_msg_count = n
                     stable_ticks = 0
-            except Exception:
-                pass
+            except Exception as exc:  # noqa: BLE001
+                _log.debug("wait_for_completion: list_messages exc=%r", exc)
+            # Every ~5s, log a progress heartbeat so operators see we're alive.
+            now = time.time()
+            if now - last_log_ts > 5.0 or status_type != last_status_type:
+                _log.info(
+                    "wait_for_completion: elapsed=%.1fs status=%s msgs=%d stable=%d",
+                    now - (deadline - budget), status_type, last_msg_count, stable_ticks,
+                )
+                last_log_ts = now
+                last_status_type = status_type
             time.sleep(0.5)
         raise TimeoutError(
             f"opencode serve session {self.serve_session_id} did not idle within {budget}s"
@@ -298,16 +333,24 @@ class OpenCodeSessionFactory(ResourceSessionFactory):
         seed: int | None = None,
         episode_id: str | None = None,
     ) -> OpenCodeSession:
+        import logging
+        _log = logging.getLogger(__name__)
+
         oc_task = OpenCodeTask.coerce(task)
         sandbox_timeout = int(self._config.agent_timeout_s) + 300
 
+        _log.info("factory.create: creating sandbox timeout=%ds mode=%s driver=%s",
+                  sandbox_timeout, self._mode, self._driver)
         sandbox = self._backend.create(
             timeout_s=sandbox_timeout,
             metadata={"episode_id": episode_id} if episode_id else None,
         )
+        sid = getattr(sandbox, "sandbox_id", None) or getattr(getattr(sandbox, "raw", None), "sandbox_id", "?")
+        _log.info("factory.create: sandbox created id=%s — bootstrapping…", sid)
         try:
             self._bootstrap_sandbox(sandbox, oc_task)
-        except Exception:
+        except Exception as exc:
+            _log.error("factory.create: bootstrap failed: %r", exc)
             sandbox.kill()
             raise
 
@@ -315,9 +358,12 @@ class OpenCodeSessionFactory(ResourceSessionFactory):
         proxy_trace_path: str | None = None
         proxy_bg_job: BgJob | None = None
         if self._mode == "transparent_proxy":
+            _log.info("factory.create: starting interception proxy on :7000 → %s",
+                      self._config.base_url)
             proxy_bg_job, base_url_override, proxy_trace_path = self._start_proxy(
                 sandbox
             )
+            _log.info("factory.create: proxy up, opencode will hit %s", base_url_override)
             # Rewrite opencode.json so opencode's configured baseURL is the
             # proxy, not the upstream. Force ``openai_compatible`` so opencode
             # routes through ``/v1/chat/completions`` (which the proxy serves)
@@ -341,9 +387,12 @@ class OpenCodeSessionFactory(ResourceSessionFactory):
         serve_public_url: str | None = None
         serve_client: OpenCodeServerClient | None = None
         if self._driver == "serve":
+            _log.info("factory.create: starting opencode serve (cwd=%s)",
+                      workdir_path(self._config))
             serve_public_url, serve_client = self._start_serve(
                 sandbox, base_url_override or self._config.base_url
             )
+            _log.info("factory.create: opencode serve ready at %s", serve_public_url)
 
         session = OpenCodeSession(
             sandbox=sandbox,
@@ -528,8 +577,14 @@ class OpenCodeSessionFactory(ResourceSessionFactory):
         # internal title-generation call sometimes strips the provider prefix
         # (e.g. sends ``Qwen3.5-4B`` instead of ``Qwen/Qwen3.5-4B``) which the
         # upstream vLLM then rejects with a 404.
+        #
+        # Use the full qualified ``config.model`` (e.g.
+        # ``Qwen/Qwen3.5-397B-A17B:together``) — the HF Inference Router
+        # requires the org-prefixed form + any ``:provider`` suffix, and vLLM
+        # accepts both forms. Stripping the prefix (previous behaviour) broke
+        # HF-router backends.
         model_override_flag = ""
-        upstream_model = self._config.model.split("/", 1)[-1]
+        upstream_model = self._config.model
         if upstream_model:
             model_override_flag = f"--model-override '{upstream_model}' "
         proxy_cmd = (
@@ -598,8 +653,15 @@ class OpenCodeSessionFactory(ResourceSessionFactory):
         """
         envs = build_env_vars(self._config, base_url_override=opencode_base_url)
 
+        # opencode serve inherits its cwd as the default ``directory`` for
+        # every session. Without this ``cd``, the agent writes files to
+        # ``/home/user`` and the env's ``workdir_files`` (which reads
+        # ``/home/user/workdir``) comes back empty — the classic
+        # "rollout succeeded but nothing appeared" symptom.
+        wd = workdir_path(self._config)
         # 0.0.0.0 so get_host(4096) works; log to a known file for debug tail.
         cmd = (
+            f"mkdir -p {wd} && cd {wd} && "
             f"{_OPENCODE_BIN} serve "
             f"--port {_SERVE_PORT} --hostname 0.0.0.0 "
             f"> {_SERVE_LOG_PATH} 2>&1"
