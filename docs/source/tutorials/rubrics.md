@@ -214,7 +214,7 @@ class WinLossRubric(TrajectoryRubric):
         return [final] * len(self._trajectory)
 ```
 
-`forward(action, obs)` returns `intermediate_reward` (default `0.0`) until `observation.done` is `True`, then calls `score_trajectory`. After the episode ends, training code can pull per-step rewards via `rubric.compute_step_rewards()`.
+`forward(action, obs)` returns `intermediate_reward` (default `0.0`) until `observation.done` is `True`, then calls `score_trajectory`. After the episode ends, call `rubric.compute_step_rewards()` to get one reward per step — same length as the trajectory. This is the hook for credit assignment: training code feeds these per-step rewards back into advantage estimation, return-to-go, or whatever your optimizer expects. `ExponentialDiscountingTrajectoryRubric` precomputes `gamma^(T-1-t) * final_score` for you; override `compute_step_rewards` in your subclass if you want a different strategy (all-to-last, equal split, task-specific shaping).
 
 :::{caution}
 If `observation.done` never becomes `True`, `score_trajectory` is never called and the trajectory grows unbounded in memory. Make sure `step` flips `done` on every terminal transition, and call `self._reset_rubric()` in `Environment.reset` so trajectories do not leak across episodes.
@@ -330,6 +330,10 @@ The three pieces the base class expects from you:
 2. **Call `self._reset_rubric()` from `reset`** so trajectory state does not leak between episodes.
 3. **Call `self._apply_rubric(action, obs)` from `step`** and attach the result to `obs.reward`. There is also `_apply_rubric_async` for `step_async`.
 
+:::{note}
+Some environments already compute `obs.reward` from game mechanics or a handcrafted multi-component signal (see `envs/chess_env/` and `envs/carla_env/`). In that case, call `self._apply_rubric(action, obs)` without assigning its return value — the rubric still accumulates the trajectory for `compute_step_rewards()` and still exposes per-component scores via `named_rubrics()`, but `obs.reward` stays authoritative.
+:::
+
 ### Inspecting rewards from training code
 
 Because children are auto-registered, the training loop can walk the rubric tree and log component-level diagnostics without the environment exposing a custom API:
@@ -352,6 +356,24 @@ Training frameworks consume the reward through the same channel as any other Ope
 With [TRL](https://huggingface.co/docs/trl/main/en/openenv), the recommended path is `GRPOTrainer`'s `environment_factory`: you define a thin wrapper class with tool methods that call the OpenEnv client, store `self.reward = result.observation.reward` after each step, and a plain reward function reads it off the `environments` parameter. The [TRL OpenEnv integration guide](https://huggingface.co/docs/trl/main/en/openenv) has the full recipe, and [`examples/scripts/openenv/`](https://github.com/huggingface/trl/tree/main/examples/scripts/openenv) ships ready-to-run scripts. The same observation shape works with [torchforge](https://github.com/pytorch-labs/torchforge) and other OpenEnv-compatible training stacks.
 
 `named_rubrics()` is orthogonal: use it to **log per-component scores** (to Weights & Biases, TensorBoard, trackio, …) while training, without changing the reward the optimiser sees.
+
+## Using Rubrics for Evaluation
+
+A rubric is just a callable — nothing forces you to run it inside a training loop. Drop it into a for-loop over a static dataset and you have a multi-criteria scoring function for offline eval:
+
+```python
+rubric = build_code_rubric()
+
+scores = []
+for action, obs in eval_dataset:
+    scores.append(rubric(action, obs))
+
+print(f"mean reward: {sum(scores) / len(scores):.3f}")
+for name, component in rubric.named_rubrics():
+    print(f"  {name:30s} last_score={component.last_score:.3f}")
+```
+
+The same rubric object used to compute training rewards doubles as the eval metric — one source of truth for "what is a good response". Per-component `last_score` gives you a per-criterion breakdown for free (useful for regression dashboards and failure analysis). When a component like `LLMJudge` is async, wrap the loop with `asyncio.run(...)` and `await rubric(action, obs)` so the judge calls can overlap.
 
 ## Next Steps
 
