@@ -1,27 +1,88 @@
-# Building and Using MCP Environments
+# MCP Tools in OpenEnv Environments
 
-OpenEnv speaks **MCP** ([Model Context Protocol](https://modelcontextprotocol.io)) as its agent-facing interface. If an environment exposes tools, those tools live behind MCP — not behind ad-hoc REST endpoints or custom action schemas. This tutorial walks through the two sides of that contract: **consuming** an MCP environment from a training / simulation loop, and **building** one from scratch.
-
-By the end you should be able to:
-
-- List and call tools on any MCP environment through `step()`.
-- Write a minimal `MCPEnvironment` subclass that exposes Python functions as tools.
-- Understand which API path (`/ws` vs `/mcp`) belongs to which audience.
+Most agentic work ends up needing the same thing: a way for the model to **call tools** and receive structured feedback, whether that is during RL training or offline evaluation. OpenEnv standardises that surface with **[MCP](https://modelcontextprotocol.io)** (Model Context Protocol), so the same tool interface works during training, eval, inference, and external serving. This tutorial covers the four paths you will walk in practice — wiring an MCP-backed environment into a training loop, using the same env for offline eval, inspecting the API underneath both of those, and building your own MCP environment when no existing one fits.
 
 ## Why MCP?
 
-OpenEnv's dual API boundary splits responsibilities between two audiences:
+If your tools are just local Python functions, you do not need MCP — pass them to your trainer directly (TRL, torchforge, whatever) and you are done. MCP earns its complexity when the tool surface has to exist as a **process boundary**, not a function call:
+
+- **The env runs elsewhere** — in a Docker container, a Hugging Face Space, a remote server. MCP is the transport that crosses that boundary.
+- **You want to reuse someone else's env** — the OpenEnv catalog, third-party envs, and community hubs all expose their tools over MCP, so the same env works in your training run without rewriting its interface.
+- **You want the env to be callable by other agents** — Claude Desktop, Cursor, inference servers, and any MCP-compatible client can plug into an MCP server. A private Python function doesn't get that for free.
+- **You need tool discovery and schemas** — `list_tools()` + auto-generated JSON schemas are part of the protocol; models see them the same way they see any MCP server's tools.
+
+In short: MCP is the answer when your env is more than a helper function in your training script — when the same tools have to be usable from training, inference, and external clients without maintaining three interfaces.
+
+### The dual API boundary
+
+Inside OpenEnv, MCP plays a specific role in a two-surface split:
 
 - **Training / orchestration infrastructure** uses the Gym-style control plane — `reset()`, `step()`, `state()` — over WebSocket (`/ws`). This is what the trainer needs to roll out episodes, compute rewards, and enforce termination.
-- **Agents** use MCP tools over the `/mcp` JSON-RPC endpoint. Tools are what the model calls to act on the world; they have discoverable schemas and deterministic names.
+- **Agents** use MCP tools over the `/mcp` JSON-RPC endpoint. Tools are what the model calls to act on the world.
 
-Standardising on MCP for agent actions means a single environment can be trained via GRPO, served for inference through an MCP-compatible client, and inspected with off-the-shelf MCP tooling — without separate interfaces to maintain.
-
-:::{note}
+```{note}
 In simulation mode, MCP tool calls flow **through** `step()`. The trainer stays in control of timing, rewards, and termination; the MCP action types are just a standardised action schema. The [MCP environment lifecycle guide](../mcp-environment-lifecycle.md) covers the split in depth.
-:::
+```
 
-## Consuming an MCP Environment
+```{note}
+**MCP adoption in OpenEnv is still in flight.** [RFC 003](https://github.com/meta-pytorch/OpenEnv/blob/main/rfcs/003-mcp-support.md) proposes MCP as the standard interface for *all* agent-facing actions, but it is still **In Review**. Today only a handful of envs are MCP-backed: `echo_env` and `finqa_env` inherit from the canonical `openenv.core.env_server.mcp_environment.MCPEnvironment`; `calendar_env` uses a local wrapper with the same shape. The majority (`textarena_env` / Wordle, `openspiel_env`, `chess_env`, `browsergym_env`, and most others) still use custom action types that you pass through `env.step(CustomAction(...))` without MCP plumbing. Before using the patterns in this tutorial against a specific env, check whether it inherits from an `MCPEnvironment` base; if not, the env's own action schema applies instead.
+```
+
+## Using MCP Tools in a Training Loop
+
+An MCP-backed env is consumed like any other OpenEnv env from the trainer's side. At the atomic level, each agent action is:
+
+```python
+obs = env.step(CallToolAction(tool_name=..., arguments=...))
+# obs.result.data   — tool reply the model sees
+# obs.reward        — env's reward for this turn (may be None)
+# obs.done          — episode terminated
+```
+
+That is the only MCP-specific piece. Everything around it — how the trainer generates actions, how tool schemas are surfaced to the model, how rewards are collected — belongs to your training framework, not to MCP.
+
+### Framework-agnostic rollout loop
+
+If you drive the rollout yourself (a custom loop, [torchforge](https://github.com/pytorch-labs/torchforge), an external agent server), you own the full generation path and call `env.step()` directly:
+
+```python
+obs = env.reset()
+total_reward = 0.0
+for turn in range(max_turns):
+    tool_call = model.decide(obs)  # your agent picks a tool + args from the latest observation
+    obs = env.step(
+        CallToolAction(tool_name=tool_call.name, arguments=tool_call.arguments)
+    )
+    total_reward += obs.reward or 0.0
+    if obs.done:
+        break
+```
+
+Whatever policy / generation code you use, `env.step(CallToolAction(...))` is the only line that talks to the MCP env.
+
+### TRL `environment_factory`
+
+[TRL](https://huggingface.co/docs/trl)'s `GRPOTrainer` takes an `environment_factory` class whose public methods auto-register as discoverable tools — the trainer then handles the multi-turn generation loop for you. The [Wordle GRPO tutorial](wordle-grpo.md) shows the full recipe (wrapper class, reward function, `GRPOTrainer` construction) with a non-MCP env. For an MCP-backed env, only the tool method bodies change; they call through to `env.step(CallToolAction(...))`:
+
+```python
+def echo(self, message: str) -> str:
+    """Echo back a message.
+
+    Args:
+        message: The message to echo.
+    """
+    obs = self.env.step(
+        CallToolAction(tool_name="echo_message", arguments={"message": message})
+    )
+    self.reward = obs.reward or 0.0  # Echo has no domain reward — swap in FinQA or similar
+    return obs.result.data            # what the model sees as the tool's reply
+```
+
+`environment_factory` is a TRL API, not an MCP API. It works equally well with non-MCP envs (Wordle uses it with `TextArenaAction`), and MCP envs work equally well without it (the rollout-loop path above). They compose, but they are orthogonal.
+
+The rest of this tutorial is for the other paths: the API **underneath** `env.step(CallToolAction(...))` (useful when you need the full observation or want to debug), **using the same env for offline eval**, and **building your own MCP environment** from scratch.
+
+## Under the Hood: `CallToolAction` and `ListToolsAction`
 
 The two MCP action types are `ListToolsAction` (discover what's available) and `CallToolAction` (invoke one). They behave like any other Gym action — pass them to `step()` and inspect the returned observation.
 
@@ -81,9 +142,37 @@ The `ToolError.error_type` enum (`TOOL_NOT_FOUND`, `INVALID_ARGS`, `EXECUTION_ER
 
 Environment clients that inherit from `MCPToolClient` (such as `EchoEnv` and `FinQAEnv`) expose a shorter **async** `await env.call_tool("name", arg=value)` helper. Functionally equivalent in simulation mode — it still goes through the step loop and still updates rewards, step counts, and trajectory state — but returns the tool's raw return value directly instead of a `CallToolObservation`. Use `step(CallToolAction(...))` when you need the whole observation (reward, done, metadata); reach for `call_tool()` in async scripts where the result is all you care about. The [lifecycle guide](../mcp-environment-lifecycle.md#which-pattern-should-you-use) covers the exact trade-offs.
 
+## Using MCP Tools for Evaluation
+
+The same mechanics work outside a training loop. For an offline eval — benchmarking a model's tool use on a static dataset, regression-testing a deployed agent, or scoring a policy — drop the trainer and drive the step loop yourself:
+
+```python
+from echo_env.server.echo_environment import EchoEnvironment
+from openenv.core.env_server.mcp_types import CallToolAction
+
+env = EchoEnvironment()
+env.reset()
+
+results = []
+for sample in eval_dataset:
+    tool_call = model.decide(sample)   # your agent picks a tool + arguments
+    obs = env.step(
+        CallToolAction(tool_name=tool_call.name, arguments=tool_call.arguments),
+    )
+    results.append({
+        "prompt": sample.prompt,
+        "reply": obs.result.data,
+        "reward": obs.reward or 0.0,
+        "error": obs.error,
+    })
+    env.reset()
+```
+
+Pair the loop with a scoring function of your choice — the [Reward Design](../guides/rewards.md) guide covers common patterns (test-pass rate, LLM-as-judge quality, compliance gates) — and aggregate across the dataset. The eval harness integration in `src/openenv/core/evals/` is still evolving; until that bridge lands, this plain-Python loop is the canonical pattern.
+
 ## Building an MCP Environment
 
-The provider side is just as small. Subclass `MCPEnvironment`, create a `FastMCP` server, register tools with the `@mcp.tool` decorator, and pass the server to `super().__init__`. Here is the echo environment, trimmed from [`envs/echo_env/server/echo_environment.py`](https://github.com/meta-pytorch/OpenEnv/blob/main/envs/echo_env/server/echo_environment.py) down to the parts this tutorial covers:
+Reach for this path when no existing environment covers the tools your agent needs — e.g. a new coding sandbox, a game, a proprietary API wrapper. The provider side is small: subclass `MCPEnvironment`, create a `FastMCP` server, register tools with the `@mcp.tool` decorator, and pass the server to `super().__init__`. Here is the echo environment, trimmed from [`envs/echo_env/server/echo_environment.py`](https://github.com/meta-pytorch/OpenEnv/blob/main/envs/echo_env/server/echo_environment.py) down to the parts this tutorial covers:
 
 ```python
 from uuid import uuid4
@@ -160,10 +249,11 @@ The repo ships a self-contained walkthrough at [`examples/echo_mcp_demo.py`](htt
 PYTHONPATH=src:envs uv run python examples/echo_mcp_demo.py
 ```
 
-You will see the discovery call, two tool invocations, and an error case printed in sequence — the same four steps covered above, end-to-end against the real `EchoEnvironment`.
+You will see the discovery call, two tool invocations, and an error case printed in sequence — the same four steps the "Under the hood" section covers, end-to-end against the real `EchoEnvironment`.
 
 ## Next Steps
 
+- **End-to-end training recipe** — the [Wordle GRPO tutorial](wordle-grpo.md) walks through a full GRPO training run with `environment_factory`. The wrapper-class shape is the same for an MCP-backed env; inside each tool method, build a `CallToolAction(tool_name=..., arguments={...})` instead of Wordle's single-field `TextArenaAction(message=guess)`.
 - **MCP lifecycle details** — the [MCP Environment Lifecycle guide](../mcp-environment-lifecycle.md) covers `step()` vs `step_async()`, the `call_tool()` convenience path, and common debugging questions.
 - **A richer MCP environment** — [`envs/finqa_env/`](https://github.com/meta-pytorch/OpenEnv/tree/main/envs/finqa_env) shows tool calls participating in episode progression, rewards, and terminal submission — not just a stateless echo.
 - **Design rationale** — [RFC 003](https://github.com/meta-pytorch/OpenEnv/blob/main/rfcs/003-mcp-support.md) explains why OpenEnv picked MCP as the agent boundary and how tool-calling and CodeAct styles share the same plumbing.
