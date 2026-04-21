@@ -9,6 +9,7 @@ If you're new to OpenEnv, we recommend starting with the [Getting Started](/auto
 ## Available Tutorials
 
 - **[OpenEnv Tutorial](openenv-tutorial.md)** - A comprehensive introduction to OpenEnv, covering installation, basic usage, and core concepts.
+- **[Rubrics](rubrics.md)** - Compose reward functions from reusable pieces using `openenv.core.rubrics` — `Gate`, `WeightedSum`, `LLMJudge`, and `TrajectoryRubric`.
 - **[Wordle GRPO Training](wordle-grpo.md)** - Learn how to train an agent to play Wordle using Group Relative Policy Optimization (GRPO).
 - **[RL Training with 2048](rl-training-2048.md)** - Train a language model to play 2048 using GRPO reinforcement learning. *(GPU Required)*
 
@@ -16,6 +17,7 @@ If you're new to OpenEnv, we recommend starting with the [Getting Started](/auto
 :maxdepth: 2
 :hidden:
 openenv-tutorial
+rubrics
 wordle-grpo
 rl-training-2048
 ```
