@@ -33,7 +33,12 @@ try:
     from ..models import CodeBlockResult, REPLAction, REPLObservation, REPLState
 except ImportError:
     try:
-        from repl_env.models import CodeBlockResult, REPLAction, REPLObservation, REPLState
+        from repl_env.models import (
+            CodeBlockResult,
+            REPLAction,
+            REPLObservation,
+            REPLState,
+        )
     except ImportError:
         from models import CodeBlockResult, REPLAction, REPLObservation, REPLState
 
@@ -47,9 +52,10 @@ except ImportError:
         from repl_env.rubrics import REPLRubric
         from .python_executor import PythonExecutor
     except ImportError:
-        from .python_executor import PythonExecutor
         from recursive_controller import create_server_recursive_controller
         from rubrics import REPLRubric
+
+        from .python_executor import PythonExecutor
 
 
 class REPLEnvironment(Environment):
