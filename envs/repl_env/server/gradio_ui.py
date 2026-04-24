@@ -297,7 +297,7 @@ def build_repl_gradio_app(
 
     def load_example(label: str):
         # Returns: context, task_prompt, code, expected_answer,
-        # context_accordion_state, advanced_accordion_state
+        # context_accordion_state
         if not label or label not in _EXAMPLES:
             return (
                 gr.update(),
@@ -305,15 +305,11 @@ def build_repl_gradio_app(
                 gr.update(),
                 gr.update(),
                 gr.update(),
-                gr.update(),
             )
         ctx, task, code, expected = _EXAMPLES[label]
-        # Auto-collapse Context (long text is noise after load). Auto-open
-        # Advanced when the example carries ground truth so the user can see
-        # `expected_answer` get populated; otherwise reward scoring would
-        # silently activate inside a collapsed panel.
-        advanced_update = gr.update(open=True) if expected else gr.update()
-        return ctx, task, code, expected, gr.update(open=False), advanced_update
+        # Auto-collapse the Context accordion once populated to keep the
+        # viewport focused on Task + Code + Output.
+        return ctx, task, code, expected, gr.update(open=False)
 
     def load_uploaded_document(file_obj):
         # Returns: context, status, context_accordion_state
@@ -365,7 +361,7 @@ def build_repl_gradio_app(
                         lines=3,
                         show_label=False,
                     )
-                with gr.Accordion("Advanced options", open=False) as advanced_accordion:
+                with gr.Accordion("Advanced options", open=False):
                     hf_token = gr.Textbox(
                         label="Hugging Face Token (required for llm_query / rlm_query)",
                         placeholder="hf_...  — used only for this reset; not persisted",
@@ -450,7 +446,6 @@ def build_repl_gradio_app(
                 code,
                 expected_answer,
                 context_accordion,
-                advanced_accordion,
             ],
         )
         upload.change(
