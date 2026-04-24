@@ -10,11 +10,23 @@ from __future__ import annotations
 
 import io
 import json
+import re
+import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 import gradio as gr
 from openenv.core.env_server.types import EnvironmentMetadata
+
+
+_FINAL_RE = re.compile(r"FINAL\(([^\n]+?)\)\s*$", re.MULTILINE)
+
+
+def _extract_final(stdout: str) -> Optional[str]:
+    """Pull the final answer from the last `FINAL(...)` line of stdout."""
+    matches = _FINAL_RE.findall(stdout or "")
+    return matches[-1].strip() if matches else None
+
 
 try:
     import pypdf
@@ -144,23 +156,31 @@ def _code_block(title: str, content: str) -> str:
     return f"**{title}:**\n```text\n{content}\n```"
 
 
-def _format_repl_response(data: Dict[str, Any]) -> str:
+def _format_repl_response(
+    data: Dict[str, Any],
+    elapsed_s: Optional[float] = None,
+) -> str:
     """Render REPL observations as a compact, screenshot-friendly view.
 
-    Only the essentials live here: stdout (hero), stderr if non-empty,
-    and a one-line metadata strip. Context preview / locals snapshot /
-    available variables are still in the raw JSON pane for debugging.
+    The FINAL answer is surfaced at the top as a quoted block, followed by
+    the task prompt echo, then stdout / stderr, and a one-line metadata
+    strip. Context preview / locals snapshot / available variables are
+    still in the raw JSON pane for debugging.
     """
     observation = data.get("observation", {})
     result = observation.get("result", {})
 
     sections: List[str] = []
 
+    stdout = (result.get("stdout") or "").rstrip()
+    final_answer = _extract_final(stdout) if stdout else None
+    if final_answer:
+        sections.append(f"### 🎯 Answer\n\n> **{final_answer}**")
+
     task_prompt = observation.get("task_prompt")
     if task_prompt:
         sections.append(f"**Task:** {task_prompt}")
 
-    stdout = (result.get("stdout") or "").rstrip()
     if stdout:
         sections.append(_code_block("Stdout", stdout))
 
@@ -179,6 +199,8 @@ def _format_repl_response(data: Dict[str, Any]) -> str:
     max_iter = observation.get("max_iterations")
     if iteration is not None and max_iter is not None:
         meta.append(f"Step `{iteration}/{max_iter}`")
+    if elapsed_s is not None:
+        meta.append(f"Elapsed `{elapsed_s:.1f}s`")
     if meta:
         sections.append(" · ".join(meta))
 
@@ -221,18 +243,20 @@ def build_repl_gradio_app(
         if expected_answer and expected_answer.strip():
             reset_kwargs["expected_answer"] = expected_answer.strip()
         if hf_token and hf_token.strip():
-            reset_kwargs["hf_token"] = hf_token
+            reset_kwargs["hf_token"] = hf_token.strip()
         if llm_model and llm_model.strip():
             reset_kwargs["llm_model"] = llm_model
 
         try:
+            start = time.monotonic()
             data = await web_manager.reset_environment(reset_kwargs)
+            elapsed_s = time.monotonic() - start
             state = web_manager.get_state()
             return (
-                _format_repl_response(data),
+                _format_repl_response(data, elapsed_s=elapsed_s),
                 json.dumps(data, indent=2, sort_keys=True),
                 json.dumps(state, indent=2, sort_keys=True),
-                "REPL reset complete.",
+                f"Reset complete in {elapsed_s:.1f}s.",
             )
         except Exception as exc:
             return ("", "", "", f"Error: {exc}")
@@ -242,13 +266,15 @@ def build_repl_gradio_app(
             return ("", "", "", "Enter Python code to run.")
 
         try:
+            start = time.monotonic()
             data = await web_manager.step_environment({"code": code})
+            elapsed_s = time.monotonic() - start
             state = web_manager.get_state()
             return (
-                _format_repl_response(data),
+                _format_repl_response(data, elapsed_s=elapsed_s),
                 json.dumps(data, indent=2, sort_keys=True),
                 json.dumps(state, indent=2, sort_keys=True),
-                "Code executed.",
+                f"Code executed in {elapsed_s:.1f}s.",
             )
         except Exception as exc:
             return ("", "", "", f"Error: {exc}")
@@ -288,7 +314,10 @@ def build_repl_gradio_app(
         )
 
     with gr.Blocks(title=f"{title} - REPL") as blocks:
-        gr.Markdown("# REPL Control Panel")
+        gr.Markdown(
+            "# REPL Control Panel\n"
+            "*Recursive Language Model REPL — run agentic Python with recursive LM calls.*"
+        )
 
         with gr.Row():
             with gr.Column(scale=2):
@@ -308,23 +337,21 @@ def build_repl_gradio_app(
                     placeholder="What should the agent solve?",
                     lines=2,
                 )
-                with gr.Accordion(
-                    "Context (auto-fills from Load example / Drop)", open=True
-                ) as context_accordion:
+                with gr.Accordion("Context", open=True) as context_accordion:
                     context = gr.Textbox(
                         label="",
-                        placeholder="Problem context or source text...",
+                        placeholder="Problem context or source text (auto-fills from Load example / Drop)...",
                         lines=3,
                         show_label=False,
                     )
-                hf_token = gr.Textbox(
-                    label="Hugging Face Token (required for llm_query / rlm_query)",
-                    placeholder="hf_...  — used only for this reset; not persisted",
-                    type="password",
-                )
                 with gr.Accordion("Advanced options", open=False):
+                    hf_token = gr.Textbox(
+                        label="Hugging Face Token (required for llm_query / rlm_query)",
+                        placeholder="hf_...  — used only for this reset; not persisted",
+                        type="password",
+                    )
                     expected_answer = gr.Textbox(
-                        label="Expected answer (for reward scoring)",
+                        label="Expected answer (activates reward scoring)",
                         placeholder="e.g. BANANA-747  —  leave blank to skip",
                     )
                     llm_model = gr.Textbox(
@@ -335,8 +362,14 @@ def build_repl_gradio_app(
                             "`enable_thinking=False` chat template)."
                         ),
                     )
-                reset_btn = gr.Button("🔁 Reset episode", variant="secondary")
-                status = gr.Textbox(label="Status", interactive=False, lines=1)
+                with gr.Row():
+                    reset_btn = gr.Button("🔁 Reset episode", variant="secondary")
+                    status = gr.Textbox(
+                        label="Status",
+                        interactive=False,
+                        lines=1,
+                        scale=1,
+                    )
             with gr.Column(scale=3):
                 code = gr.Textbox(
                     label="Python Code",
