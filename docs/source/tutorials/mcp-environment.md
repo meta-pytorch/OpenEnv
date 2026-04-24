@@ -122,7 +122,7 @@ print(obs.result.data)     # "Hello from MCP!" — the raw tool return value
 print(obs.error)           # None
 ```
 
-`obs.result` is a `CallToolResult` wrapper exposing the return value in a few shapes: `.data` is the raw Python value the tool returned, `.structured_content` is its JSON-encoded form, and `.content` is the MCP protocol's list of typed content blocks (useful when a tool returns rich multi-part output). `obs.error` is set only when the **framework** could not deliver the call (transport failure, unknown tool name, malformed arguments). Tool-specific failures — a business-logic error that the tool itself raised — come back inside `result`, so callers can handle them like any domain-specific response.
+`obs.result` is a `CallToolResult` wrapper exposing the return value in a few shapes: `.data` is the raw Python value the tool returned, `.structured_content` is its JSON-encoded form, and `.content` is the MCP protocol's list of typed content blocks (useful when a tool returns rich multi-part output). `obs.error` carries **every** failure mode — transport errors, unknown tool names, malformed arguments, **and** exceptions raised from inside the tool function itself (as `ToolErrorType.EXECUTION_ERROR`). On an error, `obs.result` is `None`. Always branch on `obs.error is None` before reading `obs.result.data`, or a tool that raised will look like a successful call that returned `None`.
 
 ### Error handling
 
@@ -133,14 +133,14 @@ obs = env.step(
 
 assert isinstance(obs, CallToolObservation)
 print(obs.error.error_type)  # ToolErrorType.TOOL_NOT_FOUND
-print(obs.error.message)     # "Unknown tool: 'does_not_exist'"
+print(obs.error.message)     # human-readable message from FastMCP, e.g. "Unknown tool: 'does_not_exist'"
 ```
 
 The `ToolError.error_type` enum (`TOOL_NOT_FOUND`, `INVALID_ARGS`, `EXECUTION_ERROR`, `TRANSPORT_ERROR`, `TIMEOUT`) lets training code distinguish between bugs in the agent, bugs in the environment, and transient infrastructure issues — which often warrant different reward signals.
 
 ### `step(CallToolAction(...))` vs `call_tool()`
 
-Environment clients that inherit from `MCPToolClient` (such as `EchoEnv` and `FinQAEnv`) expose a shorter **async** `await env.call_tool("name", arg=value)` helper. Functionally equivalent in simulation mode — it still goes through the step loop and still updates rewards, step counts, and trajectory state — but returns the tool's raw return value directly instead of a `CallToolObservation`. Use `step(CallToolAction(...))` when you need the whole observation (reward, done, metadata); reach for `call_tool()` in async scripts where the result is all you care about. The [lifecycle guide](../mcp-environment-lifecycle.md#which-pattern-should-you-use) covers the exact trade-offs.
+Environment clients that inherit from `MCPToolClient` (such as `EchoEnv` and `FinQAEnv`) expose a shorter **async** `await env.call_tool("name", arg=value)` helper. It still goes through the step loop and still updates rewards, step counts, and trajectory state, but returns the tool's raw return value directly instead of a `CallToolObservation` — and it **raises `RuntimeError`** on any `obs.error` (transport failure, unknown tool, or a tool exception), so you cannot branch on `error_type` without a `try/except`. Use `step(CallToolAction(...))` when you need the whole observation (reward, done, metadata, or graceful error classification); reach for `call_tool()` in async scripts where the raw result is all you care about and a failure is allowed to propagate. The [lifecycle guide](../mcp-environment-lifecycle.md#which-pattern-should-you-use) covers the exact trade-offs.
 
 ## Using MCP Tools for Evaluation
 
@@ -161,7 +161,7 @@ for sample in eval_dataset:
     )
     results.append({
         "prompt": sample.prompt,
-        "reply": obs.result.data,
+        "reply": obs.result.data if obs.error is None else None,
         "reward": obs.reward or 0.0,
         "error": obs.error,
     })
