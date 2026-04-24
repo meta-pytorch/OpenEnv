@@ -123,6 +123,9 @@ Pass **Expected answer** at Reset to enable rubric-based scoring: the observatio
 """
 
 
+_MAX_UPLOAD_BYTES = 20 * 1024 * 1024  # 20 MB — comfortably fits any arXiv PDF
+
+
 def _extract_text_from_upload(file_path: str) -> str:
     """Read a .txt or .pdf upload from disk and return its text content.
 
@@ -131,6 +134,13 @@ def _extract_text_from_upload(file_path: str) -> str:
     REPL's import restrictions.
     """
     path = Path(file_path)
+    size = path.stat().st_size
+    if size > _MAX_UPLOAD_BYTES:
+        return (
+            f"[File too large ({size // (1024 * 1024)} MB). "
+            f"Cap is {_MAX_UPLOAD_BYTES // (1024 * 1024)} MB to protect "
+            "the shared Space process from OOM.]"
+        )
     suffix = path.suffix.lower()
     if suffix == ".txt":
         return path.read_text(encoding="utf-8", errors="replace")
@@ -286,13 +296,24 @@ def build_repl_gradio_app(
             return f"Error: {exc}"
 
     def load_example(label: str):
-        # Returns: context, task_prompt, code, expected_answer, context_accordion_state
+        # Returns: context, task_prompt, code, expected_answer,
+        # context_accordion_state, advanced_accordion_state
         if not label or label not in _EXAMPLES:
-            return gr.update(), gr.update(), gr.update(), gr.update(), gr.update()
+            return (
+                gr.update(),
+                gr.update(),
+                gr.update(),
+                gr.update(),
+                gr.update(),
+                gr.update(),
+            )
         ctx, task, code, expected = _EXAMPLES[label]
-        # Auto-collapse the Context accordion once populated to keep the viewport
-        # focused on Task + Code + Output.
-        return ctx, task, code, expected, gr.update(open=False)
+        # Auto-collapse Context (long text is noise after load). Auto-open
+        # Advanced when the example carries ground truth so the user can see
+        # `expected_answer` get populated; otherwise reward scoring would
+        # silently activate inside a collapsed panel.
+        advanced_update = gr.update(open=True) if expected else gr.update()
+        return ctx, task, code, expected, gr.update(open=False), advanced_update
 
     def load_uploaded_document(file_obj):
         # Returns: context, status, context_accordion_state
@@ -344,7 +365,7 @@ def build_repl_gradio_app(
                         lines=3,
                         show_label=False,
                     )
-                with gr.Accordion("Advanced options", open=False):
+                with gr.Accordion("Advanced options", open=False) as advanced_accordion:
                     hf_token = gr.Textbox(
                         label="Hugging Face Token (required for llm_query / rlm_query)",
                         placeholder="hf_...  — used only for this reset; not persisted",
@@ -423,7 +444,14 @@ def build_repl_gradio_app(
         example_dropdown.change(
             fn=load_example,
             inputs=[example_dropdown],
-            outputs=[context, task_prompt, code, expected_answer, context_accordion],
+            outputs=[
+                context,
+                task_prompt,
+                code,
+                expected_answer,
+                context_accordion,
+                advanced_accordion,
+            ],
         )
         upload.change(
             fn=load_uploaded_document,
