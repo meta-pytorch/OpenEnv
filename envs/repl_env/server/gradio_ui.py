@@ -77,7 +77,7 @@ print(f"Child returned: {answer!r}")
 print(FINAL(answer.strip()))"""
 
 
-_EXAMPLES: Dict[str, tuple] = {
+_EXAMPLES: Dict[str, tuple[str, str, str, str]] = {
     # Each value is (context, task_prompt, code, expected_answer)
     # `expected_answer` is optional ground truth for the rubric system
     # (RFC 004): matches against `FINAL(...)` to produce a reward of 1.0.
