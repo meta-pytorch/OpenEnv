@@ -147,6 +147,11 @@ class REPLEnvironment(Environment):
         self._current_llm_model: Optional[str] = None
 
     @staticmethod
+    def _resolve_model(llm_model: Optional[str]) -> str:
+        """Resolve the effective model name: explicit arg > env var > hard default."""
+        return llm_model or os.environ.get("LLM_MODEL", "Qwen/Qwen3.5-9B")
+
+    @staticmethod
     def _build_hf_chat_fn(
         hf_token: Optional[str] = None,
         llm_model: Optional[str] = None,
@@ -156,7 +161,7 @@ class REPLEnvironment(Environment):
         except ImportError:
             raise RuntimeError("huggingface_hub is required for HF-backed recursion")
 
-        default_model = llm_model or os.environ.get("LLM_MODEL", "Qwen/Qwen3.5-9B")
+        default_model = REPLEnvironment._resolve_model(llm_model)
         client = InferenceClient(model=default_model, token=hf_token, timeout=300)
 
         def chat_fn(messages: list[dict[str, str]], model: str | None = None) -> str:
@@ -264,16 +269,19 @@ class REPLEnvironment(Environment):
 
         # Create or rebuild LLM functions when needed.
         # Token resolution: explicit hf_token > HF_TOKEN env var > cached HF login.
-        # Rebuild when the caller supplies new credentials or switches models,
-        # so repeated resets with a different llm_model/hf_token take effect.
-        model_changed = llm_model != self._current_llm_model
+        # Compare the *resolved* model name (after default fallback) so that
+        # `reset(llm_model="Qwen/Qwen3.5-9B")` followed by `reset()` (no model)
+        # doesn't trigger a redundant rebuild when both resolve to the same
+        # default.
+        resolved_model = self._resolve_model(llm_model)
+        model_changed = resolved_model != self._current_llm_model
         token_provided = hf_token is not None
         if not self.llm_query_fn or model_changed or token_provided:
             effective_token = (
                 hf_token if hf_token is not None else os.environ.get("HF_TOKEN")
             )
             self._create_llm_functions(effective_token, llm_model)
-            self._current_llm_model = llm_model
+            self._current_llm_model = resolved_model
         elif depth_changed and self._runtime_controller is not None:
             # Rebuild controller with new depth/iteration config but reuse
             # the existing chat_fn — don't require re-providing credentials.
