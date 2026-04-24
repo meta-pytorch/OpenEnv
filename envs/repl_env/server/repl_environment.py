@@ -138,6 +138,7 @@ class REPLEnvironment(Environment):
         self._executor: Optional[PythonExecutor] = None
         self._runtime_controller = None
         self._runtime_controller_chat_fn: Optional[Callable[..., str]] = None
+        self._current_llm_model: Optional[str] = None
 
     @staticmethod
     def _build_hf_chat_fn(
@@ -257,11 +258,16 @@ class REPLEnvironment(Environment):
 
         # Create or rebuild LLM functions when needed.
         # Token resolution: explicit hf_token > HF_TOKEN env var > cached HF login.
-        if not self.llm_query_fn:
+        # Rebuild when the caller supplies new credentials or switches models,
+        # so repeated resets with a different llm_model/hf_token take effect.
+        model_changed = llm_model != self._current_llm_model
+        token_provided = hf_token is not None
+        if not self.llm_query_fn or model_changed or token_provided:
             effective_token = (
                 hf_token if hf_token is not None else os.environ.get("HF_TOKEN")
             )
             self._create_llm_functions(effective_token, llm_model)
+            self._current_llm_model = llm_model
         elif depth_changed and self._runtime_controller is not None:
             # Rebuild controller with new depth/iteration config but reuse
             # the existing chat_fn — don't require re-providing credentials.
