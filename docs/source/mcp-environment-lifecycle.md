@@ -83,7 +83,7 @@ Environment-specific MCP clients such as `EchoEnv` and `FinQAEnv` inherit from `
 Those clients expose convenience methods:
 
 - `list_tools()`
-- `call_tool()`
+- `call_tool()` — **async**, must be awaited
 
 These are helpers, not a separate environment lifecycle.
 
@@ -91,8 +91,8 @@ These are helpers, not a separate environment lifecycle.
 
 By default, the convenience methods still go through the OpenEnv session path.
 
-- `list_tools()` wraps `step(ListToolsAction())`
-- `call_tool()` wraps `step(CallToolAction(...))`
+- `list_tools()` wraps `step(ListToolsAction())` and returns the `list[Tool]` directly.
+- `call_tool(name, **kwargs)` wraps `step(CallToolAction(tool_name=name, arguments=kwargs))` and returns the **unwrapped tool return value** directly — not the `CallToolObservation`, and not the `CallToolResult` wrapper you would get from `obs.result`.
 
 This preserves:
 
@@ -109,19 +109,20 @@ That path is for tool-serving behavior, not the training loop.
 
 ## Which Pattern Should You Use?
 
-Use `step(CallToolAction(...))` when you need the full OpenEnv result object:
+Use `step(CallToolAction(...))` when you need the full `CallToolObservation`:
 
 - `reward`
 - `done`
 - observation metadata
+- `obs.result`, a `CallToolResult` wrapper whose `.data` attribute carries the raw return value and whose `.content` / `.structured_content` carry the MCP-protocol payloads
 - trajectory-compatible behavior
 
-Use `call_tool()` when you only want the tool result and do not need to manually inspect the full `StepResult`.
+Use `await env.call_tool(name, **kwargs)` when you only want the tool's raw return value and do not need to inspect the full observation. It is async and unwraps the result for you.
 
 In other words:
 
 - `step(...)` is the canonical simulation pattern
-- `call_tool()` is a convenience wrapper
+- `call_tool()` is an async convenience wrapper that returns the unwrapped tool output
 
 ## Concrete Examples
 
