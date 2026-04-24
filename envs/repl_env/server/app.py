@@ -96,9 +96,8 @@ def create_repl_environment() -> REPLEnvironment:
 # Create the app with web interface and README integration.
 _sig = inspect.signature(create_app)
 if "gradio_builder" in _sig.parameters:
-    # Opt in to the primary-tab behaviour when supported so visitors land on
-    # the custom REPL UI instead of the auto-generated schema Playground.
-    # Older openenv-core versions silently ignore the extra kwargs.
+    # Each kwarg is guarded by inspect.signature so older openenv-core
+    # releases that predate the param still boot this env.
     create_app_kwargs: dict = {
         "env_name": "repl_env",
         "max_concurrent_envs": MAX_CONCURRENT_ENVS,
@@ -109,9 +108,6 @@ if "gradio_builder" in _sig.parameters:
     if "custom_tab_primary" in _sig.parameters:
         create_app_kwargs["custom_tab_primary"] = True
     if "show_default_tab" in _sig.parameters:
-        # The auto-generated Playground is not useful for REPL (its real
-        # surface is injected Python helpers, not the bare action schema),
-        # so serve only the custom tab.
         create_app_kwargs["show_default_tab"] = False
     if "title_override" in _sig.parameters:
         create_app_kwargs["title_override"] = (

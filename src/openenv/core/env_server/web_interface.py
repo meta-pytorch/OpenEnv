@@ -576,11 +576,8 @@ def create_web_interface_app(
                 f"got {type(custom_blocks).__name__}"
             )
         if not show_default_tab:
-            # Env opts out of the auto-generated Playground entirely; mount the
-            # custom Blocks directly with no tab chrome. When `title_override`
-            # is set there is no outer `TabbedInterface` to carry it, so apply
-            # it to the `gr.Blocks` title (drives the browser tab and the
-            # Gradio page title) before mounting.
+            # No TabbedInterface wrapper to carry `title_override`, so set it
+            # on the Blocks directly.
             if title_override is not None:
                 custom_blocks.title = title_override
             gradio_blocks = custom_blocks
