@@ -17,11 +17,15 @@ except ImportError:
 
 class EmailTriageEnv(EnvClient[EmailTriageAction, EmailTriageObservation, EmailTriageState]):
     def _step_payload(self, action: EmailTriageAction) -> Dict[str, object]:
-        return {
+        payload: Dict[str, object] = {
             "category": action.category,
             "priority": action.priority,
             "should_escalate": action.should_escalate,
         }
+        # Include Round 2 optional fields when present
+        if action.rationale is not None:
+            payload["rationale"] = action.rationale
+        return payload
 
     def _parse_result(self, payload: dict) -> StepResult[EmailTriageObservation]:
         obs_p = payload["observation"]
@@ -53,4 +57,12 @@ class EmailTriageEnv(EnvClient[EmailTriageAction, EmailTriageObservation, EmailT
             total_reward=payload.get("total_reward", 0.0),
             difficulty=payload.get("difficulty", "medium"),
             current_task=payload.get("current_task", "medium"),
+            # Round 2 fields (with defaults for backward compat)
+            queue_size=payload.get("queue_size", 0),
+            tickets_resolved=payload.get("tickets_resolved", 0),
+            tickets_remaining=payload.get("tickets_remaining", 0),
+            sla_breaches=payload.get("sla_breaches", 0),
+            policy_violations=payload.get("policy_violations", 0),
+            oversight_catches=payload.get("oversight_catches", 0),
+            drift_count=payload.get("drift_count", 0),
         )
