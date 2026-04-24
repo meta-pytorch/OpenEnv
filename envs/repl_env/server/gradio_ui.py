@@ -34,10 +34,6 @@ except ImportError:  # pragma: no cover - optional dep
     pypdf = None  # type: ignore[assignment]
 
 
-# Pre-canned demos for the "Load example" dropdown. Each entry is
-# (label, context, task_prompt, code) and showcases one of the three
-# recursion primitives injected into the REPL namespace.
-
 _EX1_NEEDLE_CONTEXT = """ACME Robotics — Q1 internal changelog, build notes, and incident log.
 
 Week 1. Fleet rollout reached 412 units across warehouses A and B. Latency regression on the manipulator firmware was traced back to the new servo driver; hotfix 1.4.2 shipped Wednesday. No customer impact.
@@ -78,9 +74,8 @@ print(FINAL(answer.strip()))"""
 
 
 _EXAMPLES: Dict[str, tuple[str, str, str, str]] = {
-    # Each value is (context, task_prompt, code, expected_answer)
-    # `expected_answer` is optional ground truth for the rubric system
-    # (RFC 004): matches against `FINAL(...)` to produce a reward of 1.0.
+    # 4th element is `expected_answer`: RFC 004 ground truth, matched
+    # against FINAL(...) for reward scoring.
     "Needle in a haystack (llm_query_batched)": (
         _EX1_NEEDLE_CONTEXT,
         _EX1_TASK,
@@ -230,9 +225,8 @@ def build_repl_gradio_app(
     """Build the REPL-specific Gradio tab."""
     del action_fields, is_chat_env
 
-    # `metadata.description` defaults to a generic "<name> environment" string
-    # when the env does not supply one, so we skip it and rely on `quick_start_md`
-    # + `_HELPERS_MD` + the full README for meaningful onboarding content.
+    # Skip `metadata.description`: the core default is a generic
+    # "<name> environment" placeholder that adds noise without content.
     readme_content = (
         metadata.readme_content if metadata and metadata.readme_content else ""
     )
@@ -296,8 +290,6 @@ def build_repl_gradio_app(
             return f"Error: {exc}"
 
     def load_example(label: str):
-        # Returns: context, task_prompt, code, expected_answer,
-        # context_accordion_state
         if not label or label not in _EXAMPLES:
             return (
                 gr.update(),
@@ -312,7 +304,6 @@ def build_repl_gradio_app(
         return ctx, task, code, expected, gr.update(open=False)
 
     def load_uploaded_document(file_obj):
-        # Returns: context, status, context_accordion_state
         if file_obj is None:
             return gr.update(), gr.update(), gr.update()
         file_path = (
