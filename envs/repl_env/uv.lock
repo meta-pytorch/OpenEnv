@@ -1,5 +1,5 @@
 version = 1
-revision = 3
+revision = 2
 requires-python = ">=3.10"
 resolution-markers = [
     "python_full_version >= '3.14' and sys_platform == 'win32'",
@@ -1565,7 +1565,7 @@ wheels = [
 
 [[package]]
 name = "openenv-core"
-version = "0.2.2"
+version = "0.2.3"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "fastapi" },
@@ -1584,9 +1584,9 @@ dependencies = [
     { name = "uvicorn" },
     { name = "websockets" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/54/b9/f134f9de0fcb4a44c1376872fb19fe86013a69d226e320dc77217ca2ec78/openenv_core-0.2.2.tar.gz", hash = "sha256:b891eeb38845cd0c72e94f72615b0fe44c893e53822fd0843c1fafc53fc31bad", size = 146412, upload-time = "2026-03-20T17:52:36.651Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/93/f3/41a5ed932a2507438c985e9d959dcaa1a6c46f293995c064348c0e52dd40/openenv_core-0.2.3.tar.gz", hash = "sha256:48aefd774474556297ce012b80f2ceb271db51253d7fd0838e6e2dcc329db0c3", size = 146944, upload-time = "2026-03-28T18:56:28.415Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/2f/fd/9ab2b271ab763ccb6bf83d7495c45cdef4e38877d96ecf9314e1c4a95fae/openenv_core-0.2.2-py3-none-any.whl", hash = "sha256:1b99233448aa824c7974ad7c53d46d2edb9302cdc5a3ab0e2ade3a4943f17a63", size = 174125, upload-time = "2026-03-20T17:52:35.605Z" },
+    { url = "https://files.pythonhosted.org/packages/2f/22/38c339e370d198008f2c17ebdda1ae8f23bb4e1509dc7ae8eab6dc9b9cbe/openenv_core-0.2.3-py3-none-any.whl", hash = "sha256:f75a20c94452057a5f53a86e6d71a9f6a461524c3d6a865aa9344d257a92b795", size = 174557, upload-time = "2026-03-28T18:56:26.874Z" },
 ]
 
 [package.optional-dependencies]
@@ -1624,7 +1624,7 @@ requires-dist = [
     { name = "fastapi", specifier = ">=0.115.0" },
     { name = "gradio", specifier = ">=4.0.0" },
     { name = "huggingface-hub", specifier = ">=0.20.0" },
-    { name = "openenv-core", extras = ["core"], specifier = ">=0.2.2" },
+    { name = "openenv-core", extras = ["core"], specifier = ">=0.2.3" },
     { name = "pydantic", specifier = ">=2.0.0" },
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=9.0.3" },
     { name = "pytest-cov", marker = "extra == 'dev'", specifier = ">=4.0.0" },
