@@ -267,12 +267,9 @@ class REPLEnvironment(Environment):
         self.rlm_max_depth = runtime_rlm_max_depth
         self.rlm_max_iterations = runtime_rlm_max_iterations
 
-        # Create or rebuild LLM functions when needed.
         # Token resolution: explicit hf_token > HF_TOKEN env var > cached HF login.
-        # Compare the *resolved* model name (after default fallback) so that
-        # `reset(llm_model="Qwen/Qwen3.5-9B")` followed by `reset()` (no model)
-        # doesn't trigger a redundant rebuild when both resolve to the same
-        # default.
+        # Compare resolved model names so reset(llm_model=<default>) and
+        # reset() are treated as equal and don't trigger a redundant rebuild.
         resolved_model = self._resolve_model(llm_model)
         model_changed = resolved_model != self._current_llm_model
         token_provided = hf_token is not None
