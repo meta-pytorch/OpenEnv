@@ -99,7 +99,6 @@ OpenEnv is currently in an experimental stage. You should expect bugs, incomplet
 quickstart
 installation
 concepts
-auto_getting_started/index
 ```
 
 ```{toctree}
@@ -108,17 +107,6 @@ auto_getting_started/index
 :hidden:
 
 guides/index
-guides/auto-discovery
-guides/connecting
-guides/async-sync
-simulation-vs-production
-mcp-environment-lifecycle
-guides/first-environment
-guides/environment-anatomy
-guides/deployment
-guides/rl-integration
-guides/rewards
-customizing-web-ui
 ```
 
 ```{toctree}
@@ -143,9 +131,6 @@ environments
 :hidden:
 
 reference/index
-core
-cli
-auto_discovery
 ```
 
 ```{toctree}
@@ -154,5 +139,4 @@ auto_discovery
 :hidden:
 
 contributing
-auto_getting_started/contributing-envs
 ```

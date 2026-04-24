@@ -82,11 +82,13 @@ import pytorch_sphinx_theme2
 html_theme = "pytorch_sphinx_theme2"
 html_theme_path = [pytorch_sphinx_theme2.get_html_theme_path()]
 html_static_path = ["_static"]
+html_css_files = ["openenv-overrides.css"]
+html_js_files = ["cookie-banner.js"]
 
 html_theme_options = {
     "navigation_with_keys": False,
     "analytics_id": "GTM-T8XT4PS",
-    "header_links_before_dropdown": 7,
+    "header_links_before_dropdown": 8,
     "logo": {
         "text": "OpenEnv",
     },
@@ -108,14 +110,15 @@ html_theme_options = {
         },
     ],
     "use_edit_page_button": True,
-    "navbar_center": "navbar-nav",
     "switcher": {
         "json_url": "_static/versions.json",
         "version_match": switcher_version,
     },
     "check_switcher": False,
     "navbar_align": "left",
-    "navbar_start": ["navbar-logo", "version-switcher"],
+    # Hide the version switcher until versioned releases are published —
+    # with only "main" in versions.json it opens to an empty dropdown.
+    "navbar_start": ["navbar-logo"],
     "navbar_center": ["navbar-nav"],
     "navbar_end": ["theme-switcher", "navbar-icon-links"],
 }
@@ -137,9 +140,12 @@ html_context = {
     "feedback_url": "https://github.com/meta-pytorch/OpenEnv",
     "github_version": "main",
     "doc_path": "docs/source",
-    "library_links": theme_variables.get("library_links", []),
-    "community_links": theme_variables.get("community_links", []),
-    "language_bindings_links": html_theme_options.get("language_bindings_links", []),
+    # Suppress the theme's PyTorch-wide sidebar blocks (PyTorch Libraries,
+    # PyTorch Community, Language Bindings) — they link to unrelated
+    # PyTorch projects and clutter the OpenEnv sidebar.
+    "library_links": [],
+    "community_links": [],
+    "language_bindings_links": [],
 }
 
 # Base URL for the site (used by sitemap and canonical URLs)
