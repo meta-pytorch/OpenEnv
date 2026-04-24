@@ -277,6 +277,8 @@ class REPLEnvironment(Environment):
             effective_token = (
                 hf_token if hf_token is not None else os.environ.get("HF_TOKEN")
             )
+            # Pass raw llm_model; _build_hf_chat_fn resolves it via
+            # _resolve_model so the client matches the cache key below.
             self._create_llm_functions(effective_token, llm_model)
             self._current_llm_model = resolved_model
         elif depth_changed and self._runtime_controller is not None:
