@@ -9,10 +9,18 @@
 import inspect
 import logging
 import os
+from pathlib import Path
 
 # Pathway lab is meant to be used at /web; OpenEnv defaults web off unless set.
 if "ENABLE_WEB_INTERFACE" not in os.environ:
     os.environ["ENABLE_WEB_INTERFACE"] = "true"
+
+# Some dependencies (e.g. gseapy) import matplotlib, which tries to write a font/cache
+# directory under the user's home. In sandboxed / CI contexts this can be unwritable.
+if "MPLCONFIGDIR" not in os.environ:
+    cache_dir = Path(__file__).resolve().parent.parent / "outputs" / ".mplcache"
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    os.environ["MPLCONFIGDIR"] = str(cache_dir)
 
 from openenv.core.env_server.http_server import create_app
 

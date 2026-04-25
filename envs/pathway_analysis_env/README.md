@@ -30,10 +30,13 @@ Observations include rich DE rows (`log2FoldChange`, `padj`), ORA tables, overla
 
 **Strict mode** (`strict_mode` in JSON or `reset(strict=True)`): invalid contrasts or missing PyDESeq2 end the episode with a failure signal instead of silent fallback.
 
+Stable machine-readable error labels: see **[docs/FAILURE_CODES.md](docs/FAILURE_CODES.md)** (`metadata["failure_code"]`).
+
 ## Scripts
 
 - `scripts/generate_curriculum_cases.py` — writes ramped synthetic cases under `data/curriculum/`.
 - `scripts/run_benchmark.py` — fixed policy + accuracy / action trace (`--json-out`).
+- `bench/` — optional “gold-standard” RNA-seq toolchain (STAR/featureCounts/Salmon) for studies that require FASTQ→counts benchmarking.
 
 ## Quick Start
 
@@ -79,7 +82,9 @@ uv run server
 
 The Gradio UI (**Playground** + **Pathway lab**) is **on by default** for this app. To disable it (API-only server), set `ENABLE_WEB_INTERFACE=false` before starting.
 
-Open **http://localhost:8000/web** — use the **Visualization** tab for case selection, contrast fields, guided **Inspect → DE → ORA → Compare → Submit**, and sortable **DE / ORA** tables with JSON and trace path.
+Open **http://localhost:8000/web/** — use the **Visualization** tab (**Pathway lab**) for the guided workflow.
+
+**Step-by-step UI guide:** [docs/USER_GUIDE_UI.md](docs/USER_GUIDE_UI.md) (what each button does, results panels, first-run example).
 
 ### Connect via client
 

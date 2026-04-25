@@ -21,6 +21,7 @@ import pandas as pd
 from openenv.core.env_server.types import EnvironmentMetadata
 
 _DATA_DIR = Path(__file__).resolve().parent.parent / "data"
+_OUTPUTS_DIR = Path(__file__).resolve().parent.parent / "outputs"
 
 
 def _list_case_files() -> List[str]:
@@ -28,6 +29,77 @@ def _list_case_files() -> List[str]:
         return ["toy_case_001.json"]
     names = sorted(p.name for p in _DATA_DIR.glob("*.json"))
     return names if names else ["toy_case_001.json"]
+
+
+def _list_saved_runs() -> List[str]:
+    """Folders under outputs/ that contain summary.json."""
+    if not _OUTPUTS_DIR.is_dir():
+        return []
+    runs = []
+    for p in sorted(_OUTPUTS_DIR.iterdir()):
+        if not p.is_dir():
+            continue
+        if (p / "summary.json").is_file():
+            runs.append(p.name)
+    return runs
+
+
+def _load_saved_run(run_name: str) -> Dict[str, Any]:
+    base = _OUTPUTS_DIR / run_name
+    out: Dict[str, Any] = {"run": run_name}
+    try:
+        out["summary"] = json.loads((base / "summary.json").read_text(encoding="utf-8"))
+    except Exception as e:
+        out["summary_error"] = str(e)
+        out["summary"] = {}
+    try:
+        out["de"] = json.loads((base / "de_top200.json").read_text(encoding="utf-8"))
+    except Exception as e:
+        out["de_error"] = str(e)
+        out["de"] = []
+    try:
+        out["enrichment"] = json.loads(
+            (base / "enrichment_top50.json").read_text(encoding="utf-8")
+        )
+    except Exception as e:
+        out["enrichment_error"] = str(e)
+        out["enrichment"] = []
+    return out
+
+
+def _saved_run_to_tables(run: Dict[str, Any]) -> Tuple[str, pd.DataFrame, pd.DataFrame]:
+    s = run.get("summary") or {}
+    md_lines = [
+        f"**Run:** `{run.get('run','')}`",
+        f"**Case:** `{s.get('case_id','')}`",
+        f"**Contrast:** `{s.get('contrast')}`",
+        f"**Genes:** in matrix `{s.get('genes_in_matrix')}` → after prefilter `{s.get('genes_after_prefilter')}`",
+        f"**Trace:** `{s.get('trace_path','')}`",
+    ]
+    md = "\n\n".join(md_lines)
+
+    de = run.get("de") or []
+    df_de = pd.DataFrame(de) if isinstance(de, list) and de else pd.DataFrame({"info": ["No DE export found."]})
+
+    enr = run.get("enrichment") or []
+    if isinstance(enr, list) and enr:
+        df_enr = pd.DataFrame(
+            [
+                {
+                    "pathway": r.get("pathway"),
+                    "p_value": r.get("p_value"),
+                    "q_value": r.get("q_value"),
+                    "odds_ratio": r.get("odds_ratio"),
+                    "overlap_genes": ", ".join((r.get("overlap_genes") or [])[:40]),
+                }
+                for r in enr
+                if isinstance(r, dict)
+            ]
+        )
+    else:
+        df_enr = pd.DataFrame({"info": ["No enrichment export found."]})
+
+    return md, df_de, df_enr
 
 
 def _pathway_comparison_df(obs: Dict[str, Any]) -> pd.DataFrame:
@@ -251,6 +323,7 @@ def build_pathway_gradio_app(
     structured ``PathwayAction`` payloads.
     """
     case_choices = _list_case_files()
+    saved_runs = _list_saved_runs()
     display = metadata.name if metadata else title
 
     async def do_reset(case_file: str):
@@ -460,6 +533,20 @@ def build_pathway_gradio_app(
                     interactive=False,
                     wrap=True,
                 )
+            with gr.Tab("Saved run (GSE235417)"):
+                gr.Markdown(
+                    "Browse exported run artifacts under `envs/pathway_analysis_env/outputs/<run>/` "
+                    "(e.g. `gse235417`). This view does **not** re-run DESeq2; it only loads saved JSON."
+                )
+                run_dd = gr.Dropdown(
+                    choices=saved_runs,
+                    value="gse235417" if "gse235417" in saved_runs else (saved_runs[0] if saved_runs else None),
+                    label="Saved run folder (`outputs/`)",
+                )
+                load_btn = gr.Button("Load saved results", variant="primary")
+                run_md = gr.Markdown()
+                run_de = gr.Dataframe(label="Saved DE (top 200)", interactive=False, wrap=True)
+                run_enr = gr.Dataframe(label="Saved enrichment (top 50)", interactive=False, wrap=True)
             with gr.Tab("Overlap & ambiguity"):
                 out_extra = gr.Markdown()
             with gr.Tab("Trace"):
@@ -489,5 +576,12 @@ def build_pathway_gradio_app(
         btn_cmp.click(fn=step_compare, inputs=[pw_a, pw_b], outputs=ui_outputs)
         btn_sub.click(fn=step_submit, inputs=[hyp], outputs=ui_outputs)
         btn_ex.click(fn=step_expert, inputs=[ex_q], outputs=ui_outputs)
+
+        def do_load_saved(run_name: str):
+            run = _load_saved_run(run_name or "")
+            md, df_de, df_enr = _saved_run_to_tables(run)
+            return md, df_de, df_enr
+
+        load_btn.click(fn=do_load_saved, inputs=[run_dd], outputs=[run_md, run_de, run_enr])
 
     return blocks

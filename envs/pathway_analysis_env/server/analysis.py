@@ -15,6 +15,7 @@ from __future__ import annotations
 import io
 import math
 from contextlib import redirect_stderr, redirect_stdout
+from pathlib import Path
 from typing import Any, Dict, List, Optional, Sequence, Set, Tuple
 
 import numpy as np
@@ -31,9 +32,21 @@ except ImportError:  # pragma: no cover - optional heavy dep
     DeseqStats = None  # type: ignore[misc, assignment]
     _PYDESQ2_AVAILABLE = False
 
+try:
+    import gseapy as gp
+
+    _GSEAPY_AVAILABLE = True
+except ImportError:  # pragma: no cover - optional extra dep
+    gp = None  # type: ignore[assignment]
+    _GSEAPY_AVAILABLE = False
+
 
 def pydeseq2_available() -> bool:
     return _PYDESQ2_AVAILABLE
+
+
+def gseapy_available() -> bool:
+    return _GSEAPY_AVAILABLE
 
 
 def default_analysis_options() -> Dict[str, Any]:
@@ -87,6 +100,64 @@ def filter_counts_by_minimum_total(
     return filtered, n_before, n_after
 
 
+def normalize_gene_ids(raw: Sequence[str]) -> List[str]:
+    """
+    Normalize gene identifiers for downstream gene set matching.
+
+    GEO count tables often use a combined key like ``ENSG...__TP53``.
+    We keep the symbol suffix when present.
+    """
+
+    out: List[str] = []
+    for g in raw:
+        s = str(g)
+        if "__" in s:
+            s = s.split("__", 1)[1]
+        out.append(s)
+    return out
+
+
+def load_counts_csv_as_samples_by_genes(
+    path: str | Path,
+    *,
+    sample_ids: Optional[Sequence[str]] = None,
+) -> pd.DataFrame:
+    """
+    Load a counts table from CSV/CSV.GZ and return **samples × genes** DataFrame.
+
+    Expected file layout:
+      - rows: genes
+      - columns: sample IDs
+      - first column: gene identifier (may be unnamed)
+    """
+
+    p = Path(path)
+    df = pd.read_csv(p, index_col=0)
+    if df.empty:
+        raise ValueError(f"Counts file is empty: {p}")
+
+    df.index = normalize_gene_ids(df.index.tolist())
+    df = df.apply(pd.to_numeric, errors="coerce").fillna(0).astype(int)
+
+    # Aggregate duplicate symbols (common when collapsing Ensembl->symbol).
+    if df.index.has_duplicates:
+        df = df.groupby(df.index).sum()
+
+    # genes × samples -> samples × genes
+    counts_df = df.T
+
+    if sample_ids is not None:
+        missing = [s for s in sample_ids if s not in counts_df.index]
+        if missing:
+            raise ValueError(
+                f"Counts file missing sample columns/rows for: {missing[:10]}"
+                + (" ..." if len(missing) > 10 else "")
+            )
+        counts_df = counts_df.loc[list(sample_ids)]
+
+    return counts_df
+
+
 def counts_dict_to_samples_by_genes(
     counts: Dict[str, Sequence[int]],
     sample_ids: Sequence[str],
@@ -128,6 +199,86 @@ def validate_counts_case(case: Dict[str, Any]) -> Optional[str]:
                 f"sample_ids has length {n}."
             )
     return None
+
+
+def load_author_de_table_csv(
+    path: str | Path,
+    *,
+    gene_column: str | None = None,
+    log2fc_column: str = "log2FoldChange",
+    pvalue_column: str = "pvalue",
+    padj_column: str = "padj",
+) -> List[Dict[str, Any]]:
+    """
+    Load a precomputed differential expression (DE) table (author-provided).
+
+    Supports the common GEO supplement format used in GSE227102:
+      - semicolon-delimited
+      - decimal comma in numeric columns (e.g. ``0,12``) and scientific like ``1,47E-18``
+      - gene symbol in a column like ``Gene,name`` and/or an Ensembl ``ID``
+
+    Returns:
+        DE rows in the same schema as ``run_deseq2_contrast`` output, sorted by ascending padj.
+    """
+
+    p = Path(path)
+    if not p.is_file():
+        raise ValueError(f"DE table file not found: {p}")
+
+    df = pd.read_csv(p, sep=";")
+    if df.empty:
+        raise ValueError(f"DE table is empty: {p}")
+
+    # Pick gene column.
+    if gene_column is None:
+        for cand in ("Gene,name", "gene", "symbol", "Gene", "gene_name"):
+            if cand in df.columns:
+                gene_column = cand
+                break
+    if gene_column is None or gene_column not in df.columns:
+        raise ValueError(
+            "Could not infer gene column. Available columns: "
+            + ", ".join(map(str, df.columns.tolist()))
+        )
+
+    # Normalize numeric strings (decimal commas).
+    for c in (log2fc_column, pvalue_column, padj_column):
+        if c not in df.columns:
+            raise ValueError(f"Missing required column {c!r} in DE table: {p}")
+        df[c] = df[c].astype(str).str.replace(",", ".", regex=False)
+        df[c] = pd.to_numeric(df[c], errors="coerce")
+
+    df[gene_column] = df[gene_column].astype(str)
+
+    rows: List[Dict[str, Any]] = []
+    for _, r in df.iterrows():
+        gene = str(r.get(gene_column, "")).strip()
+        if not gene or gene.lower() in ("nan", "none"):
+            continue
+        padj = float(r.get(padj_column)) if pd.notna(r.get(padj_column)) else 1.0
+        rows.append(
+            {
+                "gene": gene,
+                "baseMean": float("nan"),  # unknown for author tables; kept for schema compat
+                "log2FoldChange": float(r.get(log2fc_column, 0.0))
+                if pd.notna(r.get(log2fc_column))
+                else 0.0,
+                "lfcSE": None,
+                "pvalue": float(r.get(pvalue_column, 1.0))
+                if pd.notna(r.get(pvalue_column))
+                else 1.0,
+                "padj": padj,
+                "significant": False,  # filled by caller using chosen alpha
+            }
+        )
+
+    rows.sort(
+        key=lambda x: (
+            _safe_padj_value(x.get("padj")),
+            -abs(float(x.get("log2FoldChange") or 0.0)),
+        )
+    )
+    return rows
 
 
 def run_deseq2_contrast(
@@ -279,6 +430,71 @@ def ora_fisher(
         r["q_value"] = q
     results.sort(key=lambda x: (x["p_value"], -x["overlap_count"]))
     return results
+
+
+def enrichr_ora(
+    query_genes: Sequence[str],
+    *,
+    libraries: Sequence[str],
+    background: Optional[Sequence[str]] = None,
+    top_k: int = 50,
+) -> tuple[List[Dict[str, Any]], Optional[str]]:
+    """
+    Enrichr-based ORA using gseapy (requires network for most libraries).
+
+    Returns:
+        (rows, error_message)
+    """
+
+    if not _GSEAPY_AVAILABLE:
+        return [], "gseapy is not installed."
+    q = [str(g) for g in query_genes if g]
+    if not q:
+        return [], "Empty query gene list."
+    libs = [str(x) for x in libraries if x]
+    if not libs:
+        return [], "No Enrichr libraries configured."
+
+    rows: List[Dict[str, Any]] = []
+    try:
+        for lib in libs:
+            enr = gp.enrichr(  # type: ignore[union-attr]
+                gene_list=q,
+                gene_sets=lib,
+                background=list(background) if background is not None else None,
+                outdir=None,
+                no_plot=True,
+            )
+            res = getattr(enr, "results", None)
+            if res is None or res.empty:
+                continue
+            for _, r in res.head(top_k).iterrows():
+                genes = []
+                raw = r.get("Genes")
+                if isinstance(raw, str):
+                    genes = [g.strip() for g in raw.replace(";", ",").split(",") if g.strip()]
+                rows.append(
+                    {
+                        "pathway": f"{lib}: {r.get('Term')}",
+                        "p_value": float(r.get("P-value", 1.0)),
+                        "q_value": float(r.get("Adjusted P-value", 1.0)),
+                        "odds_ratio": float(r.get("Odds Ratio"))
+                        if pd.notna(r.get("Odds Ratio"))
+                        else None,
+                        "overlap_genes": genes,
+                        "overlap_count": int(r.get("Overlap", "0/0").split("/")[0])
+                        if isinstance(r.get("Overlap"), str)
+                        else None,
+                        "pathway_size": int(r.get("Overlap", "0/0").split("/")[1])
+                        if isinstance(r.get("Overlap"), str)
+                        else None,
+                    }
+                )
+    except Exception as exc:  # pragma: no cover
+        return [], f"Enrichr failed: {exc}"
+
+    rows.sort(key=lambda x: (x.get("q_value", 1.0), x.get("p_value", 1.0)))
+    return rows, None
 
 
 def _safe_padj_value(v: Any) -> float:

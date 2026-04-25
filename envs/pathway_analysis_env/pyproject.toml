@@ -24,6 +24,7 @@ dependencies = [
     "scipy>=1.10.0",
     "pydeseq2>=0.4.0",
     "anndata>=0.10.0",
+    "gseapy>=1.1.3",
 ]
 
 [project.optional-dependencies]

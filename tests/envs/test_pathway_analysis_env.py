@@ -47,6 +47,15 @@ def test_load_pipeline_case():
     assert case["true_pathway"] == "MAPK signaling"
 
 
+def test_load_gse235417_case_is_pipeline_mode():
+    case = load_case("gse235417_case.json")
+    assert "counts_file" in case
+    assert "sample_ids" in case
+    assert "sample_metadata" in case
+    assert case["default_contrast"]["reference"] == "baseline"
+    assert case["default_contrast"]["alternate"] == "resistant"
+
+
 @requires_pydeseq2
 def test_deseq2_mapk_case():
     case = json.loads((DATA_DIR / "toy_case_001.json").read_text(encoding="utf-8"))
@@ -151,6 +160,7 @@ def test_no_step_after_episode_done():
     late = env.step(PathwayAction(action_type="inspect_dataset"))
     assert late.done
     assert late.metadata.get("error") == "episode_done"
+    assert late.metadata.get("failure_code") == "episode_already_done"
 
 
 def test_overlap_summary():
@@ -238,6 +248,7 @@ def test_strict_invalid_counts_matrix():
         )
     )
     assert obs.done and obs.metadata.get("strict_failure") is True
+    assert obs.metadata.get("failure_code") == "de_invalid_counts_matrix"
 
 
 @requires_pydeseq2
@@ -247,3 +258,4 @@ def test_strict_mode_missing_contrast():
     obs = env.step(PathwayAction(action_type="run_differential_expression"))
     assert obs.done is True
     assert obs.metadata.get("strict_failure") is True
+    assert obs.metadata.get("failure_code") == "de_missing_contrast"
