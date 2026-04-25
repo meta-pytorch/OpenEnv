@@ -4,8 +4,9 @@ from envs.email_triage_env.models import EmailTriageAction
 
 def reset_env(difficulty):
     env = EmailTriageEnvironment()
-    obs, info = env.reset(options={"difficulty": difficulty})
-    return env, obs, info, f"Started {difficulty} mode. Queue size: {info.get('queue_size', 1)}"
+    obs = env.reset(difficulty=difficulty)
+    info = obs.info or {}
+    return env, obs.model_dump(), info, f"Started {difficulty} mode. Queue size: {info.get('queue_size', 1)}"
 
 def step_env(env, category, priority, escalate):
     if env is None:
@@ -16,13 +17,13 @@ def step_env(env, category, priority, escalate):
         priority=int(priority),
         should_escalate=escalate
     )
-    obs, reward, done, truncated, info = env.step(action)
+    obs = env.step(action)
     
-    msg = f"Action submitted. Reward: {reward:.3f}"
-    if done:
-        msg += f"\nQueue finished! Total tickets resolved: {env.state.tickets_resolved}"
+    msg = f"Action submitted. Reward: {obs.reward:.3f}"
+    if obs.done:
+        msg += f"\nQueue finished! Total tickets resolved: {env._state.tickets_resolved}"
     
-    return env, obs, info, msg, reward
+    return env, obs.model_dump(), obs.info or {}, msg, obs.reward
 
 def format_ticket(obs):
     if not obs:
