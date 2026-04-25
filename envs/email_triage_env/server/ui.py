@@ -145,106 +145,155 @@ def _fmt_stats(info: dict) -> str:
 # ── UI builder ────────────────────────────────────────────────────────────────
 
 CSS = """
-/* ── Reset & base ── */
-body, .gradio-container {
+/* ── FORCE WHITE EVERYWHERE ── */
+body,
+.gradio-container,
+.gr-block, .gr-box, .gr-form, .gr-panel, .gr-group,
+.gr-padded, .gr-compact,
+.contain,
+div[class*="block"], div[class*="wrap"],
+.dark, [data-testid] {
     background: #ffffff !important;
+    background-color: #ffffff !important;
     color: #111111 !important;
     font-family: 'Inter', 'Helvetica Neue', Arial, sans-serif !important;
 }
+
+/* ── Every Gradio column, row, tab, accordion ── */
+.gr-row, .gr-column, .gr-tab, .gr-tabs,
+.gr-accordion, .gr-accordion-header,
+.svelte-1drgfvp, .svelte-1gfkn6j,
+div[class*="container"], div[class*="column"],
+div[class*="row"], div[class*="panel"] {
+    background: #ffffff !important;
+    background-color: #ffffff !important;
+}
+
+/* ── Markdown containers ── */
+.gr-markdown, .gr-markdown p, .gr-markdown li,
+.gr-markdown h1, .gr-markdown h2, .gr-markdown h3,
+.gr-markdown h4, .gr-markdown strong, .gr-markdown em,
+.prose, .prose p, .prose li, .prose h1, .prose h2, .prose h3 {
+    color: #111111 !important;
+    background: transparent !important;
+}
+
+/* ── Links ── */
+.gr-markdown a, .prose a { color: #333333 !important; text-decoration: underline; }
 
 /* ── Header ── */
 .arena-header {
     border-bottom: 2px solid #111111;
     padding: 24px 0 16px 0;
     margin-bottom: 8px;
+    background: #ffffff !important;
 }
 .arena-title {
     font-size: 1.5rem;
     font-weight: 700;
     letter-spacing: -0.02em;
-    color: #111111;
+    color: #111111 !important;
     margin: 0 0 4px 0;
 }
 .arena-subtitle {
     font-size: 0.875rem;
-    color: #555555;
+    color: #555555 !important;
     margin: 0;
 }
 
-/* ── Panels ── */
+/* ── Ticket & Specialist panels ── */
 .panel-ticket, .panel-specialists {
-    border: 1px solid #dddddd;
+    border: 1px solid #dddddd !important;
     border-radius: 6px;
     padding: 16px 20px;
-    background: #fafafa;
+    background: #fafafa !important;
+    background-color: #fafafa !important;
+    color: #111111 !important;
     min-height: 200px;
 }
+
+/* ── Stats bar ── */
 .panel-stats {
-    border: 1px solid #dddddd;
+    border: 1px solid #dddddd !important;
     border-radius: 6px;
     padding: 12px 16px;
-    background: #f5f5f5;
+    background: #f5f5f5 !important;
+    background-color: #f5f5f5 !important;
     font-size: 0.875rem;
+    color: #111111 !important;
 }
 
 /* ── Status bar ── */
 .status-bar {
     border-left: 3px solid #111111;
     padding: 8px 12px;
-    background: #f0f0f0;
+    background: #f0f0f0 !important;
+    background-color: #f0f0f0 !important;
     font-size: 0.875rem;
-    color: #333333;
+    color: #333333 !important;
     border-radius: 0 4px 4px 0;
 }
 
 /* ── Buttons ── */
-button.primary {
+button.primary, button[class*="primary"] {
     background: #111111 !important;
+    background-color: #111111 !important;
     color: #ffffff !important;
     border: none !important;
     border-radius: 4px !important;
     font-weight: 600 !important;
 }
-button.primary:hover {
+button.primary:hover, button[class*="primary"]:hover {
     background: #333333 !important;
+    background-color: #333333 !important;
 }
-button.secondary {
+button.secondary, button[class*="secondary"] {
     background: #ffffff !important;
+    background-color: #ffffff !important;
     color: #111111 !important;
     border: 1.5px solid #111111 !important;
     border-radius: 4px !important;
     font-weight: 600 !important;
 }
-button.secondary:hover {
+button.secondary:hover, button[class*="secondary"]:hover {
     background: #f0f0f0 !important;
+    background-color: #f0f0f0 !important;
 }
 
-/* ── Inputs ── */
-input, select, .gr-dropdown, .gr-slider {
+/* ── Inputs, dropdowns, sliders ── */
+input, select, textarea,
+.gr-dropdown, .gr-slider,
+div[class*="input"], div[class*="dropdown"],
+div[class*="select"], div[class*="slider"] {
     border: 1px solid #cccccc !important;
     border-radius: 4px !important;
     background: #ffffff !important;
+    background-color: #ffffff !important;
     color: #111111 !important;
 }
-input:focus, select:focus {
+input:focus, select:focus, textarea:focus {
     border-color: #111111 !important;
     outline: none !important;
 }
 
-/* ── Section labels ── */
+/* ── Labels ── */
+label, .gr-label, span[data-testid="block-label"] {
+    color: #111111 !important;
+}
+
 .section-label {
     font-size: 0.75rem;
     font-weight: 600;
     text-transform: uppercase;
     letter-spacing: 0.08em;
-    color: #888888;
+    color: #888888 !important;
     margin-bottom: 8px;
 }
 
 /* ── Reward strip ── */
 .reward-strip {
-    background: #111111;
-    color: #ffffff;
+    background: #111111 !important;
+    color: #ffffff !important;
     border-radius: 4px;
     padding: 8px 14px;
     font-size: 0.875rem;
@@ -254,11 +303,20 @@ input:focus, select:focus {
 /* ── Dividers ── */
 hr { border: none; border-top: 1px solid #eeeeee; margin: 16px 0; }
 
+/* ── Number inputs ── */
+.gr-number input { background: #ffffff !important; color: #111111 !important; }
+
+/* ── Checkbox ── */
+.gr-checkbox label { color: #111111 !important; }
+
+/* ── Accordion ── */
+.gr-accordion { border-color: #dddddd !important; }
+
 /* ── Hide Gradio footer ── */
 footer { display: none !important; }
 
-/* ── Markdown text colour ── */
-.gr-markdown, .gr-markdown p, .gr-markdown li { color: #111111 !important; }
+/* ── Force max width ── */
+.gradio-container { max-width: 1200px !important; margin: auto; }
 """
 
 INTRO_MD = """
