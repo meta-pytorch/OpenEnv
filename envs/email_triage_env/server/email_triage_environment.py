@@ -22,7 +22,14 @@ except ImportError:
     try:
         from openenv_core.env_server import Environment
     except ImportError:
-        from core.env_server import Environment
+        try:
+            from core.env_server import Environment
+        except ImportError:
+            # Last resort: import just the base class, skip http/mcp deps
+            try:
+                from openenv.core.env_server.interfaces import Environment
+            except ImportError:
+                from core.env_server.interfaces import Environment
 
 try:
     from envs.email_triage_env.models import (
