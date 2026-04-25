@@ -26,16 +26,8 @@ except TypeError:
     app = create_app(EmailTriageEnvironment())
 
 
-# Root route removed so Gradio UI can take over the root path.
-
-
-try:
-    import gradio as gr
-    from envs.email_triage_env.server.ui import build_ui
-    ui = build_ui()
-    app = gr.mount_gradio_app(app, ui, path="/")
-except ImportError:
-    pass
+# Keep this app API-only (/reset, /step, /state, /health).
+# The demo UI is deployed separately to avoid coupling server startup to Gradio.
 
 def main() -> None:
     import uvicorn

@@ -2,21 +2,25 @@
 
 from __future__ import annotations
 
-import os
 import sys
 import threading
 import time
+from pathlib import Path
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "src"))
+ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(ROOT))
+sys.path.insert(0, str(ROOT / "src"))
 
 import requests
 import uvicorn
 
-from email_triage_env.server.app import app
+try:
+    from envs.email_triage_env.server.app import app
+except ImportError:
+    from email_triage_env.server.app import app
 
 
-def main() -> None:
+def test_http_end_to_end() -> None:
     # Start server in background
     cfg = uvicorn.Config(app, host="127.0.0.1", port=8099, log_level="error")
     server = uvicorn.Server(cfg)
@@ -75,6 +79,7 @@ def main() -> None:
     print(f"Hard episodes completed in {steps} steps")
 
     server.should_exit = True
+    thread.join(timeout=10)
     print()
     print("=" * 50)
     print("HTTP SERVER END-TO-END TEST PASSED")
@@ -82,4 +87,4 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    main()
+    test_http_end_to_end()

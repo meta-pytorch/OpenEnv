@@ -18,6 +18,7 @@ import os
 import sys
 import re
 import gc
+import threading
 from typing import Any, Optional
 
 # ── Memory fragmentation fix (MUST be before torch import) ──────────────────
@@ -35,6 +36,7 @@ from email_triage_env.models import EmailTriageAction
 
 # ── Reward evaluation cache (avoids re-running env for same prompt+completion)
 _CACHE: dict = {}
+_CACHE_LOCK = threading.Lock()
 
 
 def _text(obj: Any) -> str:
@@ -56,8 +58,9 @@ def _score(prompt: Any, completion: Any) -> dict:
     completion_text = _text(completion)
 
     cache_key = hash(prompt_text[-100:] + completion_text[:200])
-    if cache_key in _CACHE:
-        return _CACHE[cache_key]
+    with _CACHE_LOCK:
+        if cache_key in _CACHE:
+            return _CACHE[cache_key]
 
     # Extract seed from prompt
     m = re.search(r"seed[:\s]+(\d+)", prompt_text, re.IGNORECASE)
@@ -94,7 +97,8 @@ def _score(prompt: Any, completion: Any) -> dict:
     except Exception:
         result = {"quality": 0.0, "sla": 0.0, "policy": 0.0, "oversight": 0.0, "hacking": hacking_penalty}
 
-    _CACHE[cache_key] = result
+    with _CACHE_LOCK:
+        _CACHE[cache_key] = result
     return result
 
 

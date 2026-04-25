@@ -1,10 +1,17 @@
+from __future__ import annotations
+
 """
 Oversight Inbox Arena — Gradio UI
 Premium demo interface for the hackathon judges.
 """
 
-import gradio as gr
 import random
+from typing import Any
+
+try:
+    import gradio as gr
+except ImportError:
+    gr = None
 
 try:
     from envs.email_triage_env.server.email_triage_environment import EmailTriageEnvironment
@@ -60,7 +67,7 @@ def do_step(env, obs, category, priority, escalate):
         )
 
     if obs.done:
-        s = env._state
+        s = env.state
         status = (
             f"🏁 Episode finished! Resolved {s.tickets_resolved}/{s.queue_size} tickets. "
             f"Total reward: **{s.total_reward:.3f}**"
@@ -137,12 +144,13 @@ def _fmt_stats(info: dict) -> str:
 
 # ── UI builder ────────────────────────────────────────────────────────────────
 
-THEME = gr.themes.Base(
-    primary_hue="violet",
-    secondary_hue="indigo",
-    neutral_hue="slate",
-    font=[gr.themes.GoogleFont("Inter"), "ui-sans-serif", "sans-serif"],
-)
+def _build_theme() -> Any:
+    return gr.themes.Base(
+        primary_hue="violet",
+        secondary_hue="indigo",
+        neutral_hue="slate",
+        font=[gr.themes.GoogleFont("Inter"), "ui-sans-serif", "sans-serif"],
+    )
 
 CSS = """
 .gradio-container { max-width: 1200px !important; margin: auto; }
@@ -178,7 +186,10 @@ HOWTO_MD = """
 
 
 def build_ui() -> gr.Blocks:
-    with gr.Blocks(title="Oversight Inbox Arena", theme=THEME, css=CSS) as demo:
+    if gr is None:
+        raise ImportError("gradio is required to build the UI")
+
+    with gr.Blocks(title="Oversight Inbox Arena", theme=_build_theme(), css=CSS) as demo:
 
         # ── Shared state ─────────────────────────────────────────────────────
         env_s  = gr.State(None)
@@ -269,5 +280,7 @@ def build_ui() -> gr.Blocks:
 
 
 if __name__ == "__main__":
+    if gr is None:
+        raise ImportError("gradio is required to launch the UI")
     app = build_ui()
     app.launch(share=True)

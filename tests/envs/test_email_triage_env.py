@@ -3,14 +3,13 @@
 from __future__ import annotations
 
 import sys
-import os
+from pathlib import Path
 
 # Ensure imports resolve
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "src"))
+sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
-from email_triage_env.server.email_triage_environment import EmailTriageEnvironment
-from email_triage_env.models import EmailTriageAction
+from envs.email_triage_env.models import EmailTriageAction
+from envs.email_triage_env.server.email_triage_environment import EmailTriageEnvironment
 
 
 def test_easy() -> None:

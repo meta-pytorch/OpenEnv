@@ -172,7 +172,7 @@ TASK_CONFIG: Dict[str, Dict[str, Any]] = {
 class EmailTriageEnvironment(
     Environment[EmailTriageAction, EmailTriageObservation, EmailTriageState]
 ):
-    SUPPORTS_CONCURRENT_SESSIONS = True
+    SUPPORTS_CONCURRENT_SESSIONS = False
 
     def __init__(self, difficulty: Difficulty = "medium") -> None:
         super().__init__()
