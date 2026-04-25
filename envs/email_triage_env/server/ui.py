@@ -174,12 +174,12 @@ div[class*="row"], div[class*="panel"] {
 .gr-markdown h1, .gr-markdown h2, .gr-markdown h3,
 .gr-markdown h4, .gr-markdown strong, .gr-markdown em,
 .prose, .prose p, .prose li, .prose h1, .prose h2, .prose h3 {
-    color: #111111 !important;
+    color: #000000 !important;
     background: transparent !important;
 }
 
 /* ── Links ── */
-.gr-markdown a, .prose a { color: #333333 !important; text-decoration: underline; }
+.gr-markdown a, .prose a { color: #000000 !important; text-decoration: underline; }
 
 /* ── Header ── */
 .arena-header {
@@ -192,66 +192,66 @@ div[class*="row"], div[class*="panel"] {
     font-size: 1.5rem;
     font-weight: 700;
     letter-spacing: -0.02em;
-    color: #111111 !important;
+    color: #000000 !important;
     margin: 0 0 4px 0;
 }
 .arena-subtitle {
     font-size: 0.875rem;
-    color: #555555 !important;
+    color: #000000 !important;
     margin: 0;
 }
 
 /* ── Ticket & Specialist panels ── */
 .panel-ticket, .panel-specialists {
-    border: 1px solid #dddddd !important;
+    border: 1px solid #000000 !important;
     border-radius: 6px;
     padding: 16px 20px;
-    background: #fafafa !important;
-    background-color: #fafafa !important;
-    color: #111111 !important;
+    background: #ffffff !important;
+    background-color: #ffffff !important;
+    color: #000000 !important;
     min-height: 200px;
 }
 
 /* ── Stats bar ── */
 .panel-stats {
-    border: 1px solid #dddddd !important;
+    border: 1px solid #000000 !important;
     border-radius: 6px;
     padding: 12px 16px;
-    background: #f5f5f5 !important;
-    background-color: #f5f5f5 !important;
+    background: #ffffff !important;
+    background-color: #ffffff !important;
     font-size: 0.875rem;
-    color: #111111 !important;
+    color: #000000 !important;
 }
 
 /* ── Status bar ── */
 .status-bar {
-    border-left: 3px solid #111111;
+    border-left: 3px solid #000000;
     padding: 8px 12px;
-    background: #f0f0f0 !important;
-    background-color: #f0f0f0 !important;
+    background: #ffffff !important;
+    background-color: #ffffff !important;
     font-size: 0.875rem;
-    color: #333333 !important;
+    color: #000000 !important;
     border-radius: 0 4px 4px 0;
 }
 
 /* ── Buttons ── */
 button.primary, button[class*="primary"] {
-    background: #111111 !important;
-    background-color: #111111 !important;
-    color: #ffffff !important;
-    border: none !important;
+    background: #ffffff !important;
+    background-color: #ffffff !important;
+    color: #000000 !important;
+    border: 1.5px solid #000000 !important;
     border-radius: 4px !important;
     font-weight: 600 !important;
 }
 button.primary:hover, button[class*="primary"]:hover {
-    background: #333333 !important;
-    background-color: #333333 !important;
+    background: #f0f0f0 !important;
+    background-color: #f0f0f0 !important;
 }
 button.secondary, button[class*="secondary"] {
     background: #ffffff !important;
     background-color: #ffffff !important;
-    color: #111111 !important;
-    border: 1.5px solid #111111 !important;
+    color: #000000 !important;
+    border: 1.5px solid #000000 !important;
     border-radius: 4px !important;
     font-weight: 600 !important;
 }
@@ -265,20 +265,20 @@ input, select, textarea,
 .gr-dropdown, .gr-slider,
 div[class*="input"], div[class*="dropdown"],
 div[class*="select"], div[class*="slider"] {
-    border: 1px solid #cccccc !important;
+    border: 1px solid #000000 !important;
     border-radius: 4px !important;
     background: #ffffff !important;
     background-color: #ffffff !important;
-    color: #111111 !important;
+    color: #000000 !important;
 }
 input:focus, select:focus, textarea:focus {
-    border-color: #111111 !important;
+    border-color: #000000 !important;
     outline: none !important;
 }
 
 /* ── Labels ── */
 label, .gr-label, span[data-testid="block-label"] {
-    color: #111111 !important;
+    color: #000000 !important;
 }
 
 .section-label {
@@ -286,14 +286,15 @@ label, .gr-label, span[data-testid="block-label"] {
     font-weight: 600;
     text-transform: uppercase;
     letter-spacing: 0.08em;
-    color: #888888 !important;
+    color: #000000 !important;
     margin-bottom: 8px;
 }
 
 /* ── Reward strip ── */
 .reward-strip {
-    background: #111111 !important;
-    color: #ffffff !important;
+    background: #ffffff !important;
+    color: #000000 !important;
+    border: 1px solid #000000 !important;
     border-radius: 4px;
     padding: 8px 14px;
     font-size: 0.875rem;
@@ -304,13 +305,13 @@ label, .gr-label, span[data-testid="block-label"] {
 hr { border: none; border-top: 1px solid #eeeeee; margin: 16px 0; }
 
 /* ── Number inputs ── */
-.gr-number input { background: #ffffff !important; color: #111111 !important; }
+.gr-number input { background: #ffffff !important; color: #000000 !important; }
 
 /* ── Checkbox ── */
-.gr-checkbox label { color: #111111 !important; }
+.gr-checkbox label { color: #000000 !important; }
 
 /* ── Accordion ── */
-.gr-accordion { border-color: #dddddd !important; }
+.gr-accordion { border-color: #000000 !important; }
 
 /* ── Hide Gradio footer ── */
 footer { display: none !important; }
