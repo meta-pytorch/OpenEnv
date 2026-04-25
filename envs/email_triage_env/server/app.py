@@ -26,14 +26,7 @@ except TypeError:
     app = create_app(EmailTriageEnvironment())
 
 
-@app.get("/", include_in_schema=False)
-def root() -> dict[str, str]:
-    return {
-        "status": "ok",
-        "service": "email_triage_env",
-        "health": "/health",
-        "docs": "/docs",
-    }
+# Root route removed so Gradio UI can take over the root path.
 
 
 try:
