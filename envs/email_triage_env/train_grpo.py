@@ -136,9 +136,9 @@ ALL_REWARDS = [reward_quality, reward_sla, reward_policy, reward_oversight, rewa
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="GRPO for Oversight Inbox Arena")
-    parser.add_argument("--model", default="Qwen/Qwen2-0.5B",
-                        help="Base model. Default: Qwen/Qwen2-0.5B (fits on free T4). "
-                             "Use Qwen/Qwen2-1.5B for Colab Pro.")
+    parser.add_argument("--model", default="Qwen/Qwen2.5-1.5B",
+                        help="Base model. Default: Qwen/Qwen2.5-1.5B (~4GB in bf16, safe on T4). "
+                             "Swap to Qwen/Qwen2-0.5B for an ultra-light smoke test.")
     parser.add_argument("--output-dir", default="oversight-arena-grpo")
     parser.add_argument("--max-steps", type=int, default=50)
     parser.add_argument("--dataset-size", type=int, default=64)
@@ -255,7 +255,7 @@ def main() -> None:
         per_device_train_batch_size=1,
         gradient_accumulation_steps=4,
         num_generations=4,              # More generations → more reward contrast for GRPO
-        max_completion_length=192,      # Must be > ~35 tokens for full XML; 192 is safe on T4
+        max_completion_length=256,      # 1.5B is more verbose; 256 gives XML + any preamble room
         logging_steps=1,
         save_steps=25,
         gradient_checkpointing=True,
