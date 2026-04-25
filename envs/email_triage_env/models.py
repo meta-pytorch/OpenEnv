@@ -10,7 +10,25 @@ except ImportError:
     try:
         from openenv_core.env_server.types import Action, Observation, State
     except ImportError:
-        from core.env_server.types import Action, Observation, State
+        try:
+            from core.env_server.types import Action, Observation, State
+        except ImportError:
+            # Direct path fallback — avoids __init__.py → http_server → fastmcp chain
+            import importlib.util, pathlib
+            _types_candidates = [
+                pathlib.Path(__file__).resolve().parents[2] / "src" / "openenv" / "core" / "env_server" / "types.py",
+            ]
+            _loaded = False
+            for _p in _types_candidates:
+                if _p.exists():
+                    _spec = importlib.util.spec_from_file_location("_env_types", _p)
+                    _mod = importlib.util.module_from_spec(_spec)
+                    _spec.loader.exec_module(_mod)
+                    Action, Observation, State = _mod.Action, _mod.Observation, _mod.State
+                    _loaded = True
+                    break
+            if not _loaded:
+                raise ImportError("Cannot find openenv Action/Observation/State base classes")
 
 
 EmailCategory = Literal["billing", "support", "spam", "urgent", "marketing", "other"]

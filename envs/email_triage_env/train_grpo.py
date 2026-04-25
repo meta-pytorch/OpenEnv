@@ -90,16 +90,37 @@ def _score(prompt: Any, completion: Any) -> dict:
         action = EmailTriageAction(category=cat, priority=pri, should_escalate=esc)
         obs = env.step(action)
         info = obs.info or {}
+
+        # Easy mode returns category_score/priority_score/escalation_score
+        # (not reward_components). Build quality from the base grader scores.
         comps = info.get("reward_components", {})
+        if comps:
+            # Multi-turn mode — use reward_components directly
+            quality = float(comps.get("quality", 0.0))
+            sla = float(comps.get("sla", 0.0))
+            policy = float(comps.get("policy", 0.0))
+            oversight = float(comps.get("oversight", 0.0))
+        else:
+            # Easy mode — synthesize from individual grader scores
+            cat_score = float(info.get("category_score", 0.0))
+            pri_score = float(info.get("priority_score", 0.0))
+            esc_score = float(info.get("escalation_score", 0.0))
+            quality = 0.5 * cat_score + 0.2 * pri_score + 0.3 * esc_score
+            sla = 1.0  # Easy mode has no SLA
+            policy = 1.0  # Easy mode has no policy drift
+            oversight = float(info.get("task_score", 0.0))
+
         result = {
-            "quality":  float(comps.get("quality", 0.0)),
-            "sla":      float(comps.get("sla", 0.0)),
-            "policy":   float(comps.get("policy", 0.0)),
-            "oversight":float(comps.get("oversight", 0.0)),
+            "quality":  quality,
+            "sla":      sla,
+            "policy":   policy,
+            "oversight": oversight,
             "hacking":  hacking_penalty,
         }
         del env
-    except Exception:
+    except Exception as exc:
+        import traceback
+        traceback.print_exc()
         result = {"quality": 0.0, "sla": 0.0, "policy": 0.0, "oversight": 0.0, "hacking": hacking_penalty}
 
     with _CACHE_LOCK:
