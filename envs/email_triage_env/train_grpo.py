@@ -144,8 +144,30 @@ def main() -> None:
         try:
             from unsloth import FastLanguageModel, PatchFastRL
             PatchFastRL("unsloth", FastLanguageModel)
+            model, tokenizer = FastLanguageModel.from_pretrained(
+                model_name=args.model,
+                max_seq_length=1024,
+                load_in_4bit=True,
+                fast_inference=True,
+                max_lora_rank=16,
+                gpu_memory_utilization=0.5,
+            )
+            model = FastLanguageModel.get_peft_model(
+                model,
+                r=16,
+                target_modules=["q_proj", "k_proj", "v_proj", "o_proj", "gate_proj", "up_proj", "down_proj"],
+                lora_alpha=16,
+                lora_dropout=0,
+                bias="none",
+                use_gradient_checkpointing="unsloth",
+                random_state=3407,
+            )
         except ImportError:
-            pass
+            model = args.model
+            tokenizer = None
+    else:
+        model = args.model
+        tokenizer = None
 
     import torch
     is_bf16_supported = torch.cuda.is_available() and torch.cuda.is_bf16_supported()
@@ -155,10 +177,10 @@ def main() -> None:
         max_steps=args.max_steps,
         learning_rate=5e-6,
         per_device_train_batch_size=1,
-        gradient_accumulation_steps=16 if not args.smoke else 1,
-        num_generations=args.num_generations,
-        max_completion_length=512,
-        max_prompt_length=1024,
+        gradient_accumulation_steps=8 if not args.smoke else 1, # Reduced to save memory
+        num_generations=2 if not args.smoke else 2, # Reduced from 4 to 2 to prevent Colab OOM
+        max_completion_length=256, # Reduced from 512
+        max_prompt_length=512, # Reduced from 1024
         logging_steps=1,
         save_steps=25,
         gradient_checkpointing=True,
@@ -186,7 +208,8 @@ def main() -> None:
     print(f"[DATA] {len(dataset)} prompts")
 
     trainer = GRPOTrainer(
-        model=args.model,
+        model=model,
+        processing_class=tokenizer,
         reward_funcs=ALL_REWARD_FUNCTIONS,
         train_dataset=dataset,
         args=config,
