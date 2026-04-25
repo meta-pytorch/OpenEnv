@@ -17,6 +17,9 @@ import sys
 import re
 from typing import Any, Dict, List, Optional
 
+# Prevent PyTorch memory fragmentation (Critical for Colab T4)
+os.environ["PYTORCH_ALLOC_CONF"] = "expandable_segments:True"
+
 # ---------------------------------------------------------------------------
 # Ensure environment imports resolve
 # ---------------------------------------------------------------------------
@@ -146,17 +149,17 @@ def main() -> None:
             PatchFastRL("unsloth", FastLanguageModel)
             model, tokenizer = FastLanguageModel.from_pretrained(
                 model_name=args.model,
-                max_seq_length=512, # Reduced max seq length
+                max_seq_length=256, # Minimum necessary for this task
                 load_in_4bit=True,
                 fast_inference=True,
-                max_lora_rank=8, # Reduced LoRA rank
+                max_lora_rank=4, # Extremely tiny rank for Colab
                 gpu_memory_utilization=0.5,
             )
             model = FastLanguageModel.get_peft_model(
                 model,
-                r=8, # Reduced LoRA rank
-                target_modules=["q_proj", "k_proj", "v_proj", "o_proj", "gate_proj", "up_proj", "down_proj"],
-                lora_alpha=8,
+                r=4, # Bare minimum rank
+                target_modules=["q_proj", "v_proj"], # Removed k, o, gate, up, down to save more VRAM
+                lora_alpha=4,
                 lora_dropout=0,
                 bias="none",
                 use_gradient_checkpointing="unsloth",
@@ -176,12 +179,12 @@ def main() -> None:
         output_dir=args.output_dir,
         max_steps=args.max_steps,
         learning_rate=5e-6,
-        optim="paged_adamw_8bit", # EXTREME VRAM SAVER: 8-bit paged optimizer
+        optim="paged_adamw_8bit",
         per_device_train_batch_size=1,
-        gradient_accumulation_steps=4 if not args.smoke else 1,
+        gradient_accumulation_steps=2 if not args.smoke else 1,
         num_generations=2 if not args.smoke else 2,
-        max_completion_length=128, # Extreme reduction: XML output is very short
-        max_prompt_length=256, # Extreme reduction: Prompts are short
+        max_completion_length=64, # Output is tiny XML
+        max_prompt_length=128, # Prompt is short string
         logging_steps=1,
         save_steps=25,
         gradient_checkpointing=True,
