@@ -1,65 +1,36 @@
-# Email Triage Env - Next Steps
+# Email Triage Final Showcase Playbook
 
-This guide is focused on your goals:
-- demo UI on Hugging Face Spaces
-- train RL model on Google Colab Free Tier (T4 GPU)
-- use the trained model for your final demo
+This is the end-to-end plan for your final demo:
+1. train RL on Google Colab Free Tier (`T4`)
+2. push model to Hugging Face Hub
+3. deploy the Gradio demo UI on Hugging Face Spaces
+4. present a clean "problem -> training -> results -> live demo" story
 
-## 1) Run Local Sanity Checks First
+## 0) Fast Checklist
 
-From repo root:
+- [ ] tests pass locally
+- [ ] smoke training works in Colab
+- [ ] full training checkpoint uploaded to Hub
+- [ ] Space is public and stable
+- [ ] 2-3 minute demo script rehearsed
 
-```bash
-PYTHONPATH=src:envs uv run pytest tests/envs/test_email_triage_env.py -v
-PYTHONPATH=src:envs uv run pytest tests/envs/test_email_triage_http.py -v
+## 1) Local Validation Before Training
+
+From repo root (`OpenEnv`):
+
+```powershell
+$env:PYTHONPATH='src;envs'
+.venv\Scripts\python -m pytest tests/envs/test_email_triage_env.py tests/envs/test_email_triage_http.py -v --tb=short
 ```
 
-If both pass, your env and API are in good shape.
+If green, your environment + server are ready for training/demo.
 
-## 2) Deploy the UI as a Hugging Face Space
+## 2) Colab T4 RL Training (Reliable Path)
 
-Your UI is in `envs/email_triage_env/server/ui.py`.
-For demo reliability, keep UI and API separated:
-- Space A (recommended): Gradio demo UI
-- Space B (optional): API server for `/reset`, `/step`, `/state`
-
-### Quick UI Space flow
-
-```bash
-pip install -U huggingface_hub
-hf auth login
-hf repo create YOUR_USERNAME/oversight-inbox-ui --type space --space-sdk gradio
-```
-
-Then upload these files into the Space repo:
-- `envs/email_triage_env/server/ui.py`
-- `envs/email_triage_env/server/email_triage_environment.py`
-- `envs/email_triage_env/server/graders.py`
-- `envs/email_triage_env/server/scenario_generator.py`
-- `envs/email_triage_env/server/schema_drift.py`
-- `envs/email_triage_env/server/stakeholders.py`
-- `envs/email_triage_env/models.py`
-- `envs/email_triage_env/server/email_triage_dataset.json`
-
-And include a `requirements.txt` in the Space:
-
-```txt
-gradio
-fastapi
-pydantic
-numpy
-```
-
-If any missing dependency error appears in Space logs, add it to `requirements.txt` and redeploy.
-
-## 3) Colab Free Tier (T4) Training Plan
-
-Your `train_grpo.py` is already tuned for low VRAM and supports smoke tests.
-
-### Colab steps
+### 2.1 Colab setup
 
 1. Runtime -> Change runtime type -> `T4 GPU`
-2. Clone repo and install deps:
+2. Run:
 
 ```bash
 !git clone https://github.com/<your-username>/OpenEnv.git
@@ -68,50 +39,119 @@ Your `train_grpo.py` is already tuned for low VRAM and supports smoke tests.
 !pip install trl transformers accelerate datasets torch huggingface_hub
 ```
 
-3. Run smoke test first:
+### 2.2 Verify pipeline first (mandatory)
 
 ```bash
 !PYTHONPATH=src:envs python envs/email_triage_env/train_grpo.py --smoke
 ```
 
-4. Run short real train (safe for free tier):
+### 2.3 Main free-tier run
 
 ```bash
-!PYTHONPATH=src:envs python envs/email_triage_env/train_grpo.py --model Qwen/Qwen2-0.5B --max-steps 50 --dataset-size 64 --output-dir oversight-arena-grpo-t4
+!PYTHONPATH=src:envs python envs/email_triage_env/train_grpo.py \
+  --model Qwen/Qwen2-0.5B \
+  --max-steps 50 \
+  --dataset-size 64 \
+  --output-dir oversight-arena-grpo-t4
 ```
 
-5. Push checkpoint to Hugging Face Hub:
+### 2.4 Push trained checkpoint to Hub
 
 ```bash
 !huggingface-cli login
-!PYTHONPATH=src:envs python envs/email_triage_env/train_grpo.py --model Qwen/Qwen2-0.5B --max-steps 50 --dataset-size 64 --output-dir oversight-arena-grpo-t4 --push-to-hub --hub-repo YOUR_USERNAME/oversight-arena-grpo-t4
+!PYTHONPATH=src:envs python envs/email_triage_env/train_grpo.py \
+  --model Qwen/Qwen2-0.5B \
+  --max-steps 50 \
+  --dataset-size 64 \
+  --output-dir oversight-arena-grpo-t4 \
+  --push-to-hub \
+  --hub-repo YOUR_USERNAME/oversight-arena-grpo-t4
 ```
 
-## 4) Use Trained Model in Demo
+## 3) Hugging Face Space Deployment (UI)
 
-After training:
-- keep Space UI running for judges
-- optionally add an inference toggle in UI for `baseline` vs `trained model`
-- if using HF Inference API, keep token private in Space secrets
+Your polished UI is in `envs/email_triage_env/server/ui.py`, with a cyber orange hero style inspired by your reference image ("Your Pocket AI Red-Team Agent").
 
-Demo script suggestion:
-1. Show queue start
-2. Show specialist disagreement
-3. Show your coordinator final decision
-4. Show reward breakdown
-5. Show drift event adaptation
+### 3.1 Create Space
 
-## 5) Recommended Free-Tier Defaults
+```bash
+pip install -U huggingface_hub
+hf auth login
+hf repo create YOUR_USERNAME/oversight-inbox-arena --type space --space-sdk gradio
+```
 
-- Model: `Qwen/Qwen2-0.5B`
-- Max steps: `30-50`
-- Dataset size: `32-64`
-- Keep `num_generations` low (already set in script)
-- Save often and push checkpoints
+### 3.2 Files to copy into Space repo
 
-## 6) What To Do After This
+- `server/ui.py`
+- `server/email_triage_environment.py`
+- `server/graders.py`
+- `server/scenario_generator.py`
+- `server/schema_drift.py`
+- `server/stakeholders.py`
+- `models.py`
+- `server/email_triage_dataset.json`
 
-- Run a second training pass with improved prompts/system instructions
-- Compare baseline vs trained rewards on 5 fixed seeds
-- Record a short 2-3 minute demo video from your Space
-- Freeze your final Space + model versions before submission
+Also add `app.py` in Space root:
+
+```python
+from server.ui import build_ui
+
+demo = build_ui()
+
+if __name__ == "__main__":
+    demo.launch()
+```
+
+And `requirements.txt`:
+
+```txt
+gradio
+pydantic
+fastapi
+numpy
+```
+
+If Space logs show a missing package, add it and redeploy.
+
+## 4) Final Project Showcase Flow (What To Say)
+
+Use this exact storyline in your final presentation:
+
+1. **Problem**
+   - "Single-agent setups fail in realistic inbox workflows."
+2. **What you built**
+   - "A coordinator RL agent supervising 4 specialists under schema drift."
+3. **How you trained**
+   - "GRPO with 5 independent rewards on Colab T4."
+4. **Result**
+   - "Model learns better triage/oversight behavior than naive specialist-trust baseline."
+5. **Live demo**
+   - run Space, show one hard/adversarial queue, highlight reward breakdown and drift adaptation.
+
+## 5) Demo Script (2-3 Minutes)
+
+1. Open Space and show hero panel
+2. Select `hard` difficulty -> Start Queue
+3. Show specialist conflict and your chosen action
+4. Submit decisions and point at reward components
+5. Trigger/observe drift warning and explain adaptation
+6. End with final score + Hub model link
+
+## 6) T4-Safe Defaults (Recommended)
+
+- model: `Qwen/Qwen2-0.5B`
+- steps: `30-50`
+- dataset size: `32-64`
+- keep runs short, save checkpoints often
+- do 1 smoke run + 1 full run + optional second tuning run
+
+## 7) What Helps You Win
+
+- clean repo and reproducible commands
+- clear metric story (before vs after training)
+- stable Space with polished UI text/theme
+- confident live walkthrough with no setup surprises
+
+If you have extra time:
+- run 2 seeds and report average reward
+- upload a short demo clip + Space URL + Model URL together in your submission

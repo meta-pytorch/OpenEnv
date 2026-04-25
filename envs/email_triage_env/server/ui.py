@@ -153,23 +153,58 @@ def _build_theme() -> Any:
     )
 
 CSS = """
-.gradio-container { max-width: 1200px !important; margin: auto; }
-.ticket-box { background: #1e1e2e; border: 1px solid #4a4a6a; border-radius: 12px; padding: 16px; }
-.spec-box   { background: #12121f; border: 1px solid #3a3a5a; border-radius: 12px; padding: 16px; }
-.stats-bar  { background: #16213e; border-radius: 8px; padding: 10px 16px; font-size: 0.9em; }
-.reward-pill{ background: #7c3aed; color: white; border-radius: 20px; padding: 4px 14px; font-weight: bold; }
+.gradio-container {
+  max-width: 1200px !important;
+  margin: auto;
+  background: #06080d !important;
+}
+body { background: #06080d !important; }
+.ticket-box {
+  background: #0a0f17;
+  border: 1px solid #ff7a1a66;
+  border-radius: 12px;
+  padding: 16px;
+}
+.spec-box {
+  background: #0a0f17;
+  border: 1px solid #29d3c455;
+  border-radius: 12px;
+  padding: 16px;
+}
+.stats-bar {
+  background: #111822;
+  border: 1px solid #ff7a1a33;
+  border-radius: 8px;
+  padding: 10px 16px;
+  font-size: 0.9em;
+}
+.cyber-hero {
+  border: 1px solid #ff7a1a66;
+  border-radius: 14px;
+  padding: 18px;
+  background: linear-gradient(180deg, #0f141f 0%, #090d15 100%);
+  box-shadow: 0 0 30px #ff7a1a22 inset;
+}
+.cyber-title {
+  color: #ff7a1a;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+}
+.reward-pill{ background: #ff7a1a; color: #0b0d11; border-radius: 20px; padding: 4px 14px; font-weight: bold; }
 footer { display: none !important; }
 """
 
 INTRO_MD = """
-# 🛡️ Oversight Inbox Arena
-### Multi-Agent Reinforcement Learning Environment — Grand Finale Demo
+<div class="cyber-hero">
+<h1 class="cyber-title">Your Pocket AI Red-Team Agent</h1>
+<h3>Oversight Inbox Arena - Multi-Agent RL Demo</h3>
 
-> **You are the Coordinator AI.** Your team of 4 specialist agents has already reviewed each email.  
-> Read their advice, then make the final call: **category · priority · escalate?**  
-> Rules can change mid-shift (Schema Drift). Catch specialist mistakes. Don't let SLA timers expire.
+<p><b>Mission:</b> coordinate 4 specialist agents, catch bad recommendations, and triage safely under policy drift.</p>
+<p><b>Decision fields:</b> category · priority · escalate</p>
+<p><b>Modes:</b> easy · medium · hard · adversarial</p>
 
-**Reward signals (5 independent):** Quality · SLA · Policy Compliance · Oversight · Anti-Hacking
+<p><b>Reward signals (5 independent):</b> Quality · SLA · Policy · Oversight · Anti-Hacking</p>
+</div>
 """
 
 HOWTO_MD = """
