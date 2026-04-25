@@ -146,17 +146,17 @@ def main() -> None:
             PatchFastRL("unsloth", FastLanguageModel)
             model, tokenizer = FastLanguageModel.from_pretrained(
                 model_name=args.model,
-                max_seq_length=1024,
+                max_seq_length=512, # Reduced max seq length
                 load_in_4bit=True,
                 fast_inference=True,
-                max_lora_rank=16,
+                max_lora_rank=8, # Reduced LoRA rank
                 gpu_memory_utilization=0.5,
             )
             model = FastLanguageModel.get_peft_model(
                 model,
-                r=16,
+                r=8, # Reduced LoRA rank
                 target_modules=["q_proj", "k_proj", "v_proj", "o_proj", "gate_proj", "up_proj", "down_proj"],
-                lora_alpha=16,
+                lora_alpha=8,
                 lora_dropout=0,
                 bias="none",
                 use_gradient_checkpointing="unsloth",
@@ -176,11 +176,12 @@ def main() -> None:
         output_dir=args.output_dir,
         max_steps=args.max_steps,
         learning_rate=5e-6,
+        optim="paged_adamw_8bit", # EXTREME VRAM SAVER: 8-bit paged optimizer
         per_device_train_batch_size=1,
-        gradient_accumulation_steps=8 if not args.smoke else 1, # Reduced to save memory
-        num_generations=2 if not args.smoke else 2, # Reduced from 4 to 2 to prevent Colab OOM
-        max_completion_length=256, # Reduced from 512
-        max_prompt_length=512, # Reduced from 1024
+        gradient_accumulation_steps=4 if not args.smoke else 1,
+        num_generations=2 if not args.smoke else 2,
+        max_completion_length=128, # Extreme reduction: XML output is very short
+        max_prompt_length=256, # Extreme reduction: Prompts are short
         logging_steps=1,
         save_steps=25,
         gradient_checkpointing=True,
