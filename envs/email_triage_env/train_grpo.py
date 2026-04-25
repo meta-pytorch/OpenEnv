@@ -2,8 +2,8 @@
 """GRPO training script for Oversight Inbox Arena.
 
 Designed to run on Google Colab Free Tier (T4 GPU, 15 GB VRAM).
-Default model: Qwen/Qwen2-0.5B (500M params - fits easily on T4)
-Larger option: Qwen/Qwen2-1.5B (requires Colab Pro)
+Default model: Qwen/Qwen2.5-1.5B (~4GB bf16, safe on free T4)
+Larger option: Qwen/Qwen3-1.7B (latest architecture, also fits T4)
 
 Hackathon requirements:
 - 5 independent reward functions (not one combined score)
@@ -191,7 +191,7 @@ def main() -> None:
         print(f"[UNSLOTH] Loading {args.model} in 4-bit...")
         model, tokenizer = FastLanguageModel.from_pretrained(
             model_name=args.model,
-            max_seq_length=256,
+            max_seq_length=512,
             load_in_4bit=True,
             fast_inference=True,
             max_lora_rank=8,
@@ -256,6 +256,7 @@ def main() -> None:
         gradient_accumulation_steps=4,
         num_generations=4,              # More generations → more reward contrast for GRPO
         max_completion_length=256,      # 1.5B is more verbose; 256 gives XML + any preamble room
+        temperature=0.9,                # Diverse outputs → reward variance → nonzero gradients
         logging_steps=1,
         save_steps=25,
         gradient_checkpointing=True,
@@ -266,7 +267,7 @@ def main() -> None:
         dataloader_pin_memory=False,    # Saves a bit of VRAM on T4
     )
     try:
-        config = GRPOConfig(max_prompt_length=128, **_grpo_kwargs)
+        config = GRPOConfig(max_prompt_length=256, **_grpo_kwargs)
         print("[CONFIG] GRPOConfig created with max_prompt_length (older TRL)")
     except TypeError:
         config = GRPOConfig(**_grpo_kwargs)
