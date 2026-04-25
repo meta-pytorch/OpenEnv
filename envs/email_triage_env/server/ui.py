@@ -202,7 +202,7 @@ def build_ui() -> gr.Blocks:
                 scale=1,
             )
             start_btn = gr.Button("🚀 Start Queue", variant="primary", scale=1)
-            status_md = gr.Markdown("_Click **Start Queue** to begin a new episode._", scale=4)
+            status_md = gr.Markdown("_Click **Start Queue** to begin a new episode._")
 
         # ── Stats bar ────────────────────────────────────────────────────────
         stats_md = gr.Markdown("", elem_classes=["stats-bar"])
@@ -244,7 +244,7 @@ def build_ui() -> gr.Blocks:
         # ── Reward row ───────────────────────────────────────────────────────
         with gr.Row():
             reward_num = gr.Number(label="⭐ Step Reward", value=0.0, precision=3, scale=1)
-            reward_breakdown = gr.Markdown("", scale=5)
+            reward_breakdown = gr.Markdown("")
 
         gr.Markdown("---")
         gr.Markdown(
