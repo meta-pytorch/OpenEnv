@@ -78,9 +78,11 @@ def _score(prompt: Any, completion: Any) -> dict:
     pri = max(1, min(5, int(pri_m.group(1)))) if pri_m else 1
     esc = esc_m.group(1).lower() == "true" if esc_m else False
 
-    # Penalty for not following format
+    # Reward for following format (+1) / penalty for missing XML (-1).
+    # Using +1/-1 instead of 0/-2 ensures reward variance exists from step 1,
+    # which GRPO needs to compute a non-zero gradient.
     format_ok = cat_m is not None and pri_m is not None and esc_m is not None
-    hacking_penalty = 0.0 if format_ok else -2.0
+    hacking_penalty = 1.0 if format_ok else -1.0
 
     try:
         env = EmailTriageEnvironment(difficulty="easy")
@@ -252,8 +254,8 @@ def main() -> None:
         optim=optim_name,
         per_device_train_batch_size=1,
         gradient_accumulation_steps=4,
-        num_generations=2,              # Minimum for GRPO (needs contrast)
-        max_completion_length=64,       # XML output is short — keeps T4 VRAM low
+        num_generations=4,              # More generations → more reward contrast for GRPO
+        max_completion_length=192,      # Must be > ~35 tokens for full XML; 192 is safe on T4
         logging_steps=1,
         save_steps=25,
         gradient_checkpointing=True,
@@ -273,18 +275,30 @@ def main() -> None:
     # ── Dataset ──────────────────────────────────────────────────────────────
     system_msg = (
         "You are an expert email triage coordinator. "
-        "For each ticket, output your decision using exactly these XML tags:\n"
-        "<category>billing</category>\n"
-        "<priority>3</priority>\n"
-        "<escalate>false</escalate>\n"
+        "Respond ONLY with the three XML tags below — no explanation, no preamble.\n"
+        "Format (copy exactly):\n"
+        "<category>CATEGORY</category>\n"
+        "<priority>N</priority>\n"
+        "<escalate>true|false</escalate>\n"
         "Valid categories: billing, support, spam, urgent, marketing, other\n"
-        "Priority: 1 (lowest) to 5 (critical)"
+        "Priority: 1 (lowest) to 5 (critical)\n"
+        "Output the XML tags immediately as your first tokens."
     )
 
+    # Synthetic email bodies keyed by seed mod — give the model real content
+    # so it has something to reason about rather than a bare seed number.
+    _EMAIL_TEMPLATES = [
+        "Subject: Invoice overdue\nHi, my invoice #{seed} hasn't been paid for 30 days. Please help.",
+        "Subject: Can't login\nI've been locked out of my account since yesterday. Seed {seed}.",
+        "Subject: Buy cheap meds online\nClick here for discounts! ref={seed}",
+        "Subject: URGENT data breach\nOur production DB is compromised RIGHT NOW. ticket={seed}",
+        "Subject: Newsletter signup\nThanks for subscribing to our marketing list. id={seed}",
+        "Subject: Refund request\nI'd like a refund for order {seed}. It arrived damaged.",
+    ]
     prompts = [
         [
             {"role": "system", "content": system_msg},
-            {"role": "user", "content": f"Triage the incoming email. seed: {i}"},
+            {"role": "user",   "content": _EMAIL_TEMPLATES[i % len(_EMAIL_TEMPLATES)].format(seed=i)},
         ]
         for i in range(args.dataset_size)
     ]
