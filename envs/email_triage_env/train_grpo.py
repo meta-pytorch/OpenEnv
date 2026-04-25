@@ -34,8 +34,15 @@ from email_triage_env.models import EmailTriageAction
 
 EVAL_CACHE = {}
 
-def evaluate_completion(prompt_text: str, completion: str, difficulty: str = "hard") -> dict:
-    key = hash(prompt_text + completion)
+def get_text(obj) -> str:
+    if isinstance(obj, list):
+        return obj[-1]["content"] if "content" in obj[-1] else str(obj)
+    return str(obj)
+
+def evaluate_completion(prompt: Any, completion: Any, difficulty: str = "hard") -> dict:
+    prompt_text = get_text(prompt)
+    completion_text = get_text(completion)
+    key = hash(prompt_text + completion_text)
     if key in EVAL_CACHE:
         return EVAL_CACHE[key]
 
@@ -49,9 +56,9 @@ def evaluate_completion(prompt_text: str, completion: str, difficulty: str = "ha
     pri = 1
     esc = False
 
-    cat_match = re.search(r"<category>(.*?)</category>", completion, re.IGNORECASE)
-    pri_match = re.search(r"<priority>(\d+)</priority>", completion, re.IGNORECASE)
-    esc_match = re.search(r"<escalate>(.*?)</escalate>", completion, re.IGNORECASE)
+    cat_match = re.search(r"<category>(.*?)</category>", completion_text, re.IGNORECASE)
+    pri_match = re.search(r"<priority>(\d+)</priority>", completion_text, re.IGNORECASE)
+    esc_match = re.search(r"<escalate>(.*?)</escalate>", completion_text, re.IGNORECASE)
 
     if cat_match: cat = cat_match.group(1).strip().lower()
     if pri_match: 
@@ -80,25 +87,20 @@ def evaluate_completion(prompt_text: str, completion: str, difficulty: str = "ha
     EVAL_CACHE[key] = results
     return results
 
-def get_prompt_text(prompt) -> str:
-    if isinstance(prompt, list):
-        return prompt[-1]["content"] if "content" in prompt[-1] else str(prompt)
-    return str(prompt)
-
 def reward_quality(prompts: list, completions: list, **kw) -> list:
-    return [evaluate_completion(get_prompt_text(p), c)["quality"] for p, c in zip(prompts, completions)]
+    return [evaluate_completion(p, c)["quality"] for p, c in zip(prompts, completions)]
 
 def reward_compliance(prompts: list, completions: list, **kw) -> list:
-    return [evaluate_completion(get_prompt_text(p), c)["policy"] for p, c in zip(prompts, completions)]
+    return [evaluate_completion(p, c)["policy"] for p, c in zip(prompts, completions)]
 
 def reward_sla(prompts: list, completions: list, **kw) -> list:
-    return [evaluate_completion(get_prompt_text(p), c)["sla"] for p, c in zip(prompts, completions)]
+    return [evaluate_completion(p, c)["sla"] for p, c in zip(prompts, completions)]
 
 def reward_oversight(prompts: list, completions: list, **kw) -> list:
-    return [evaluate_completion(get_prompt_text(p), c)["oversight"] for p, c in zip(prompts, completions)]
+    return [evaluate_completion(p, c)["oversight"] for p, c in zip(prompts, completions)]
 
 def reward_no_hacking(prompts: list, completions: list, **kw) -> list:
-    return [evaluate_completion(get_prompt_text(p), c)["hacking"] for p, c in zip(prompts, completions)]
+    return [evaluate_completion(p, c)["hacking"] for p, c in zip(prompts, completions)]
 
 ALL_REWARD_FUNCTIONS = [
     reward_quality,
