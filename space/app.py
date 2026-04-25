@@ -1,12 +1,7 @@
 import sys, os
 
-# Make all local modules importable
-for p in [
-    os.path.dirname(__file__),
-    os.path.join(os.path.dirname(__file__), 'src'),
-]:
-    if p not in sys.path:
-        sys.path.insert(0, p)
+# Put Space root on path so all flat-copied modules resolve correctly
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from ui import build_ui
 

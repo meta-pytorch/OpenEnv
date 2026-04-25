@@ -1,8 +1,8 @@
 ---
 title: Oversight Inbox Arena
 emoji: 📧
-colorFrom: orange
-colorTo: indigo
+colorFrom: gray
+colorTo: gray
 sdk: gradio
 sdk_version: 4.44.0
 app_file: app.py
@@ -12,6 +12,6 @@ license: mit
 
 # Oversight Inbox Arena
 
-Multi-agent RL demo — coordinate 4 specialist agents, catch bad recommendations, and triage emails under live schema drift.
+Multi-agent RL environment — coordinate 4 specialist agents and triage emails safely under schema drift.
 
-Trained with GRPO on Colab T4 using Unsloth + TRL.
+Built with Hugging Face · TRL · GRPO.
