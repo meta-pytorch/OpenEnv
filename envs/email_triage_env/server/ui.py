@@ -2,7 +2,7 @@ from __future__ import annotations
 
 """
 Oversight Inbox Arena — Gradio UI
-Premium demo interface for the hackathon judges.
+Clean black-and-white demo interface.
 """
 
 import random
@@ -36,13 +36,13 @@ def do_reset(difficulty):
     ticket_md = _fmt_ticket(obs)
     spec_md = _fmt_specialists(info)
     stats_md = _fmt_stats(info)
-    status = f"✅ Queue started! {info.get('queue_size', '?')} tickets in {difficulty.upper()} mode. Seed: {seed}"
+    status = f"Queue started — {info.get('queue_size', '?')} tickets in {difficulty.upper()} mode  |  Seed: {seed}"
     return env, obs, info, ticket_md, spec_md, stats_md, status, 0.0, ""
 
 
 def do_step(env, obs, category, priority, escalate):
     if env is None:
-        return env, obs, {}, "—", "—", "—", "⚠️ Please click **Start Queue** first!", 0.0, ""
+        return env, obs, {}, "—", "—", "—", "Click **Start Queue** first.", 0.0, ""
 
     action = EmailTriageAction(
         category=category,
@@ -53,29 +53,29 @@ def do_step(env, obs, category, priority, escalate):
     info = obs.info or {}
     comps = info.get("reward_components", {})
 
-    ticket_md = _fmt_ticket(obs) if not obs.done else "### 🎉 Queue Complete!\nAll tickets have been processed."
+    ticket_md = _fmt_ticket(obs) if not obs.done else "### Queue Complete\nAll tickets have been processed."
     spec_md = _fmt_specialists(info) if not obs.done else ""
     stats_md = _fmt_stats(info)
 
     reward_breakdown = ""
     if comps:
         reward_breakdown = (
-            f"Quality: **{comps.get('quality', 0):.2f}** | "
-            f"SLA: **{comps.get('sla', 0):.2f}** | "
-            f"Policy: **{comps.get('policy', 0):.2f}** | "
+            f"Quality: **{comps.get('quality', 0):.2f}**  |  "
+            f"SLA: **{comps.get('sla', 0):.2f}**  |  "
+            f"Policy: **{comps.get('policy', 0):.2f}**  |  "
             f"Oversight: **{comps.get('oversight', 0):.2f}**"
         )
 
     if obs.done:
         s = env.state
         status = (
-            f"🏁 Episode finished! Resolved {s.tickets_resolved}/{s.queue_size} tickets. "
-            f"Total reward: **{s.total_reward:.3f}**"
+            f"Episode finished — Resolved {s.tickets_resolved}/{s.queue_size} tickets  |  "
+            f"Total reward: {s.total_reward:.3f}"
         )
     else:
         remaining = info.get("tickets_remaining", "?")
-        drift = " ⚠️ SCHEMA DRIFT ACTIVE!" if info.get("policy_drift_occurred") else ""
-        status = f"Step submitted. Reward: **{obs.reward:.3f}** | {remaining} tickets remaining.{drift}"
+        drift = "  ⚠ SCHEMA DRIFT ACTIVE" if info.get("policy_drift_occurred") else ""
+        status = f"Step submitted  |  Reward: {obs.reward:.3f}  |  {remaining} tickets remaining{drift}"
 
     return env, obs, info, ticket_md, spec_md, stats_md, status, float(obs.reward), reward_breakdown
 
@@ -86,10 +86,10 @@ def _fmt_ticket(obs) -> str:
     if obs is None:
         return "_No ticket loaded. Click **Start Queue** to begin._"
     d = obs if isinstance(obs, dict) else obs.model_dump() if hasattr(obs, "model_dump") else vars(obs)
-    internal = "🏢 **INTERNAL**" if d.get("is_internal") else "🌐 **EXTERNAL**"
+    internal = "INTERNAL" if d.get("is_internal") else "EXTERNAL"
     return (
         f"**Subject:** {d.get('subject', '—')}\n\n"
-        f"**From:** {d.get('sender', '—')} ({d.get('sender_domain', '—')}) {internal}\n\n"
+        f"**From:** {d.get('sender', '—')} ({d.get('sender_domain', '—')})  [{internal}]\n\n"
         f"---\n\n{d.get('body_snippet', d.get('body', '—'))}"
     )
 
@@ -99,22 +99,22 @@ def _fmt_specialists(info: dict) -> str:
     if not reports:
         return "_No specialist reports available._"
     lines = []
-    icons = {"triage": "🔵", "compliance": "🟡", "priority": "🔴", "routing": "🟢"}
+    labels = {"triage": "Triage", "compliance": "Compliance", "priority": "Priority", "routing": "Routing"}
     for name, data in reports.items():
-        icon = icons.get(name, "⚪")
-        lines.append(f"**{icon} {name.title()} Specialist**")
+        label = labels.get(name, name.title())
+        lines.append(f"**{label} Specialist**")
         if "category" in data:
-            lines.append(f"- Suggests category: `{data['category']}`")
+            lines.append(f"- Category: `{data['category']}`")
         if "priority" in data:
-            lines.append(f"- Suggests priority: `{data['priority']}`")
+            lines.append(f"- Priority: `{data['priority']}`")
         if "recommended_action" in data:
             lines.append(f"- Action: `{data['recommended_action']}`")
         conf = data.get("confidence", None)
         if conf is not None:
             bar = "█" * int(conf * 10) + "░" * (10 - int(conf * 10))
             lines.append(f"- Confidence: `{bar}` {conf:.0%}")
-        if "flagged" in data and data["flagged"]:
-            lines.append(f"- ⚠️ **FLAGGED**: {data.get('reason', 'policy issue')}")
+        if data.get("flagged"):
+            lines.append(f"- ⚠ FLAGGED: {data.get('reason', 'policy issue')}")
         lines.append("")
     return "\n".join(lines)
 
@@ -134,89 +134,152 @@ def _fmt_stats(info: dict) -> str:
 
     lines = [
         f"**Progress:** `{bar}` {resolved}/{total} ({pct}%)",
-        f"**SLA Breaches:** {sla} &nbsp;&nbsp; **Policy Violations:** {pol}",
-        f"**Oversight Catches:** {catches} &nbsp;&nbsp; **Drift Events:** {drift}",
+        f"**SLA Breaches:** {sla}    **Policy Violations:** {pol}",
+        f"**Oversight Catches:** {catches}    **Drift Events:** {drift}",
     ]
     if drift > 0:
-        lines.append("⚠️ **SCHEMA DRIFT ACTIVE — Rules have changed mid-shift!**")
+        lines.append("⚠ SCHEMA DRIFT ACTIVE — Rules have changed mid-shift!")
     return "  \n".join(lines)
 
 
 # ── UI builder ────────────────────────────────────────────────────────────────
 
-def _build_theme() -> Any:
-    return gr.themes.Base(
-        primary_hue="violet",
-        secondary_hue="indigo",
-        neutral_hue="slate",
-        font=[gr.themes.GoogleFont("Inter"), "ui-sans-serif", "sans-serif"],
-    )
-
 CSS = """
-.gradio-container {
-  max-width: 1200px !important;
-  margin: auto;
-  background: #06080d !important;
+/* ── Reset & base ── */
+body, .gradio-container {
+    background: #ffffff !important;
+    color: #111111 !important;
+    font-family: 'Inter', 'Helvetica Neue', Arial, sans-serif !important;
 }
-body { background: #06080d !important; }
-.ticket-box {
-  background: #0a0f17;
-  border: 1px solid #ff7a1a66;
-  border-radius: 12px;
-  padding: 16px;
+
+/* ── Header ── */
+.arena-header {
+    border-bottom: 2px solid #111111;
+    padding: 24px 0 16px 0;
+    margin-bottom: 8px;
 }
-.spec-box {
-  background: #0a0f17;
-  border: 1px solid #29d3c455;
-  border-radius: 12px;
-  padding: 16px;
+.arena-title {
+    font-size: 1.5rem;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    color: #111111;
+    margin: 0 0 4px 0;
 }
-.stats-bar {
-  background: #111822;
-  border: 1px solid #ff7a1a33;
-  border-radius: 8px;
-  padding: 10px 16px;
-  font-size: 0.9em;
+.arena-subtitle {
+    font-size: 0.875rem;
+    color: #555555;
+    margin: 0;
 }
-.cyber-hero {
-  border: 1px solid #ff7a1a66;
-  border-radius: 14px;
-  padding: 18px;
-  background: linear-gradient(180deg, #0f141f 0%, #090d15 100%);
-  box-shadow: 0 0 30px #ff7a1a22 inset;
+
+/* ── Panels ── */
+.panel-ticket, .panel-specialists {
+    border: 1px solid #dddddd;
+    border-radius: 6px;
+    padding: 16px 20px;
+    background: #fafafa;
+    min-height: 200px;
 }
-.cyber-title {
-  color: #ff7a1a;
-  letter-spacing: 1px;
-  text-transform: uppercase;
+.panel-stats {
+    border: 1px solid #dddddd;
+    border-radius: 6px;
+    padding: 12px 16px;
+    background: #f5f5f5;
+    font-size: 0.875rem;
 }
-.reward-pill{ background: #ff7a1a; color: #0b0d11; border-radius: 20px; padding: 4px 14px; font-weight: bold; }
+
+/* ── Status bar ── */
+.status-bar {
+    border-left: 3px solid #111111;
+    padding: 8px 12px;
+    background: #f0f0f0;
+    font-size: 0.875rem;
+    color: #333333;
+    border-radius: 0 4px 4px 0;
+}
+
+/* ── Buttons ── */
+button.primary {
+    background: #111111 !important;
+    color: #ffffff !important;
+    border: none !important;
+    border-radius: 4px !important;
+    font-weight: 600 !important;
+}
+button.primary:hover {
+    background: #333333 !important;
+}
+button.secondary {
+    background: #ffffff !important;
+    color: #111111 !important;
+    border: 1.5px solid #111111 !important;
+    border-radius: 4px !important;
+    font-weight: 600 !important;
+}
+button.secondary:hover {
+    background: #f0f0f0 !important;
+}
+
+/* ── Inputs ── */
+input, select, .gr-dropdown, .gr-slider {
+    border: 1px solid #cccccc !important;
+    border-radius: 4px !important;
+    background: #ffffff !important;
+    color: #111111 !important;
+}
+input:focus, select:focus {
+    border-color: #111111 !important;
+    outline: none !important;
+}
+
+/* ── Section labels ── */
+.section-label {
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: #888888;
+    margin-bottom: 8px;
+}
+
+/* ── Reward strip ── */
+.reward-strip {
+    background: #111111;
+    color: #ffffff;
+    border-radius: 4px;
+    padding: 8px 14px;
+    font-size: 0.875rem;
+    font-weight: 500;
+}
+
+/* ── Dividers ── */
+hr { border: none; border-top: 1px solid #eeeeee; margin: 16px 0; }
+
+/* ── Hide Gradio footer ── */
 footer { display: none !important; }
+
+/* ── Markdown text colour ── */
+.gr-markdown, .gr-markdown p, .gr-markdown li { color: #111111 !important; }
 """
 
 INTRO_MD = """
-<div class="cyber-hero">
-<h1 class="cyber-title">Your Pocket AI Red-Team Agent</h1>
-<h3>Oversight Inbox Arena - Multi-Agent RL Demo</h3>
-
-<p><b>Mission:</b> coordinate 4 specialist agents, catch bad recommendations, and triage safely under policy drift.</p>
-<p><b>Decision fields:</b> category · priority · escalate</p>
-<p><b>Modes:</b> easy · medium · hard · adversarial</p>
-
-<p><b>Reward signals (5 independent):</b> Quality · SLA · Policy · Oversight · Anti-Hacking</p>
+<div class="arena-header">
+  <div class="arena-title">Oversight Inbox Arena</div>
+  <div class="arena-subtitle">
+    Multi-agent RL environment — coordinate 4 specialist agents and triage emails safely under schema drift
+  </div>
 </div>
 """
 
 HOWTO_MD = """
-### How to Play
-1. Pick a **difficulty** and click **🚀 Start Queue**
-2. Read the email ticket on the left
-3. Check what your specialists recommend on the right  
-4. Choose your **Category**, **Priority** and whether to **Escalate**
-5. Click **✅ Submit Decision** — get instant reward feedback
-6. Repeat until the queue is cleared!
+**How to play**
 
-*Hard & Adversarial modes include schema drift — watch for rule-change warnings!*
+1. Select a difficulty and click **Start Queue**
+2. Read the incoming email on the left
+3. Check specialist recommendations on the right
+4. Set Category, Priority, and Escalation
+5. Click **Submit Decision** to get your reward
+
+Hard and Adversarial modes introduce schema drift — watch the status bar for warnings.
 """
 
 
@@ -224,17 +287,26 @@ def build_ui() -> gr.Blocks:
     if gr is None:
         raise ImportError("gradio is required to build the UI")
 
-    with gr.Blocks(title="Oversight Inbox Arena", theme=_build_theme(), css=CSS) as demo:
+    with gr.Blocks(
+        title="Oversight Inbox Arena",
+        theme=gr.themes.Base(
+            primary_hue="neutral",
+            secondary_hue="neutral",
+            neutral_hue="slate",
+            font=[gr.themes.GoogleFont("Inter"), "ui-sans-serif", "sans-serif"],
+        ),
+        css=CSS,
+    ) as demo:
 
         # ── Shared state ─────────────────────────────────────────────────────
         env_s  = gr.State(None)
         obs_s  = gr.State(None)
         info_s = gr.State({})
 
-        # ── Hero section ─────────────────────────────────────────────────────
+        # ── Header ───────────────────────────────────────────────────────────
         gr.Markdown(INTRO_MD)
 
-        with gr.Accordion("📖 How to Play", open=False):
+        with gr.Accordion("How to play", open=False):
             gr.Markdown(HOWTO_MD)
 
         gr.Markdown("---")
@@ -244,58 +316,66 @@ def build_ui() -> gr.Blocks:
             difficulty = gr.Dropdown(
                 choices=["easy", "medium", "hard", "adversarial"],
                 value="hard",
-                label="🎯 Difficulty",
+                label="Difficulty",
                 scale=1,
             )
-            start_btn = gr.Button("🚀 Start Queue", variant="primary", scale=1)
-            status_md = gr.Markdown("_Click **Start Queue** to begin a new episode._")
+            start_btn = gr.Button("Start Queue", variant="primary", scale=1)
+            status_md = gr.Markdown(
+                "_Select a difficulty and click **Start Queue** to begin._",
+                elem_classes=["status-bar"],
+            )
 
         # ── Stats bar ────────────────────────────────────────────────────────
-        stats_md = gr.Markdown("", elem_classes=["stats-bar"])
+        stats_md = gr.Markdown("", elem_classes=["panel-stats"])
 
         gr.Markdown("---")
 
         # ── Main arena ───────────────────────────────────────────────────────
         with gr.Row(equal_height=True):
             with gr.Column(scale=5):
-                gr.Markdown("### 📨 Incoming Email")
+                gr.Markdown("**Incoming Email**", elem_classes=["section-label"])
                 ticket_md = gr.Markdown(
                     "_No ticket yet. Start the queue above._",
-                    elem_classes=["ticket-box"],
+                    elem_classes=["panel-ticket"],
                 )
 
             with gr.Column(scale=4):
-                gr.Markdown("### 🤖 Specialist Panel")
+                gr.Markdown("**Specialist Panel**", elem_classes=["section-label"])
                 spec_md = gr.Markdown(
                     "_Specialists will report here once the queue starts._",
-                    elem_classes=["spec-box"],
+                    elem_classes=["panel-specialists"],
                 )
 
         gr.Markdown("---")
 
         # ── Decision row ─────────────────────────────────────────────────────
-        gr.Markdown("### ⚡ Your Coordinator Decision")
+        gr.Markdown("**Your Decision**", elem_classes=["section-label"])
         with gr.Row():
-            cat_in  = gr.Dropdown(
+            cat_in = gr.Dropdown(
                 choices=["billing", "support", "spam", "urgent", "marketing", "other"],
                 value="support",
-                label="📂 Category",
+                label="Category",
                 scale=2,
             )
-            pri_in  = gr.Slider(minimum=1, maximum=5, step=1, value=3,
-                                label="🔢 Priority  (1=Low · 5=Critical)", scale=3)
-            esc_in  = gr.Checkbox(label="🚨 Escalate to Human Reviewer?", scale=1)
-            sub_btn = gr.Button("✅ Submit Decision", variant="secondary", scale=1)
+            pri_in = gr.Slider(
+                minimum=1, maximum=5, step=1, value=3,
+                label="Priority  (1 = Low · 5 = Critical)",
+                scale=3,
+            )
+            esc_in = gr.Checkbox(label="Escalate to Human Reviewer", scale=1)
+            sub_btn = gr.Button("Submit Decision", variant="secondary", scale=1)
 
         # ── Reward row ───────────────────────────────────────────────────────
         with gr.Row():
-            reward_num = gr.Number(label="⭐ Step Reward", value=0.0, precision=3, scale=1)
-            reward_breakdown = gr.Markdown("")
+            reward_num = gr.Number(
+                label="Step Reward", value=0.0, precision=3, scale=1
+            )
+            reward_breakdown = gr.Markdown("", elem_classes=["reward-strip"])
 
         gr.Markdown("---")
         gr.Markdown(
-            "_Built with 🤗 Hugging Face · Unsloth · PyTorch · GRPO · FastAPI_  \n"
-            "_[GitHub](https://github.com/Rhushya/OpenEnv) · Meta PyTorch OpenEnv Hackathon 2025_"
+            "_Built with Hugging Face · TRL · GRPO · FastAPI_  \n"
+            "_[GitHub](https://github.com/Rhushya/OpenEnv)_"
         )
 
         # ── Wire callbacks ───────────────────────────────────────────────────
