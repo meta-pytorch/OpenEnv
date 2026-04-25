@@ -6,7 +6,7 @@ WORKDIR /app
 COPY . /app
 
 RUN pip install --no-cache-dir -e /app
-RUN pip install --no-cache-dir "gradio>=4.0.0"
+RUN pip install --no-cache-dir "gradio>=4,<6"
 
 ENV PYTHONPATH=/app/src:/app/envs:/app
 ENV HOST=0.0.0.0
