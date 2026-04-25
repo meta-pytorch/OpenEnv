@@ -136,6 +136,10 @@ def main() -> None:
     parser.add_argument("--smoke", action="store_true",
                         help="Quick 2-step smoke test to verify pipeline")
     parser.add_argument("--report-to", default="none")
+    parser.add_argument("--push-to-hub", action="store_true",
+                        help="Push trained model to HuggingFace Hub after training")
+    parser.add_argument("--hub-repo", default="Rhushya/oversight-arena-model",
+                        help="HuggingFace Hub repo ID to push to (e.g. username/model-name)")
     args = parser.parse_args()
 
     if args.smoke:
@@ -274,6 +278,24 @@ def main() -> None:
     if tokenizer:
         tokenizer.save_pretrained(args.output_dir)
         print(f"[DONE] Tokenizer saved to: {args.output_dir}")
+
+    # ── Push to HuggingFace Hub ───────────────────────────────────────────────
+    if args.push_to_hub:
+        print(f"\n[HUB] Pushing model to HuggingFace Hub: {args.hub_repo} ...")
+        try:
+            from huggingface_hub import HfApi
+            api = HfApi()
+            api.upload_folder(
+                folder_path=args.output_dir,
+                repo_id=args.hub_repo,
+                repo_type="model",
+                commit_message="GRPO-trained Oversight Inbox Arena model",
+            )
+            print(f"[HUB] ✅ Model uploaded! View at: https://huggingface.co/{args.hub_repo}")
+        except Exception as e:
+            print(f"[HUB] ⚠️ Push failed: {e}")
+            print(f"[HUB] You can push manually with:")
+            print(f"        huggingface-cli upload {args.hub_repo} {args.output_dir} --repo-type model")
 
 
 if __name__ == "__main__":

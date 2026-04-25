@@ -5,9 +5,13 @@ WORKDIR /app
 
 COPY . /app
 
-# Reuse dependencies bundled in openenv-base to reduce build-time network failures.
-ENV PYTHONPATH=/app/src:/app
-ENV HOST=0.0.0.0
-ENV PORT=8000
+RUN pip install --no-cache-dir -e /app
+RUN pip install --no-cache-dir "gradio>=4.0.0"
 
-CMD ["uvicorn", "envs.email_triage_env.server.app:app", "--host", "0.0.0.0", "--port", "8000"]
+ENV PYTHONPATH=/app/src:/app/envs:/app
+ENV HOST=0.0.0.0
+ENV PORT=7860
+
+EXPOSE 7860
+
+CMD ["python", "app.py"]
