@@ -243,7 +243,9 @@ def main() -> None:
         optim_name = "adamw_torch"
         print("[OPTIM] bitsandbytes not found, falling back to adamw_torch")
 
-    config = GRPOConfig(
+    # max_prompt_length was removed in TRL ≥ v1.0; try with it first (older TRL),
+    # fall back without it if we get a TypeError (newer TRL).
+    _grpo_kwargs = dict(
         output_dir=args.output_dir,
         max_steps=args.max_steps,
         learning_rate=5e-6,
@@ -251,8 +253,7 @@ def main() -> None:
         per_device_train_batch_size=1,
         gradient_accumulation_steps=4,
         num_generations=2,              # Minimum for GRPO (needs contrast)
-        max_completion_length=64,       # XML output is short
-        max_prompt_length=128,          # Prompts are short
+        max_completion_length=64,       # XML output is short — keeps T4 VRAM low
         logging_steps=1,
         save_steps=25,
         gradient_checkpointing=True,
@@ -260,7 +261,14 @@ def main() -> None:
         report_to=args.report_to,
         bf16=is_bf16,
         fp16=not is_bf16,
+        dataloader_pin_memory=False,    # Saves a bit of VRAM on T4
     )
+    try:
+        config = GRPOConfig(max_prompt_length=128, **_grpo_kwargs)
+        print("[CONFIG] GRPOConfig created with max_prompt_length (older TRL)")
+    except TypeError:
+        config = GRPOConfig(**_grpo_kwargs)
+        print("[CONFIG] GRPOConfig created without max_prompt_length (TRL ≥ v1.0)")
 
     # ── Dataset ──────────────────────────────────────────────────────────────
     system_msg = (
