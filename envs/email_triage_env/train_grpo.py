@@ -383,6 +383,9 @@ def main() -> None:
     )
     print(f"[CONFIG] Curriculum: {args.curriculum}")
 
+    import torch
+    is_bf16_supported = torch.cuda.is_available() and torch.cuda.is_bf16_supported()
+
     # Build trainer config
     config = GRPOConfig(
         output_dir=args.output_dir,
@@ -398,7 +401,8 @@ def main() -> None:
         gradient_checkpointing=True,
         gradient_checkpointing_kwargs={"use_reentrant": False},
         report_to=args.report_to,
-        bf16=True,
+        bf16=is_bf16_supported,
+        fp16=not is_bf16_supported,
     )
 
     # Add vLLM if available
