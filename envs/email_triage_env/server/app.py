@@ -36,9 +36,16 @@ def root() -> dict[str, str]:
     }
 
 
+try:
+    import gradio as gr
+    from envs.email_triage_env.server.ui import build_ui
+    ui = build_ui()
+    app = gr.mount_gradio_app(app, ui, path="/")
+except ImportError:
+    pass
+
 def main() -> None:
     import uvicorn
-
     uvicorn.run(app, host="0.0.0.0", port=8000)
 
 
