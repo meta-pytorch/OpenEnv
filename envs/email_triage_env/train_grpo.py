@@ -157,13 +157,22 @@ def main() -> None:
         print("[SMOKE] Minimal run — just verifying pipeline works")
 
     # ── Imports ──────────────────────────────────────────────────────────────
+    # TRL ≥ v1.0 pulls in mergekit at import time; auto-install if missing.
+    import subprocess as _sp
+    for _pkg in ("mergekit", "fastmcp"):
+        try:
+            __import__(_pkg)
+        except ImportError:
+            print(f"[DEP] Installing missing dependency: {_pkg}")
+            _sp.check_call([sys.executable, "-m", "pip", "install", "-q", _pkg])
+
     try:
         import torch
         from datasets import Dataset
         from trl import GRPOConfig, GRPOTrainer
     except ImportError as e:
         print(f"ERROR: Missing dependency: {e}")
-        print("Run: pip install trl datasets transformers accelerate torch")
+        print("Run: pip install trl datasets transformers accelerate torch mergekit")
         sys.exit(1)
 
     # ── GPU check ────────────────────────────────────────────────────────────
