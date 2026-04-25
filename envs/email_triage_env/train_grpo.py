@@ -29,9 +29,12 @@ SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 ROOT_DIR = os.path.abspath(os.path.join(SCRIPT_DIR, "..", ".."))
 sys.path.insert(0, os.path.join(ROOT_DIR, "src"))
 sys.path.insert(0, os.path.join(ROOT_DIR, "envs"))
+sys.path.insert(0, SCRIPT_DIR)
 
-from email_triage_env.server.email_triage_environment import EmailTriageEnvironment
-from email_triage_env.models import EmailTriageAction
+# Import directly from local module paths to avoid package __init__ side-effects
+# (which may pull optional client/server dependencies not needed for training).
+from server.email_triage_environment import EmailTriageEnvironment
+from models import EmailTriageAction
 
 
 # ── Reward evaluation cache (avoids re-running env for same prompt+completion)

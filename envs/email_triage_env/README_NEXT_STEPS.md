@@ -36,7 +36,13 @@ If green, your environment + server are ready for training/demo.
 !git clone https://github.com/<your-username>/OpenEnv.git
 %cd OpenEnv
 !pip install -U pip
-!pip install "torch>=2.3" "transformers>=4.46" "trl>=0.11.0" "accelerate>=0.34" datasets huggingface_hub bitsandbytes
+!pip install "torch>=2.3" "transformers>=4.46" "trl>=0.11.0" "accelerate>=0.34" datasets huggingface_hub bitsandbytes fastmcp
+```
+
+If you already cloned before this fix, pull latest first:
+
+```bash
+!git -C OpenEnv pull
 ```
 
 ### 2.2 Verify pipeline first (mandatory)
@@ -71,6 +77,9 @@ print("\nTraining complete. Checkpoint is in oversight-arena-grpo-t4/")
 
 - `No module named trl`  
   Run the install cell again, then `Runtime -> Restart runtime`.
+
+- `ModuleNotFoundError: No module named 'fastmcp'` or `No module named 'core'`  
+  Pull latest repo code and rerun install cell. This is fixed in the latest `train_grpo.py`.
 
 - `CUDA out of memory`  
   Reduce to `--max-steps 30 --dataset-size 32`.
