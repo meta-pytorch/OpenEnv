@@ -212,6 +212,19 @@ def main() -> None:
         model = args.model
         tokenizer = None
 
+    # In non-Unsloth mode, explicitly load tokenizer for GRPOTrainer.
+    if tokenizer is None:
+        try:
+            from transformers import AutoTokenizer
+
+            tokenizer = AutoTokenizer.from_pretrained(args.model, use_fast=True)
+            if tokenizer.pad_token is None and tokenizer.eos_token is not None:
+                tokenizer.pad_token = tokenizer.eos_token
+            print(f"[TOKENIZER] Loaded tokenizer for {args.model}")
+        except Exception as e:
+            print(f"[WARN] Failed to load tokenizer for {args.model}: {e}")
+            print("[WARN] Training may fail without a tokenizer.")
+
     # ── Clear any leftover CUDA memory ───────────────────────────────────────
     gc.collect()
     if torch.cuda.is_available():
@@ -220,11 +233,18 @@ def main() -> None:
         print(f"[GPU] After model load: {free_after:.1f} GB free")
 
     # ── Training config ──────────────────────────────────────────────────────
+    optim_name = "paged_adamw_8bit"
+    try:
+        import bitsandbytes  # noqa: F401
+    except Exception:
+        optim_name = "adamw_torch"
+        print("[OPTIM] bitsandbytes not found, falling back to adamw_torch")
+
     config = GRPOConfig(
         output_dir=args.output_dir,
         max_steps=args.max_steps,
         learning_rate=5e-6,
-        optim="paged_adamw_8bit",       # Offloads optimizer states to RAM
+        optim=optim_name,
         per_device_train_batch_size=1,
         gradient_accumulation_steps=4,
         num_generations=2,              # Minimum for GRPO (needs contrast)

@@ -36,7 +36,7 @@ If green, your environment + server are ready for training/demo.
 !git clone https://github.com/<your-username>/OpenEnv.git
 %cd OpenEnv
 !pip install -U pip
-!pip install trl transformers accelerate datasets torch huggingface_hub
+!pip install "torch>=2.3" "transformers>=4.46" "trl>=0.11.0" "accelerate>=0.34" datasets huggingface_hub bitsandbytes
 ```
 
 ### 2.2 Verify pipeline first (mandatory)
@@ -48,25 +48,38 @@ If green, your environment + server are ready for training/demo.
 ### 2.3 Main free-tier run
 
 ```bash
-!PYTHONPATH=src:envs python envs/email_triage_env/train_grpo.py \
-  --model Qwen/Qwen2-0.5B \
-  --max-steps 50 \
-  --dataset-size 64 \
-  --output-dir oversight-arena-grpo-t4
+!PYTHONPATH=src:envs python envs/email_triage_env/train_grpo.py --model Qwen/Qwen2-0.5B --max-steps 50 --dataset-size 64 --output-dir oversight-arena-grpo-t4
+```
+
+Important for Colab:
+- run the training command in **one cell** exactly as above
+- do not add plain `print(...)` after a `!python ...` line in the same cell
+- if you want a completion message, use another cell:
+
+```python
+print("\nTraining complete. Checkpoint is in oversight-arena-grpo-t4/")
 ```
 
 ### 2.4 Push trained checkpoint to Hub
 
 ```bash
 !huggingface-cli login
-!PYTHONPATH=src:envs python envs/email_triage_env/train_grpo.py \
-  --model Qwen/Qwen2-0.5B \
-  --max-steps 50 \
-  --dataset-size 64 \
-  --output-dir oversight-arena-grpo-t4 \
-  --push-to-hub \
-  --hub-repo YOUR_USERNAME/oversight-arena-grpo-t4
+!PYTHONPATH=src:envs python envs/email_triage_env/train_grpo.py --model Qwen/Qwen2-0.5B --max-steps 50 --dataset-size 64 --output-dir oversight-arena-grpo-t4 --push-to-hub --hub-repo YOUR_USERNAME/oversight-arena-grpo-t4
 ```
+
+### 2.5 Common Colab errors and fixes
+
+- `No module named trl`  
+  Run the install cell again, then `Runtime -> Restart runtime`.
+
+- `CUDA out of memory`  
+  Reduce to `--max-steps 30 --dataset-size 32`.
+
+- `bitsandbytes` / optimizer issues  
+  The script now auto-falls back to `adamw_torch` if `bitsandbytes` is unavailable.
+
+- tokenizer/processing class errors  
+  The script now explicitly loads tokenizer in non-Unsloth mode.
 
 ## 3) Hugging Face Space Deployment (UI)
 
