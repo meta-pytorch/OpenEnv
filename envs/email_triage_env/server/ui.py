@@ -458,19 +458,19 @@ div[class*="row"], div[class*="panel"] {
 /* ── Header ── */
 .arena-header {
     border-bottom: 2px solid #111111;
-    padding: 24px 0 16px 0;
-    margin-bottom: 8px;
+    padding: 16px 0 12px 0;
+    margin-bottom: 4px;
     background: #ffffff !important;
 }
 .arena-title {
-    font-size: 1.5rem;
+    font-size: 1.4rem;
     font-weight: 700;
     letter-spacing: -0.02em;
     color: #000000 !important;
-    margin: 0 0 4px 0;
+    margin: 0 0 2px 0;
 }
 .arena-subtitle {
-    font-size: 0.875rem;
+    font-size: 0.8rem;
     color: #000000 !important;
     margin: 0;
 }
@@ -479,43 +479,45 @@ div[class*="row"], div[class*="panel"] {
 .panel-ticket, .panel-specialists {
     border: 1px solid #000000 !important;
     border-radius: 6px;
-    padding: 16px 20px;
+    padding: 12px 16px;
     background: #ffffff !important;
     background-color: #ffffff !important;
     color: #000000 !important;
-    min-height: 200px;
+    min-height: 160px;
 }
 
 /* ── Stats bar ── */
 .panel-stats {
     border: 1px solid #000000 !important;
     border-radius: 6px;
-    padding: 12px 16px;
+    padding: 8px 12px;
     background: #ffffff !important;
     background-color: #ffffff !important;
-    font-size: 0.875rem;
+    font-size: 0.8rem;
     color: #000000 !important;
 }
 
 /* ── Status bar ── */
 .status-bar {
     border-left: 3px solid #000000;
-    padding: 8px 12px;
+    padding: 6px 10px;
     background: #ffffff !important;
     background-color: #ffffff !important;
-    font-size: 0.875rem;
+    font-size: 0.8rem;
     color: #000000 !important;
     border-radius: 0 4px 4px 0;
 }
 
-/* ── AI status ── */
+/* ── AI status (scrollable) ── */
 .ai-status {
     border: 1px solid #333 !important;
     border-radius: 6px;
     padding: 10px 14px;
     background: #f8f8f8 !important;
-    font-size: 0.85rem;
+    font-size: 0.8rem;
     color: #000000 !important;
+    max-height: 200px;
+    overflow-y: auto;
 }
 
 /* ── Buttons ── */
@@ -566,12 +568,12 @@ label, .gr-label, span[data-testid="block-label"] {
 }
 
 .section-label {
-    font-size: 0.75rem;
+    font-size: 0.7rem;
     font-weight: 600;
     text-transform: uppercase;
     letter-spacing: 0.08em;
     color: #000000 !important;
-    margin-bottom: 8px;
+    margin-bottom: 4px;
 }
 
 /* ── Reward strip ── */
@@ -580,13 +582,13 @@ label, .gr-label, span[data-testid="block-label"] {
     color: #000000 !important;
     border: 1px solid #000000 !important;
     border-radius: 4px;
-    padding: 8px 14px;
-    font-size: 0.875rem;
+    padding: 6px 12px;
+    font-size: 0.8rem;
     font-weight: 500;
 }
 
 /* ── Dividers ── */
-hr { border: none; border-top: 1px solid #eeeeee; margin: 16px 0; }
+hr { border: none; border-top: 1px solid #eeeeee; margin: 8px 0; }
 
 /* ── Number inputs ── */
 .gr-number input { background: #ffffff !important; color: #000000 !important; }
@@ -602,30 +604,26 @@ footer { display: none !important; }
 
 /* ── Force max width ── */
 .gradio-container { max-width: 1200px !important; margin: auto; }
+
+/* ── Reduce gap between blocks ── */
+.gap { gap: 8px !important; }
 """
 
 INTRO_MD = """
 <div class="arena-header">
   <div class="arena-title">Oversight Inbox Arena</div>
   <div class="arena-subtitle">
-    Multi-agent RL environment -- coordinate 4 specialist agents and triage emails safely under schema drift<br/>
-    <strong>GRPO-trained model:</strong> <a href="https://huggingface.co/Rhushya/oversight-arena-grpo2">Rhushya/oversight-arena-grpo2</a> (Qwen2.5-1.5B + LoRA)
+    Multi-agent RL environment &mdash; 4 specialist agents &bull; schema drift &bull; GRPO-trained coordinator<br/>
+    Model: <a href="https://huggingface.co/Rhushya/oversight-arena-grpo2">Rhushya/oversight-arena-grpo2</a> (Qwen2.5-1.5B + LoRA)
   </div>
 </div>
 """
 
 HOWTO_MD = """
-**How to play**
-
 1. Select a difficulty and click **Start Queue**
-2. Read the incoming email on the left
-3. Check specialist recommendations on the right
-4. Click **AI Auto-Triage** to let the GRPO-trained model suggest a decision, or set it manually
-5. Click **Submit Decision** to get your reward
-
-Hard and Adversarial modes introduce schema drift -- watch the status bar for warnings.
-
-**AI Agent**: Uses the GRPO-trained model ([Rhushya/oversight-arena-grpo2](https://huggingface.co/Rhushya/oversight-arena-grpo2)) fine-tuned with Group Relative Policy Optimization on this environment's reward signal.
+2. Read the email (left) and specialist advice (right)
+3. Click **AI Auto-Triage** or set category/priority/escalation manually
+4. Click **Submit Decision** to see your reward. Hard modes have **schema drift**!
 """
 
 
@@ -655,8 +653,6 @@ def build_ui() -> gr.Blocks:
         with gr.Accordion("How to play", open=False):
             gr.Markdown(HOWTO_MD)
 
-        gr.Markdown("---")
-
         # ── Controls row ─────────────────────────────────────────────────────
         with gr.Row():
             difficulty = gr.Dropdown(
@@ -669,33 +665,31 @@ def build_ui() -> gr.Blocks:
             status_md = gr.Markdown(
                 "_Select a difficulty and click **Start Queue** to begin._",
                 elem_classes=["status-bar"],
+                scale=2,
             )
 
         # ── Stats bar ────────────────────────────────────────────────────────
         stats_md = gr.Markdown("", elem_classes=["panel-stats"])
 
-        gr.Markdown("---")
-
         # ── Main arena ───────────────────────────────────────────────────────
         with gr.Row(equal_height=True):
             with gr.Column(scale=5):
-                gr.Markdown("**Incoming Email**", elem_classes=["section-label"])
+                gr.Markdown("**INCOMING EMAIL**", elem_classes=["section-label"])
                 ticket_md = gr.Markdown(
                     "_No ticket yet. Start the queue above._",
                     elem_classes=["panel-ticket"],
                 )
 
             with gr.Column(scale=4):
-                gr.Markdown("**Specialist Panel**", elem_classes=["section-label"])
+                gr.Markdown("**SPECIALIST PANEL**", elem_classes=["section-label"])
                 spec_md = gr.Markdown(
                     "_Specialists will report here once the queue starts._",
                     elem_classes=["panel-specialists"],
                 )
 
+        # ── Decision + Buttons (single compact row) ──────────────────────────
         gr.Markdown("---")
-
-        # ── Decision row ─────────────────────────────────────────────────────
-        gr.Markdown("**Your Decision**", elem_classes=["section-label"])
+        gr.Markdown("**YOUR DECISION**", elem_classes=["section-label"])
         with gr.Row():
             cat_in = gr.Dropdown(
                 choices=["billing", "support", "spam", "urgent", "marketing", "other"],
@@ -705,30 +699,34 @@ def build_ui() -> gr.Blocks:
             )
             pri_in = gr.Slider(
                 minimum=1, maximum=5, step=1, value=3,
-                label="Priority  (1 = Low, 5 = Critical)",
-                scale=3,
+                label="Priority (1=Low, 5=Critical)",
+                scale=2,
             )
-            esc_in = gr.Checkbox(label="Escalate to Human Reviewer", scale=1)
-
-        with gr.Row():
-            ai_btn = gr.Button("AI Auto-Triage (GRPO Model)", variant="primary", scale=2)
+            esc_in = gr.Checkbox(label="Escalate", scale=1)
+            ai_btn = gr.Button("AI Auto-Triage", variant="primary", scale=2)
             sub_btn = gr.Button("Submit Decision", variant="secondary", scale=2)
 
-        # ── AI status ─────────────────────────────────────────────────────────
-        ai_status_md = gr.Markdown("", elem_classes=["ai-status"])
-
-        # ── Reward row ───────────────────────────────────────────────────────
+        # ── Reward (always visible right after buttons) ───────────────────────
         with gr.Row():
             reward_num = gr.Number(
                 label="Step Reward", value=0.0, precision=3, scale=1
             )
-            reward_breakdown = gr.Markdown("", elem_classes=["reward-strip"])
+            reward_breakdown = gr.Markdown("", elem_classes=["reward-strip"], scale=3)
 
+        # ── AI Pipeline Log (scrollable accordion -- won't push layout) ──────
+        with gr.Accordion("AI Pipeline Log", open=False):
+            ai_status_md = gr.Markdown(
+                "_Click **AI Auto-Triage** to see the step-by-step pipeline here._",
+                elem_classes=["ai-status"],
+            )
+
+        # ── Footer ───────────────────────────────────────────────────────────
         gr.Markdown("---")
         gr.Markdown(
-            "_Built with Hugging Face, TRL, GRPO, Gradio_  \n"
-            "_Model: [Rhushya/oversight-arena-grpo2](https://huggingface.co/Rhushya/oversight-arena-grpo2)_  \n"
-            "_Code: [GitHub](https://github.com/Rhushya/OpenEnv)_"
+            "_Built with Hugging Face, TRL, GRPO, Gradio_  |  "
+            "_Model: [oversight-arena-grpo2](https://huggingface.co/Rhushya/oversight-arena-grpo2)_  |  "
+            "_[GitHub](https://github.com/Rhushya/OpenEnv)_  |  "
+            "_[Blog](https://huggingface.co/spaces/Rhushya/email-triage-env-openenv/blob/main/BLOG.md)_"
         )
 
         # ── Wire callbacks ───────────────────────────────────────────────────
