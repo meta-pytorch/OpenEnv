@@ -665,7 +665,6 @@ def build_ui() -> gr.Blocks:
             status_md = gr.Markdown(
                 "_Select a difficulty and click **Start Queue** to begin._",
                 elem_classes=["status-bar"],
-                scale=2,
             )
 
         # ── Stats bar ────────────────────────────────────────────────────────
@@ -711,7 +710,7 @@ def build_ui() -> gr.Blocks:
             reward_num = gr.Number(
                 label="Step Reward", value=0.0, precision=3, scale=1
             )
-            reward_breakdown = gr.Markdown("", elem_classes=["reward-strip"], scale=3)
+            reward_breakdown = gr.Markdown("", elem_classes=["reward-strip"])
 
         # ── AI Pipeline Log (scrollable accordion -- won't push layout) ──────
         with gr.Accordion("AI Pipeline Log", open=False):
