@@ -115,42 +115,43 @@ def _generate_local(model, tokenizer, email_text: str) -> str | None:
             {"role": "user", "content": email_text},
         ]
 
-        chat_template = (
-            "{% for message in messages %}"
-            "{{ '<|im_start|>' + message['role'] + '\n' + message['content'] + '<|im_end|>\n' }}"
-            "{% if loop.last and message['role'] == 'user' %}"
-            "{{ '<|im_start|>assistant\n' }}"
-            "{% endif %}"
-            "{% endfor %}"
+        # Use built-in chat template (Qwen2 has chatml built-in)
+        # Only set custom template if tokenizer doesn't have one
+        if not getattr(tokenizer, 'chat_template', None):
+            tokenizer.chat_template = (
+                "{% for message in messages %}"
+                "{{ '<|im_start|>' + message['role'] + '\n' + message['content'] + '<|im_end|>\n' }}"
+                "{% if loop.last and message['role'] == 'user' %}"
+                "{{ '<|im_start|>assistant\n' }}"
+                "{% endif %}"
+                "{% endfor %}"
+            )
+
+        text_input = tokenizer.apply_chat_template(
+            chat, tokenize=False, add_generation_prompt=True
         )
-        tokenizer.chat_template = chat_template
-
-        result = tokenizer.apply_chat_template(chat, tokenize=True, return_tensors="pt")
-
-        # Handle different return types from apply_chat_template
-        if isinstance(result, dict):
-            inputs = result["input_ids"]
-        elif isinstance(result, list):
-            inputs = torch.tensor([result])
-        else:
-            inputs = result
+        inputs = tokenizer(text_input, return_tensors="pt")
 
         # Move inputs to model device (GPU or CPU)
         device = next(model.parameters()).device
-        inputs = inputs.to(device)
+        input_ids = inputs["input_ids"].to(device)
+        attention_mask = inputs.get("attention_mask")
+        if attention_mask is not None:
+            attention_mask = attention_mask.to(device)
 
         with torch.no_grad():
             outputs = model.generate(
-                inputs,
+                input_ids=input_ids,
+                attention_mask=attention_mask,
                 max_new_tokens=128,
                 temperature=0.3,
                 do_sample=True,
                 pad_token_id=tokenizer.pad_token_id,
             )
-        generated = outputs[0][inputs.shape[-1]:]
+        generated = outputs[0][input_ids.shape[-1]:]
         text = tokenizer.decode(generated, skip_special_tokens=True)
-        logger.info("Local generation produced: %s", text[:100])
-        return text
+        logger.info("Local generation produced: %s", text[:200])
+        return text if text.strip() else None
     except Exception as e:
         logger.warning("Local generation failed: %s", e, exc_info=True)
         return None
