@@ -1,102 +1,108 @@
-# Oversight Inbox Arena - Final Showcase README
+# Oversight Inbox Arena — Email Triage Environment
 
-This file is your final handoff for presentation day.
-It has two parts:
-- what is already completed
-- what you must do next to present confidently
+**A Multi-Agent Reinforcement Learning Environment for Safe Email Triage Under Schema Drift**
 
-## Project Status
+> Train an AI coordinator to manage a team of 4 specialist agents, triage emails at scale, and adapt to mid-shift policy changes — all with deterministic, anti-hack reward signals.
 
-Current status: **production-ready demo + training pipeline ready**
+## Live Demo
 
-You now have:
-- cleaned repository (tool/cache artifacts removed)
-- fixed environment/runtime issues from review
-- tests moved to standard `tests/` path
-- passing core env and HTTP tests
-- polished Gradio UI with cyber-style hero section for demo
-- Colab T4 training path and Hugging Face deployment guide
+**[Try it on HuggingFace Spaces](https://huggingface.co/spaces/Rhushya/email-triage-env-openenv)**
 
-## What Is Completed
+## Architecture
 
-### Code and Quality Fixes
-
-- Removed non-repo artifacts and generated files
-- Fixed `train_grpo.py` shebang and cache thread safety
-- Corrected UI category choices and state access
-- Kept API app decoupled from Gradio server startup
-- Converted HTTP script into pytest-discoverable test
-
-### Validation Completed
-
-These tests were run successfully:
-
-```powershell
-$env:PYTHONPATH='src;envs'
-.venv\Scripts\python -m pytest tests/envs/test_email_triage_env.py tests/envs/test_email_triage_http.py -v --tb=short
+```
+┌──────────────────────────────────────────────────────────────────┐
+│                    OVERSIGHT INBOX ARENA                          │
+├──────────────────────────────────────────────────────────────────┤
+│                                                                   │
+│  ┌──────────────────┐         ┌───────────────────────┐          │
+│  │  Email Queue      │         │  Schema Drift Engine  │          │
+│  │  (5-15 tickets)   │ ──────→ │  (Policy Mutations)   │          │
+│  └──────────────────┘         └───────────────────────┘          │
+│         │                              │                          │
+│         ▼                              ▼                          │
+│  ┌──────────────────────────────────────────────────────┐        │
+│  │            4 SPECIALIST AGENTS                        │        │
+│  │                                                       │        │
+│  │  [Triage]     Category + Priority prediction          │        │
+│  │  [Escalation] Escalation recommendation               │        │
+│  │  [Compliance] Policy flag detection                   │        │
+│  │  [Responder]  Draft response template                 │        │
+│  └──────────────────────────────────────────────────────┘        │
+│         │                                                         │
+│         ▼                                                         │
+│  ┌──────────────────────────────────────────────────────┐        │
+│  │         COORDINATOR (GRPO-Trained Agent)              │        │
+│  │                                                       │        │
+│  │  Model: Qwen2.5-1.5B + LoRA (4.37 MB adapter)       │        │
+│  │  Training: GRPO, 50 steps, T4 GPU                    │        │
+│  │  Input: Email + Specialist Reports                    │        │
+│  │  Output: <category> <priority> <escalate>             │        │
+│  └──────────────────────────────────────────────────────┘        │
+│         │                                                         │
+│         ▼                                                         │
+│  ┌──────────────────────────────────────────────────────┐        │
+│  │         COMPOSITE REWARD (5 Components)               │        │
+│  │  Quality · SLA · Policy · Oversight · Efficiency      │        │
+│  │  + Drift adaptation bonus                             │        │
+│  │  + Anti-hack: repetition penalty, action clamp        │        │
+│  └──────────────────────────────────────────────────────┘        │
+└──────────────────────────────────────────────────────────────────┘
 ```
 
-Result: **all tests passed**
+## Key Features
 
-### Demo UX Completed
+| Feature | Description |
+|---------|-------------|
+| **Multi-Agent Oversight** | 4 specialist agents with accuracy profiles, biases, and confidence scores |
+| **Schema Drift** | Mid-episode policy mutations (escalation thresholds, SLA budgets, etc.) |
+| **GRPO Training** | Qwen2.5-1.5B fine-tuned with Group Relative Policy Optimization |
+| **Composite Reward** | 5 weighted components: Quality + SLA + Policy + Oversight + Efficiency |
+| **Anti-Reward-Hacking** | Action validation, repetition penalties, step limits, reward clamping |
+| **Interactive Demo** | Gradio UI with AI Auto-Triage button |
 
-- Hero-style UI messaging for judges
-- Clear reward breakdown display
-- Difficulty modes + schema drift visibility
-- Cohesive "AI coordinator vs specialist disagreement" story
+## Difficulty Levels
 
-## What You Need To Do Now (Final Steps)
+| Level | Queue | Specialist Accuracy | Schema Drift | Max Steps |
+|-------|-------|-------------------|--------------|-----------|
+| Easy | 1 | 95% | 0 events | 1 |
+| Medium | 3-5 | 80% | 0 events | 20 |
+| Hard | 5-10 | 75% | 2 events | 40 |
+| Adversarial | 8-15 | 65% | 4 events | 60 |
 
-## 1) Train model on Colab T4
+## Quick Start
 
-Follow `README_NEXT_STEPS.md` and run:
-- one smoke run
-- one main run (`Qwen/Qwen2-0.5B`, 30-50 steps)
-- push checkpoint to Hugging Face Hub
+### Run the Gradio UI locally
+```bash
+cd envs/email_triage_env
+pip install gradio pydantic numpy
+python -m server.ui
+```
 
-## 2) Deploy Hugging Face Space
+### Train the GRPO model (Google Colab T4)
+Open `EmailTriage_GRPO_Train (3).ipynb` in Google Colab and run all cells.
 
-Use the ready template folder:
-- `envs/email_triage_env/hf_space_template/`
+## Project Structure
 
-Create your Space and upload those files.
+```
+envs/email_triage_env/
+├── models.py                      # Action, Observation, State
+├── server/
+│   ├── email_triage_environment.py  # Main environment (658 lines)
+│   ├── graders.py                   # Deterministic reward graders
+│   ├── stakeholders.py             # 4 specialist agent simulations
+│   ├── scenario_generator.py       # Queue + SLA generation
+│   ├── schema_drift.py             # Policy drift engine
+│   ├── ui.py                       # Gradio UI + AI model integration
+│   └── email_triage_dataset.json   # 120 labeled emails
+├── EmailTriage_GRPO_Train (3).ipynb # Training notebook
+└── inference.py                     # Baseline inference script
+```
 
-## 3) Collect your 3 final links
+## Links
 
-Before submission/presentation, keep these ready:
-- GitHub repo URL
-- Hugging Face Model URL
-- Hugging Face Space URL
-
-## 4) Rehearse 2-3 minute demo
-
-Sequence:
-1. Problem statement
-2. Environment design (4 specialists + coordinator + drift)
-3. RL training on T4
-4. Live Space run and reward breakdown
-5. Final result + links
-
-## Presentation Script (Short)
-
-Use this structure:
-
-1. "We built a multi-agent RL email triage environment where one coordinator oversees 4 specialist agents."
-2. "The task includes policy/schema drift, so the model must adapt in real time."
-3. "We trained with GRPO on Colab T4 using 5 independent reward functions."
-4. "Here is the live Space demo showing coordinator decisions and reward components."
-5. "Here are the model and project links."
-
-## Risk Checklist Before Going Live
-
-- [ ] Space opens without errors
-- [ ] Start Queue works
-- [ ] Submit Decision works
-- [ ] One hard/adversarial run completes
-- [ ] Backup recording prepared (in case of network issue)
-- [ ] All links copied in one note
-
-## Final Verdict
-
-The technical project is complete enough to present now.
-Your remaining work is deployment execution + rehearsal, not core development.
+| Resource | Link |
+|----------|------|
+| Live Demo | [HF Space](https://huggingface.co/spaces/Rhushya/email-triage-env-openenv) |
+| Trained Model | [Rhushya/oversight-arena-grpo2](https://huggingface.co/Rhushya/oversight-arena-grpo2) |
+| Training Notebook | [EmailTriage_GRPO_Train.ipynb](EmailTriage_GRPO_Train%20(3).ipynb) |

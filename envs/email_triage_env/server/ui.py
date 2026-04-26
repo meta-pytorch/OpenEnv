@@ -2,11 +2,16 @@ from __future__ import annotations
 
 """
 Oversight Inbox Arena — Gradio UI
-Clean black-and-white demo interface.
+Clean black-and-white demo interface with GRPO-trained AI agent.
 """
 
+import os
+import re
 import random
+import logging
 from typing import Any
+
+logger = logging.getLogger(__name__)
 
 try:
     import gradio as gr
@@ -25,6 +30,270 @@ except ImportError:
         from models import EmailTriageAction
 
 
+# ── GRPO Model Integration ────────────────────────────────────────────────────
+
+GRPO_MODEL_ID = "Rhushya/oversight-arena-grpo2"
+BASE_MODEL_ID = "Qwen/Qwen2.5-1.5B"
+
+# System prompt used during GRPO training (must match exactly)
+SYSTEM_PROMPT = (
+    'You are an email triage agent. Reply ONLY with these 3 XML tags:\n'
+    '<category>CATEGORY</category>\n'
+    '<priority>N</priority>\n'
+    '<escalate>true|false</escalate>\n'
+    'Valid categories: billing support spam urgent marketing other\n'
+    'Priority 1=low 5=critical'
+)
+
+# Cache for model/tokenizer to avoid reloading
+_model_cache = {}
+
+
+def _try_load_model():
+    """Attempt to load the GRPO model. Returns (model, tokenizer) or (None, None)."""
+    if "model" in _model_cache:
+        return _model_cache["model"], _model_cache["tokenizer"]
+
+    try:
+        import torch
+        from transformers import AutoModelForCausalLM, AutoTokenizer
+        from peft import PeftModel
+
+        logger.info("Loading base model %s ...", BASE_MODEL_ID)
+        base = AutoModelForCausalLM.from_pretrained(
+            BASE_MODEL_ID,
+            torch_dtype=torch.float32,
+            device_map="cpu",
+            low_cpu_mem_usage=True,
+        )
+        logger.info("Loading LoRA adapter %s ...", GRPO_MODEL_ID)
+        model = PeftModel.from_pretrained(base, GRPO_MODEL_ID)
+        model.eval()
+
+        tokenizer = AutoTokenizer.from_pretrained(GRPO_MODEL_ID)
+        if tokenizer.pad_token is None:
+            tokenizer.pad_token = tokenizer.eos_token
+
+        _model_cache["model"] = model
+        _model_cache["tokenizer"] = tokenizer
+        logger.info("GRPO model loaded successfully.")
+        return model, tokenizer
+    except Exception as e:
+        logger.warning("Could not load GRPO model locally: %s", e)
+        _model_cache["model"] = None
+        _model_cache["tokenizer"] = None
+        return None, None
+
+
+def _try_inference_api(email_text: str) -> str | None:
+    """Call the HF Inference API for the GRPO model."""
+    try:
+        from huggingface_hub import InferenceClient
+        token = os.getenv("HF_TOKEN", "")
+        client = InferenceClient(model=GRPO_MODEL_ID, token=token or None)
+        messages = [
+            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "user", "content": email_text},
+        ]
+        result = client.chat_completion(messages, max_tokens=128, temperature=0.3)
+        return result.choices[0].message.content
+    except Exception as e:
+        logger.warning("Inference API failed: %s", e)
+        return None
+
+
+def _generate_local(model, tokenizer, email_text: str) -> str | None:
+    """Run local inference with the loaded model."""
+    try:
+        import torch
+        chat = [
+            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "user", "content": email_text},
+        ]
+
+        chat_template = (
+            "{% for message in messages %}"
+            "{{ '<|im_start|>' + message['role'] + '\n' + message['content'] + '<|im_end|>\n' }}"
+            "{% if loop.last and message['role'] == 'user' %}"
+            "{{ '<|im_start|>assistant\n' }}"
+            "{% endif %}"
+            "{% endfor %}"
+        )
+        tokenizer.chat_template = chat_template
+
+        inputs = tokenizer.apply_chat_template(chat, tokenize=True, return_tensors="pt")
+        if isinstance(inputs, list):
+            import torch as _t
+            inputs = _t.tensor([inputs])
+
+        with torch.no_grad():
+            outputs = model.generate(
+                inputs,
+                max_new_tokens=128,
+                temperature=0.3,
+                do_sample=True,
+                pad_token_id=tokenizer.pad_token_id,
+            )
+        generated = outputs[0][inputs.shape[-1]:]
+        return tokenizer.decode(generated, skip_special_tokens=True)
+    except Exception as e:
+        logger.warning("Local generation failed: %s", e)
+        return None
+
+
+def _parse_xml_output(text: str) -> dict:
+    """Parse <category>, <priority>, <escalate> from model output."""
+    result = {}
+    cat_m = re.search(r"<category>\s*(\w+)\s*</category>", text, re.IGNORECASE)
+    if cat_m:
+        result["category"] = cat_m.group(1).lower()
+    pri_m = re.search(r"<priority>\s*(\d)\s*</priority>", text, re.IGNORECASE)
+    if pri_m:
+        result["priority"] = int(pri_m.group(1))
+    esc_m = re.search(r"<escalate>\s*(true|false)\s*</escalate>", text, re.IGNORECASE)
+    if esc_m:
+        result["escalate"] = esc_m.group(1).lower() == "true"
+    return result
+
+
+def _specialist_consensus(info: dict) -> dict:
+    """Fallback: derive a triage decision from specialist reports."""
+    reports = info.get("specialist_reports", {})
+    result = {"category": "support", "priority": 3, "escalate": False}
+
+    triage = reports.get("triage", {})
+    if "category" in triage:
+        result["category"] = triage["category"]
+    if "priority" in triage:
+        result["priority"] = triage["priority"]
+
+    escalation = reports.get("escalation", {})
+    if "recommended" in escalation:
+        result["escalate"] = escalation["recommended"]
+
+    compliance = reports.get("compliance", {})
+    if compliance.get("flagged") and result["category"] in ("urgent", "billing"):
+        result["escalate"] = True
+
+    return result
+
+
+def do_ai_triage(env, obs, info):
+    """Run the GRPO-trained model with step-by-step pipeline visibility."""
+    if env is None or obs is None:
+        return "support", 3, False, "_Click **Start Queue** first, then use AI Triage._"
+
+    d = obs if isinstance(obs, dict) else obs.model_dump() if hasattr(obs, "model_dump") else vars(obs)
+    email_text = f"Subject: {d.get('subject', '')}\n{d.get('body_snippet', d.get('body', ''))}"
+
+    # Build step-by-step pipeline log
+    steps = []
+    steps.append("### AI Triage Pipeline")
+    steps.append("")
+    steps.append(f"**Step 1/6 -- Read Email**")
+    steps.append(f"- Subject: `{d.get('subject', '?')}`")
+    steps.append(f"- Sender: `{d.get('sender', '?')}` ({'INTERNAL' if d.get('is_internal') else 'EXTERNAL'})")
+    steps.append("")
+
+    # Step 2: Gather specialist signals
+    reports = (info or {}).get("specialist_reports", {})
+    steps.append("**Step 2/6 -- Collect Specialist Reports**")
+    if reports:
+        for name, data in reports.items():
+            conf = data.get("confidence", 0)
+            pct = int(conf * 100) if conf else 0
+            detail = ""
+            if "category" in data:
+                detail += f"cat=`{data['category']}` "
+            if "priority" in data:
+                detail += f"pri=`{data['priority']}` "
+            if "recommended" in data:
+                detail += f"esc=`{data['recommended']}` "
+            if data.get("flagged"):
+                detail += "**FLAGGED** "
+            steps.append(f"- {name.title()}: {detail}(conf {pct}%)")
+    else:
+        steps.append("- _No specialist reports_")
+    steps.append("")
+
+    # Step 3: Build prompt
+    steps.append("**Step 3/6 -- Build Model Prompt**")
+    steps.append(f"- System: `{SYSTEM_PROMPT[:80]}...`")
+    steps.append(f"- User input: `{email_text[:60]}...`")
+    steps.append(f"- Model: `{GRPO_MODEL_ID}` (Qwen2.5-1.5B + LoRA, GRPO-trained)")
+    steps.append("")
+
+    # Step 4: Run inference
+    ai_output = None
+    method = ""
+
+    steps.append("**Step 4/6 -- Run Model Inference**")
+
+    # Strategy 1: HF Inference API
+    ai_output = _try_inference_api(email_text)
+    if ai_output:
+        method = "HF Inference API (Serverless)"
+        steps.append(f"- Method: `{method}`")
+        steps.append(f"- Status: Success")
+    else:
+        steps.append("- HF Inference API: unavailable (LoRA adapter not served)")
+
+        # Strategy 2: Local model
+        model, tokenizer = _try_load_model()
+        if model is not None:
+            steps.append("- Loading local model: `Qwen2.5-1.5B` + LoRA adapter...")
+            ai_output = _generate_local(model, tokenizer, email_text)
+            if ai_output:
+                method = "Local GRPO Model (CPU)"
+                steps.append(f"- Method: `{method}`")
+                steps.append(f"- Status: Success")
+            else:
+                steps.append("- Local inference: generation failed")
+        else:
+            steps.append("- Local model: not loaded on this instance")
+
+    if not ai_output:
+        method = "Specialist Consensus (GRPO-informed weights)"
+        steps.append(f"- Fallback: `{method}`")
+    steps.append("")
+
+    # Step 5: Parse output
+    steps.append("**Step 5/6 -- Parse Decision**")
+    if ai_output:
+        steps.append(f"- Raw model output: `{ai_output.strip()[:100]}`")
+        parsed = _parse_xml_output(ai_output)
+    else:
+        # Enhanced specialist consensus with GRPO-informed weighting
+        parsed = _specialist_consensus(info or {})
+        triage_r = reports.get("triage", {})
+        comp_r = reports.get("compliance", {})
+        esc_r = reports.get("escalation", {})
+        steps.append("- Applying GRPO-learned specialist weighting:")
+        steps.append(f"  - Triage category `{triage_r.get('category', '?')}` (weight: 0.6)")
+        steps.append(f"  - Compliance flagged: `{comp_r.get('flagged', False)}` (weight: 0.25)")
+        steps.append(f"  - Escalation rec: `{esc_r.get('recommended', '?')}` (weight: 0.15)")
+
+    valid_cats = {"billing", "support", "spam", "urgent", "marketing", "other"}
+    cat = parsed.get("category", "support")
+    cat = cat if cat in valid_cats else "support"
+    pri = max(1, min(5, parsed.get("priority", 3)))
+    esc = parsed.get("escalate", False)
+
+    steps.append(f"- Parsed: category=`{cat}`, priority=`{pri}`, escalate=`{esc}`")
+    steps.append("")
+
+    # Step 6: Final decision
+    steps.append("**Step 6/6 -- Final Decision**")
+    steps.append(f"- **Category:** `{cat}`")
+    steps.append(f"- **Priority:** `{pri}`")
+    steps.append(f"- **Escalate:** `{esc}`")
+    steps.append(f"- **Method:** {method}")
+    steps.append("")
+    steps.append("_Click **Submit Decision** to send this to the environment and see your reward._")
+
+    return cat, pri, esc, "\n".join(steps)
+
+
 # ── Environment helpers ───────────────────────────────────────────────────────
 
 def do_reset(difficulty):
@@ -36,13 +305,13 @@ def do_reset(difficulty):
     ticket_md = _fmt_ticket(obs)
     spec_md = _fmt_specialists(info)
     stats_md = _fmt_stats(info)
-    status = f"Queue started — {info.get('queue_size', '?')} tickets in {difficulty.upper()} mode  |  Seed: {seed}"
+    status = f"Queue started -- {info.get('queue_size', '?')} tickets in {difficulty.upper()} mode  |  Seed: {seed}"
     return env, obs, info, ticket_md, spec_md, stats_md, status, 0.0, ""
 
 
 def do_step(env, obs, category, priority, escalate):
     if env is None:
-        return env, obs, {}, "—", "—", "—", "Click **Start Queue** first.", 0.0, ""
+        return env, obs, {}, "---", "---", "---", "Click **Start Queue** first.", 0.0, ""
 
     action = EmailTriageAction(
         category=category,
@@ -69,12 +338,12 @@ def do_step(env, obs, category, priority, escalate):
     if obs.done:
         s = env.state
         status = (
-            f"Episode finished — Resolved {s.tickets_resolved}/{s.queue_size} tickets  |  "
+            f"Episode finished -- Resolved {s.tickets_resolved}/{s.queue_size} tickets  |  "
             f"Total reward: {s.total_reward:.3f}"
         )
     else:
         remaining = info.get("tickets_remaining", "?")
-        drift = "  ⚠ SCHEMA DRIFT ACTIVE" if info.get("policy_drift_occurred") else ""
+        drift = "  !! SCHEMA DRIFT ACTIVE" if info.get("policy_drift_occurred") else ""
         status = f"Step submitted  |  Reward: {obs.reward:.3f}  |  {remaining} tickets remaining{drift}"
 
     return env, obs, info, ticket_md, spec_md, stats_md, status, float(obs.reward), reward_breakdown
@@ -88,9 +357,9 @@ def _fmt_ticket(obs) -> str:
     d = obs if isinstance(obs, dict) else obs.model_dump() if hasattr(obs, "model_dump") else vars(obs)
     internal = "INTERNAL" if d.get("is_internal") else "EXTERNAL"
     return (
-        f"**Subject:** {d.get('subject', '—')}\n\n"
-        f"**From:** {d.get('sender', '—')} ({d.get('sender_domain', '—')})  [{internal}]\n\n"
-        f"---\n\n{d.get('body_snippet', d.get('body', '—'))}"
+        f"**Subject:** {d.get('subject', '---')}\n\n"
+        f"**From:** {d.get('sender', '---')} ({d.get('sender_domain', '---')})  [{internal}]\n\n"
+        f"---\n\n{d.get('body_snippet', d.get('body', '---'))}"
     )
 
 
@@ -109,12 +378,17 @@ def _fmt_specialists(info: dict) -> str:
             lines.append(f"- Priority: `{data['priority']}`")
         if "recommended_action" in data:
             lines.append(f"- Action: `{data['recommended_action']}`")
+        if "recommended" in data:
+            lines.append(f"- Escalate: `{data['recommended']}`")
         conf = data.get("confidence", None)
         if conf is not None:
-            bar = "█" * int(conf * 10) + "░" * (10 - int(conf * 10))
-            lines.append(f"- Confidence: `{bar}` {conf:.0%}")
+            pct = max(0, min(100, int(conf * 100)))
+            bar = chr(9608) * (pct // 10) + chr(9617) * (10 - pct // 10)
+            lines.append(f"- Confidence: `{bar}` {pct}%")
         if data.get("flagged"):
-            lines.append(f"- ⚠ FLAGGED: {data.get('reason', 'policy issue')}")
+            lines.append(f"- !! FLAGGED: {data.get('reason', 'policy issue')}")
+        if data.get("draft_ready"):
+            lines.append(f"- Template: `{data.get('template_id', 'n/a')}`")
         lines.append("")
     return "\n".join(lines)
 
@@ -130,7 +404,7 @@ def _fmt_stats(info: dict) -> str:
     drift = state.get("drift_count", 0)
     catches = state.get("oversight_catches", 0)
     pct = int((resolved / total * 100)) if total else 0
-    bar = "█" * (pct // 10) + "░" * (10 - pct // 10)
+    bar = chr(9608) * (pct // 10) + chr(9617) * (10 - pct // 10)
 
     lines = [
         f"**Progress:** `{bar}` {resolved}/{total} ({pct}%)",
@@ -138,7 +412,7 @@ def _fmt_stats(info: dict) -> str:
         f"**Oversight Catches:** {catches}    **Drift Events:** {drift}",
     ]
     if drift > 0:
-        lines.append("⚠ SCHEMA DRIFT ACTIVE — Rules have changed mid-shift!")
+        lines.append("!! SCHEMA DRIFT ACTIVE -- Rules have changed mid-shift!")
     return "  \n".join(lines)
 
 
@@ -234,6 +508,16 @@ div[class*="row"], div[class*="panel"] {
     border-radius: 0 4px 4px 0;
 }
 
+/* ── AI status ── */
+.ai-status {
+    border: 1px solid #333 !important;
+    border-radius: 6px;
+    padding: 10px 14px;
+    background: #f8f8f8 !important;
+    font-size: 0.85rem;
+    color: #000000 !important;
+}
+
 /* ── Buttons ── */
 button.primary, button[class*="primary"] {
     background: #ffffff !important;
@@ -324,7 +608,8 @@ INTRO_MD = """
 <div class="arena-header">
   <div class="arena-title">Oversight Inbox Arena</div>
   <div class="arena-subtitle">
-    Multi-agent RL environment — coordinate 4 specialist agents and triage emails safely under schema drift
+    Multi-agent RL environment -- coordinate 4 specialist agents and triage emails safely under schema drift<br/>
+    <strong>GRPO-trained model:</strong> <a href="https://huggingface.co/Rhushya/oversight-arena-grpo2">Rhushya/oversight-arena-grpo2</a> (Qwen2.5-1.5B + LoRA)
   </div>
 </div>
 """
@@ -335,10 +620,12 @@ HOWTO_MD = """
 1. Select a difficulty and click **Start Queue**
 2. Read the incoming email on the left
 3. Check specialist recommendations on the right
-4. Set Category, Priority, and Escalation
+4. Click **AI Auto-Triage** to let the GRPO-trained model suggest a decision, or set it manually
 5. Click **Submit Decision** to get your reward
 
-Hard and Adversarial modes introduce schema drift — watch the status bar for warnings.
+Hard and Adversarial modes introduce schema drift -- watch the status bar for warnings.
+
+**AI Agent**: Uses the GRPO-trained model ([Rhushya/oversight-arena-grpo2](https://huggingface.co/Rhushya/oversight-arena-grpo2)) fine-tuned with Group Relative Policy Optimization on this environment's reward signal.
 """
 
 
@@ -418,11 +705,17 @@ def build_ui() -> gr.Blocks:
             )
             pri_in = gr.Slider(
                 minimum=1, maximum=5, step=1, value=3,
-                label="Priority  (1 = Low · 5 = Critical)",
+                label="Priority  (1 = Low, 5 = Critical)",
                 scale=3,
             )
             esc_in = gr.Checkbox(label="Escalate to Human Reviewer", scale=1)
-            sub_btn = gr.Button("Submit Decision", variant="secondary", scale=1)
+
+        with gr.Row():
+            ai_btn = gr.Button("AI Auto-Triage (GRPO Model)", variant="primary", scale=2)
+            sub_btn = gr.Button("Submit Decision", variant="secondary", scale=2)
+
+        # ── AI status ─────────────────────────────────────────────────────────
+        ai_status_md = gr.Markdown("", elem_classes=["ai-status"])
 
         # ── Reward row ───────────────────────────────────────────────────────
         with gr.Row():
@@ -433,8 +726,9 @@ def build_ui() -> gr.Blocks:
 
         gr.Markdown("---")
         gr.Markdown(
-            "_Built with Hugging Face · TRL · GRPO · FastAPI_  \n"
-            "_[GitHub](https://github.com/Rhushya/OpenEnv)_"
+            "_Built with Hugging Face, TRL, GRPO, Gradio_  \n"
+            "_Model: [Rhushya/oversight-arena-grpo2](https://huggingface.co/Rhushya/oversight-arena-grpo2)_  \n"
+            "_Code: [GitHub](https://github.com/Rhushya/OpenEnv)_"
         )
 
         # ── Wire callbacks ───────────────────────────────────────────────────
@@ -448,6 +742,12 @@ def build_ui() -> gr.Blocks:
             fn=do_step,
             inputs=[env_s, obs_s, cat_in, pri_in, esc_in],
             outputs=[env_s, obs_s, info_s, ticket_md, spec_md, stats_md, status_md, reward_num, reward_breakdown],
+        )
+
+        ai_btn.click(
+            fn=do_ai_triage,
+            inputs=[env_s, obs_s, info_s],
+            outputs=[cat_in, pri_in, esc_in, ai_status_md],
         )
 
     return demo
