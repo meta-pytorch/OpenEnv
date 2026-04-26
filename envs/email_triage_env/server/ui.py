@@ -125,10 +125,15 @@ def _generate_local(model, tokenizer, email_text: str) -> str | None:
         )
         tokenizer.chat_template = chat_template
 
-        inputs = tokenizer.apply_chat_template(chat, tokenize=True, return_tensors="pt")
-        if isinstance(inputs, list):
-            import torch as _t
-            inputs = _t.tensor([inputs])
+        result = tokenizer.apply_chat_template(chat, tokenize=True, return_tensors="pt")
+
+        # Handle different return types from apply_chat_template
+        if isinstance(result, dict):
+            inputs = result["input_ids"]
+        elif isinstance(result, list):
+            inputs = torch.tensor([result])
+        else:
+            inputs = result
 
         # Move inputs to model device (GPU or CPU)
         device = next(model.parameters()).device
@@ -143,9 +148,11 @@ def _generate_local(model, tokenizer, email_text: str) -> str | None:
                 pad_token_id=tokenizer.pad_token_id,
             )
         generated = outputs[0][inputs.shape[-1]:]
-        return tokenizer.decode(generated, skip_special_tokens=True)
+        text = tokenizer.decode(generated, skip_special_tokens=True)
+        logger.info("Local generation produced: %s", text[:100])
+        return text
     except Exception as e:
-        logger.warning("Local generation failed: %s", e)
+        logger.warning("Local generation failed: %s", e, exc_info=True)
         return None
 
 
@@ -249,10 +256,15 @@ def do_ai_triage(env, obs, info):
         # Strategy 2: Local model
         model, tokenizer = _try_load_model()
         if model is not None:
-            steps.append("- Loading local model: `Qwen2.5-1.5B` + LoRA adapter...")
+            try:
+                import torch
+                _dev = "GPU" if torch.cuda.is_available() else "CPU"
+            except Exception:
+                _dev = "CPU"
+            steps.append(f"- Loading local model: `Qwen2.5-1.5B` + LoRA adapter ({_dev})...")
             ai_output = _generate_local(model, tokenizer, email_text)
             if ai_output:
-                method = "Local GRPO Model (CPU)"
+                method = f"Local GRPO Model ({_dev})"
                 steps.append(f"- Method: `{method}`")
                 steps.append(f"- Status: Success")
             else:
