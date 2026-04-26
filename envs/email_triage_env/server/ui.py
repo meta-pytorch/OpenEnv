@@ -59,11 +59,15 @@ def _try_load_model():
         from transformers import AutoModelForCausalLM, AutoTokenizer
         from peft import PeftModel
 
-        logger.info("Loading base model %s ...", BASE_MODEL_ID)
+        use_gpu = torch.cuda.is_available()
+        dtype = torch.float16 if use_gpu else torch.float32
+        device = "auto" if use_gpu else "cpu"
+        logger.info("Loading base model %s (device=%s, dtype=%s)...", BASE_MODEL_ID, device, dtype)
+
         base = AutoModelForCausalLM.from_pretrained(
             BASE_MODEL_ID,
-            torch_dtype=torch.float32,
-            device_map="cpu",
+            torch_dtype=dtype,
+            device_map=device,
             low_cpu_mem_usage=True,
         )
         logger.info("Loading LoRA adapter %s ...", GRPO_MODEL_ID)
@@ -76,7 +80,7 @@ def _try_load_model():
 
         _model_cache["model"] = model
         _model_cache["tokenizer"] = tokenizer
-        logger.info("GRPO model loaded successfully.")
+        logger.info("GRPO model loaded successfully (GPU=%s).", use_gpu)
         return model, tokenizer
     except Exception as e:
         logger.warning("Could not load GRPO model locally: %s", e)
@@ -125,6 +129,10 @@ def _generate_local(model, tokenizer, email_text: str) -> str | None:
         if isinstance(inputs, list):
             import torch as _t
             inputs = _t.tensor([inputs])
+
+        # Move inputs to model device (GPU or CPU)
+        device = next(model.parameters()).device
+        inputs = inputs.to(device)
 
         with torch.no_grad():
             outputs = model.generate(
@@ -402,16 +410,16 @@ def do_autopilot(env, obs, info, difficulty):
                 f"Ovr:{comps.get('oversight', 0):.1f}"
             )
 
-        emoji = "\u2705" if reward >= 0.7 else "\u26a0\ufe0f" if reward >= 0.3 else "\u274c"
+        status_tag = "GOOD" if reward >= 0.7 else "OK" if reward >= 0.3 else "LOW"
         log_lines.append(
-            f"**Ticket {step_num}:** `{subject[:50]}` "
-            f"\u2192 `{cat}` pri=`{pri}` esc=`{esc}` "
-            f"\u2192 Reward: **{reward:.2f}** {emoji} ({comp_str})"
+            f"**Ticket {step_num}:** `{subject[:50]}` -- "
+            f"`{cat}` pri=`{pri}` esc=`{esc}` -- "
+            f"Reward: **{reward:.2f}** [{status_tag}] ({comp_str})"
         )
 
         # Check drift
         if info.get("policy_drift_occurred"):
-            log_lines.append("\u26a1 **SCHEMA DRIFT DETECTED** \u2014 policies changed mid-shift!")
+            log_lines.append("**[SCHEMA DRIFT]** Policies changed mid-shift.")
 
         if obs.done:
             break
@@ -598,7 +606,7 @@ div[class*="row"], div[class*="panel"] {
     border-radius: 0 4px 4px 0;
 }
 
-/* ── AI status (scrollable) ── */
+/* ── AI status ── */
 .ai-status {
     border: 1px solid #333 !important;
     border-radius: 6px;
@@ -606,8 +614,6 @@ div[class*="row"], div[class*="panel"] {
     background: #f8f8f8 !important;
     font-size: 0.8rem;
     color: #000000 !important;
-    max-height: 200px;
-    overflow-y: auto;
 }
 
 /* ── Buttons ── */
@@ -794,7 +800,7 @@ def build_ui() -> gr.Blocks:
             esc_in = gr.Checkbox(label="Escalate", scale=1)
             ai_btn = gr.Button("AI Auto-Triage", variant="primary", scale=2)
             sub_btn = gr.Button("Submit Decision", variant="secondary", scale=2)
-            auto_btn = gr.Button("\u2699 Autopilot", variant="secondary", scale=1)
+            auto_btn = gr.Button("Autopilot (Run All)", variant="secondary", scale=1)
 
         # ── Reward (always visible right after buttons) ───────────────────────
         with gr.Row():
