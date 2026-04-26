@@ -4,6 +4,8 @@
 
 Built on [OpenEnv](https://github.com/meta-pytorch/OpenEnv) | Gymnasium-style API (`reset`, `step`, `state`) | [BSD 3-Clause License](https://opensource.org/licenses/BSD-3-Clause)
 
+**[Live Demo (HF Space)](https://huggingface.co/spaces/Rhushya/email-triage-env-openenv)** | **[Demo Video (Loom)](https://www.loom.com/share/997b46f3c7cf46048ae25d3495b9db91)** | **[Blog Post](https://huggingface.co/spaces/Rhushya/email-triage-env-openenv/blob/main/BLOG.md)** | **[Trained Model](https://huggingface.co/Rhushya/oversight-arena-grpo2)** | **[Training Notebook](https://github.com/Rhushya/OpenEnv/blob/main/envs/email_triage_env/EmailTriage_GRPO_Train%20(3).ipynb)** | **[Source Code](https://github.com/Rhushya/OpenEnv)**
+
 ---
 
 ## Table of Contents
