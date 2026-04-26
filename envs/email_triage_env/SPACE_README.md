@@ -25,7 +25,7 @@ short_description: "Multi-agent email triage with GRPO AI"
 
 > Train an AI coordinator to manage a team of specialist agents, triage emails at scale, and adapt to mid-shift policy changes -- all with deterministic, anti-hack reward signals.
 
-**[Blog Post](BLOG.md)** | **[Trained Model](https://huggingface.co/Rhushya/oversight-arena-grpo2)** | **[Source Code](https://github.com/Rhushya/OpenEnv)** | **[Training Notebook](https://github.com/Rhushya/OpenEnv/blob/main/envs/email_triage_env/EmailTriage_GRPO_Train%20(3).ipynb)**
+**[Demo Video (Loom)](https://www.loom.com/share/997b46f3c7cf46048ae25d3495b9db91)** | **[Blog Post](BLOG.md)** | **[Trained Model](https://huggingface.co/Rhushya/oversight-arena-grpo2)** | **[Source Code](https://github.com/Rhushya/OpenEnv)** | **[Training Notebook](https://github.com/Rhushya/OpenEnv/blob/main/envs/email_triage_env/final_running.ipynb)**
 
 ---
 
