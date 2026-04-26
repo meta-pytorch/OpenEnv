@@ -349,6 +349,96 @@ def do_step(env, obs, category, priority, escalate):
     return env, obs, info, ticket_md, spec_md, stats_md, status, float(obs.reward), reward_breakdown
 
 
+def do_autopilot(env, obs, info, difficulty):
+    """Autopilot: AI-triage + submit in a loop until queue is done."""
+    if env is None or obs is None:
+        # Start fresh if no queue
+        seed = random.randint(0, 9999)
+        env = EmailTriageEnvironment(difficulty=difficulty)
+        obs = env.reset(seed=seed, difficulty=difficulty)
+        info = obs.info or {}
+
+    log_lines = ["### Autopilot Running\n"]
+    total_reward = 0.0
+    step_num = 0
+    queue_size = (info or {}).get("queue_size", "?")
+    log_lines.append(f"Queue: **{queue_size}** tickets in **{difficulty.upper()}** mode\n")
+
+    while True:
+        if obs.done:
+            break
+        step_num += 1
+
+        # AI triage for this ticket
+        d = obs if isinstance(obs, dict) else obs.model_dump() if hasattr(obs, "model_dump") else vars(obs)
+        subject = d.get("subject", "?")
+
+        # Get AI decision
+        _, _, _, _ = do_ai_triage(env, obs, info)
+        consensus = _specialist_consensus(info or {})
+        cat = consensus["category"]
+        pri = consensus["priority"]
+        esc = consensus["escalate"]
+
+        # Submit decision
+        action = EmailTriageAction(
+            category=cat,
+            priority=int(pri),
+            should_escalate=bool(esc),
+        )
+        obs = env.step(action)
+        info = obs.info or {}
+        comps = info.get("reward_components", {})
+        reward = float(obs.reward)
+        total_reward += reward
+
+        # Format reward components
+        comp_str = ""
+        if comps:
+            comp_str = (
+                f"Q:{comps.get('quality', 0):.1f} "
+                f"SLA:{comps.get('sla', 0):.1f} "
+                f"Pol:{comps.get('policy', 0):.1f} "
+                f"Ovr:{comps.get('oversight', 0):.1f}"
+            )
+
+        emoji = "\u2705" if reward >= 0.7 else "\u26a0\ufe0f" if reward >= 0.3 else "\u274c"
+        log_lines.append(
+            f"**Ticket {step_num}:** `{subject[:50]}` "
+            f"\u2192 `{cat}` pri=`{pri}` esc=`{esc}` "
+            f"\u2192 Reward: **{reward:.2f}** {emoji} ({comp_str})"
+        )
+
+        # Check drift
+        if info.get("policy_drift_occurred"):
+            log_lines.append("\u26a1 **SCHEMA DRIFT DETECTED** \u2014 policies changed mid-shift!")
+
+        if obs.done:
+            break
+
+    # Final summary
+    s = env.state
+    log_lines.append("")
+    log_lines.append("---")
+    log_lines.append(f"### Autopilot Complete")
+    log_lines.append(f"- **Tickets resolved:** {s.tickets_resolved}/{s.queue_size}")
+    log_lines.append(f"- **Total reward:** {s.total_reward:.3f}")
+    log_lines.append(f"- **SLA breaches:** {s.sla_breaches}")
+    log_lines.append(f"- **Policy violations:** {s.policy_violations}")
+    log_lines.append(f"- **Oversight catches:** {s.oversight_catches}")
+    log_lines.append(f"- **Drift events:** {s.drift_count}")
+    avg = s.total_reward / max(1, s.tickets_resolved)
+    log_lines.append(f"- **Avg reward/ticket:** {avg:.3f}")
+
+    ticket_md = "### Queue Complete\nAll tickets have been processed."
+    spec_md = ""
+    stats_md = _fmt_stats(info)
+    status = f"Autopilot finished -- {s.tickets_resolved}/{s.queue_size} tickets | Total reward: {s.total_reward:.3f}"
+    autopilot_log = "\n".join(log_lines)
+
+    return env, obs, info, ticket_md, spec_md, stats_md, status, float(obs.reward), "", autopilot_log
+
+
 # ── Formatters ────────────────────────────────────────────────────────────────
 
 def _fmt_ticket(obs) -> str:
@@ -704,6 +794,7 @@ def build_ui() -> gr.Blocks:
             esc_in = gr.Checkbox(label="Escalate", scale=1)
             ai_btn = gr.Button("AI Auto-Triage", variant="primary", scale=2)
             sub_btn = gr.Button("Submit Decision", variant="secondary", scale=2)
+            auto_btn = gr.Button("\u2699 Autopilot", variant="secondary", scale=1)
 
         # ── Reward (always visible right after buttons) ───────────────────────
         with gr.Row():
@@ -716,6 +807,13 @@ def build_ui() -> gr.Blocks:
         with gr.Accordion("AI Pipeline Log", open=False):
             ai_status_md = gr.Markdown(
                 "_Click **AI Auto-Triage** to see the step-by-step pipeline here._",
+                elem_classes=["ai-status"],
+            )
+
+        # ── Autopilot Log ─────────────────────────────────────────────────────
+        with gr.Accordion("Autopilot Log", open=False):
+            autopilot_md = gr.Markdown(
+                "_Click **Autopilot** to process all tickets automatically._",
                 elem_classes=["ai-status"],
             )
 
@@ -745,6 +843,12 @@ def build_ui() -> gr.Blocks:
             fn=do_ai_triage,
             inputs=[env_s, obs_s, info_s],
             outputs=[cat_in, pri_in, esc_in, ai_status_md],
+        )
+
+        auto_btn.click(
+            fn=do_autopilot,
+            inputs=[env_s, obs_s, info_s, difficulty],
+            outputs=[env_s, obs_s, info_s, ticket_md, spec_md, stats_md, status_md, reward_num, reward_breakdown, autopilot_md],
         )
 
     return demo
