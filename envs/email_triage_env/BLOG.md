@@ -8,6 +8,8 @@
 
 We built a multi-agent reinforcement learning environment where an AI coordinator learns to manage 4 specialist agents, triage enterprise emails, and adapt to mid-shift policy changes. The coordinator — a Qwen2.5-1.5B model fine-tuned with GRPO — learns to synthesize conflicting specialist signals, detect errors, and comply with shifting policies. Everything runs as an interactive demo on [HuggingFace Spaces](https://huggingface.co/spaces/Rhushya/email-triage-env-openenv).
 
+📺 **[Watch the Demo Video (Loom) Here](https://www.loom.com/share/997b46f3c7cf46048ae25d3495b9db91)**
+
 ---
 
 ## The Problem: Email Triage is Harder Than Classification
