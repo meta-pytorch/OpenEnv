@@ -379,11 +379,11 @@ def do_autopilot(env, obs, info, difficulty):
         obs = env.reset(seed=seed, difficulty=difficulty)
         info = obs.info or {}
 
-    log_lines = ["### Autopilot Running\n"]
+    rows = []  # collect table rows
     total_reward = 0.0
     step_num = 0
     queue_size = (info or {}).get("queue_size", "?")
-    log_lines.append(f"Queue: **{queue_size}** tickets in **{difficulty.upper()}** mode\n")
+    drift_notes = []
 
     while True:
         if obs.done:
@@ -413,49 +413,53 @@ def do_autopilot(env, obs, info, difficulty):
         reward = float(obs.reward)
         total_reward += reward
 
-        # Format reward components
-        comp_str = ""
-        if comps:
-            comp_str = (
-                f"Q:{comps.get('quality', 0):.1f} "
-                f"SLA:{comps.get('sla', 0):.1f} "
-                f"Pol:{comps.get('policy', 0):.1f} "
-                f"Ovr:{comps.get('oversight', 0):.1f}"
-            )
+        q = comps.get('quality', 0)
+        sla = comps.get('sla', 0)
+        pol = comps.get('policy', 0)
+        ovr = comps.get('oversight', 0)
 
-        status_tag = "GOOD" if reward >= 0.7 else "OK" if reward >= 0.3 else "LOW"
-        log_lines.append(
-            f"**Ticket {step_num}:** `{subject[:50]}` -- "
-            f"`{cat}` pri=`{pri}` esc=`{esc}` -- "
-            f"Reward: **{reward:.2f}** [{status_tag}] ({comp_str})"
+        drift_flag = "Yes" if info.get("policy_drift_occurred") else ""
+        if drift_flag:
+            drift_notes.append(f"Drift detected after ticket {step_num}.")
+
+        rows.append(
+            f"| {step_num} | {subject[:40]} | {cat} | {pri} | {esc} | {reward:.2f} | {q:.1f} | {sla:.1f} | {pol:.1f} | {ovr:.1f} | {drift_flag} |"
         )
-
-        # Check drift
-        if info.get("policy_drift_occurred"):
-            log_lines.append("**[SCHEMA DRIFT]** Policies changed mid-shift.")
 
         if obs.done:
             break
 
+    # Build markdown table
+    header = f"### Autopilot Results -- {queue_size} tickets, {difficulty.upper()} mode\n"
+    table_header = "| # | Subject | Category | Pri | Esc | Reward | Quality | SLA | Policy | Oversight | Drift |\n"
+    table_sep    = "|---|---------|----------|-----|-----|--------|---------|-----|--------|-----------|-------|\n"
+    table_body   = "\n".join(rows)
+
     # Final summary
     s = env.state
-    log_lines.append("")
-    log_lines.append("---")
-    log_lines.append(f"### Autopilot Complete")
-    log_lines.append(f"- **Tickets resolved:** {s.tickets_resolved}/{s.queue_size}")
-    log_lines.append(f"- **Total reward:** {s.total_reward:.3f}")
-    log_lines.append(f"- **SLA breaches:** {s.sla_breaches}")
-    log_lines.append(f"- **Policy violations:** {s.policy_violations}")
-    log_lines.append(f"- **Oversight catches:** {s.oversight_catches}")
-    log_lines.append(f"- **Drift events:** {s.drift_count}")
     avg = s.total_reward / max(1, s.tickets_resolved)
-    log_lines.append(f"- **Avg reward/ticket:** {avg:.3f}")
+    summary = (
+        f"\n\n### Summary\n\n"
+        f"| Metric | Value |\n"
+        f"|--------|-------|\n"
+        f"| Tickets resolved | {s.tickets_resolved}/{s.queue_size} |\n"
+        f"| Total reward | {s.total_reward:.3f} |\n"
+        f"| Avg reward/ticket | {avg:.3f} |\n"
+        f"| SLA breaches | {s.sla_breaches} |\n"
+        f"| Policy violations | {s.policy_violations} |\n"
+        f"| Oversight catches | {s.oversight_catches} |\n"
+        f"| Drift events | {s.drift_count} |\n"
+    )
+
+    if drift_notes:
+        summary += "\n" + "\n".join(f"- {n}" for n in drift_notes)
+
+    autopilot_log = header + table_header + table_sep + table_body + summary
 
     ticket_md = "### Queue Complete\nAll tickets have been processed."
     spec_md = ""
     stats_md = _fmt_stats(info)
     status = f"Autopilot finished -- {s.tickets_resolved}/{s.queue_size} tickets | Total reward: {s.total_reward:.3f}"
-    autopilot_log = "\n".join(log_lines)
 
     return env, obs, info, ticket_md, spec_md, stats_md, status, float(obs.reward), "", autopilot_log
 
@@ -530,12 +534,10 @@ def _fmt_stats(info: dict) -> str:
 # ── UI builder ────────────────────────────────────────────────────────────────
 
 CSS = """
-/* ── FORCE WHITE EVERYWHERE ── */
-body,
-.gradio-container,
+/* === GLOBAL RESET: white bg, no nested borders === */
+body, .gradio-container, .gradio-container *,
 .gr-block, .gr-box, .gr-form, .gr-panel, .gr-group,
-.gr-padded, .gr-compact,
-.contain,
+.gr-padded, .gr-compact, .contain,
 div[class*="block"], div[class*="wrap"],
 .dark, [data-testid] {
     background: #ffffff !important;
@@ -543,18 +545,24 @@ div[class*="block"], div[class*="wrap"],
     color: #111111 !important;
     font-family: 'Inter', 'Helvetica Neue', Arial, sans-serif !important;
 }
-
-/* ── Every Gradio column, row, tab, accordion ── */
 .gr-row, .gr-column, .gr-tab, .gr-tabs,
 .gr-accordion, .gr-accordion-header,
-.svelte-1drgfvp, .svelte-1gfkn6j,
 div[class*="container"], div[class*="column"],
 div[class*="row"], div[class*="panel"] {
     background: #ffffff !important;
     background-color: #ffffff !important;
 }
 
-/* ── Markdown containers ── */
+/* === KILL ALL inner borders from Gradio wrapper divs === */
+.gr-box, .gr-panel, .gr-form, .gr-block, .gr-group,
+.block, div.block, .wrap, div.wrap,
+.gr-padded, .gr-compact,
+div[class*="block"]:not(.panel-ticket):not(.panel-specialists):not(.panel-stats):not(.status-bar):not(.ai-status):not(.reward-strip) {
+    border: none !important;
+    box-shadow: none !important;
+}
+
+/* === Text === */
 .gr-markdown, .gr-markdown p, .gr-markdown li,
 .gr-markdown h1, .gr-markdown h2, .gr-markdown h3,
 .gr-markdown h4, .gr-markdown strong, .gr-markdown em,
@@ -562,157 +570,86 @@ div[class*="row"], div[class*="panel"] {
     color: #000000 !important;
     background: transparent !important;
 }
+.gr-markdown a, .prose a { color: #000 !important; text-decoration: underline; }
 
-/* ── Links ── */
-.gr-markdown a, .prose a { color: #000000 !important; text-decoration: underline; }
+/* === Header === */
+.arena-header { border-bottom: 2px solid #111; padding: 16px 0 12px 0; margin-bottom: 4px; }
+.arena-title { font-size: 1.4rem; font-weight: 700; letter-spacing: -0.02em; color: #000 !important; margin: 0 0 2px 0; }
+.arena-subtitle { font-size: 0.8rem; color: #000 !important; margin: 0; }
 
-/* ── Header ── */
-.arena-header {
-    border-bottom: 2px solid #111111;
-    padding: 16px 0 12px 0;
-    margin-bottom: 4px;
-    background: #ffffff !important;
-}
-.arena-title {
-    font-size: 1.4rem;
-    font-weight: 700;
-    letter-spacing: -0.02em;
-    color: #000000 !important;
-    margin: 0 0 2px 0;
-}
-.arena-subtitle {
-    font-size: 0.8rem;
-    color: #000000 !important;
-    margin: 0;
-}
-
-/* ── Ticket & Specialist panels ── */
+/* === Main panels (only these get a single outer border) === */
 .panel-ticket, .panel-specialists {
-    border: 1px solid #000000 !important;
+    border: 1px solid #000 !important;
     border-radius: 6px;
     padding: 12px 16px;
-    background: #ffffff !important;
-    background-color: #ffffff !important;
-    color: #000000 !important;
+    color: #000 !important;
     min-height: 160px;
 }
-
-/* ── Stats bar ── */
 .panel-stats {
-    border: 1px solid #000000 !important;
+    border: 1px solid #000 !important;
     border-radius: 6px;
     padding: 8px 12px;
-    background: #ffffff !important;
-    background-color: #ffffff !important;
     font-size: 0.8rem;
-    color: #000000 !important;
+    color: #000 !important;
 }
-
-/* ── Status bar ── */
 .status-bar {
-    border-left: 3px solid #000000;
+    border-left: 3px solid #000;
     padding: 6px 10px;
-    background: #ffffff !important;
-    background-color: #ffffff !important;
     font-size: 0.8rem;
-    color: #000000 !important;
+    color: #000 !important;
     border-radius: 0 4px 4px 0;
 }
 
-/* ── AI status ── */
+/* === AI / Autopilot log (no border, clean) === */
 .ai-status {
-    border: 1px solid #333 !important;
-    border-radius: 6px;
     padding: 10px 14px;
-    background: #f8f8f8 !important;
     font-size: 0.8rem;
-    color: #000000 !important;
+    color: #000 !important;
+    border: none !important;
 }
+/* Table styling inside logs */
+.ai-status table { width: 100%; border-collapse: collapse; font-size: 0.75rem; margin: 8px 0; }
+.ai-status th, .ai-status td { border: 1px solid #ccc; padding: 4px 6px; text-align: left; }
+.ai-status th { background: #f0f0f0 !important; font-weight: 600; }
 
-/* ── Buttons ── */
-button.primary, button[class*="primary"] {
-    background: #ffffff !important;
-    background-color: #ffffff !important;
-    color: #000000 !important;
-    border: 1.5px solid #000000 !important;
-    border-radius: 4px !important;
-    font-weight: 600 !important;
-}
-button.primary:hover, button[class*="primary"]:hover {
-    background: #f0f0f0 !important;
-    background-color: #f0f0f0 !important;
-}
+/* === Buttons === */
+button.primary, button[class*="primary"],
 button.secondary, button[class*="secondary"] {
-    background: #ffffff !important;
-    background-color: #ffffff !important;
-    color: #000000 !important;
-    border: 1.5px solid #000000 !important;
+    background: #fff !important;
+    color: #000 !important;
+    border: 1.5px solid #000 !important;
     border-radius: 4px !important;
     font-weight: 600 !important;
 }
+button.primary:hover, button[class*="primary"]:hover,
 button.secondary:hover, button[class*="secondary"]:hover {
     background: #f0f0f0 !important;
-    background-color: #f0f0f0 !important;
 }
 
-/* ── Inputs, dropdowns, sliders ── */
-input, select, textarea,
-.gr-dropdown, .gr-slider,
-div[class*="input"], div[class*="dropdown"],
-div[class*="select"], div[class*="slider"] {
-    border: 1px solid #000000 !important;
+/* === Inputs === */
+input, select, textarea, .gr-dropdown, .gr-slider {
+    border: 1px solid #000 !important;
     border-radius: 4px !important;
-    background: #ffffff !important;
-    background-color: #ffffff !important;
-    color: #000000 !important;
+    background: #fff !important;
+    color: #000 !important;
 }
-input:focus, select:focus, textarea:focus {
-    border-color: #000000 !important;
-    outline: none !important;
-}
+input:focus, select:focus, textarea:focus { border-color: #000 !important; outline: none !important; }
 
-/* ── Labels ── */
-label, .gr-label, span[data-testid="block-label"] {
-    color: #000000 !important;
-}
+/* === Labels === */
+label, .gr-label, span[data-testid="block-label"] { color: #000 !important; }
+.section-label { font-size: 0.7rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: #000 !important; margin-bottom: 4px; }
 
-.section-label {
-    font-size: 0.7rem;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.08em;
-    color: #000000 !important;
-    margin-bottom: 4px;
-}
+/* === Reward strip === */
+.reward-strip { color: #000 !important; border: 1px solid #000 !important; border-radius: 4px; padding: 6px 12px; font-size: 0.8rem; font-weight: 500; }
 
-/* ── Reward strip ── */
-.reward-strip {
-    background: #ffffff !important;
-    color: #000000 !important;
-    border: 1px solid #000000 !important;
-    border-radius: 4px;
-    padding: 6px 12px;
-    font-size: 0.8rem;
-    font-weight: 500;
-}
-
-/* ── Dividers ── */
-hr { border: none; border-top: 1px solid #eeeeee; margin: 8px 0; }
-
-/* ── Number inputs ── */
-.gr-number input { background: #ffffff !important; color: #000000 !important; }
-
-/* ── Checkbox ── */
-.gr-checkbox label { color: #000000 !important; }
-
-/* ── Accordion ── */
-.gr-accordion { border-color: #000000 !important; }
-
-/* ── Hide Gradio footer ── */
+/* === Misc === */
+hr { border: none; border-top: 1px solid #eee; margin: 8px 0; }
+.gr-number input { background: #fff !important; color: #000 !important; }
+.gr-checkbox label { color: #000 !important; }
+.gr-accordion { border-color: #000 !important; }
 footer { display: none !important; }
-
-/* ── Force max width ── */
 .gradio-container { max-width: 1200px !important; margin: auto; }
+
 
 /* ── Reduce gap between blocks ── */
 .gap { gap: 8px !important; }
