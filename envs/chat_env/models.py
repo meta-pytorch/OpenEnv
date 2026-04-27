@@ -11,10 +11,26 @@ The Chat environment provides a chat-based interface for LLMs with support
 for tokenization and message history management.
 """
 
-import torch
 from openenv.core.env_server.interfaces import Message
 from openenv.core.env_server.types import Action, Observation, State
 from pydantic import Field, field_validator
+
+
+def _flatten_tokens(value) -> list[int]:
+    """Coerce nested tensor-like or sequence inputs into a flat token list."""
+    if hasattr(value, "tolist") and callable(value.tolist):
+        value = value.tolist()
+
+    if isinstance(value, tuple):
+        value = list(value)
+
+    if isinstance(value, list):
+        flattened: list[int] = []
+        for item in value:
+            flattened.extend(_flatten_tokens(item))
+        return flattened
+
+    return [int(value)]
 
 
 class ChatAction(Action):
@@ -30,25 +46,16 @@ class ChatAction(Action):
     @classmethod
     def _coerce_tokens(cls, value):
         """Accept either tensors or JSON arrays on the public HTTP surface."""
-        if isinstance(value, torch.Tensor):
-            value = value.flatten().tolist()
-        elif hasattr(value, "tolist") and callable(value.tolist):
-            value = value.tolist()
-
-        if isinstance(value, tuple):
-            value = list(value)
-        if isinstance(value, list):
-            return [int(token) for token in value]
-        raise TypeError("tokens must be provided as a list of token ids")
+        if isinstance(value, (list, tuple)) or hasattr(value, "tolist"):
+            return _flatten_tokens(value)
+        raise TypeError("tokens must be provided as a sequence of token ids")
 
 
 class ChatState(State):
     """State of the ChatEnvironment containing message history."""
 
     history_messages: list[Message] = Field(default_factory=list)
-    history_tokens: list[torch.Tensor] = Field(
-        default_factory=list
-    )  # Same len as messages
+    history_tokens: list[list[int]] = Field(default_factory=list)  # Same len as messages
 
 
 class ChatObservation(Observation):

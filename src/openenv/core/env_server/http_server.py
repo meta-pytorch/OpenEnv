@@ -218,6 +218,11 @@ class HTTPEnvServer:
         # This is needed for environments using sync libraries (e.g., Playwright)
         self._executor = ThreadPoolExecutor(max_workers=32)
 
+        self._requires_single_thread_executor = self._detect_single_thread_requirement()
+        self._shared_session_executor: Optional[ThreadPoolExecutor] = None
+        if self._requires_single_thread_executor:
+            self._shared_session_executor = ThreadPoolExecutor(max_workers=1)
+
         # Idle session reaper configuration.
         # Timeout is taken from ConcurrencyConfig.session_timeout;
         # None means no timeout (default — reaper is a no-op).
@@ -234,11 +239,17 @@ class HTTPEnvServer:
             ConcurrencyConfigurationError: If max_concurrent_envs > 1 for an
                 environment that is not marked as SUPPORTS_CONCURRENT_SESSIONS.
         """
+        import functools
+
         if self._max_concurrent_envs <= 1:
             return
 
-        if inspect.isclass(self._env_factory):
-            env_cls = self._env_factory
+        factory = self._env_factory
+        if isinstance(factory, functools.partial):
+            factory = factory.func
+
+        if inspect.isclass(factory):
+            env_cls = factory
         else:
             _temp_env = self._env_factory()
             env_cls = type(_temp_env)
@@ -250,6 +261,16 @@ class HTTPEnvServer:
                 environment_name=env_cls.__name__,
                 max_concurrent_envs=self._max_concurrent_envs,
             )
+
+    def _detect_single_thread_requirement(self) -> bool:
+        import functools
+
+        factory = self._env_factory
+        if isinstance(factory, functools.partial):
+            factory = factory.func
+        if inspect.isclass(factory):
+            return getattr(factory, "REQUIRES_SINGLE_THREAD_EXECUTOR", False)
+        return False
 
     def get_capacity_status(self) -> ServerCapacityStatus:
         """
@@ -316,7 +337,10 @@ class HTTPEnvServer:
 
             # Create executor and reserve slot so capacity is not exceeded while
             # we create the env outside the lock (avoids blocking other sessions)
-            executor = ThreadPoolExecutor(max_workers=1)
+            if self._shared_session_executor is not None:
+                executor = self._shared_session_executor
+            else:
+                executor = ThreadPoolExecutor(max_workers=1)
             self._session_executors[session_id] = executor
             self._sessions[session_id] = None  # placeholder until env is ready
 
@@ -326,7 +350,8 @@ class HTTPEnvServer:
             env = await loop.run_in_executor(executor, self._env_factory)
         except Exception as e:
             async with self._session_lock:
-                executor.shutdown(wait=False)
+                if executor is not self._shared_session_executor:
+                    executor.shutdown(wait=False)
                 self._session_executors.pop(session_id, None)
                 self._sessions.pop(session_id, None)
             factory_name = getattr(
@@ -421,8 +446,7 @@ class HTTPEnvServer:
                 except Exception:
                     pass  # Best effort cleanup
 
-        # Shutdown executor after close is done
-        if executor is not None:
+        if executor is not None and executor is not self._shared_session_executor:
             executor.shutdown(wait=False)
 
     def _update_session_activity(
@@ -568,6 +592,8 @@ class HTTPEnvServer:
 
         async def _stop_session_reaper() -> None:
             server_ref._stop_reaper()
+            if server_ref._shared_session_executor is not None:
+                server_ref._shared_session_executor.shutdown(wait=True)
 
         if not getattr(app.router, "_openenv_reaper_registered", False):
             app.router.on_startup.append(_start_session_reaper)
