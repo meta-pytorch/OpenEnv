@@ -1,5 +1,9 @@
 # Environments
 
+```{note}
+The environments listed here may not reflect the latest additions. For the most recent and up-to-date collection, visit the [OpenEnv Environment Hub on Hugging Face](https://huggingface.co/collections/openenv/openenv-environment-hub), which is kept current as new environments are added. The environments highlighted below are a curated selection from the full catalog.
+```
+
 The OpenEnv community has built a catalog of ready-to-run environments that cover deterministic smoke tests, full developer workflows, and multi-step reasoning challenges. Explore the surface area below and jump directly into the guides for each environment.
 
 `````{grid} 1 2 3 3
