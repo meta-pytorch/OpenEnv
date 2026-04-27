@@ -182,7 +182,7 @@ def _format_repl_response(
     if final_answer:
         sections.append(f"### 🎯 Answer\n\n> **{final_answer}**")
 
-    task_prompt = observation.get("task_prompt")
+    task_prompt = observation.get("metadata", {}).get("task_prompt")
     if task_prompt:
         sections.append(f"**Task:** {task_prompt}")
 
