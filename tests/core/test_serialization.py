@@ -21,8 +21,10 @@ from openenv.core.generic_client import GenericEnvClient
 # Helpers
 # ---------------------------------------------------------------------
 
+
 class CustomObservation(Observation):
     """Observation subclass with domain-specific fields."""
+
     ally_tree: str = ""
     task_instruction: str = ""
 
@@ -30,6 +32,7 @@ class CustomObservation(Observation):
 # ---------------------------------------------------------------------
 # serialize_observation tests
 # ---------------------------------------------------------------------
+
 
 class TestSerializeObservation:
     """Tests for serialize_observation()."""
@@ -91,6 +94,7 @@ class TestSerializeObservation:
 # ---------------------------------------------------------------------
 # Round-trip: serialize -> client parse
 # ---------------------------------------------------------------------
+
 
 class TestMetadataRoundTrip:
     """End-to-end: serialize on server, parse on client."""
