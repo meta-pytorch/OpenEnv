@@ -142,6 +142,10 @@ The `ToolError.error_type` enum (`TOOL_NOT_FOUND`, `INVALID_ARGS`, `EXECUTION_ER
 
 Environment clients that inherit from `MCPToolClient` (such as `EchoEnv` and `FinQAEnv`) expose a shorter **async** `await env.call_tool("name", arg=value)` helper. It still goes through the step loop and still updates rewards, step counts, and trajectory state, but returns the tool's raw return value directly instead of a `CallToolObservation` — and it **raises `RuntimeError`** on any `obs.error` (transport failure, unknown tool, or a tool exception), so you cannot branch on `error_type` without a `try/except`. Use `step(CallToolAction(...))` when you need the whole observation (reward, done, metadata, or graceful error classification); reach for `call_tool()` in async scripts where the raw result is all you care about and a failure is allowed to propagate. The [lifecycle guide](../mcp-environment-lifecycle.md#which-pattern-should-you-use) covers the exact trade-offs.
 
+```{note}
+`call_tool()` is production-only: `MCPToolClient.__init__` raises `ValueError` if `mode != "production"`. In simulation contexts, route tool calls through `step(CallToolAction(...))` instead.
+```
+
 ## Using MCP Tools for Evaluation
 
 The same mechanics work outside a training loop. For an offline eval — benchmarking a model's tool use on a static dataset, regression-testing a deployed agent, or scoring a policy — drop the trainer and drive the step loop yourself:
@@ -226,7 +230,7 @@ class EchoEnvironment(MCPEnvironment):
         return Observation(
             done=False,
             reward=0.0,
-            metadata={"error": f"Unsupported action type: {type(action).__name__}"},
+            metadata={"error": f"Unknown action type: {type(action).__name__}"},
         )
 
     @property
