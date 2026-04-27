@@ -454,11 +454,13 @@ def create_web_interface_app(
         custom_tab_name: Label shown on the env-specific tab when ``gradio_builder``
             is provided. Defaults to ``"Custom"`` for backwards compatibility; envs
             that ship a rich custom UI should pass a descriptive name
-            (e.g. ``"REPL"``).
+            (e.g. ``"REPL"``). Ignored when ``show_default_tab=False`` (no tab chrome
+            is rendered).
         custom_tab_primary: When True, the env-specific tab is rendered first and
             selected by default; the auto-generated Playground becomes secondary.
             Use this for envs whose custom tab is the real interaction surface
-            (so visitors don't land on a less informative schema form).
+            (so visitors don't land on a less informative schema form). Ignored
+            when ``show_default_tab=False``.
         show_default_tab: When False, the auto-generated Playground tab is not
             rendered and the env's ``gradio_builder`` output is mounted directly
             (single-view UI, no tab chrome). Only meaningful when
