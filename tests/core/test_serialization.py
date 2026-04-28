@@ -13,7 +13,7 @@ round-trip through serialize_observation() and GenericEnvClient._parse_result().
 
 import pytest
 from openenv.core.env_server.serialization import serialize_observation
-from openenv.core.env_server.types import Observation, ResetResponse
+from openenv.core.env_server.types import Observation, ResetResponse, StepResponse
 from openenv.core.generic_client import GenericEnvClient
 
 
@@ -96,6 +96,13 @@ class TestSerializeObservation:
         serialized = serialize_observation(obs)
         reset_response = ResetResponse(**serialized)
         assert reset_response.metadata == {"reset_key": "val"}
+
+    def test_step_response_metadata_preserved(self):
+        """StepResponse must preserve metadata from the observation."""
+        obs = Observation(metadata={"step_key": "val"})
+        serialized = serialize_observation(obs)
+        step_response = StepResponse(**serialized)
+        assert step_response.metadata == {"step_key": "val"}
 
 
 # ---------------------------------------------------------------------
