@@ -1,17 +1,17 @@
 """
 Verifier execution for AWM environments.
 
-Supports two verification modes:
-- "sql": Run verifier code to extract DB state info, then use LLM to judge.
-- "code": Run verifier code that deterministically returns "complete" or "others".
+Two verification modes:
+- "sql":  Verifier extracts DB state, then an LLM judges the trajectory.
+- "code": Verifier deterministically returns {"result": "complete"|"others"}.
 """
 
-import inspect
 import json
 import logging
 import os
 import re
-import sqlite3
+import subprocess
+import sys
 import textwrap
 from typing import Any
 
@@ -20,38 +20,61 @@ from openai import AsyncOpenAI
 logger = logging.getLogger(__name__)
 
 
-def _call_verifier_func(
-    verify_func: Any,
-    initial_db_path: str,
-    final_db_path: str,
-    final_answer: str | None = None,
-) -> Any:
-    """Call a verifier function with signature-aware argument passing.
+# Wall-clock backstop for the verifier subprocess
+VERIFIER_WALL_TIMEOUT_S = float(os.environ.get("OPENENV_AWM_VERIFIER_TIMEOUT", "20.0"))
 
-    Inspects the function's parameters and only passes arguments it accepts.
-    This handles both 2-arg (initial_db_path, final_db_path) and 3-arg
-    (..., final_answer) signatures without raising TypeError.
-    """
-    sig = inspect.signature(verify_func)
-    params = sig.parameters
+# isolate runner script
+_RUNNER_PATH = os.path.join(
+    os.path.dirname(os.path.abspath(__file__)), "_verifier_runner.py"
+)
 
-    kwargs: dict[str, Any] = {}
-    if "initial_db_path" in params:
-        kwargs["initial_db_path"] = initial_db_path
-    if "final_db_path" in params:
-        kwargs["final_db_path"] = final_db_path
-    if "final_answer" in params:
-        kwargs["final_answer"] = final_answer or ""
 
-    # Fallback: if the function uses positional args without keyword names,
-    # try positional calling
-    if not kwargs and len(params) >= 2:
-        args = [initial_db_path, final_db_path]
-        if len(params) >= 3:
-            args.append(final_answer or "")
-        return verify_func(*args)
+def _run_verifier_subprocess(payload: dict[str, Any]) -> dict[str, Any]:
+    """Invoke the runner. Returns a dict; never raises."""
+    try:
+        proc = subprocess.run(
+            [sys.executable, _RUNNER_PATH],
+            input=json.dumps(payload),
+            capture_output=True,
+            text=True,
+            timeout=VERIFIER_WALL_TIMEOUT_S,
+            check=False,
+        )
+    except subprocess.TimeoutExpired:
+        return {
+            "execution_status": "error",
+            "error_message": (f"Verifier timed out after {VERIFIER_WALL_TIMEOUT_S}s"),
+        }
+    except (OSError, ValueError) as e:
+        return {
+            "execution_status": "error",
+            "error_message": f"Failed to launch verifier subprocess: {e}",
+        }
 
-    return verify_func(**kwargs)
+    if proc.returncode != 0 and not proc.stdout.strip():
+        stderr = (proc.stderr or "").strip()
+        return {
+            "execution_status": "error",
+            "error_message": (
+                f"Verifier subprocess exited {proc.returncode}: {stderr[:500]}"
+            ),
+        }
+
+    if not proc.stdout.strip():
+        return {
+            "execution_status": "error",
+            "error_message": "Verifier subprocess produced no output",
+        }
+
+    try:
+        return json.loads(proc.stdout)
+    except json.JSONDecodeError as e:
+        return {
+            "execution_status": "error",
+            "error_message": (
+                f"Bad JSON from verifier subprocess ({e}): {proc.stdout[:500]}"
+            ),
+        }
 
 
 def execute_sql_verifier(
@@ -85,32 +108,16 @@ def execute_sql_verifier(
             pass
 
     try:
-        namespace = {
-            "sqlite3": sqlite3,
-            "json": json,
-            "os": os,
-            "__builtins__": __builtins__,
-        }
-        exec(verifier_code, namespace)
-
-        verify_func = namespace.get(function_name)
-        if not verify_func:
-            return {
-                "execution_status": "error",
-                "error_message": f"Function '{function_name}' not found",
+        return _run_verifier_subprocess(
+            {
+                "verifier_code": verifier_code,
+                "function_name": function_name,
+                "initial_db_path": initial_db_path,
+                "final_db_path": final_db_path,
+                "final_answer": None,
+                "mode": "sql",
             }
-
-        result = _call_verifier_func(verify_func, initial_db_path, final_db_path)
-
-        try:
-            json.dumps(result)
-        except TypeError:
-            result = _sanitize_for_json(result)
-
-        return result
-
-    except Exception as e:
-        return {"execution_status": "error", "error_message": f"Execution error: {e}"}
+        )
     finally:
         for path, mode in original_modes.items():
             try:
@@ -131,8 +138,6 @@ def execute_code_verifier(
     Returns:
         Dict with "result" key ("complete" or "others") and "execution_status".
     """
-    import re as re_module
-
     if not os.path.exists(initial_db_path):
         return {
             "result": "others",
@@ -155,56 +160,28 @@ def execute_code_verifier(
             pass
 
     try:
-        namespace = {
-            "sqlite3": sqlite3,
-            "json": json,
-            "os": os,
-            "re": re_module,
-            "__builtins__": __builtins__,
-        }
-        exec(verifier_code, namespace)
-
-        verify_func = namespace.get(function_name)
-        if not verify_func:
-            return {
-                "result": "others",
-                "execution_status": "error",
-                "error_message": f"Function '{function_name}' not found",
+        result = _run_verifier_subprocess(
+            {
+                "verifier_code": verifier_code,
+                "function_name": function_name,
+                "initial_db_path": initial_db_path,
+                "final_db_path": final_db_path,
+                "final_answer": final_answer,
+                "mode": "code",
             }
-
-        result = _call_verifier_func(
-            verify_func, initial_db_path, final_db_path, final_answer
         )
-
-        if not isinstance(result, dict) or "result" not in result:
-            return {
-                "result": "others",
-                "execution_status": "error",
-                "error_message": f"Invalid return format: {type(result).__name__}",
-            }
-
-        result_value = result.get("result", "others")
-        if result_value not in ("complete", "others"):
-            result_value = "others"
-
-        return {
-            "result": result_value,
-            "execution_status": "success",
-            "raw_result": result,
-        }
-
-    except Exception as e:
-        return {
-            "result": "others",
-            "execution_status": "error",
-            "error_message": f"Execution error: {e}",
-        }
     finally:
         for path, mode in original_modes.items():
             try:
                 os.chmod(path, mode)
             except Exception:
                 pass
+
+    # Normalize: code-mode callers expect "result" key on every return.
+    if "result" not in result:
+        result.setdefault("execution_status", "error")
+        result["result"] = "others"
+    return result
 
 
 def run_verifier(

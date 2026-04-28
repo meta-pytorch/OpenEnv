@@ -25,7 +25,12 @@ from .verifier import run_llm_judge, run_verifier
 
 logger = logging.getLogger(__name__)
 
-HIDDEN_TOOLS = frozenset(["done", "verify", "__list_scenarios__"])
+# Tools dispatched specially by step() (see _handle_done / _handle_verify /
+# _handle_list_scenarios) rather than proxied to the sub-env subprocess.
+# Not currently used to filter list_tools output — the sub-env subprocess
+# never surfaces these names. Kept commented for documentation.
+# HIDDEN_TOOLS = frozenset(["done", "verify", "__list_scenarios__"])
+
 VALID_VERIFIER_MODES = {"sql", "code"}
 
 # Default reward config: complete=1.0, incomplete=0.1, format_error=-1.0, others=0.0
@@ -237,7 +242,7 @@ class AWMEnvironment(Environment):
 
         try:
             full_code = self._data_loader.get_env_code(scenario_key)
-            mcp_url = self._process.start(full_code, self._db_path, self._session_dir)
+            self._process.start(full_code, self._db_path, self._session_dir)
         except Exception as e:
             logger.error(f"Failed to start sub-env for {scenario_key}: {e}")
             return AWMObservation(

@@ -21,7 +21,12 @@ from typing import Any
 from mcp import ClientSession
 from mcp.client.streamable_http import streamable_http_client
 
-from .config import MAX_PORT_RETRIES, READY_POLL_INTERVAL, READY_TIMEOUT, RETRY_READY_TIMEOUT
+from .config import (
+    MAX_PORT_RETRIES,
+    READY_POLL_INTERVAL,
+    READY_TIMEOUT,
+    RETRY_READY_TIMEOUT,
+)
 
 
 logger = logging.getLogger(__name__)
@@ -114,9 +119,7 @@ class _MCPConnection:
             for t in result.tools
         ]
 
-    async def call_tool(
-        self, tool_name: str, arguments: dict
-    ) -> dict[str, Any]:
+    async def call_tool(self, tool_name: str, arguments: dict) -> dict[str, Any]:
         assert self._session is not None, "Not connected"
         result = await self._session.call_tool(tool_name, arguments)
 

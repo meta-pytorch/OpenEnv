@@ -160,9 +160,6 @@ async def main():
             print(f"Input Schema: {tool.input_schema}")
             print("=" * 100)
 
-        # pre-format tool list text for agent loop
-        tools_text = format_tools(result.observation.tools)
-
         # =====================================================================
         # 4. Agent loop — LLM iteratively calls tools
         # =====================================================================

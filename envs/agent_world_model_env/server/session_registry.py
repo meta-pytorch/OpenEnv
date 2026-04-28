@@ -31,7 +31,9 @@ class SessionRegistry:
         self._sessions: dict[str, dict[str, Any]] = {}
         self._daemon_started = False
 
-    def register(self, session_id: str, env: "AWMEnvironment", scenario: str | None = None) -> None:
+    def register(
+        self, session_id: str, env: "AWMEnvironment", scenario: str | None = None
+    ) -> None:
         with self._lock:
             self._sessions[session_id] = {
                 "env": weakref.ref(env),
@@ -141,7 +143,11 @@ class SessionRegistry:
 
             # Prune dead weakrefs
             with self._lock:
-                dead = [sid for sid, entry in self._sessions.items() if entry["env"]() is None]
+                dead = [
+                    sid
+                    for sid, entry in self._sessions.items()
+                    if entry["env"]() is None
+                ]
                 for sid in dead:
                     del self._sessions[sid]
 

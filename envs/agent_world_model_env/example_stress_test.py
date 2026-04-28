@@ -127,9 +127,7 @@ class ResourceMonitor:
                 "system_mem_used_gb": round(
                     psutil.virtual_memory().used / (1024**3), 2
                 ),
-                "client_mem_mb": round(
-                    self._process.memory_info().rss / (1024**2), 1
-                ),
+                "client_mem_mb": round(self._process.memory_info().rss / (1024**2), 1),
             }
             if self._server_pid:
                 try:
@@ -141,9 +139,7 @@ class ResourceMonitor:
                             server_mem += child.memory_info().rss
                         except (psutil.NoSuchProcess, psutil.AccessDenied):
                             pass
-                    sample["server_tree_mem_mb"] = round(
-                        server_mem / (1024**2), 1
-                    )
+                    sample["server_tree_mem_mb"] = round(server_mem / (1024**2), 1)
                     sample["server_children"] = len(children)
                 except (psutil.NoSuchProcess, psutil.AccessDenied):
                     pass
@@ -171,13 +167,17 @@ class ResourceMonitor:
                 "max": round(max(client_mem), 1),
             },
         }
-        server_mem = [s["server_tree_mem_mb"] for s in self._samples if "server_tree_mem_mb" in s]
+        server_mem = [
+            s["server_tree_mem_mb"] for s in self._samples if "server_tree_mem_mb" in s
+        ]
         if server_mem:
             result["server_tree_mem_mb"] = {
                 "min": round(min(server_mem), 1),
                 "max": round(max(server_mem), 1),
             }
-        server_children = [s["server_children"] for s in self._samples if "server_children" in s]
+        server_children = [
+            s["server_children"] for s in self._samples if "server_children" in s
+        ]
         if server_children:
             result["server_subprocess_peak"] = max(server_children)
         return result
@@ -208,6 +208,7 @@ async def check_server(url: str) -> int | None:
         resp.raise_for_status()
     # Try to find server PID by matching the port in the URL
     from urllib.parse import urlparse
+
     port = str(urlparse(url).port or "8899")
     for proc in psutil.process_iter(["pid", "cmdline"]):
         try:
@@ -260,7 +261,9 @@ async def run_rl_episode(
     )
     session_start = time.monotonic()
     phase = "init"
-    env = AWMEnv(base_url=BASE_URL, message_timeout_s=CLIENT_TIMEOUT, connect_timeout_s=60.0)
+    env = AWMEnv(
+        base_url=BASE_URL, message_timeout_s=CLIENT_TIMEOUT, connect_timeout_s=60.0
+    )
 
     try:
         # -- Phase 1: connect + reset (rate-limited to avoid thundering herd) --
@@ -293,7 +296,11 @@ async def run_rl_episode(
         # Collect tool names for random calling
         obs = result.observation
         if hasattr(obs, "tools") and obs.tools:
-            r.tools_discovered = [t.get("name", t.get("tool_name", "")) for t in obs.tools if isinstance(t, dict)]
+            r.tools_discovered = [
+                t.get("name", t.get("tool_name", ""))
+                for t in obs.tools
+                if isinstance(t, dict)
+            ]
         if not r.tools_discovered:
             r.tools_discovered = ["unknown_tool"]
 
@@ -463,10 +470,12 @@ async def run_rl_step(
     total_planned = sum(r.num_turns for r in completed)
 
     log.info("")
-    log.info(f"{'='*78}")
-    log.info(f"RESULTS: {len(ok)}/{scale} succeeded, {len(failed)} failed, wall={wall_s:.1f}s")
+    log.info(f"{'=' * 78}")
+    log.info(
+        f"RESULTS: {len(ok)}/{scale} succeeded, {len(failed)} failed, wall={wall_s:.1f}s"
+    )
     log.info(f"Total turns: {total_turns}/{total_planned} completed")
-    log.info(f"{'='*78}")
+    log.info(f"{'=' * 78}")
 
     # Latency distributions
     for label, values in [
@@ -516,35 +525,50 @@ def parse_args():
         description="AWM stress test — simulates large-scale agentic RL"
     )
     p.add_argument(
-        "--scale", type=int, default=2000,
+        "--scale",
+        type=int,
+        default=2000,
         help="Number of parallel environments per RL step (default: 2000)",
     )
     p.add_argument(
-        "--concurrency", type=int, default=256,
+        "--concurrency",
+        type=int,
+        default=256,
         help="Max concurrent resets (default: 256)",
     )
     p.add_argument(
-        "--min-turns", type=int, default=3,
+        "--min-turns",
+        type=int,
+        default=3,
         help="Min tool-call turns per episode (default: 3)",
     )
     p.add_argument(
-        "--max-turns", type=int, default=20,
+        "--max-turns",
+        type=int,
+        default=20,
         help="Max tool-call turns per episode (default: 20)",
     )
     p.add_argument(
-        "--think-min", type=float, default=1.0,
+        "--think-min",
+        type=float,
+        default=1.0,
         help="Min LLM rollout time per turn in seconds (default: 1.0)",
     )
     p.add_argument(
-        "--think-max", type=float, default=20.0,
+        "--think-max",
+        type=float,
+        default=20.0,
         help="Max LLM rollout time per turn in seconds (default: 20.0)",
     )
     p.add_argument(
-        "--url", default="http://localhost:8899",
+        "--url",
+        default="http://localhost:8899",
         help="Server base URL (default: http://localhost:8899)",
     )
     p.add_argument(
-        "--client-timeout", type=float, default=600.0,
+        "--client-timeout",
+        type=float,
+        default=600.0,
         help="Client message timeout in seconds (default: 600)",
     )
     return p.parse_args()
@@ -578,7 +602,9 @@ async def main():
     log.info("=" * 78)
     log.info("FINAL SUMMARY")
     log.info("=" * 78)
-    log.info(f"  scale={args.scale}  concurrency={args.concurrency}  ok={ok}  fail={fail}")
+    log.info(
+        f"  scale={args.scale}  concurrency={args.concurrency}  ok={ok}  fail={fail}"
+    )
     log.info(
         f"  turns_range=[{args.min_turns},{args.max_turns}]  "
         f"total_turns={sum(r.turns_completed for r in results)}"
