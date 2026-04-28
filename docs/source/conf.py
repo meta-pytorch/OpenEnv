@@ -108,7 +108,6 @@ html_theme_options = {
         },
     ],
     "use_edit_page_button": True,
-    "navbar_center": "navbar-nav",
     "switcher": {
         "json_url": "_static/versions.json",
         "version_match": switcher_version,

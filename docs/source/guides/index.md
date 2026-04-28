@@ -40,3 +40,20 @@ Integrate OpenEnv with RL frameworks for agent training.
 
 - [**RL Framework Integration**](rl-integration.md) - Use OpenEnv with TRL, torchforge, and more
 - [**Reward Design**](rewards.md) - Design effective reward functions for your agents
+
+```{toctree}
+:maxdepth: 2
+:hidden:
+
+auto-discovery
+connecting
+async-sync
+/simulation-vs-production
+/mcp-environment-lifecycle
+first-environment
+environment-anatomy
+deployment
+rl-integration
+rewards
+/customizing-web-ui
+```
