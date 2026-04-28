@@ -45,7 +45,13 @@ except ImportError:
 from .reasoning_gym_environment import ReasoningGymEnvironment
 
 
-max_concurrent = int(os.getenv("MAX_CONCURRENT_ENVS", "8"))
+_max_concurrent_raw = os.getenv("MAX_CONCURRENT_ENVS", "8")
+try:
+    max_concurrent = int(_max_concurrent_raw)
+except ValueError:
+    raise ValueError(
+        f"MAX_CONCURRENT_ENVS must be an integer, got: {_max_concurrent_raw!r}"
+    ) from None
 
 
 def create_reasoning_gym_environment() -> ReasoningGymEnvironment:
