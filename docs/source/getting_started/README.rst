@@ -56,7 +56,6 @@ Or view them directly in the documentation with full code output below.
 
    /quickstart
    /installation
-   /concepts
    plot_01_introduction_quickstart
    plot_02_using_environments
    plot_03_building_environments

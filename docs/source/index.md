@@ -101,6 +101,14 @@ auto_getting_started/index
 
 ```{toctree}
 :maxdepth: 2
+:caption: Core Concepts
+:hidden:
+
+concepts
+```
+
+```{toctree}
+:maxdepth: 2
 :caption: Guides
 :hidden:
 
