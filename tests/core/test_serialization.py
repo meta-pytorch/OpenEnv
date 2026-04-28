@@ -13,7 +13,7 @@ round-trip through serialize_observation() and GenericEnvClient._parse_result().
 
 import pytest
 from openenv.core.env_server.serialization import serialize_observation
-from openenv.core.env_server.types import Observation
+from openenv.core.env_server.types import Observation, ResetResponse
 from openenv.core.generic_client import GenericEnvClient
 
 
@@ -89,6 +89,13 @@ class TestSerializeObservation:
         assert result["observation"]["ally_tree"] == "[ref=btn_1 role=button]"
         assert result["observation"]["task_instruction"] == "Book a ticket"
         assert result["metadata"]["variant"] == "label_drift"
+
+    def test_reset_metadata_preserved(self):
+        """ResetResponse must preserve metadata from the observation."""
+        obs = Observation(metadata={"reset_key": "val"})
+        serialized = serialize_observation(obs)
+        reset_response = ResetResponse(**serialized)
+        assert reset_response.metadata == {"reset_key": "val"}
 
 
 # ---------------------------------------------------------------------
