@@ -170,7 +170,8 @@ class StepResponse(BaseModel):
     metadata: Optional[Dict[str, Any]] = Field(
         default=None, description="Additional metadata from the environment"
     )
-    
+
+
 class BaseMessage(BaseModel):
     """Base class for WebSocket messages with shared configuration."""
 
