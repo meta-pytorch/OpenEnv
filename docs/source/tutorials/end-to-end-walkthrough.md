@@ -39,7 +39,7 @@ Install pip dependencies — keep them as separate cells (don't merge into one `
 !pip install -q trl
 !pip install -q openenv-core
 !pip install -q --no-deps git+https://huggingface.co/spaces/sergiopaniego/reasoning_gym
-!pip install -q git+https://github.com/huggingface/transformers.git@main
+!pip install -Uq "transformers>=5.3.0"  # 5.3+ has the `environment_factory` integration TRL needs
 !pip install -q trackio jmespath
 ```
 
@@ -232,7 +232,7 @@ grpo_config = GRPOConfig(
 )
 ```
 
-A few of the choices above worth flagging: `max_steps=100` caps the run before saturation (see *Reading the dashboard* below). `gradient_accumulation_steps=4` keeps the parallel env count at `1 × 4 = 4`, well under the server's default concurrency limit. `save_strategy="no"` skips intermediate checkpoints so the run stays quiet — we push the final model explicitly in section 10. `use_vllm` is left at its default (`False`); enabling it speeds up rollouts on bare-metal but its distributed init breaks under IPython.
+A few of the choices above worth flagging: `max_steps=150` caps the run before saturation (see *Reading the dashboard* below). `gradient_accumulation_steps=4` keeps the parallel env count at `1 × 4 = 4`, well under the server's default concurrency limit. `save_strategy="no"` skips intermediate checkpoints so the run stays quiet — we push the final model explicitly in section 9. `use_vllm` is left at its default (`False`); enabling it speeds up rollouts on bare-metal but its distributed init breaks under IPython.
 
 ```{note}
 `chat_template_kwargs={"enable_thinking": False}` disables Qwen3's thinking mode so the model emits tool calls directly instead of reasoning tokens first. For a pure tool-use task like this one that's what you want; for harder math you may benefit from re-enabling it and growing `max_completion_length`.
@@ -246,6 +246,8 @@ A few of the choices above worth flagging: `max_steps=100` caps the run before s
 
 ```python
 from trl import GRPOTrainer
+
+MODEL_NAME = "Qwen/Qwen3-1.7B"
 
 trainer = GRPOTrainer(
     model=MODEL_NAME,
@@ -292,12 +294,15 @@ Every rollout the trainer ran left a `reward` entry in `trainer.state.log_histor
 import statistics
 
 rewards = [log["reward"] for log in trainer.state.log_history if "reward" in log]
-initial = statistics.mean(rewards[:5])
-final = statistics.mean(rewards[-5:])
 
-print(f"Initial reward (first 5 logs avg): {initial:.2%}")
-print(f"Final reward   (last 5 logs avg):  {final:.2%}")
-print(f"Delta:                             {(final - initial) * 100:+.2f} pp")
+if len(rewards) < 5:
+    print(f"Only {len(rewards)} reward entries logged — train for a few more `logging_steps` and re-run.")
+else:
+    initial = statistics.mean(rewards[:5])
+    final = statistics.mean(rewards[-5:])
+    print(f"Initial reward (first 5 logs avg): {initial:.2%}")
+    print(f"Final reward   (last 5 logs avg):  {final:.2%}")
+    print(f"Delta:                             {(final - initial) * 100:+.2f} pp")
 ```
 
 A delta of **+10 to +30 pp** is what you should expect at this difficulty; outside that range:
