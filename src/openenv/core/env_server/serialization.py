@@ -148,6 +148,8 @@ def serialize_observation(observation: Observation) -> Dict[str, Any]:
         "observation": {...},  # Observation fields
         "reward": float | None,
         "done": bool,
+        "metadata": dict,
+    }
     }
     """
     # Use Pydantic's model_dump() for serialization.
