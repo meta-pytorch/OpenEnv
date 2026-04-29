@@ -102,7 +102,7 @@ rollout_func = build_harness_rollout_func(
 
 BrowserGym exposes `click`, `fill`, `send_keys`, `scroll`, and `noop` as MCP-style
 tools while still translating them back into the underlying `BrowserGymAction`
-strings. See [tutorial/examples/browsergym_harness.py](../../tutorial/examples/browsergym_harness.py)
+strings. See [examples/browsergym_harness.py](https://github.com/meta-pytorch/OpenEnv/blob/main/examples/browsergym_harness.py)
 for a full TRL-oriented example.
 
 ### Available Tasks by Benchmark

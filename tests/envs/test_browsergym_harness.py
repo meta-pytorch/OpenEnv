@@ -12,8 +12,6 @@ import os
 import sys
 from typing import Any
 
-import pytest
-
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
 
 from envs.browsergym_env import BrowserGymAction, BrowserGymObservation, BrowserGymState

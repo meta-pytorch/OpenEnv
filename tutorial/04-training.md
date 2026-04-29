@@ -348,39 +348,6 @@ def reward_repetition(completions, **kwargs):
 
 ---
 
-## Harness-driven rollouts
-
-For environments that should be driven through a tool-oriented harness instead
-of a bespoke `reset()` / `step()` loop, use the experimental harness runtime in
-`openenv.core.harness`:
-
-```python
-from openenv.core.harness import (
-    HarnessRunLimits,
-    MCPHarnessAdapter,
-    build_harness_rollout_func,
-)
-from envs.browsergym_env.harness import BrowserGymSessionFactory
-
-session_factory = BrowserGymSessionFactory(client_factory=lambda: BrowserGymEnv(base_url=space_url))
-
-rollout_func = build_harness_rollout_func(
-    session_factory=session_factory,
-    harness_adapter=MCPHarnessAdapter(),
-    model_step_builder=...,  # wraps trainer-owned sampling
-    limits=HarnessRunLimits(max_turns=10),
-)
-```
-
-This keeps token sampling and logprob collection in the trainer for white-box
-RL, while moving environment interaction behind a reusable MCP-style session
-surface. If your training setup already uses an `environment_factory`, treat
-`client_factory` as the per-rollout constructor that produces a fresh
-`BrowserGymEnv` for each session. See `tutorial/examples/browsergym_harness.py`
-for a concrete BrowserGym example.
-
----
-
 ## Create dataset
 
 ```python
