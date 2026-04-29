@@ -30,7 +30,7 @@ docker run -p 8000:8000 my-env:latest
 
 ```python
 # Connect a client
-from openenv.core import AutoEnv
+from openenv import AutoEnv
 env = AutoEnv.from_env("http://localhost:8000")
 ```
 
