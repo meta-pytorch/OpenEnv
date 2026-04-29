@@ -145,10 +145,9 @@ def test_llm_endpoint_uses_llm_teacher_with_default_provider(
     assert (
         mock_pipeline["runner_instance"].run.call_args.kwargs["model_step"] is llm_step
     )
-    metadata = (
-        mock_pipeline["serializer_cls"]
-        .return_value.write_metadata.call_args.args[0]
-    )
+    metadata = mock_pipeline[
+        "serializer_cls"
+    ].return_value.write_metadata.call_args.args[0]
     assert metadata["provider"] == "openai-compatible"
     assert metadata["llm_endpoint"] == "http://localhost"
 

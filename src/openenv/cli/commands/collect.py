@@ -339,8 +339,7 @@ def collect(
 
     console.print(f"[cyan]Env server:[/cyan] {base_url}")
     console.print(
-        f"[cyan]Teacher:[/cyan] {teacher_provider}"
-        + (f"/{model}" if model else "")
+        f"[cyan]Teacher:[/cyan] {teacher_provider}" + (f"/{model}" if model else "")
     )
     console.print(f"[cyan]Output:[/cyan] {output_dir}")
 
