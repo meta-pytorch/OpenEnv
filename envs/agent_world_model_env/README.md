@@ -1,3 +1,16 @@
+---
+title: Agent World Model Environment Server 
+emoji: 🤖
+colorFrom: blue
+colorTo: indigo
+sdk: docker
+pinned: false
+app_port: 8000
+base_path: /web
+tags:
+  - openenv
+---
+
 # Agent World Model
 
 AgentWorldModel-1K is a synthetic agentic environment suite containing **1,000 tool-use environments** with **10,000 tasks** for large-scale RL training. Each environment is a fully functional MCP server with tools, database state, and verification logic.
