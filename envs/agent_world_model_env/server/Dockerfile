@@ -4,8 +4,9 @@
 # This source code is licensed under the BSD-style license found in the
 # LICENSE file in the root directory of this source tree.
 
-ARG BASE_IMAGE=ghcr.io/meta-pytorch/openenv-base:latest
-FROM ${BASE_IMAGE} AS builder
+# Hardcoded base image: HF Spaces' BuildKit injects an empty
+# --build-arg BASE_IMAGE= that overrides the ARG default.
+FROM ghcr.io/meta-pytorch/openenv-base:latest AS builder
 
 WORKDIR /app
 
@@ -41,9 +42,13 @@ RUN --mount=type=cache,target=/root/.cache/uv \
     fi
 
 # Final runtime stage
-FROM ${BASE_IMAGE}
+FROM ghcr.io/meta-pytorch/openenv-base:latest
 
 WORKDIR /app
+
+# HF Spaces injects ``git config --global`` into the runtime stage too.
+RUN apt-get update && apt-get install -y --no-install-recommends git \
+    && rm -rf /var/lib/apt/lists/*
 
 COPY --from=builder /app/env/.venv /app/.venv
 COPY --from=builder /app/env /app/env
@@ -61,4 +66,4 @@ HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
 EXPOSE 8000
 
 
-CMD ["uvicorn", "agent_world_model_env.server.app:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["uvicorn", "agent_world_model_env.server.app:app", "--host", "0.0.0.0", "--port", "8000", "--proxy-headers", "--forwarded-allow-ips", "*"]

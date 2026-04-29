@@ -16,6 +16,7 @@ import os
 import uvicorn
 
 import gradio as gr
+from fastapi import Request
 from fastapi.responses import JSONResponse, RedirectResponse
 
 from openenv.core.env_server.http_server import create_app
@@ -154,23 +155,56 @@ def _has_route(path: str) -> bool:
     return any(getattr(r, "path", None) == path for r in app.routes)
 
 
+def _https_aware_redirect(request: Request, path: str) -> RedirectResponse:
+    # HF's reverse proxy rewrites relative redirects into absolute URLs and
+    # picks the scheme from the upstream request — which is HTTP. Build an
+    # explicit absolute URL with the original scheme so the iframe doesn't
+    # get blocked as mixed content.
+    host = request.headers.get("x-forwarded-host") or request.headers.get(
+        "host", request.url.netloc
+    )
+    proto = request.headers.get("x-forwarded-proto") or (
+        "https" if host.endswith(".hf.space") else request.url.scheme
+    )
+    return RedirectResponse(url=f"{proto}://{host}{path}")
+
+
 # 0.2.1 doesn't auto-redirect / and /web to /web/. HF Spaces hits both.
 if not _has_route("/"):
 
     @app.get("/", include_in_schema=False)
-    async def _root_redirect():
-        return RedirectResponse(url="/web/")
+    async def _root_redirect(request: Request):
+        return _https_aware_redirect(request, "/web/")
 
 
 if not _has_route("/web"):
 
     @app.get("/web", include_in_schema=False)
-    async def _web_redirect():
-        return RedirectResponse(url="/web/")
+    async def _web_redirect(request: Request):
+        return _https_aware_redirect(request, "/web/")
+
+
+@app.middleware("http")
+async def _force_https_redirects(request: Request, call_next):
+    # HF Spaces' reverse proxy strips the original https scheme; any
+    # absolute Location header we emit goes out as http:// which gets
+    # blocked as mixed content inside the HF iframe. Force https for
+    # *.hf.space hosts.
+    response = await call_next(request)
+    loc = response.headers.get("location")
+    if loc and loc.startswith("http://") and ".hf.space" in loc:
+        response.headers["location"] = "https://" + loc[len("http://"):]
+    return response
 
 
 def main():
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    uvicorn.run(
+        app,
+        host="0.0.0.0",
+        port=8000,
+        proxy_headers=True,
+        forwarded_allow_ips="*",
+    )
 
 
 if __name__ == "__main__":
