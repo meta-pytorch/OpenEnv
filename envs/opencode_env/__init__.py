@@ -4,32 +4,53 @@
 # This source code is licensed under the BSD-style license found in the
 # LICENSE file in the root directory of this source tree.
 
-"""OpenCode harness primitive for OpenEnv.
+"""OpenCode environment for OpenEnv.
 
-A reusable building block that, given an OpenAI-compatible base URL and a
-sandbox backend, runs an autonomous OpenCode agent to completion in an isolated
-sandbox and exposes every LLM turn (messages, tools, response, optionally
-logprobs) to the caller.
+Two layers in this package:
 
-See ``envs/opencode_env/README.md`` for usage.
+1. **Harness primitive** — :class:`OpenCodeSessionFactory` /
+   :class:`OpenCodeSession` / :class:`OpenCodeConfig` /
+   :class:`E2BSandboxBackend`. Used in-process to drive one rollout
+   inside an E2B sandbox. See ``harness.py``.
+
+2. **Deployable env** — :class:`OpenCodeEnv` (MCP client) talks to the
+   FastAPI server at ``server/app.py`` over HTTP. Use this when the
+   sandbox + agent live behind an HTTP boundary (e.g. an HF Space).
+   See ``client.py`` and ``server/``.
 """
 
+from openenv.core.env_server.mcp_types import CallToolAction, ListToolsAction
+
+from .client import OpenCodeEnv
 from .config import OpenCodeConfig, Provider
 from .harness import OpenCodeSession, OpenCodeSessionFactory
-from .live_watch import RolloutSummary, collect_rollout_summary, print_rollout_summary
+from .models import (
+    CommandResult,
+    OpenCodeState,
+    RolloutResult,
+    RolloutTurn,
+)
 from .sandbox import E2BSandboxBackend, SandboxBackend, SandboxHandle
 from .task import OpenCodeTask
 
 __all__ = [
+    # Deployed-env client
+    "OpenCodeEnv",
+    "CallToolAction",
+    "ListToolsAction",
+    # HTTP API models
+    "CommandResult",
+    "OpenCodeState",
+    "RolloutResult",
+    "RolloutTurn",
+    # Harness primitive
     "OpenCodeConfig",
     "OpenCodeSession",
     "OpenCodeSessionFactory",
     "OpenCodeTask",
-    "E2BSandboxBackend",
     "Provider",
-    "RolloutSummary",
+    # Sandbox backend
+    "E2BSandboxBackend",
     "SandboxBackend",
     "SandboxHandle",
-    "collect_rollout_summary",
-    "print_rollout_summary",
 ]

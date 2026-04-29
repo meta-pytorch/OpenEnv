@@ -1,210 +1,294 @@
-# OpenCode Harness Primitive
+---
+title: OpenCode Environment Server
+emoji: 🛠️
+colorFrom: indigo
+colorTo: purple
+sdk: docker
+pinned: false
+app_port: 8000
+base_path: /web
+tags:
+  - openenv
+short_description: OpenCode coding agent in an E2B sandbox with logprob capture
+---
 
-A reusable harness primitive for running the [OpenCode](https://opencode.ai/)
-CLI coding agent inside an isolated sandbox against any OpenAI-compatible
-endpoint. Implements the `ResourceSession` / `ResourceSessionFactory` contracts
-from `openenv.core.harness` (RFC 005 / PR #471).
+# OpenCode Environment for OpenEnv
 
-## Why
+`opencode_env` runs the [OpenCode](https://opencode.ai) coding agent inside
+an isolated [E2B](https://e2b.dev) sandbox against any OpenAI-compatible
+LLM endpoint, optionally capturing per-token logprobs for GRPO training.
 
-OpenCode is a closed binary: it owns its own agent loop, tool-calling, and
-file I/O, and it speaks to an LLM only over the OpenAI chat-completions API.
-This package wraps that loop behind OpenEnv's harness interface so a trainer
-or evaluator can:
+**🚀 Try it live**: [`AdithyaSK/opencode-env`](https://huggingface.co/spaces/AdithyaSK/opencode-env)
 
-- spawn one isolated sandbox per rollout (E2B by default),
-- point opencode at any OpenAI-compatible endpoint,
-- optionally intercept every LLM request to capture per-token logprobs for
-  on-policy RL training,
-- run a user-supplied verifier to produce a scalar reward.
+The deployed Space exposes:
 
-## Operating modes
+- **Web UI** at [`/web`](https://adithyask-opencode-env.hf.space/web) — pick endpoint, write task, hit Run, watch live phase log + reward + logprobs.
+- **MCP tool API** at [`/mcp`](https://adithyask-opencode-env.hf.space/mcp) — programmatic `run_rollout` calls.
+- **OpenAPI docs** at [`/docs`](https://adithyask-opencode-env.hf.space/docs).
+- **Health** at [`/health`](https://adithyask-opencode-env.hf.space/health).
 
-| Mode | Endpoint opencode hits | What the proxy does | Trainer receives | GRPO-ready? |
-|---|---|---|---|---|
-| `black_box` | the real LLM URL | no proxy | transcript + reward | no — eval / SFT only |
-| `transparent_proxy` (default) | in-sandbox proxy that forwards to the real URL | injects `logprobs=true`, captures per-turn messages + completion tokens + logprobs | per-turn `(messages, completion_tokens, logprobs, reward)` | yes (on-policy in colocate serve/async) |
+The env is **task-agnostic** — every rollout is configured at call-time
+with a uniform Task shape:
 
-## Installation
+  - **`instruction`** — prompt for the agent
+  - **`setup`** — list of bash commands run *before* the agent (pip
+    install, git clone, file downloads — anything you need staged in the
+    sandbox)
+  - **`verify`** — list of bash commands run *after* the agent (asserts,
+    pytest invocations, score-file writes)
 
-The package lives under `OpenEnv/envs/opencode_env/`. Install directly from git:
+Reward = `passed_verify / total_verify` unless any `verify` command writes
+a float to `/home/user/logs/verifier/reward.txt` (override).
 
-```toml
-[project.dependencies]
-openenv-opencode_env = {
-  git = "https://github.com/adithya-s-k/OpenEnv.git",
-  branch = "opencode-harness",
-  subdirectory = "envs/opencode_env"
-}
+## Quick Start
+
+### Async (default — talk to the deployed Space)
+
+```python
+import asyncio
+import os
+from opencode_env import OpenCodeEnv
+from opencode_env.client import _extract_text
+from opencode_env.models import RolloutResult
+
+
+async def main():
+    SPACE = "https://adithyask-opencode-env.hf.space"
+
+    async with OpenCodeEnv(base_url=SPACE) as env:
+        await env.reset()
+
+        # The MCP tool returns JSON; deserialize via the typed model.
+        raw = await env.call_tool(
+            "run_rollout",
+            endpoint="openai",                          # vllm | openai | hf_router
+            api_key=os.environ["OPENAI_API_KEY"],       # or set as a Space secret
+            instruction=(
+                "Create binary_search.py exposing def binary_search(arr, target) -> int "
+                "that returns the index of target in arr, or -1 if absent. Use a "
+                "relative path."
+            ),
+            setup=[],
+            verify=[
+                "test -f /home/user/workdir/binary_search.py",
+                "python -c \"import sys; sys.path.insert(0, '/home/user/workdir'); "
+                "import binary_search; "
+                "assert binary_search.binary_search([1,2,3], 2) == 1; print('OK')\"",
+            ],
+            template="opencode-rl",                     # prebaked E2B template
+            task_id="binary_search_v1",
+        )
+        result = RolloutResult.model_validate_json(_extract_text(raw))
+
+        print("reward:", result.reward)
+        print("turns:", len(result.proxy_turns))
+        print("files:", list(result.files.keys()))
+        print("wall:", result.wall_s, "s")
+
+
+asyncio.run(main())
 ```
 
-Or via `uv add`:
+Expected output (~20s with the prebaked template):
 
-```bash
-uv add "openenv-opencode_env @ git+https://github.com/adithya-s-k/OpenEnv.git@opencode-harness#subdirectory=envs/opencode_env"
+```
+reward: 1.0
+turns: 3
+files: ['/home/user/workdir/binary_search.py', ...]
+wall: 19.8 s
 ```
 
-When PR #471 merges into `meta-pytorch/OpenEnv:main`, this branch will be
-rebased onto `main` and upstreamed.
-
-## Quick start — Mode A (black-box) against real OpenAI
+### Sync wrapper
 
 ```python
 import os
-from openenv.core.harness import VerifyResult
-from opencode_env import OpenCodeConfig, OpenCodeSessionFactory, E2BSandboxBackend
+from opencode_env import OpenCodeEnv
 
-def my_verifier(sandbox, task):
-    r = sandbox.exec("cd /home/user/workdir && python fizzbuzz.py | head -5")
-    reward = 1.0 if "Fizz" in r.stdout else 0.0
-    return VerifyResult(env_reward=reward, done=True, artifacts={"stdout": r.stdout})
-
-factory = OpenCodeSessionFactory(
-    config=OpenCodeConfig(
-        provider="openai",
-        base_url="https://api.openai.com/v1",
-        api_key=os.environ["OPENAI_API_KEY"],
-        model="openai/gpt-4o-mini",
-    ),
-    sandbox_backend=E2BSandboxBackend(),  # reads E2B_API_KEY
-    mode="black_box",
-    verifier=my_verifier,
-)
-
-session = factory.create(task={"instruction": "write fizzbuzz.py in the cwd"})
-try:
-    session.wait_for_completion(timeout_s=180)
-    result = session.verify(transcript=[])
-    print("reward:", result.env_reward)
-finally:
-    session.close()
+# .sync() returns a synchronous wrapper around the async client.
+with OpenCodeEnv(base_url="https://adithyask-opencode-env.hf.space").sync() as env:
+    env.reset()
+    # MCP tools are reachable via env.call_tool(...) / env.step(...) sync-wrapped.
+    # See the async example above for the full run_rollout signature.
 ```
 
-## Quick start — Mode B (transparent proxy) against a tunneled vLLM
+Point `base_url` at `http://localhost:8000` to talk to a local container
+instead of the public Space.
+
+### In-process primitive (no HTTP)
+
+For trainers that want to drive a sandbox directly without an HTTP boundary:
 
 ```python
+import os
+from opencode_env import (
+    OpenCodeConfig, OpenCodeSessionFactory, OpenCodeTask, E2BSandboxBackend,
+)
+
 factory = OpenCodeSessionFactory(
     config=OpenCodeConfig(
         provider="openai_compatible",
-        base_url=os.environ["VLLM_TUNNEL_URL"] + "/v1",
-        api_key="intercepted",
-        model="openai_compatible/Qwen/Qwen3.5-4B",
-        proxy_disable_thinking=True,        # Qwen3/Qwen3.5 tokenizer hook
-        proxy_max_tokens_cap=4096,
+        base_url="https://api.openai.com/v1",
+        api_key=os.environ["OPENAI_API_KEY"],
+        model="gpt-4o-mini",
     ),
     sandbox_backend=E2BSandboxBackend(),
-    mode="transparent_proxy",
-    verifier=my_verifier,
+    mode="transparent_proxy",                   # captures per-token logprobs
 )
-session = factory.create(task={"instruction": "..."})
+session = factory.create(task=OpenCodeTask(instruction="..."))
 session.wait_for_completion()
-
-# fetch_proxy_trace returns a list of dicts, one per LLM turn,
-# each with messages, completion_tokens, completion_token_ids,
-# per_token_logps, finish_reason, latency_s
-turns = session.fetch_proxy_trace()
+turns = session.fetch_proxy_trace()             # per-turn (tokens, logprobs)
+session.close()
 ```
 
-## Post-rollout summary
+## Building the Docker Image
 
-```python
-from opencode_env import collect_rollout_summary, print_rollout_summary
-
-summary = collect_rollout_summary(session)
-print_rollout_summary(summary)   # turns, tokens, tool calls, errors, workdir files
-```
-
-## `OpenCodeTask`
-
-The primitive accepts a bare string, a dict, or a typed `OpenCodeTask`:
-
-```python
-from opencode_env import OpenCodeTask
-
-OpenCodeTask(
-    instruction="Build a REST API with Flask",
-    setup_shell="pip install flask",                     # runs once before opencode
-    upload_files={"/home/user/workdir/schema.json": "..."},  # staged into sandbox
-    metadata={"task_id": "flask_api_v1"},                # passed through to verifier
-)
-```
-
-## Config knobs
-
-`OpenCodeConfig` fields (see `config.py` for full list):
-
-| field | default | notes |
-|---|---|---|
-| `provider` | `"openai_compatible"` | `"openai"`, `"anthropic"`, or `"openai_compatible"` |
-| `base_url` | required | provider endpoint (`https://host/v1`) |
-| `api_key` | `"intercepted"` | provider key; vLLM ignores |
-| `model` | `"intercepted/model"` | `<provider>/<model>` form; override per provider |
-| `opencode_version` | `"latest"` | pin via e.g. `"0.5.3"` |
-| `disabled_tools` | `["webfetch", "question"]` | see opencode docs |
-| `system_prompt` | `None` | uploaded to sandbox, used by opencode |
-| `sandbox_home` | `"/home/user"` | override for non-E2B backends |
-| `proxy_max_tokens_cap` | `16384` | Mode B: clamp `max_tokens`/`max_completion_tokens` |
-| `proxy_top_logprobs` | `5` | Mode B: top-k per token |
-| `proxy_disable_thinking` | `False` | Mode B: inject `chat_template_kwargs.enable_thinking=false` (Qwen3/Qwen3.5) |
-
-## Sandbox backends
-
-`E2BSandboxBackend` is the default. Any class implementing the
-`SandboxBackend` Protocol (`sandbox/base.py`) works:
-
-```python
-class SandboxBackend(Protocol):
-    def create(self, *, timeout_s: int, envs, metadata) -> SandboxHandle: ...
-
-class SandboxHandle(Protocol):
-    sandbox_id: str
-    def exec(self, cmd, *, envs=None, cwd=None, timeout=60) -> ExecResult: ...
-    def start_bg(self, cmd, *, envs=None, cwd=None) -> BgJob: ...
-    def write_text(self, path, content): ...
-    def read_text(self, path) -> str: ...
-    def exists(self, path) -> bool: ...
-    def kill(self): ...
-```
-
-## Known limitations
-
-- **OpenAI's gpt-5.x chat family refuses logprob requests** (HTTP 403), so
-  Mode B against OpenAI requires `gpt-4o-mini` or older. vLLM-hosted models
-  return logprobs natively — the intended training path.
-- The transparent proxy currently speaks only `/v1/chat/completions`. OpenAI's
-  newer `/v1/responses` endpoint (used by `@ai-sdk/openai`) is not supported;
-  the factory auto-switches the provider to `@ai-sdk/openai-compatible` in
-  Mode B for this reason.
-- E2B's `commands.run(background=True)` has a default server-side
-  `timeout=60s`; we override it to `0` for long-running agent jobs.
-
-## Tests
+The Dockerfile lives at `server/Dockerfile`. Use the `openenv` CLI from
+the env root:
 
 ```bash
-# Unit tests only (fast, no sandbox)
-PYTHONPATH=src:envs/opencode_env uv run pytest envs/opencode_env/tests/ -q \
-    --ignore=envs/opencode_env/tests/test_sandbox_e2b.py \
-    --ignore=envs/opencode_env/tests/test_harness_live_openai.py \
-    --ignore=envs/opencode_env/tests/test_harness_live_mode_b.py \
-    --ignore=envs/opencode_env/tests/test_harness_live_vllm.py
+cd envs/opencode_env
 
-# Live E2B sandbox integration
-E2B_API_KEY=... PYTHONPATH=src:envs/opencode_env uv run pytest \
-    envs/opencode_env/tests/test_sandbox_e2b.py -v
+openenv validate               # check pyproject.toml + openenv.yaml + server/app.py + uv.lock
+openenv build -t opencode-env  # builds the image (uses server/Dockerfile)
 
-# End-to-end Mode A against real OpenAI
-E2B_API_KEY=... OPENAI_API_KEY=... PYTHONPATH=src:envs/opencode_env uv run pytest \
-    envs/opencode_env/tests/test_harness_live_openai.py -v -s
+# run locally with E2B credentials
+docker run -p 8000:8000 -e E2B_API_KEY=e2b_... opencode-env
 
-# End-to-end Mode B against a tunneled vLLM
-E2B_API_KEY=... VLLM_TUNNEL_URL=https://xxx.trycloudflare.com/v1 \
-    VLLM_MODEL=Qwen/Qwen3.5-4B \
-    PYTHONPATH=src:envs/opencode_env uv run pytest \
-    envs/opencode_env/tests/test_harness_live_vllm.py -v -s
+# push to HF Spaces (Docker variant)
+openenv push --repo-id <user>/opencode-env
+```
+
+Or build directly without the CLI:
+
+```bash
+docker build -t opencode-env -f envs/opencode_env/server/Dockerfile envs/opencode_env
+```
+
+The image:
+
+- Runs `uvicorn server.app:app --host 0.0.0.0 --port 8000`
+- Exposes the MCP API at `/mcp` and `/step`, the Gradio UI at `/web`,
+  health at `/health`, and OpenAPI docs at `/docs`.
+- Reads `E2B_API_KEY` and (optionally) endpoint-specific env vars at
+  runtime (see [Environment Variables](#environment-variables)).
+
+## The MCP Tool: `run_rollout`
+
+Single tool, two ways to specify the LLM endpoint:
+
+**Option A — endpoint shorthand (recommended)**: pass
+`endpoint="vllm"` (or `"openai"` / `"hf_router"`). The server resolves
+`base_url`, `api_key`, and `model` from env vars + catalog defaults.
+Any explicit field overrides the catalog.
+
+**Option B — fully explicit**: pass `base_url` + `api_key` + `model`
+directly.
+
+| Arg | Type | Default | Notes |
+|---|---|---|---|
+| `endpoint` | `str` | `""` | One of `"vllm"` / `"openai"` / `"hf_router"`. |
+| `base_url` / `api_key` / `model` | `str` | `""` | Override / supply explicitly. |
+| `instruction` | `str` | required | Prompt passed to `opencode run`. |
+| `setup` | `list[str]` | `[]` | Bash commands run **before** the agent. |
+| `verify` | `list[str]` | `[]` | Bash commands run **after** the agent. |
+| `task_id` | `str` | `""` | Echoed back in result. |
+| `mode` | `str` | `"transparent_proxy"` | Or `"black_box"` (no logprobs). |
+| `disable_thinking` | `bool \| None` | `None` (catalog default) | Inject `chat_template_kwargs.enable_thinking=false`. |
+| `max_tokens_cap` | `int` | `4096` | Per-turn `max_tokens` clamp. |
+| `top_logprobs` | `int` | `5` | HF Router cap is 5; OpenAI 0–20; vLLM unbounded. |
+| `agent_timeout_s` | `float` | `600.0` | Hard wall budget for opencode. |
+| `template` | `str` | `""` | E2B template name; `"opencode-rl"` skips ~2 min of install per rollout. |
+
+Returns `RolloutResult` JSON with: `reward`, `setup_results[]`,
+`verify_results[]`, `proxy_turns[]`, `files{}`, `agent_log_tail`,
+`proxy_log_tail`, `wall_s`, `agent_exit_code`, `sandbox_id`, `error`.
+
+## Two Operating Modes
+
+| Mode | What it does | Best for |
+|---|---|---|
+| **`transparent_proxy`** (default) | In-sandbox proxy at `localhost:7000` forwards opencode's LLM calls to `base_url`, injects `logprobs=true`, captures per-turn `(messages, completion_tokens, logprobs)` to `proxy_trace.jsonl`. | GRPO / RL training, observability, top-k distillation. |
+| **`black_box`** | No proxy. opencode talks straight to `base_url`. | Smoke tests, eval, SFT data collection. |
+
+## Environment Variables
+
+The server reads these at runtime. Local dev auto-loads them from a
+sibling `.env` file; on HF Spaces, set them as **Space secrets**.
+
+| Variable | Required | Purpose |
+|---|---|---|
+| `E2B_API_KEY` | **yes** for any rollout | E2B sandbox credentials. |
+| `MAX_CONCURRENT_ENVS` | no | Env-instance pool size. Default `4`. |
+| `ENABLE_WEB_INTERFACE` | no | Set `false` to disable the `/web` Gradio mount. Default `true`. |
+| **vLLM endpoint** | | |
+| `VLLM_URL` | required for `endpoint="vllm"` | OAI-compatible base URL. |
+| `VLLM_API_KEY` | no | Defaults to `intercepted`. |
+| `VLLM_MODEL` | no | Defaults to `Qwen/Qwen3.5-4B`. |
+| **OpenAI endpoint** | | |
+| `OPENAI_API_KEY` | required for `endpoint="openai"` | Standard OpenAI key. |
+| `OPENAI_BASE_URL` | no | Defaults to `https://api.openai.com/v1`. |
+| `OPENAI_MODEL` | no | Defaults to `gpt-4o-mini` (gpt-5.x and o-series refuse logprobs). |
+| **HF Router endpoint** | | |
+| `HF_ROUTER_API_KEY` | required for `endpoint="hf_router"` | HF user token. |
+| `HF_ROUTER_BASE_URL` | no | Defaults to `https://router.huggingface.co/v1`. |
+| `HF_ROUTER_MODEL` | no | Defaults to `Qwen/Qwen3-4B-Instruct-2507:nscale`. |
+
+Pick `provider:` suffixes that actually return logprobs:
+**Together / Nscale / Scaleway / SambaNova / Cerebras**. Avoid Novita /
+Hyperbolic / Featherless (silent drop) and Groq (HTTP 400).
+
+## Pre-baked E2B Template
+
+The first rollout in a fresh E2B sandbox spends ~2 min installing
+opencode and the proxy's Python deps. Build a one-time template that
+ships those pre-installed:
+
+```bash
+.venv/bin/python envs/opencode_env/sandbox/build_template.py
+# → builds `opencode-rl` template in your E2B account (~1m20s, one-time)
+```
+
+After this, pass `template="opencode-rl"` on every `run_rollout` call —
+each rollout drops to ~20–30s end-to-end.
+
+## Project Structure
+
+```
+opencode_env/
+├── README.md                       # this file
+├── openenv.yaml                    # OpenEnv space spec
+├── pyproject.toml                  # deps + ``server`` entrypoint
+├── uv.lock                         # frozen deps (required by ``openenv validate``)
+├── .gitignore / .dockerignore      # excludes .env / __pycache__
+├── __init__.py                     # re-exports primitive + client + models
+│
+├── client.py                       # OpenCodeEnv(MCPToolClient)
+├── models.py                       # RolloutResult / RolloutTurn / OpenCodeState
+│
+├── config.py                       # OpenCodeConfig (primitive)
+├── harness.py                      # OpenCodeSession / OpenCodeSessionFactory (CLI-only)
+├── opencode_runtime.py             # opencode.json builder + cmds
+├── task.py                         # OpenCodeTask
+│
+├── server/
+│   ├── __init__.py
+│   ├── app.py                      # FastAPI factory; mounts Gradio at /web
+│   ├── opencode_environment.py     # MCPEnvironment with single ``run_rollout`` tool
+│   ├── gradio_ui.py                # the /web Gradio Blocks UI
+│   ├── catalog.py                  # endpoint shorthand resolver
+│   └── Dockerfile                  # multi-stage uv build (used by ``openenv build``)
+│
+└── sandbox/
+    ├── __init__.py
+    ├── base.py                     # SandboxBackend / SandboxHandle Protocols
+    ├── e2b.py                      # E2B implementation
+    ├── interception.py             # in-sandbox FastAPI proxy (logprob capture)
+    └── build_template.py           # one-time E2B template builder
 ```
 
 ## References
 
-- [OpenEnv PR #471](https://github.com/meta-pytorch/OpenEnv/pull/471) — harness session runtime we stack on
-- [OpenCode docs](https://opencode.ai/docs/) — CLI, config, providers
-- [E2B sandbox SDK](https://e2b.dev/docs)
+- [OpenEnv docs](https://meta-pytorch.org/OpenEnv/)
+- [OpenCode CLI](https://opencode.ai/docs/cli/)
+- [E2B Python SDK](https://e2b.dev/docs)
+- [HF Inference Providers logprob matrix](../../../DOCS/HF/hf_inference_providers_logprobs.md)
