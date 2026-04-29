@@ -175,6 +175,6 @@ def serialize_observation(observation: Observation) -> Dict[str, Any]:
         "reward": reward,
         "done": done,
     }
-    if metadata:
+    if metadata is not None:
         result["metadata"] = metadata
     return result

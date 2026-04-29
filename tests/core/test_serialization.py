@@ -57,6 +57,14 @@ class TestSerializeObservation:
 
         assert "metadata" not in result
 
+    def test_falsy_metadata_preserved(self):
+        """Falsy metadata values must not be silently dropped."""
+        obs = Observation(metadata={"active": False, "count": 0, "flag": ""})
+        result = serialize_observation(obs)
+
+        assert "metadata" in result
+        assert result["metadata"] == {"active": False, "count": 0, "flag": ""}
+
     def test_reward_and_done_promoted(self):
         """reward and done must be top-level siblings, not inside observation."""
         obs = Observation(done=True, reward=1.0, metadata={"k": "v"})
