@@ -1,8 +1,4 @@
-"""
-agent loop demo for the AWM web UI.
-
-The same agent strategy used in ``example_usage.py``
-"""
+"""LLM-driven agent loop for the AWM web UI."""
 
 from __future__ import annotations
 
@@ -13,40 +9,10 @@ from typing import Any, AsyncIterator
 
 from openai import AsyncOpenAI
 
-
-# Mirrors example_usage.SYSTEM_PROMPT — kept identical
-DEFAULT_SYSTEM_PROMPT = """\
-You are at a MCP environment. You need to call MCP tools to assist with the user query. \
-At each step, you can only call one function. You have already logged in, and your user id is 1 if required.
-
-You are provided with TWO functions:
-
-1. list_tools
-   - Description: List all available MCP tools for the current environment.
-   - Arguments: None
-
-2. call_tool
-   - Description: Call a MCP environment-specific tool
-   - Arguments:
-       - tool_name: str, required
-       - arguments: str, required, valid JSON string
-
-For each function call, return a json object within <tool_call></tool_call> XML tags:
-<tool_call>
-{"name": <function-name>, "arguments": <args-json-object>}
-</tool_call>
-
-Example:
-<tool_call>
-{"name": "call_tool", "arguments": {"tool_name": "get_weather", "arguments": "{\\"city\\": \\"Beijing\\"}"}}
-</tool_call>
-
-You should call list_tools first to discover available tools, then use call_tool to interact. \
-When you have enough information to answer, output the answer directly without any tool_call tags."""
+from .prompts import DEFAULT_SYSTEM_PROMPT
 
 
 def parse_tool_call(content: str) -> dict | None:
-    """Extract the first ``<tool_call>...</tool_call>`` block from LLM output."""
     m = re.search(r"<tool_call>\s*(.*?)\s*</tool_call>", content, re.DOTALL)
     if not m:
         return None
@@ -62,7 +28,6 @@ def parse_tool_call(content: str) -> dict | None:
 
 
 def format_tools(tools: list[dict]) -> str:
-    """Format ``Tool`` dicts into a readable string for the LLM prompt."""
     lines = [f"Available MCP Tools ({len(tools)} tools):", "=" * 60]
     for i, t in enumerate(tools, 1):
         name = t.get("name") or t.get("tool_name", "")
@@ -94,19 +59,12 @@ def _truncate(s: str, limit: int = 2000) -> str:
 
 @dataclass
 class AgentEvent:
-    """Single observable event surfaced to the UI as the agent runs."""
-
     kind: str  # "info" | "llm_response" | "tool_call" | "tool_result" | "verify" | "done" | "error"
     text: str = ""
     payload: dict = field(default_factory=dict)
 
 
 class AwmAgent:
-    """
-    Runs the example_usage-style agent loop against an in-process
-    ``web_manager``. Emits ``AgentEvent`` objects describing each step.
-    """
-
     def __init__(
         self,
         web_manager: Any,
@@ -128,15 +86,12 @@ class AwmAgent:
         self._stop_requested = False
 
     def request_stop(self) -> None:
-        """Cooperative stop — the loop checks this between iterations."""
         self._stop_requested = True
 
     async def _list_tools_dict(self) -> list[dict]:
-        """Fetch tool list from the env via web_manager (proper Tool dicts)."""
         result = await self._web.step_environment({"type": "list_tools"})
         obs = result.get("observation", {}) or {}
         tools = obs.get("tools", []) or []
-        # Normalize Tool objects whether they came back as dicts or pydantic
         out = []
         for t in tools:
             if isinstance(t, dict):
@@ -164,14 +119,7 @@ class AwmAgent:
         auto_verify: bool = True,
         auto_done: bool = True,
     ) -> AsyncIterator[AgentEvent]:
-        """
-        Run the agent on the *already-reset* env (caller must have run reset
-        with the right scenario/task before invoking this).
-
-        Yields events as the loop progresses. Caller is expected to surface
-        them in the UI as they arrive.
-        """
-        # 1. Discover tools
+        """Run the agent on the already-reset env, yielding events as it goes."""
         try:
             tools = await self._list_tools_dict()
         except Exception as e:
@@ -185,7 +133,6 @@ class AwmAgent:
         )
         tools_text = format_tools(tools)
 
-        # 2. Initial LLM context
         messages: list[dict] = [
             {"role": "system", "content": self._system_prompt},
             {"role": "user", "content": task},
@@ -197,7 +144,6 @@ class AwmAgent:
 
         last_assistant_content = ""
 
-        # 3. Tool-calling loop
         for step in range(1, self._max_iterations + 1):
             if self._stop_requested:
                 yield AgentEvent(kind="info", text="Stopped by user.")
@@ -228,7 +174,6 @@ class AwmAgent:
 
             tc = parse_tool_call(content)
             if tc is None:
-                # No tool call → final answer reached
                 yield AgentEvent(
                     kind="info",
                     text=f"No <tool_call> in step {step}; treating as final answer.",
@@ -244,7 +189,6 @@ class AwmAgent:
                 payload={"name": name, "arguments": arguments, "step": step},
             )
 
-            # 4. Execute tool via web_manager
             tool_response = ""
             try:
                 if name == "list_tools":
@@ -300,7 +244,6 @@ class AwmAgent:
                 text=f"Max iterations ({self._max_iterations}) reached.",
             )
 
-        # 5. Optional auto-verify
         if auto_verify and verifier_mode:
             verify_args: dict = {"verifier_mode": verifier_mode}
             if last_assistant_content:
@@ -325,7 +268,6 @@ class AwmAgent:
             except Exception as e:
                 yield AgentEvent(kind="error", text=f"verify failed: {e}")
 
-        # 6. Optional auto-done
         if auto_done:
             try:
                 done_result = await self._call_tool("done", {"keep_session": True})

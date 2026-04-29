@@ -4,25 +4,28 @@ Custom Gradio UI for the AWM environment.
 
 from __future__ import annotations
 
+import asyncio
+import inspect
 import json
 import os
 from typing import Any
 
 import gradio as gr
 
+from openenv.core.env_server.serialization import serialize_observation
+
 from .data_loader import AWMDataLoader
-from .web_agent import AwmAgent, DEFAULT_SYSTEM_PROMPT
+from .prompts import DEFAULT_SYSTEM_PROMPT
+from .web_agent import AwmAgent
 
 
-# Default reward config presented to users — keep in sync with
-# DEFAULT_REWARD_CONFIG in awm_environment.py.
+# Keep in sync with DEFAULT_REWARD_CONFIG in awm_environment.py.
 _DEFAULT_REWARD_JSON = json.dumps(
     {"complete": 1.0, "incomplete": 0.1, "format_error": -1.0}, indent=2
 )
 
 
 def _format_obs_md(payload: dict | None) -> str:
-    """Pretty-print an observation payload for the Markdown panel."""
     if not payload:
         return "*No observation yet.*"
     obs = payload.get("observation") if isinstance(payload, dict) else None
@@ -72,7 +75,6 @@ def _format_obs_md(payload: dict | None) -> str:
 
 
 def _make_args_template(input_schema: dict | None) -> str:
-    """Build a JSON template from a tool's input_schema for the args textbox."""
     if not input_schema or not isinstance(input_schema, dict):
         return "{}"
     props = input_schema.get("properties") or {}
@@ -98,14 +100,54 @@ def build_awm_gradio_app(
     title: str = "AWM Environment",
     quick_start_md: str | None = None,
 ) -> gr.Blocks:
-    """Construct the AWM web UI."""
     data_loader = AWMDataLoader(cache_dir=os.environ.get("AWM_DATA_DIR"))
 
     readme_md = ""
     if metadata is not None and getattr(metadata, "readme_content", None):
         readme_md = metadata.readme_content
 
-    # ----------------------- Action helpers -----------------------------
+    # openenv-core 0.2.3 added a ``reset_kwargs`` parameter to
+    # ``WebInterfaceManager.reset_environment``. PyPI's 0.2.1 takes no args,
+    # which silently drops scenario/task_idx — fall back to calling env.reset
+    # directly and replicate the episode-state updates the manager would do.
+    _reset_env_supports_kwargs = (
+        len(
+            [
+                p
+                for p in inspect.signature(
+                    web_manager.reset_environment
+                ).parameters.values()
+                if p.name != "self"
+            ]
+        )
+        > 0
+    )
+
+    async def _safe_reset(reset_kwargs: dict[str, Any]) -> dict[str, Any]:
+        if _reset_env_supports_kwargs:
+            return await web_manager.reset_environment(reset_kwargs)
+
+        env = web_manager.env
+        params = inspect.signature(env.reset).parameters
+        has_var_kw = any(
+            p.kind == inspect.Parameter.VAR_KEYWORD for p in params.values()
+        )
+        valid = {k: v for k, v in reset_kwargs.items() if has_var_kw or k in params}
+        loop = asyncio.get_event_loop()
+        observation = await loop.run_in_executor(None, lambda: env.reset(**valid))
+        serialized = serialize_observation(observation)
+
+        es = web_manager.episode_state
+        es.episode_id = env.state.episode_id
+        es.step_count = 0
+        es.current_observation = serialized["observation"]
+        es.action_logs = []
+        es.is_reset = True
+        try:
+            await web_manager._send_state_update()
+        except Exception:
+            pass
+        return serialized
 
     async def _do_reset(
         scenario: str,
@@ -115,7 +157,6 @@ def build_awm_gradio_app(
         llm_model: str,
         reward_config_json: str,
     ):
-        """Reset env. Returns (status_md, task_md, obs_md, raw_json, tools_state)."""
         if not scenario:
             return (
                 "❌ Pick a scenario first.",
@@ -150,7 +191,7 @@ def build_awm_gradio_app(
                 )
 
         try:
-            result = await web_manager.reset_environment(reset_kwargs)
+            result = await _safe_reset(reset_kwargs)
         except Exception as e:
             return (
                 f"❌ Reset error: {e}",
@@ -167,7 +208,6 @@ def build_awm_gradio_app(
         status = "✅ Reset OK." if ok else f"❌ Reset failed: {obs.get('error') or rt}"
         task_md = f"**Task** (`{scenario}`, idx={task_idx}):\n\n{obs.get('task') or '*(no task description)*'}"
 
-        # Pre-fetch tools so the Human-mode dropdown is populated.
         tool_names: list[str] = []
         tool_lookup: dict[str, dict] = {}
         if ok:
@@ -206,7 +246,6 @@ def build_awm_gradio_app(
         )
 
     async def _refresh_scenarios():
-        """Populate scenario dropdown from data_loader (triggers cold load)."""
         try:
             scens = data_loader.list_scenarios()
             names = sorted(s["name"] for s in scens)
@@ -287,7 +326,6 @@ def build_awm_gradio_app(
         )
 
     async def _do_list_scenarios_via_tool():
-        """Use the env's __list_scenarios__ tool (server-side cached)."""
         try:
             result = await web_manager.step_environment(
                 {
@@ -299,8 +337,6 @@ def build_awm_gradio_app(
         except Exception as e:
             return f"❌ {e}", "{}"
         return _format_obs_md(result), json.dumps(result, indent=2, default=str)
-
-    # agent loop
 
     agent_state: dict[str, AwmAgent | None] = {"agent": None, "stop": False}
 
@@ -333,9 +369,8 @@ def build_awm_gradio_app(
             )
             return
 
-        # Reset env first using the same kwargs
         try:
-            reset_result = await web_manager.reset_environment(
+            reset_result = await _safe_reset(
                 {
                     "scenario": scenario,
                     "task_idx": int(task_idx),
@@ -427,10 +462,7 @@ def build_awm_gradio_app(
             a.request_stop()
         return "🛑 Stop requested. The agent will exit before its next iteration."
 
-    # ----------------------- Trajectory loader --------------------------
-
     async def _load_trajectory_from_state():
-        """Pull recent action_logs from web_manager.episode_state for the table."""
         try:
             logs = web_manager.episode_state.action_logs
         except Exception:
@@ -461,12 +493,10 @@ def build_awm_gradio_app(
                     preview,
                 ]
             )
-        return rows, None  # download file resolved separately on done
-
+        return rows, None
 
     with gr.Blocks(title=f"AWM — {title}") as blocks:
-        # State
-        tools_state = gr.State("{}")  # JSON dict tool_name -> tool meta
+        tools_state = gr.State("{}")
 
         gr.Markdown("# 🤖 Agent World Model — Web Console")
         gr.Markdown(
@@ -474,7 +504,6 @@ def build_awm_gradio_app(
             "or Agent mode), then explore via Human or Agent mode."
         )
 
-        # ------------------ Setup pane ----------------
         with gr.Group():
             gr.Markdown("## ⚙️ Setup")
             with gr.Row():
@@ -539,9 +568,7 @@ def build_awm_gradio_app(
                 status_box = gr.Markdown("Status: *idle*", elem_id="awm_status_box")
             task_md = gr.Markdown("*No task loaded yet.*", elem_id="awm_task_md")
 
-        # ------------------ Tabs ----------------------
         with gr.Tabs():
-            # ===== Human Mode =====
             with gr.Tab("👤 Human Mode"):
                 with gr.Row():
                     list_tools_btn = gr.Button(
@@ -601,7 +628,6 @@ def build_awm_gradio_app(
                     elem_id="awm_human_traj_dl",
                 )
 
-            # ===== Agent Mode =====
             with gr.Tab("🤖 Agent Mode"):
                 gr.Markdown(
                     "Drives an LLM agent through the env. Reset is done"
@@ -667,7 +693,6 @@ def build_awm_gradio_app(
                     elem_id="awm_agent_traj_dl",
                 )
 
-            # ===== Trajectory =====
             with gr.Tab("📜 Trajectory"):
                 gr.Markdown(
                     "Step-by-step history of the current episode. "
@@ -681,7 +706,6 @@ def build_awm_gradio_app(
                     elem_id="awm_traj_table",
                 )
 
-            # ===== README =====
             if readme_md:
                 with gr.Tab("📖 README"):
                     gr.Markdown(readme_md)

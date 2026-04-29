@@ -19,6 +19,8 @@ dependencies = [
     "fastapi-mcp==0.4.0",
     "openai>=1.106.1",
     "mcp-agent==0.2.6",
+    # Used by the custom Gradio web UI (server/web_ui.py).
+    "gradio>=4.0.0",
 ]
 
 [project.optional-dependencies]
