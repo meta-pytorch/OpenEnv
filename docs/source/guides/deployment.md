@@ -26,7 +26,9 @@ openenv build
 
 # Run it locally
 docker run -p 8000:8000 my-env:latest
+```
 
+```python
 # Connect a client
 from openenv.core import AutoEnv
 env = AutoEnv.from_env("http://localhost:8000")
@@ -53,7 +55,7 @@ openenv push -e DATASET=chain_sum --secret HF_TOKEN=hf_...
 
 Both flags are repeatable. For defaults that belong with the environment, declare them in `openenv.yaml` under `variables:` — `openenv push` applies them automatically and CLI `-e` overrides matching keys. Secrets should only ever be passed via `--secret`, never committed to `openenv.yaml`.
 
-See the [environment builder guide](../auto_getting_started/environment-builder.md) for the full `variables:` reference.
+See the [environment builder guide](../getting_started/environment-builder.md) for the full `variables:` reference.
 
 ### Hardware
 
@@ -92,7 +94,7 @@ To review changes before they go live, push to a new branch and open a PR on the
 openenv push --create-pr
 ```
 
-See the [contributing environments guide](../auto_getting_started/contributing-envs.md) for the full PR-based update workflow.
+See the [contributing environments guide](../getting_started/contributing-envs.md) for the full PR-based update workflow.
 
 ## Pushing to a custom Docker registry
 
@@ -101,10 +103,10 @@ openenv push --registry ghcr.io/my-org
 openenv push --registry docker.io/myuser
 ```
 
-The web interface is disabled by default for custom registry pushes. `--env-var` and `--secret` are not available with `--registry` (HF Space settings only).
+The web interface is disabled by default for custom registry pushes. `-e`/`--env-var` and `--secret` are not available with `--registry` (HF Space settings only).
 
 ## Next Steps
 
-- [Environment builder](../auto_getting_started/environment-builder.md) — full `openenv push` flag reference and `openenv.yaml` `variables:` docs
-- [Contributing environments](../auto_getting_started/contributing-envs.md) — PR-based update workflow and forking existing environments
+- [Environment builder](../getting_started/environment-builder.md) — full `openenv push` flag reference and `openenv.yaml` `variables:` docs
+- [Contributing environments](../getting_started/contributing-envs.md) — PR-based update workflow and forking existing environments
 - [CLI reference](../cli.md) — all CLI commands
