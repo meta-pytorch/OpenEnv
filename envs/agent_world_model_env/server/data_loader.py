@@ -157,9 +157,10 @@ class AWMDataLoader:
         return self._samples
 
     def _build_verifiers(self, verifier_mode: str = "sql") -> dict[str, list[dict]]:
-        assert verifier_mode in {"sql", "code"}, (
-            f"Invalid verifier mode: {verifier_mode}, must be either 'sql' or 'code'"
-        )
+        if verifier_mode not in {"sql", "code"}:
+            raise ValueError(
+                f"Invalid verifier mode: {verifier_mode!r}, must be 'sql' or 'code'"
+            )
 
         with self._lock:
             if self._verifiers is None:
