@@ -94,6 +94,12 @@ openenv skills add --claude --force
 openenv skills preview
 ```
 
+**Install to a custom path** (for non-standard agent setups):
+
+```bash
+openenv skills add --dest /path/to/my-agent/skills/
+```
+
 # API Reference
 
 ## Entry point

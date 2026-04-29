@@ -39,6 +39,7 @@ _SKILL_TIPS = """
 - `openenv serve` — run the environment server locally for development
 - `openenv fork` — fork an existing environment as a starting point
 - `openenv skills add --claude` — install this skill (re-run with `--force` to update)
+- `openenv skills add --dest <path>` — install to a custom skills directory
 
 Use `openenv <command> --help` for full flag reference.
 
