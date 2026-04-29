@@ -234,6 +234,9 @@ Server configuration is in `server/config.py`, overridable via environment varia
 | `ALLOWED_IDLE_SESSIONS` | 3000 | `OPENENV_AWM_ALLOWED_IDLE_SESSIONS` | Session count before idle cleanup triggers |
 | `CLEANUP_INTERVAL` | 5s | `OPENENV_AWM_CLEANUP_INTERVAL` | Cleanup daemon scan interval |
 
+## Warning
+
+AWM treats verifier code and scenario code from the curated [AgentWorldModel-1K](https://huggingface.co/datasets/Snowflake/AgentWorldModel-1K) dataset as **trusted**. Verifier code (`server/_verifier_runner.py`) is run in a subprocess sandbox (rlimits, restricted builtins, import allowlist); scenario subprocesses run without per-process sandboxing and rely on the container as the outer isolation boundary. The codes are synthetically generated and carefully curated, however, there is no guarantee of absolute safety. We recommend only academic research use.
 
 ## Citation
 

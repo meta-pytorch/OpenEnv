@@ -4,6 +4,21 @@ Each AWM scenario is a self-contained FastAPI application. This module handles:
 - Patching generated code (DB path, FastApiMCP injection)
 - Starting / stopping subprocess on a random port
 - Persistent MCP connection for efficient tool calls
+
+TRUST BOUNDARY:
+    The ``full_code`` argument to ``ScenarioProcess.start`` originates from
+    the curated HuggingFace dataset (Snowflake/AgentWorldModel-1K) and is
+    treated as TRUSTED.
+    
+    This is *intentional*: scenario code is the data the env exists to serve,
+    and the AWM design assumes it is benign. The container is the outer
+    isolation boundary; per-subprocess sandboxing is not applied here.
+
+    Verifier code (``_verifier_runner.py``) follows a different model with
+    an explicit sandbox; that asymmetry is by design.
+
+    If the dataset trust assumption changes, this module is the place that
+    must be hardened (e.g. per-subprocess unshare/seccomp/non-root uid).
 """
 
 import asyncio
