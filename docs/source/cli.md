@@ -100,6 +100,13 @@ openenv skills preview
 openenv skills add --dest /path/to/my-agent/skills/
 ```
 
+```{eval-rst}
+.. automodule:: openenv.cli.commands.skills
+   :members:
+   :undoc-members:
+   :show-inheritance:
+```
+
 # API Reference
 
 ## Entry point

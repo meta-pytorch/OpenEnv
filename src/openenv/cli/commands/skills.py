@@ -43,13 +43,6 @@ _SKILL_TIPS = """
 
 Use `openenv <command> --help` for full flag reference.
 
-## Companion skill
-
-`generate-openenv-env` scaffolds a complete new environment from a use-case
-description. Install it with:
-
-    openenv skills add --claude
-
 Full CLI reference: https://meta-pytorch.org/OpenEnv/cli.html
 """
 
