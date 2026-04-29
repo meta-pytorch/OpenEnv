@@ -30,12 +30,26 @@ Use `openenv --help` to view available commands.
 """
 
 _SKILL_TIPS = """
-## Tips
+## Commands
 
-- Start with `openenv init <env_name>` to scaffold a new environment
-- Validate projects with `openenv validate`
-- Build and deploy with `openenv build` and `openenv push`
-- Use `openenv <command> --help` for command-specific options
+- `openenv init <name>` — scaffold a new environment from the standard template
+- `openenv build` — build the Docker image for the current environment
+- `openenv validate` — verify the environment conforms to the OpenEnv spec
+- `openenv push` — deploy to Hugging Face Spaces or a Docker registry
+- `openenv serve` — run the environment server locally for development
+- `openenv fork` — fork an existing environment as a starting point
+- `openenv skills add --claude` — install this skill (re-run with `--force` to update)
+
+Use `openenv <command> --help` for full flag reference.
+
+## Companion skill
+
+`generate-openenv-env` scaffolds a complete new environment from a use-case
+description. Install it with:
+
+    openenv skills add --claude
+
+Full CLI reference: https://meta-pytorch.org/OpenEnv/cli.html
 """
 
 CENTRAL_LOCAL = Path(".agents/skills")
