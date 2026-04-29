@@ -22,6 +22,7 @@ from .db_manager import cleanup_session_dir, create_database, save_snapshot
 from .scenario_manager import ScenarioProcess
 from .session_registry import registry as _registry
 from .verifier import run_llm_judge, run_verifier
+from .config import DEFAULT_REWARD_CONFIG
 
 logger = logging.getLogger(__name__)
 
@@ -33,12 +34,6 @@ logger = logging.getLogger(__name__)
 
 VALID_VERIFIER_MODES = {"sql", "code"}
 
-# Default reward config: complete=1.0, incomplete=0.1, format_error=-1.0, others=0.0
-DEFAULT_REWARD_CONFIG = {
-    "complete": 1.0,
-    "incomplete": 0.1,
-    "format_error": -1.0,
-}
 # Reward types that map to format_error
 FORMAT_ERROR_TYPES = {"tool_not_found", "invalid_args", "invalid_action"}
 

@@ -11,7 +11,6 @@ connections — each HTTP request would create a fresh environment, dropping
 the subprocess and tool cache.
 """
 
-import inspect
 import os
 import uvicorn
 
@@ -36,32 +35,24 @@ def _env_factory():
     return AWMEnvironment(data_loader=_shared_data_loader)
 
 
-# openenv-core gained ``gradio_builder`` in 0.2.3; PyPI's 0.2.1 lacks it.
-# Pass it through when supported, fall back to a manual swap below otherwise.
-_supports_gradio_builder = "gradio_builder" in inspect.signature(create_app).parameters
-_create_app_kwargs = (
-    {"gradio_builder": build_awm_gradio_app} if _supports_gradio_builder else {}
-)
-
 app = create_app(
     _env_factory,
     AWMAction,
     AWMObservation,
     env_name="agent_world_model_env",
     max_concurrent_envs=MAX_CONCURRENT_ENVS,
-    **_create_app_kwargs,
 )
 
 
 def _swap_in_custom_gradio_ui() -> None:
-    """Replace openenv-core 0.2.1's default Playground UI with the AWM UI.
+    """Replace openenv-core's default web UI with the AWM Web Console.
 
-    Pulls the WebInterfaceManager out of the existing route closures, drops
-    the default Gradio mount and the legacy HTTP endpoints (`/web`,
-    `/web/reset`, `/web/step`, ...), then mounts our blocks at `/web`.
+    The framework's ``gradio_builder`` parameter wraps our blocks inside a
+    ``Playground | Custom`` TabbedInterface, which we don't want. Instead we
+    let the framework set up its default UI, then drop the default Mount +
+    legacy ``/web/*`` HTTP endpoints and mount our own blocks at ``/web``.
+    Pulls ``WebInterfaceManager`` out of the existing route closures.
     """
-    if _supports_gradio_builder:
-        return
     if os.environ.get("ENABLE_WEB_INTERFACE", "false").lower() not in (
         "true",
         "1",
@@ -193,7 +184,7 @@ async def _force_https_redirects(request: Request, call_next):
     response = await call_next(request)
     loc = response.headers.get("location")
     if loc and loc.startswith("http://") and ".hf.space" in loc:
-        response.headers["location"] = "https://" + loc[len("http://"):]
+        response.headers["location"] = "https://" + loc[len("http://") :]
     return response
 
 

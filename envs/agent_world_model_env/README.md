@@ -196,12 +196,14 @@ A background cleanup daemon automatically kills sessions idle longer than `MAX_I
 
 ## Full Agent Interaction Example
 
-See [`example_usage.py`](example_usage.py) for a complete example of an LLM-powered agent that:
+See [`examples/agent_world_model/example_usage.py`](../../examples/agent_world_model/example_usage.py) for a complete example of an LLM-powered agent that:
 
 1. Discovers available tools via `list_tools`
 2. Iteratively calls tools to accomplish the task
 3. Runs verification via `verify` tool (can use "sql" or "code" mode)
 4. Ends episode via `done` action with `keep_session=True` to inspect artifacts
+
+The example supports both a local server and the public Hugging Face Space, set `AWM_BASE_URL=https://chilled-agent-world-model-env.hf.space` (may be slow) to try without local setup.
 
 
 ## Large-Scale RL Training
@@ -214,7 +216,7 @@ A stress test simulating large-scale RL is included:
 
 ```bash
 # after server started, then in another terminal:
-PYTHONPATH=src:envs uv run python envs/agent_world_model_env/example_stress_test.py \
+PYTHONPATH=src:envs uv run python examples/agent_world_model/example_stress_test.py \
     --scale 1024 --concurrency 64 --min-turns 3 --max-turns 20 \
     --think-min 3.0 --think-max 30.0
 ```
@@ -246,6 +248,7 @@ More details can be found at:
 
 | Resource | Link |
 |----------|------|
+| Hugging Face Space | [ChilleD/agent_world_model_env](https://huggingface.co/spaces/ChilleD/agent_world_model_env) |
 | Paper | [arxiv.org/abs/2602.10090](https://arxiv.org/abs/2602.10090) |
 | Synthesis Pipeline Code | [Snowflake-Labs/agent-world-model](https://github.com/Snowflake-Labs/agent-world-model) |
 | AgentWorldModel-1K | [Snowflake/AgentWorldModel-1K](https://huggingface.co/datasets/Snowflake/AgentWorldModel-1K) |

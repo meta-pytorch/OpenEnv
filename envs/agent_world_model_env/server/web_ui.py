@@ -17,11 +17,12 @@ from openenv.core.env_server.serialization import serialize_observation
 from .data_loader import AWMDataLoader
 from .prompts import DEFAULT_SYSTEM_PROMPT
 from .web_agent import AwmAgent
+from .config import DEFAULT_REWARD_CONFIG
 
 
-# Keep in sync with DEFAULT_REWARD_CONFIG in awm_environment.py.
+# Keep in sync with DEFAULT_REWARD_CONFIG in config.py.
 _DEFAULT_REWARD_JSON = json.dumps(
-    {"complete": 1.0, "incomplete": 0.1, "format_error": -1.0}, indent=2
+    DEFAULT_REWARD_CONFIG, indent=2
 )
 
 

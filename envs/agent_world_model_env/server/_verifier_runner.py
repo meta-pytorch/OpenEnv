@@ -37,10 +37,14 @@ import builtins as _builtins
 import inspect
 import json
 import re as _re
-import resource
 import sqlite3
 import sys
 from typing import Any
+
+try:
+    import resource
+except ImportError:
+    resource = None  # Windows — resource limits not enforced
 
 
 # ---------------------------------------------------------------------------
@@ -250,6 +254,9 @@ def _build_safe_builtins() -> dict[str, Any]:
 
 # resource limits
 def _apply_resource_limits() -> None:
+    if resource is None:
+        return  # Windows — fall back to the parent's subprocess timeout.
+
     def _set(which: int, soft: int, hard: int | None = None) -> None:
         try:
             resource.setrlimit(which, (soft, hard if hard is not None else soft))

@@ -51,7 +51,7 @@ logging.basicConfig(
 )
 log = logging.getLogger("rl_stress")
 
-BASE_URL = "http://localhost:8899"
+BASE_URL = os.environ.get("AWM_BASE_URL", "http://localhost:8899")
 CLIENT_TIMEOUT: float = 600.0
 
 # Scenarios to cycle through

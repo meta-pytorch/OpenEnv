@@ -28,8 +28,8 @@ CLEANUP_INTERVAL: float = float(
     os.environ.get("OPENENV_AWM_CLEANUP_INTERVAL", "5.0")
 )  # how often the daemon thread scans
 
-# -- Reward defaults --
-REWARD_CONFIG: dict[str, float] = {
+# Default reward config: complete=1.0, incomplete=0.1, format_error=-1.0, others=0.0
+DEFAULT_REWARD_CONFIG: dict[str, float] = {
     "complete": 1.0,
     "incomplete": 0.1,
     "format_error": -1.0,

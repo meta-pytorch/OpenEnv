@@ -1,18 +1,26 @@
 """
 Complete LLM agent example for AWM environment.
 
+The server can be run locally OR you can connect to the public Hugging Face
+Space — set ``AWM_BASE_URL`` to switch.
+
 Usage:
-    # Terminal 1: Start the server
+    # ---- Option A (default): local server ----
+    # Terminal 1
     PYTHONPATH=src:envs uv run uvicorn \
         envs.agent_world_model_env.server.app:app --host 0.0.0.0 --port 8899
 
-    # Terminal 2: Run the agent (set LLM credentials first, you can use any openai compatible LLM)
+    # Terminal 2 (set LLM credentials, any OpenAI-compatible endpoint works)
     export ENDPOINT_URL="https://YOUR_ENDPOINT_URL/v1"
     export OPENAI_API_KEY="your-api-key"
     export AWM_EXAMPLE_AGENT_MODEL="gpt-5"
-    PYTHONPATH=src:envs uv run python envs/agent_world_model_env/example_usage.py
+    PYTHONPATH=src:envs uv run python examples/agent_world_model/example_usage.py
 
-    # Optional: set LLM credentials for SQL verifier mode
+    # ---- Option B: hosted HF Space ----
+    export AWM_BASE_URL="https://chilled-agent-world-model-env.hf.space"
+    PYTHONPATH=src:envs uv run python examples/agent_world_model/example_usage.py
+
+    # Optional: LLM credentials for SQL verifier mode
     export OPENENV_AWM_LLM_BASE_URL="https://..."
     export OPENENV_AWM_LLM_API_KEY="..."
     export OPENENV_AWM_LLM_MODEL="gpt-5"
@@ -29,8 +37,6 @@ from openenv.core.env_server.mcp_types import CallToolAction, ListToolsAction
 
 from agent_world_model_env import AWMEnv, AWMObservation
 from agent_world_model_env.server.prompts import DEFAULT_SYSTEM_PROMPT
-
-
 
 
 def parse_tool_call(content: str) -> dict | None:
@@ -71,7 +77,9 @@ def format_tools(tools) -> str:
 
 
 async def main():
-    async with AWMEnv(base_url="http://localhost:8899") as env:
+    base_url = os.environ.get("AWM_BASE_URL", "http://localhost:8899")
+    print(f"Connecting to AWM server at {base_url}")
+    async with AWMEnv(base_url=base_url) as env:
         # =====================================================================
         # 1. List all scenarios (1,000 scenarios x 10 tasks each)
         # =====================================================================
