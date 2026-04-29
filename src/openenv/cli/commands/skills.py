@@ -36,7 +36,6 @@ _SKILL_TIPS = """
 - `openenv build` — build the Docker image for the current environment
 - `openenv validate` — verify the environment conforms to the OpenEnv spec
 - `openenv push` — deploy to Hugging Face Spaces or a Docker registry
-- `openenv serve` — run the environment server locally for development
 - `openenv fork` — fork an existing environment as a starting point
 - `openenv skills add --claude` — install this skill (re-run with `--force` to update)
 - `openenv skills add --dest <path>` — install to a custom skills directory
