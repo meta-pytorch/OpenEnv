@@ -9,7 +9,7 @@ TRUST BOUNDARY:
     The ``full_code`` argument to ``ScenarioProcess.start`` originates from
     the curated HuggingFace dataset (Snowflake/AgentWorldModel-1K) and is
     treated as TRUSTED.
-    
+
     This is *intentional*: scenario code is the data the env exists to serve,
     and the AWM design assumes it is benign. The container is the outer
     isolation boundary; per-subprocess sandboxing is not applied here.

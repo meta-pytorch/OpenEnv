@@ -24,6 +24,7 @@ try:
     from .config import MAX_CONCURRENT_ENVS
     from .data_loader import AWMDataLoader
     from .session_registry import registry as _registry
+    from .web_ui import build_awm_gradio_app
 except ImportError:
     from models import AWMAction, AWMObservation
     from openenv.core.env_server.http_server import create_app
@@ -31,6 +32,7 @@ except ImportError:
     from server.config import MAX_CONCURRENT_ENVS
     from server.data_loader import AWMDataLoader
     from server.session_registry import registry as _registry
+    from server.web_ui import build_awm_gradio_app
 
 _shared_data_loader = AWMDataLoader()
 
@@ -40,6 +42,7 @@ app = create_app(
     AWMObservation,
     env_name="agent_world_model_env",
     max_concurrent_envs=MAX_CONCURRENT_ENVS,
+    gradio_builder=build_awm_gradio_app,
 )
 
 # Disable HTTP endpoints - AWM requires stateful WebSocket connections

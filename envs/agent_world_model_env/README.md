@@ -18,6 +18,8 @@ AgentWorldModel-1K is a synthetic agentic environment suite containing **1,000 t
 
 ## Quick Start
 
+You can interact with the AWM environments at Huggingface Space : [ChilleD/agent_world_model_env](https://huggingface.co/spaces/ChilleD/agent_world_model_env) 🤗.
+
 ### 1. Start the Server
 
 ```bash
