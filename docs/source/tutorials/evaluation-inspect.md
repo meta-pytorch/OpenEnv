@@ -49,14 +49,10 @@ without it, but raises a clear `ImportError` at call time if it is missing.
 
 ## Set your model provider
 
-Uncomment exactly one option. All three feed into the same task and harness —
-no other cells need to change.
+Pick one provider. Uncomment the corresponding lines — no other cells need to change.
 
 ```python
 import os
-from huggingface_hub import InferenceClient
-
-hf_client = None  # overridden by Option C
 
 # --- Option A: OpenAI ---
 os.environ["OPENAI_API_KEY"] = "sk-..."  # replace with your key
@@ -65,29 +61,10 @@ MODEL = "openai/gpt-4o-mini"
 # --- Option B: Anthropic ---
 # os.environ["ANTHROPIC_API_KEY"] = "sk-ant-..."
 # MODEL = "anthropic/claude-haiku-4-5-20251001"
-
-# --- Option C: open model via HF Inference Providers ---
-# The solver calls InferenceClient directly, so generate() is never invoked.
-# MODEL is passed to InspectAIHarness for logging only.
-# try:
-#     from google.colab import userdata
-#     os.environ["HF_TOKEN"] = userdata.get("HF_TOKEN")
-# except Exception:
-#     pass
-# HF_MODEL_ID = "meta-llama/Llama-3.3-70B-Instruct"
-# hf_client = InferenceClient(
-#     model=HF_MODEL_ID,
-#     token=os.environ.get("HF_TOKEN", ""),
-# )
-# MODEL = f"hf/{HF_MODEL_ID}"  # stored in EvalConfig for reproducibility
 ```
 
-**Options A/B** (OpenAI / Anthropic): Inspect AI's `generate()` calls the
-model using the API key above.
-
-**Option C** (HF open model): `InferenceClient` is called inside the solver
-via `run_in_executor`, bypassing `generate()` entirely. The `model` string is
-stored in `EvalConfig` for reproducibility but never used for routing.
+The `model` string uses `provider/model-name` format — Inspect AI extracts the
+provider from the prefix and routes accordingly.
 
 ## Define an Inspect AI task for an OpenEnv environment
 
@@ -100,14 +77,11 @@ OpenEnv environment. The model is asked to repeat a phrase; the solver sends
 the phrase to the environment and records the echoed response; the scorer
 checks it matches the expected output.
 
-The solver accepts an optional `client` argument. When set (Option C), it
-calls `InferenceClient` in a thread executor and bypasses `generate()`.
-When `None` (Options A/B), it delegates to Inspect AI's `generate()`. The
-dataset, scorer, and harness are identical across all providers.
+The solver calls Inspect AI's `generate()` to get the model's output, then
+sends it to the environment. The dataset, scorer, and harness are identical
+for both providers.
 
 ```python
-import asyncio
-
 from inspect_ai import Task, task
 from inspect_ai.dataset import Sample
 from inspect_ai.scorer import CORRECT, INCORRECT, Score, Target, accuracy, scorer
@@ -120,7 +94,6 @@ ECHO_ENV_URL = "https://openenv-echo-env.hf.space"
 
 @task
 def openenv_echo_eval(base_url: str = ECHO_ENV_URL):
-    """Evaluate whether a model can repeat a phrase exactly via echo_env."""
     return Task(
         dataset=[
             Sample(input="Repeat exactly: hello world", target="hello world"),
@@ -129,31 +102,18 @@ def openenv_echo_eval(base_url: str = ECHO_ENV_URL):
             Sample(input="Repeat exactly: reinforcement learning", target="reinforcement learning"),
             Sample(input="Repeat exactly: hugging face", target="hugging face"),
         ],
-        solver=echo_env_solver(base_url=base_url, client=hf_client),
+        solver=echo_env_solver(base_url=base_url),
         scorer=echo_scorer(),
     )
 
 
 @solver
-def echo_env_solver(base_url: str, client=None):
-    """Unified solver: uses InferenceClient if provided, else Inspect AI's generate()."""
+def echo_env_solver(base_url: str):
+    """Ask the model to repeat the phrase, then echo it through the env."""
 
     async def solve(state: TaskState, generate: Generate) -> TaskState:
-        if client is not None:
-            # HF path: InferenceClient is synchronous — run it in a thread
-            loop = asyncio.get_running_loop()
-            resp = await loop.run_in_executor(
-                None,
-                lambda: client.chat_completion(
-                    messages=[{"role": "user", "content": state.user_prompt.text}],
-                    max_tokens=50,
-                ),
-            )
-            model_output = resp.choices[0].message.content.strip()
-        else:
-            # OpenAI / Anthropic path: let Inspect AI call the model
-            state = await generate(state)
-            model_output = state.output.completion.strip()
+        state = await generate(state)
+        model_output = state.output.completion.strip()
 
         # echo_env is a pure MCP environment — use MCPToolClient + call_tool
         env = MCPToolClient(base_url=base_url)
@@ -192,8 +152,7 @@ and `call_tool("echo_message", ...)`. For non-MCP environments, use
 ## Run the eval with `InspectAIHarness`
 
 Pass the task to `InspectAIHarness` via `EvalConfig`. The `task` key in
-`eval_parameters` takes either a registered task name (string) or a task
-object — here we pass the task object directly.
+`eval_parameters` takes a task object or a registered task name string.
 
 ```python
 import inspect_ai
@@ -254,37 +213,24 @@ result = harness.run_from_config(EvalConfig(
 
 Replace `echo_env_solver` with a solver that uses your env and model:
 
-1. **Dataset** — collect held-out episodes from your env (or use a static
+1. **Dataset** — collect held-out episodes from your env (or a static
    benchmark); each `Sample` needs `input` and `target` fields.
-2. **Solver** — call your trained model against the env. If you used GRPO
-   training with an `environment_factory`, reuse the same factory here so the
-   eval env matches the training env exactly.
+2. **Solver** — call your trained model against the env via `generate()`.
+   If you used GRPO training with an `environment_factory`, reuse the same
+   factory here so the eval env matches training exactly.
 3. **Scorer** — use the env's reward signal directly, or write an Inspect AI
    `@scorer` that checks the final observation against a ground-truth target.
 
 ```python
-import asyncio
-
 from inspect_ai.solver import Generate, TaskState, solver
 from openenv.core import MCPToolClient
 
 
 @solver
-def my_env_solver(base_url: str, client=None):
+def my_env_solver(base_url: str):
     async def solve(state: TaskState, generate: Generate) -> TaskState:
-        if client is not None:
-            loop = asyncio.get_running_loop()
-            resp = await loop.run_in_executor(
-                None,
-                lambda: client.chat_completion(
-                    messages=[{"role": "user", "content": state.user_prompt.text}],
-                    max_tokens=200,
-                ),
-            )
-            model_output = resp.choices[0].message.content.strip()
-        else:
-            state = await generate(state)
-            model_output = state.output.completion.strip()
+        state = await generate(state)
+        model_output = state.output.completion.strip()
 
         env = MCPToolClient(base_url=base_url)
         try:
