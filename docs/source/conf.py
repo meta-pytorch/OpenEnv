@@ -205,29 +205,22 @@ def copy_md_pages_to_gallery(app):
 def copy_env_assets(app):
     """Copy env README images into _env_assets so html_extra_path can serve them.
 
-    Not committed to git (directory is gitignored) to avoid binary blobs being
-    misidentified as text files by the CRLF line-endings test.  Copied at build
-    time so the path html_extra_path=["_env_assets"] always resolves correctly.
+    Scans envs/*/assets/ recursively and copies every file it finds, so any
+    new env image is picked up automatically with no conf.py edit required.
+
+    The _env_assets/ directory is gitignored to avoid committing binary blobs
+    that would trip the CRLF line-endings test.
     """
+    import glob
     import shutil
 
     repo_root = os.path.dirname(os.path.dirname(app.srcdir))
     dst_dir = os.path.join(app.srcdir, "_env_assets", "environments", "assets")
     os.makedirs(dst_dir, exist_ok=True)
 
-    assets = [
-        ("envs/openapp_env/assets/OpenApps_OpenEnv_RL.png", "OpenApps_OpenEnv_RL.png"),
-        ("envs/openapp_env/assets/openapps-demo.gif", "openapps-demo.gif"),
-        ("envs/dm_control_env/assets/cartpole.png", "cartpole.png"),
-        ("envs/dm_control_env/assets/quadruped.png", "quadruped.png"),
-        ("envs/unity_env/assets/unity_3dball.gif", "unity_3dball.gif"),
-        ("envs/unity_env/assets/unity_pushblock.gif", "unity_pushblock.gif"),
-    ]
-    for src_rel, filename in assets:
-        src = os.path.join(repo_root, src_rel)
-        dst = os.path.join(dst_dir, filename)
-        if os.path.exists(src):
-            shutil.copy2(src, dst)
+    for src in glob.glob(os.path.join(repo_root, "envs", "*", "assets", "**"), recursive=True):
+        if os.path.isfile(src):
+            shutil.copy2(src, dst_dir)
 
 
 def setup(app):
