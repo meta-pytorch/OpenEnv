@@ -191,7 +191,11 @@ log, compare across runs, or serialize to JSON:
 ```python
 import json
 
-print(json.dumps(result.model_dump(), indent=2))
+class _StrFallback(json.JSONEncoder):
+    def default(self, o):
+        return str(o)
+
+print(json.dumps(result.model_dump(), indent=2, cls=_StrFallback))
 ```
 
 ## Using a task file instead of a task object
