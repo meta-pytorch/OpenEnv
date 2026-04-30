@@ -64,9 +64,12 @@ MODEL = "openai/gpt-4o-mini"
 # MODEL = "anthropic/claude-haiku-4-5-20251001"
 
 # --- Option C: local transformers model (no API key needed) ---
-# Inspect AI loads the model with transformers and runs inference locally.
-# Requires a GPU for reasonable speed. Use a local checkpoint path to avoid
-# downloading weights (e.g. "hf/./outputs/my-trained-model").
+# Requires a GPU for reasonable speed. Omit 'temperature' from eval_parameters
+# — it is not supported by the hf/ backend.
+# If you see 'model type not recognized', upgrade transformers first:
+#   !pip install --upgrade transformers
+# Use a local checkpoint path to skip the download:
+#   MODEL = "hf/./outputs/my-trained-model"
 # MODEL = "hf/Qwen/Qwen3.5-0.8B"
 ```
 
