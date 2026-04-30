@@ -82,6 +82,9 @@ import pytorch_sphinx_theme2
 html_theme = "pytorch_sphinx_theme2"
 html_theme_path = [pytorch_sphinx_theme2.get_html_theme_path()]
 html_static_path = ["_static"]
+# Copies env README assets (images/GIFs) to the correct output path so that
+# raw HTML <img src="assets/..."> tags in {include}-based env pages resolve.
+html_extra_path = ["_env_assets"]
 
 html_theme_options = {
     "navigation_with_keys": False,
