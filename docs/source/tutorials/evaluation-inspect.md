@@ -67,7 +67,7 @@ MODEL = "openai/gpt-4o-mini"
 # Inspect AI loads the model with transformers and runs inference locally.
 # Requires a GPU for reasonable speed. Use a local checkpoint path to avoid
 # downloading weights (e.g. "hf/./outputs/my-trained-model").
-# MODEL = "hf/Qwen/Qwen2.5-0.5B-Instruct"
+# MODEL = "hf/Qwen/Qwen3.5-0.8B"
 ```
 
 The `model` string uses `provider/model-name` format for API providers.
