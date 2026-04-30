@@ -82,8 +82,9 @@ import pytorch_sphinx_theme2
 html_theme = "pytorch_sphinx_theme2"
 html_theme_path = [pytorch_sphinx_theme2.get_html_theme_path()]
 html_static_path = ["_static"]
-# Copies env README assets (images/GIFs) to the correct output path so that
-# raw HTML <img src="assets/..."> tags in {include}-based env pages resolve.
+# Populated by copy_env_assets() at build time (see setup() below).
+# Copies env README images to _build/html/ so raw HTML <img src="assets/...">
+# tags in {include}-based env pages resolve correctly.
 html_extra_path = ["_env_assets"]
 
 html_theme_options = {
@@ -201,9 +202,39 @@ def copy_md_pages_to_gallery(app):
         shutil.copy2(md_file, dstdir)
 
 
+def copy_env_assets(app):
+    """Copy env README images into _env_assets so html_extra_path can serve them.
+
+    Not committed to git (directory is gitignored) to avoid binary blobs being
+    misidentified as text files by the CRLF line-endings test.  Copied at build
+    time so the path html_extra_path=["_env_assets"] always resolves correctly.
+    """
+    import shutil
+
+    repo_root = os.path.dirname(os.path.dirname(app.srcdir))
+    dst_dir = os.path.join(app.srcdir, "_env_assets", "environments", "assets")
+    os.makedirs(dst_dir, exist_ok=True)
+
+    assets = [
+        ("envs/openapp_env/assets/OpenApps_OpenEnv_RL.png", "OpenApps_OpenEnv_RL.png"),
+        ("envs/openapp_env/assets/openapps-demo.gif", "openapps-demo.gif"),
+        ("envs/dm_control_env/assets/cartpole.png", "cartpole.png"),
+        ("envs/dm_control_env/assets/quadruped.png", "quadruped.png"),
+        ("envs/unity_env/assets/unity_3dball.gif", "unity_3dball.gif"),
+        ("envs/unity_env/assets/unity_pushblock.gif", "unity_pushblock.gif"),
+    ]
+    for src_rel, filename in assets:
+        src = os.path.join(repo_root, src_rel)
+        dst = os.path.join(dst_dir, filename)
+        if os.path.exists(src):
+            shutil.copy2(src, dst)
+
+
 def setup(app):
     # Copy extra .md pages into the gallery output dir (priority 900 so it
     # runs after sphinx-gallery's builder-inited handler at default priority).
     app.connect("builder-inited", copy_md_pages_to_gallery, priority=900)
+    # Copy env assets into _env_assets (gitignored; built at doc-build time).
+    app.connect("builder-inited", copy_env_assets, priority=900)
     # Hook into source-read to modify content before Sphinx processes it
     app.connect("source-read", remove_orphan_and_duplicate_toctree)
