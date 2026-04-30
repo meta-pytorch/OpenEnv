@@ -185,7 +185,9 @@ config = EvalConfig(
     dataset="openenv_echo_eval",
     eval_parameters={
         "model": MODEL,
-        "task": openenv_echo_eval(base_url="https://openenv-echo-env.hf.space"),
+        "task": openenv_echo_eval(base_url=ECHO_ENV_URL),
+        # temperature is supported for API providers (Options A/B).
+        # Omit it for local transformers models (Option C).
         "temperature": 0.0,
     },
 )
@@ -271,9 +273,9 @@ def my_env_solver(base_url: str):
 
 ## Next steps
 
-- [Rubrics tutorial](rubrics) — define reward functions inside
+- [Rubrics tutorial](https://meta-pytorch.org/OpenEnv/tutorials/rubrics.html) — define reward functions inside
   the environment using composable rubrics
-- [Wordle GRPO](wordle-grpo) — full training loop that produces a model you
+- [Wordle GRPO](https://meta-pytorch.org/OpenEnv/tutorials/wordle-grpo.html) — full training loop that produces a model you
   can evaluate with this tutorial
 - [Inspect AI documentation](https://inspect.aisi.org.uk/) — full reference
   for tasks, solvers, scorers, and the log viewer
