@@ -171,6 +171,9 @@ config = EvalConfig(
         "model": MODEL,
         "task": openenv_echo_eval(base_url="https://openenv-echo-env.hf.space"),
         "temperature": 0.0,
+        # The free HF Space only allows 1 concurrent WebSocket session.
+        # max_connections=1 makes Inspect AI process samples sequentially.
+        "max_connections": 1,
     },
 )
 
