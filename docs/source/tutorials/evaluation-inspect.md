@@ -103,8 +103,8 @@ from openenv.core import MCPToolClient
 
 ECHO_ENV_URL = "https://openenv-echo-env.hf.space"
 
-# Serialize env connections: the free HF Space allows only 1 concurrent session.
-_env_sem = asyncio.Semaphore(1)
+# Limit concurrent env connections to match the server's MAX_CONCURRENT_ENVS.
+_env_sem = asyncio.Semaphore(1)  # increase if your Space supports more sessions
 
 
 @task
