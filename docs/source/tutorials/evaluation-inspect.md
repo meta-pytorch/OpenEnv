@@ -53,14 +53,14 @@ Uncomment exactly one option. All three feed into the same task and harness —
 no other cells need to change.
 
 ```python
-import os
+import getpass, os
 
 # --- Option A: OpenAI ---
-os.environ["OPENAI_API_KEY"] = "sk-..."  # replace with your key
+os.environ.setdefault("OPENAI_API_KEY", getpass.getpass("OpenAI API key: "))
 MODEL = "openai/gpt-4o-mini"
 
 # --- Option B: Anthropic ---
-# os.environ["ANTHROPIC_API_KEY"] = "sk-ant-..."
+# os.environ.setdefault("ANTHROPIC_API_KEY", getpass.getpass("Anthropic API key: "))
 # MODEL = "anthropic/claude-haiku-4-5-20251001"
 
 # --- Option C: local transformers model (no API key needed) ---
