@@ -82,6 +82,8 @@ sends it to the environment. The dataset, scorer, and harness are identical
 for both providers.
 
 ```python
+import asyncio
+
 from inspect_ai import Task, task
 from inspect_ai.dataset import Sample
 from inspect_ai.scorer import CORRECT, INCORRECT, Score, Target, accuracy, scorer
@@ -90,6 +92,9 @@ from inspect_ai.solver import Generate, TaskState, solver
 from openenv.core import MCPToolClient
 
 ECHO_ENV_URL = "https://openenv-echo-env.hf.space"
+
+# Serialize env connections: the free HF Space allows only 1 concurrent session.
+_env_sem = asyncio.Semaphore(1)
 
 
 @task
@@ -115,14 +120,15 @@ def echo_env_solver(base_url: str):
         state = await generate(state)
         model_output = state.output.completion.strip()
 
-        # echo_env is a pure MCP environment — use MCPToolClient + call_tool
-        env = MCPToolClient(base_url=base_url)
-        try:
-            await env.reset()
-            echoed = await env.call_tool("echo_message", message=model_output)
-            state.metadata["echoed"] = str(echoed) if echoed is not None else ""
-        finally:
-            await env.close()
+        async with _env_sem:  # one env connection at a time
+            env = MCPToolClient(base_url=base_url)
+            try:
+                await env.reset()
+                echoed = await env.call_tool("echo_message", message=model_output)
+                state.metadata["echoed"] = str(echoed) if echoed is not None else ""
+            finally:
+                await env.close()
+
         return state
 
     return solve
@@ -171,9 +177,6 @@ config = EvalConfig(
         "model": MODEL,
         "task": openenv_echo_eval(base_url="https://openenv-echo-env.hf.space"),
         "temperature": 0.0,
-        # The free HF Space only allows 1 concurrent WebSocket session.
-        # max_connections=1 makes Inspect AI process samples sequentially.
-        "max_connections": 1,
     },
 )
 
@@ -225,8 +228,12 @@ Replace `echo_env_solver` with a solver that uses your env and model:
    `@scorer` that checks the final observation against a ground-truth target.
 
 ```python
+import asyncio
+
 from inspect_ai.solver import Generate, TaskState, solver
 from openenv.core import MCPToolClient
+
+_env_sem = asyncio.Semaphore(1)  # raise if your Space supports more sessions
 
 
 @solver
@@ -235,13 +242,14 @@ def my_env_solver(base_url: str):
         state = await generate(state)
         model_output = state.output.completion.strip()
 
-        env = MCPToolClient(base_url=base_url)
-        try:
-            await env.reset()
-            result = await env.call_tool("your_tool_name", message=model_output)
-            state.metadata["env_result"] = result
-        finally:
-            await env.close()
+        async with _env_sem:
+            env = MCPToolClient(base_url=base_url)
+            try:
+                await env.reset()
+                result = await env.call_tool("your_tool_name", message=model_output)
+                state.metadata["env_result"] = result
+            finally:
+                await env.close()
         return state
 
     return solve
