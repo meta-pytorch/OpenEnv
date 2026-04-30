@@ -220,6 +220,13 @@ def copy_env_assets(app):
 
     for src in glob.glob(os.path.join(repo_root, "envs", "*", "assets", "**"), recursive=True):
         if os.path.isfile(src):
+            dst = os.path.join(dst_dir, os.path.basename(src))
+            if os.path.exists(dst):
+                import warnings
+                warnings.warn(
+                    f"copy_env_assets: {os.path.basename(src)} already exists from a previous env; overwriting with {src}",
+                    stacklevel=2,
+                )
             shutil.copy2(src, dst_dir)
 
 
