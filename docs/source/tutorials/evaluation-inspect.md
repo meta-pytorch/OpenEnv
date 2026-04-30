@@ -49,7 +49,8 @@ without it, but raises a clear `ImportError` at call time if it is missing.
 
 ## Set your model provider
 
-Pick one provider. Uncomment the corresponding lines — no other cells need to change.
+Uncomment exactly one option. All three feed into the same task and harness —
+no other cells need to change.
 
 ```python
 import os
@@ -61,10 +62,18 @@ MODEL = "openai/gpt-4o-mini"
 # --- Option B: Anthropic ---
 # os.environ["ANTHROPIC_API_KEY"] = "sk-ant-..."
 # MODEL = "anthropic/claude-haiku-4-5-20251001"
+
+# --- Option C: local transformers model (no API key needed) ---
+# Inspect AI loads the model with transformers and runs inference locally.
+# Requires a GPU for reasonable speed. Use a local checkpoint path to avoid
+# downloading weights (e.g. "hf/./outputs/my-trained-model").
+# MODEL = "hf/Qwen/Qwen2.5-0.5B-Instruct"
 ```
 
-The `model` string uses `provider/model-name` format — Inspect AI extracts the
-provider from the prefix and routes accordingly.
+The `model` string uses `provider/model-name` format for API providers.
+For local models, the `hf/` prefix loads the model with `transformers` — point
+it at a Hub ID to download, or a local path (`hf/./path/to/checkpoint`) to use
+weights you already have on disk (e.g. from TRL training).
 
 ## Define an Inspect AI task for an OpenEnv environment
 
