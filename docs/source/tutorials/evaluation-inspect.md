@@ -64,13 +64,11 @@ MODEL = "openai/gpt-4o-mini"
 # MODEL = "anthropic/claude-haiku-4-5-20251001"
 
 # --- Option C: local transformers model (no API key needed) ---
-# Requires a GPU for reasonable speed. Omit 'temperature' from eval_parameters
-# — it is not supported by the hf/ backend.
-# If you see 'model type not recognized', upgrade transformers first:
-#   !pip install --upgrade transformers
-# Use a local checkpoint path to skip the download:
-#   MODEL = "hf/./outputs/my-trained-model"
+# Requires a GPU for reasonable speed. Omit 'temperature' from eval_parameters below.
+# !pip install -U transformers
 # MODEL = "hf/Qwen/Qwen3.5-0.8B"
+# Use a local checkpoint path to skip the download:
+# MODEL = "hf/./outputs/my-trained-model"
 ```
 
 The `model` string uses `provider/model-name` format for API providers.
