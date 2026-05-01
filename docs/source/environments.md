@@ -487,6 +487,26 @@ Autonomous wildfire-control simulation where agents contain spreading fires usin
 ```
 ````
 
+````{grid-item-card} Agent World Model
+:class-card: sd-border-1
+
+AgentWorldModel-1K — 1,000 synthetic MCP tool-use environments with 10,000 tasks for large-scale agentic RL training.
+
++++
+```{button-link} environments/agent_world_model.html
+:color: primary
+:outline:
+
+{octicon}`file;1em` Docs
+```
+```{button-link} https://huggingface.co/spaces/ChilleD/agent_world_model_env
+:color: warning
+:outline:
+
+🤗 Hugging Face
+```
+````
+
 `````
 
 ```{tip}
@@ -553,4 +573,5 @@ environments/reasoning_gym
 environments/tbench2
 environments/unity
 environments/wildfire
+environments/agent_world_model
 ```
