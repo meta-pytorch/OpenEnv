@@ -14,6 +14,7 @@ from pathlib import Path
 from typing import Annotated
 
 import typer
+import uvicorn
 import yaml
 
 from .._cli_utils import console, validate_env_structure
@@ -61,15 +62,6 @@ def serve(
     For production or training, use Docker (``openenv build``) — this command runs
     on the host for local development only.
     """
-    try:
-        import uvicorn
-    except ImportError as exc:  # pragma: no cover
-        typer.echo(
-            "Error: uvicorn is not installed. Run: pip install 'uvicorn>=0.24.0'",
-            err=True,
-        )
-        raise typer.Exit(1) from exc
-
     env_path_obj = (
         Path.cwd().resolve() if env_path is None else Path(env_path).resolve()
     )
@@ -120,20 +112,19 @@ def serve(
         )
 
     original_path = list(sys.path)
-    repo_src = _find_repo_src_for_openenv(env_path_obj)
-    if repo_src is not None:
-        repo_src_str = str(repo_src.resolve())
-        if repo_src_str not in sys.path:
-            sys.path.insert(0, repo_src_str)
-
-    env_root = str(env_path_obj.resolve())
-    if env_root not in sys.path:
-        sys.path.insert(0, env_root)
-
     prev_cwd = os.getcwd()
-    os.chdir(env_root)
+    env_root = str(env_path_obj.resolve())
 
     try:
+        repo_src = _find_repo_src_for_openenv(env_path_obj)
+        if repo_src is not None:
+            repo_src_str = str(repo_src.resolve())
+            if repo_src_str not in sys.path:
+                sys.path.insert(0, repo_src_str)
+        if env_root not in sys.path:
+            sys.path.insert(0, env_root)
+        os.chdir(env_root)
+
         console.print(
             f"[bold green]Serving[/bold green] [cyan]{app_spec}[/cyan] on "
             f"[bold]http://{host}:{listen_port}/[/bold]  (cwd: {env_root})"
