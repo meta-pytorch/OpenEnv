@@ -16,10 +16,6 @@ from openenv.core.env_server.types import Observation
 from ..models import CodeObservation
 
 
-def _parse_code(code: str) -> ast.AST:
-    return ast.parse(code)
-
-
 class CodeSafetyTransform(Transform):
     """
     Assign penalties for obviously unsafe coding patterns.
@@ -37,6 +33,7 @@ class CodeSafetyTransform(Transform):
             (re.compile(r"\bexec\s*\("), "exec"),
             (re.compile(r"\b__import__\s*\("), "__import__"),
             (re.compile(r"\bopen\s*\("), "open"),
+            (re.compile(r"\.open\s*\("), "open"),
         ]
 
     def _detect_text_violation(self, code: str) -> str | None:
@@ -54,7 +51,7 @@ class CodeSafetyTransform(Transform):
         (e.g. ``myopen()``).
         """
         try:
-            tree = _parse_code(code)
+            tree = ast.parse(code)
         except (SyntaxError, RecursionError, ValueError):
             # Fall back to the previous raw-text heuristic when AST parsing
             # cannot inspect malformed or pathologically nested code.
@@ -126,7 +123,7 @@ class CodeQualityTransform(Transform):
 
             # Check syntax (redundant but useful for quality assessment)
             try:
-                _parse_code(code)
+                ast.parse(code)
             except (SyntaxError, RecursionError, ValueError):
                 quality_score += self.syntax_penalty
 

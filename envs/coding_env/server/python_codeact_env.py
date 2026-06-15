@@ -63,7 +63,8 @@ class PythonCodeActEnv(Environment):
         Args:
             seed: Accepted for API compatibility. This deterministic executor
                 has no random state to seed.
-            episode_id: Optional episode identifier override.
+            episode_id: Optional episode identifier override. If omitted or
+                empty, a new episode ID is generated.
             **kwargs: Forward-compatible reset parameters accepted by the base
                 Environment API but unused by this environment.
 
