@@ -57,7 +57,6 @@ def test_serve_calls_uvicorn_with_echo_manifest() -> None:
                 "--host",
                 "127.0.0.1",
             ],
-            env={**os.environ, "PYTHONPATH": str(REPO_ROOT / "src")},
         )
     assert result.exit_code == 0, result.stdout
     mock_run.assert_called_once()
@@ -72,7 +71,6 @@ def test_serve_rejects_invalid_env_dir() -> None:
     result = runner.invoke(
         app,
         ["serve", str(REPO_ROOT / "nonexistent_env_dir_xyz")],
-        env={**os.environ, "PYTHONPATH": str(REPO_ROOT / "src")},
     )
     assert result.exit_code != 0
 
@@ -82,7 +80,6 @@ def test_serve_uses_manifest_port_when_omitted() -> None:
         result = runner.invoke(
             app,
             ["serve", str(ECHO_ENV), "--host", "127.0.0.1"],
-            env={**os.environ, "PYTHONPATH": str(REPO_ROOT / "src")},
         )
     assert result.exit_code == 0, result.stdout
     _, kwargs = mock_run.call_args

@@ -64,9 +64,11 @@ def serve(
     try:
         import uvicorn
     except ImportError as exc:  # pragma: no cover
-        raise typer.BadParameter(
-            "uvicorn is not installed. Run: pip install 'uvicorn>=0.24.0'"
-        ) from exc
+        typer.echo(
+            "Error: uvicorn is not installed. Run: pip install 'uvicorn>=0.24.0'",
+            err=True,
+        )
+        raise typer.Exit(1) from exc
 
     env_path_obj = (
         Path.cwd().resolve() if env_path is None else Path(env_path).resolve()
@@ -117,6 +119,7 @@ def serve(
             f"Invalid port {listen_port}; expected a value between 1 and 65535"
         )
 
+    original_path = list(sys.path)
     repo_src = _find_repo_src_for_openenv(env_path_obj)
     if repo_src is not None:
         repo_src_str = str(repo_src.resolve())
@@ -136,9 +139,14 @@ def serve(
             f"[bold]http://{host}:{listen_port}/[/bold]  (cwd: {env_root})"
         )
 
-        uvicorn.run(app_spec, host=host, port=listen_port, reload=reload)
+        try:
+            uvicorn.run(app_spec, host=host, port=listen_port, reload=reload)
+        except OSError as exc:
+            typer.echo(f"Error: {exc}", err=True)
+            raise typer.Exit(1) from exc
     finally:
         try:
             os.chdir(prev_cwd)
         except OSError:
             pass
+        sys.path[:] = original_path

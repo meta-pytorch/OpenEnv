@@ -5,8 +5,21 @@
 # LICENSE file in the root directory of this source tree.
 
 """
-Stub for the required ``models.py`` layout file.
+Echo MCP action/observation types (re-exported from ``mcp_types``).
 
-Echo reuses ``CallToolAction`` / ``CallToolObservation`` from
-``openenv.core.env_server.mcp_types`` rather than defining env-local models here.
+Echo does not define env-local Pydantic models; it delegates to MCP types.
 """
+
+from openenv.core.env_server.mcp_types import (
+    CallToolAction,
+    CallToolObservation,
+    ListToolsAction,
+    ListToolsObservation,
+)
+
+__all__ = [
+    "CallToolAction",
+    "CallToolObservation",
+    "ListToolsAction",
+    "ListToolsObservation",
+]
