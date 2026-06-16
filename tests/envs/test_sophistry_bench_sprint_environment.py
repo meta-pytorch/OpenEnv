@@ -159,6 +159,18 @@ def test_correctness_reward_exposed_only_when_opted_in():
     assert "correctness_reward" in obs.metadata
 
 
+def test_malformed_env_vars_raise_with_context(monkeypatch):
+    # Bad env-var values should raise a message naming the var, not a bare ValueError.
+    monkeypatch.setenv("SPRINT_WEIGHTS", "1,two,3,4,5,6,7,8")
+    with pytest.raises(ValueError, match="SPRINT_WEIGHTS"):
+        SophistryBenchSprintEnvironment(n_items=2, passage_chars=500, seed=0)
+    monkeypatch.delenv("SPRINT_WEIGHTS", raising=False)
+
+    monkeypatch.setenv("SPRINT_N_ITEMS", "lots")
+    with pytest.raises(ValueError, match="SPRINT_N_ITEMS"):
+        SophistryBenchSprintEnvironment(passage_chars=500, seed=0)
+
+
 def test_wrong_length_weights_rejected():
     # A mis-sized weight vector must raise, not silently truncate via zip.
     with pytest.raises(ValueError):

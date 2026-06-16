@@ -49,12 +49,25 @@ _COMPONENT_KEYS = (
 _DEFAULT_WEIGHTS = [1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
 
 
+def _int_env(name: str, default: str) -> int:
+    raw = os.getenv(name, default)
+    try:
+        return int(raw)
+    except ValueError as exc:
+        raise ValueError(f"{name} must be an integer, got {raw!r}") from exc
+
+
 def _weights_from_env() -> list[float]:
     raw = os.getenv("SPRINT_WEIGHTS")
     if not raw:
         return list(_DEFAULT_WEIGHTS)
     parts = [p.strip() for p in raw.split(",") if p.strip()]
-    weights = [float(p) for p in parts]
+    try:
+        weights = [float(p) for p in parts]
+    except ValueError as exc:
+        raise ValueError(
+            f"SPRINT_WEIGHTS must be comma-separated floats, got {raw!r}"
+        ) from exc
     if len(weights) != 8:
         raise ValueError(f"SPRINT_WEIGHTS must have 8 values, got {len(weights)}")
     return weights
@@ -94,16 +107,14 @@ class SophistryBenchSprintEnvironment(
             in ("1", "true", "yes")
         )
         self.n_items = (
-            n_items if n_items is not None else int(os.getenv("SPRINT_N_ITEMS", "50"))
+            n_items if n_items is not None else _int_env("SPRINT_N_ITEMS", "50")
         )
         self.passage_chars = (
             passage_chars
             if passage_chars is not None
-            else int(os.getenv("SPRINT_PASSAGE_CHARS", "2000"))
+            else _int_env("SPRINT_PASSAGE_CHARS", "2000")
         )
-        self.build_seed = (
-            seed if seed is not None else int(os.getenv("SPRINT_SEED", "0"))
-        )
+        self.build_seed = seed if seed is not None else _int_env("SPRINT_SEED", "0")
         self.weights = weights if weights is not None else _weights_from_env()
         # Guard the constructor ``weights=`` path too (the env-var path is already
         # length-checked). A wrong-length vector would otherwise be silently
