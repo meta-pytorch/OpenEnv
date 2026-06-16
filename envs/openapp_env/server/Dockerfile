@@ -91,7 +91,7 @@ WORKDIR /app/env
 RUN pip install --no-cache-dir -e .
 
 # Ensure fastmcp runtime deps are on compatible versions after all installs.
-RUN pip install --no-cache-dir --upgrade "beartype>=0.22.6" "fastmcp>=2.14.5"
+RUN pip install --no-cache-dir --upgrade "beartype>=0.22.6" "fastmcp>=2.14.5" "fastapi>=0.116.0"
 
 # Verify installation
 RUN python -c "import openapp_env; print('✓ openapp_env installed')" && \

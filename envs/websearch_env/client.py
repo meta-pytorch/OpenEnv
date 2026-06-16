@@ -83,13 +83,14 @@ class WebSearchEnv(EnvClient[WebSearchAction, WebSearchObservation, State]):
         observation = WebSearchObservation(
             content=obs_data.get("content", ""),
             web_contents=obs_data.get("web_contents", []),
-            metadata=obs_data.get("metadata", {}),
+            metadata=payload.get("metadata", obs_data.get("metadata", {})),
         )
 
         return StepResult(
             observation=observation,
             reward=payload.get("reward"),
             done=payload.get("done", False),
+            metadata=payload.get("metadata"),
         )
 
     def _parse_state(self, payload: Dict) -> State:

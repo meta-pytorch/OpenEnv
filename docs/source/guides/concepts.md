@@ -46,9 +46,8 @@ A **StepResult** bundles together everything returned from a step:
 
 - `observation`: what the agent can see
 - `reward`: numeric reward signal for training
-- `terminated`: whether the episode has ended
-- `truncated`: whether the episode was cut short
-- `info`: additional metadata
+- `done`: whether the episode has ended
+- `metadata`: additional metadata returned alongside the observation
 
 ### Rubric
 

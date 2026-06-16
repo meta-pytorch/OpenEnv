@@ -73,13 +73,14 @@ class ChessEnv(EnvClient[ChessAction, ChessObservation, ChessState]):
             done=obs_data.get("done", False),
             reward=obs_data.get("reward", 0.0),
             result=obs_data.get("result"),
-            metadata=obs_data.get("metadata", {}),
+            metadata=payload.get("metadata", obs_data.get("metadata", {})),
         )
 
         return StepResult(
             observation=observation,
             reward=observation.reward,
             done=observation.done,
+            metadata=payload.get("metadata"),
         )
 
     def _parse_state(self, payload: Dict[str, Any]) -> ChessState:
