@@ -12,7 +12,7 @@ dependencies = [
     # Core shared dependencies - minimal set required for all environments
     # Heavy dependencies (torch, numpy, smolagents, etc.) should be in
     # individual environment pyproject.toml files
-    "fastapi>=0.104.0",
+    "fastapi>=0.116.0",
     "pydantic>=2.0.0",
     "uvicorn>=0.24.0",
     "requests>=2.25.0",
@@ -34,7 +34,7 @@ dependencies = [
 
 [project.optional-dependencies]
 core = [
-    "fastapi>=0.104.0",
+    "fastapi>=0.116.0",
     "pydantic>=2.0.0",
     "uvicorn>=0.24.0",
     "requests>=2.25.0",
