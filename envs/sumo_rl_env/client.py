@@ -106,13 +106,14 @@ class SumoRLEnv(EnvClient[SumoAction, SumoObservation, SumoState]):
             sim_time=obs_data.get("sim_time", 0.0),
             done=obs_data.get("done", False),
             reward=obs_data.get("reward"),
-            metadata=obs_data.get("metadata", {}),
+            metadata=payload.get("metadata", obs_data.get("metadata", {})),
         )
 
         return StepResult(
             observation=observation,
             reward=payload.get("reward"),
             done=payload.get("done", False),
+            metadata=payload.get("metadata"),
         )
 
     def _parse_state(self, payload: Dict[str, Any]) -> SumoState:

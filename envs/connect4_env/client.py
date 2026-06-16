@@ -71,13 +71,14 @@ class Connect4Env(EnvClient[Connect4Action, Connect4Observation, Connect4State])
             legal_actions=obs_data.get("legal_actions", []),
             done=payload.get("done", False),
             reward=payload.get("reward", 0.0),
-            metadata=obs_data.get("metadata", {}),
+            metadata=payload.get("metadata", obs_data.get("metadata", {})),
         )
 
         return StepResult(
             observation=observation,
             reward=payload.get("reward", 0.0),
             done=payload.get("done", False),
+            metadata=payload.get("metadata"),
         )
 
     def _parse_state(self, payload: Dict[str, Any]) -> Connect4State:
