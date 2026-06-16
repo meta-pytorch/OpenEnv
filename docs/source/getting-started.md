@@ -96,6 +96,21 @@ async def main():
 asyncio.run(main())
 ```
 
+If you run the Hugging Face Space image yourself with `docker run`, expose port
+`7860` and connect to that port:
+
+```bash
+docker run -it -p 7860:7860 --platform=linux/amd64 \
+    registry.hf.space/openenv-echo-env:latest
+```
+
+```python
+from echo_env import EchoEnv
+
+with EchoEnv(base_url="http://localhost:7860").sync() as client:
+    result = client.reset()
+```
+
 Or connect to a local server:
 
 ```bash
