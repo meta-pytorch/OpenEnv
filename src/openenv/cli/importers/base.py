@@ -4,10 +4,12 @@ from __future__ import annotations
 
 import fnmatch
 import hashlib
+from importlib import resources
 import shutil
 import textwrap
 from dataclasses import dataclass
 from pathlib import Path
+from string import Template
 from typing import Protocol
 
 try:
@@ -170,6 +172,16 @@ def ensure_vendor_package(vendor_dir: Path) -> None:
 def write_text(path: Path, content: str) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(textwrap.dedent(content).lstrip(), encoding="utf-8", newline="\n")
+
+
+def render_importer_template(template_name: str, **values: str) -> str:
+    """Render a Python source template used by source importers."""
+    template = (
+        resources.files("openenv.cli.importers.templates")
+        .joinpath(template_name)
+        .read_text(encoding="utf-8")
+    )
+    return Template(template).substitute(values)
 
 
 def _dependency_name(requirement: str) -> str:
