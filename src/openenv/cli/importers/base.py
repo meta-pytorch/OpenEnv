@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import fnmatch
+import hashlib
 import shutil
 import textwrap
 from dataclasses import dataclass
@@ -33,12 +34,16 @@ _EXCLUDED_DIRS = {
 }
 
 _EXCLUDED_FILE_SUFFIXES = {
+    ".dll",
+    ".dylib",
     ".key",
     ".p12",
     ".pfx",
     ".pem",
+    ".pyd",
     ".pyc",
     ".pyo",
+    ".so",
 }
 
 _EXCLUDED_FILE_NAMES = {
@@ -71,6 +76,53 @@ def _is_excluded(path: Path) -> bool:
     )
 
 
+def _append_unique_dependency(dependencies: list[str], dependency: str) -> None:
+    dependency = dependency.strip()
+    if not dependency:
+        return
+    dependency_names = {_dependency_name(existing) for existing in dependencies}
+    if _dependency_name(dependency) not in dependency_names:
+        dependencies.append(dependency)
+
+
+def _requirement_line_dependency(line: str) -> str | None:
+    line = line.strip()
+    if not line or line.startswith("#") or line.startswith("-"):
+        return None
+    if " #" in line:
+        line = line.split(" #", 1)[0].rstrip()
+    if line.startswith((".", "/")):
+        return None
+    if line.startswith(("git+", "http://", "https://")):
+        return None
+    return line or None
+
+
+def collect_source_dependencies(source: Path) -> list[str]:
+    """Collect portable Python dependencies declared by a source tree."""
+    dependencies: list[str] = []
+
+    pyproject = source / "pyproject.toml"
+    if pyproject.exists():
+        try:
+            data = tomllib.loads(pyproject.read_text(encoding="utf-8"))
+        except tomllib.TOMLDecodeError:
+            data = {}
+        project_dependencies = data.get("project", {}).get("dependencies") or []
+        for dependency in project_dependencies:
+            if isinstance(dependency, str):
+                _append_unique_dependency(dependencies, dependency)
+
+    requirements = source / "requirements.txt"
+    if requirements.exists():
+        for line in requirements.read_text(encoding="utf-8").splitlines():
+            dependency = _requirement_line_dependency(line)
+            if dependency:
+                _append_unique_dependency(dependencies, dependency)
+
+    return dependencies
+
+
 def iter_python_files(source: Path) -> list[Path]:
     return [
         path
@@ -88,8 +140,14 @@ def module_path(source: Path, file_path: Path) -> str:
 
 
 def safe_vendor_dir_name(source: Path) -> str:
-    name = source.name.strip().replace("-", "_")
-    return name if name.isidentifier() else "source"
+    raw_name = source.name.strip()
+    name = raw_name.replace("-", "_")
+    if name.isidentifier() and name == raw_name:
+        return name
+    digest = hashlib.sha256(str(source.resolve()).encode("utf-8")).hexdigest()[:8]
+    if name.isidentifier():
+        return f"{name}_{digest}"
+    return f"source_{digest}"
 
 
 def copy_source_tree(source: Path, destination: Path) -> None:
@@ -135,11 +193,12 @@ def append_dependency_files(
             for line in content.splitlines()
             if line.strip() and not line.lstrip().startswith("#")
         }
-        missing = [
-            dependency
-            for dependency in dependencies
-            if _dependency_name(dependency) not in existing
-        ]
+        missing = []
+        for dependency in dependencies:
+            dependency_name = _dependency_name(dependency)
+            if dependency_name not in existing:
+                missing.append(dependency)
+                existing.add(dependency_name)
         if missing:
             requirements.write_text(
                 content.rstrip() + "\n" + "\n".join(missing) + "\n",

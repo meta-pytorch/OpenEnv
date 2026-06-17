@@ -78,8 +78,9 @@ class TaskProvider(Protocol):
     """Optional task discovery API for dataset-backed environments.
 
     Task provider methods are for metadata/discovery only and should be
-    side-effect-free. The HTTP compatibility routes may call them on a
-    short-lived environment instance.
+    side-effect-free. They must be callable on a freshly constructed
+    environment instance because HTTP compatibility routes may create a
+    short-lived instance solely for task discovery.
     """
 
     def list_splits(self) -> list[Any]:

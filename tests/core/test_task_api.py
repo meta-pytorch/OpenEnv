@@ -110,6 +110,18 @@ class PartialMcpStepAsyncEnvironment(Environment):
         return State()
 
 
+class WrongMcpStyleEnvironment(Environment):
+    def reset(self, **kwargs) -> TaskObservation:
+        return TaskObservation(message="ready")
+
+    def step(self, action: Action, **kwargs) -> Observation:
+        return TaskObservation(message=f"wrong:{type(action).__name__}")
+
+    @property
+    def state(self) -> State:
+        return State()
+
+
 def test_task_routes_expose_ors_compatible_shapes() -> None:
     app = FastAPI()
     server = HTTPEnvServer(
@@ -223,3 +235,44 @@ def test_mcp_style_step_handles_partial_step_async() -> None:
 
     assert response.status_code == 200
     assert response.json()["result"] == {"tools": []}
+
+
+def test_mcp_style_tools_list_reports_wrong_observation_type() -> None:
+    app = create_app(
+        WrongMcpStyleEnvironment,
+        CallToolAction,
+        CallToolObservation,
+        env_name="wrong_mcp_env",
+    )
+    client = TestClient(app)
+
+    response = client.post(
+        "/mcp",
+        json={"jsonrpc": "2.0", "method": "tools/list", "params": {}, "id": 1},
+    )
+
+    assert response.status_code == 200
+    assert "expected ListToolsObservation" in response.json()["error"]["message"]
+
+
+def test_mcp_style_tools_call_reports_wrong_observation_type() -> None:
+    app = create_app(
+        WrongMcpStyleEnvironment,
+        CallToolAction,
+        CallToolObservation,
+        env_name="wrong_mcp_env",
+    )
+    client = TestClient(app)
+
+    response = client.post(
+        "/mcp",
+        json={
+            "jsonrpc": "2.0",
+            "method": "tools/call",
+            "params": {"name": "submit", "arguments": {}},
+            "id": 1,
+        },
+    )
+
+    assert response.status_code == 200
+    assert "expected CallToolObservation" in response.json()["error"]["message"]

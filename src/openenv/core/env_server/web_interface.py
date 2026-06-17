@@ -26,15 +26,12 @@ from fastapi import Body, FastAPI, HTTPException, status, WebSocket, WebSocketDi
 from fastapi.responses import RedirectResponse
 from pydantic import BaseModel, ConfigDict, Field
 
+from ._utils import overrides_method
 from .gradio_theme import OPENENV_GRADIO_CSS, OPENENV_GRADIO_THEME
 from .gradio_ui import build_gradio_app, get_gradio_display_title
 from .interfaces import Environment
 from .serialization import deserialize_action_with_preprocessing, serialize_observation
 from .types import Action, EnvironmentMetadata, Observation, State
-
-
-def _overrides_method(method: Any, base_method: Any) -> bool:
-    return getattr(method, "__func__", method) is not base_method
 
 
 # Quick Start markdown template; placeholders match init suffixes (__ENV_NAME__, __ENV_CLASS_NAME__*).
@@ -352,7 +349,7 @@ class WebInterfaceManager:
         """Reset the environment and update state."""
         reset_kwargs = reset_kwargs or {}
 
-        is_async = _overrides_method(self.env.reset_async, Environment.reset_async)
+        is_async = overrides_method(self.env.reset_async, Environment.reset_async)
         sig = inspect.signature(self.env.reset_async if is_async else self.env.reset)
         valid_kwargs = self._get_valid_kwargs(sig, reset_kwargs)
 

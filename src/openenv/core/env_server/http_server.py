@@ -37,6 +37,7 @@ from fastapi import (
 )
 from pydantic import ValidationError
 
+from ._utils import overrides_method
 from .interfaces import Environment
 from .mcp_environment import get_server_tools
 from .mcp_types import (
@@ -119,11 +120,6 @@ async def _maybe_await(value: Any) -> Any:
     if inspect.isawaitable(value):
         return await value
     return value
-
-
-def _overrides_method(method: Any, base_method: Any) -> bool:
-    """Return whether a bound method differs from the base implementation."""
-    return getattr(method, "__func__", method) is not base_method
 
 
 from .exceptions import (
@@ -639,7 +635,7 @@ class HTTPEnvServer:
             try:
                 kwargs = request.model_dump(exclude_unset=True)
 
-                is_async = _overrides_method(_env.reset_async, Environment.reset_async)
+                is_async = overrides_method(_env.reset_async, Environment.reset_async)
 
                 if is_async:
                     sig = inspect.signature(_env.reset_async)
@@ -674,7 +670,7 @@ class HTTPEnvServer:
             try:
                 kwargs = request.model_dump(exclude_unset=True, exclude={"action"})
 
-                is_async = _overrides_method(_env.step_async, Environment.step_async)
+                is_async = overrides_method(_env.step_async, Environment.step_async)
 
                 if is_async:
                     sig = inspect.signature(_env.step_async)
@@ -842,7 +838,7 @@ class HTTPEnvServer:
                 mcp_session_factory = getattr(_env, "mcp_session", None)
 
                 async def call_mcp_style_step(action: Action) -> Observation:
-                    is_async = _overrides_method(
+                    is_async = overrides_method(
                         _env.step_async, Environment.step_async
                     )
                     if is_async:
@@ -875,6 +871,13 @@ class HTTPEnvServer:
                                     },
                                     request_id=request_id,
                                 )
+                            return JsonRpcResponse.error_response(
+                                JsonRpcErrorCode.INTERNAL_ERROR,
+                                "MCP-style tools/list step returned "
+                                f"{type(observation).__name__}, expected "
+                                "ListToolsObservation",
+                                request_id=request_id,
+                            )
                         return JsonRpcResponse.error_response(
                             JsonRpcErrorCode.INTERNAL_ERROR,
                             "Environment does not support MCP",
@@ -955,6 +958,13 @@ class HTTPEnvServer:
                                     result=_make_json_serializable(observation),
                                     request_id=request_id,
                                 )
+                            return JsonRpcResponse.error_response(
+                                JsonRpcErrorCode.INTERNAL_ERROR,
+                                "MCP-style tools/call step returned "
+                                f"{type(observation).__name__}, expected "
+                                "CallToolObservation",
+                                request_id=request_id,
+                            )
                         return JsonRpcResponse.error_response(
                             JsonRpcErrorCode.INTERNAL_ERROR,
                             "Environment does not support MCP",
@@ -1516,7 +1526,7 @@ all schema information needed to interact with the environment.
                                 case "reset":
                                     msg = WSResetMessage(**message_dict)
 
-                                    is_async = _overrides_method(
+                                    is_async = overrides_method(
                                         session_env.reset_async,
                                         Environment.reset_async,
                                     )
@@ -1554,7 +1564,7 @@ all schema information needed to interact with the environment.
                                         msg.data, self.action_cls
                                     )
 
-                                    is_async = _overrides_method(
+                                    is_async = overrides_method(
                                         session_env.step_async,
                                         Environment.step_async,
                                     )

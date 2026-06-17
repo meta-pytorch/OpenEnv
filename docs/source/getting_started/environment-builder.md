@@ -106,7 +106,9 @@ If you already have an ORS/OpenReward or Prime Intellect Verifiers environment
 source tree, use `openenv import SOURCE --name my_env --output-dir /Users/you/envs`
 instead. The importer detects the source type from the code, vendors the source
 under the generated package, and emits an OpenEnv wrapper with task/split and
-MCP-style tool actions.
+MCP-style tool actions. Non-secret data files in the source tree are included as
+package data, and portable dependencies declared in source `pyproject.toml` or
+`requirements.txt` files are added to the generated environment.
 
 ### 2. Define Models
 

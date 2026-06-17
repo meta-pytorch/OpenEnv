@@ -7,6 +7,7 @@ from pathlib import Path
 
 from .base import (
     append_dependency_files,
+    collect_source_dependencies,
     copy_source_tree,
     DetectedEnvironment,
     ensure_vendor_package,
@@ -82,6 +83,7 @@ def _wrapper_source(
     import asyncio
     import contextlib
     import inspect
+    import logging
     import sys
     import threading
     from importlib import import_module
@@ -104,6 +106,7 @@ def _wrapper_source(
 
     _VENDORED_SOURCE_ROOT = Path(__file__).resolve().parents[1] / "vendor" / "{vendor_dir}"
     _SOURCE_MODULE = "{source_import_module}"
+    _LOGGER = logging.getLogger(__name__)
 
 
     @contextlib.contextmanager
@@ -129,18 +132,30 @@ def _wrapper_source(
     def _run_sync(value: Any) -> Any:
         if not inspect.isawaitable(value):
             return value
+        if inspect.iscoroutine(value) and value.cr_frame is None:
+            raise RuntimeError("Cannot await an already-consumed coroutine")
+
+        async def await_value() -> Any:
+            return await value
+
+        return asyncio.run(await_value())
+
+
+    def _call_vendored(func: Any, *args: Any, **kwargs: Any) -> Any:
         try:
-            loop = asyncio.get_running_loop()
+            running_loop = asyncio.get_running_loop()
         except RuntimeError:
-            return asyncio.run(value)
-        if not loop.is_running():
-            return loop.run_until_complete(value)
+            running_loop = None
+        if running_loop is None or not running_loop.is_running():
+            with _vendored_source_path():
+                return _run_sync(func(*args, **kwargs))
 
         result: dict[str, Any] = {{}}
 
         def runner() -> None:
             try:
-                result["value"] = asyncio.run(value)
+                with _vendored_source_path():
+                    result["value"] = _run_sync(func(*args, **kwargs))
             except BaseException as exc:
                 result["error"] = exc
 
@@ -150,11 +165,6 @@ def _wrapper_source(
         if "error" in result:
             raise result["error"]
         return result.get("value")
-
-
-    def _call_vendored(func: Any, *args: Any, **kwargs: Any) -> Any:
-        with _vendored_source_path():
-            return _run_sync(func(*args, **kwargs))
 
 
     def _dump(value: Any) -> Any:
@@ -444,7 +454,7 @@ def _wrapper_source(
                         vf_state.update(state)
                         state = vf_state
                     except Exception:
-                        pass
+                        _LOGGER.exception("Failed to initialize Verifiers State for task")
                 if hasattr(harness, "score_group"):
                     _call_vendored(harness.score_group, [task], [state])
 
@@ -559,4 +569,7 @@ class VerifiersImporter:
             destination / "server" / "app.py",
             _app_source(env_name=env_name, class_name_prefix=prefix),
         )
-        append_dependency_files(destination, env_name, ["verifiers>=0.1.14"])
+        dependencies = collect_source_dependencies(source)
+        if "verifiers>=0.1.14" not in dependencies:
+            dependencies.append("verifiers>=0.1.14")
+        append_dependency_files(destination, env_name, dependencies)

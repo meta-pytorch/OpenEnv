@@ -8,6 +8,7 @@
 
 from __future__ import annotations
 
+import logging
 import sys
 from pathlib import Path
 from unittest.mock import patch
@@ -15,6 +16,7 @@ from unittest.mock import patch
 import pytest
 from fastapi.testclient import TestClient
 from openenv.cli.__main__ import app
+from openenv.cli.importers.base import safe_vendor_dir_name
 from openenv.cli.importers.ors import detect_ors_dependencies, detect_ors_environments
 from openenv.cli.importers.verifiers import detect_verifiers_environments
 from openenv.core.env_server.mcp_types import CallToolAction, ListToolsAction
@@ -465,9 +467,12 @@ def test_import_command_excludes_common_secret_files(tmp_path: Path) -> None:
     source = tmp_path / "source"
     source.mkdir()
     _write_single_fake_ors_env(source)
+    (source / "data").mkdir()
+    (source / "data" / "prompt.txt").write_text("public task data\n", encoding="utf-8")
     (source / ".env").write_text("TOKEN=secret\n", encoding="utf-8")
     (source / "secrets.yaml").write_text("token: secret\n", encoding="utf-8")
     (source / "private.pem").write_text("secret\n", encoding="utf-8")
+    (source / "native.so").write_text("binary\n", encoding="utf-8")
     output_dir = tmp_path / "out"
 
     with patch("openenv.cli.commands.import_env._generate_uv_lock", return_value=True):
@@ -485,9 +490,26 @@ def test_import_command_excludes_common_secret_files(tmp_path: Path) -> None:
 
     assert result.exit_code == 0, result.output
     vendor_dir = output_dir / "secret_env" / "vendor" / "source"
+    assert (vendor_dir / "data" / "prompt.txt").read_text(encoding="utf-8") == (
+        "public task data\n"
+    )
     assert not (vendor_dir / ".env").exists()
     assert not (vendor_dir / "secrets.yaml").exists()
     assert not (vendor_dir / "private.pem").exists()
+    assert not (vendor_dir / "native.so").exists()
+
+
+def test_safe_vendor_dir_name_avoids_normalization_collision(tmp_path: Path) -> None:
+    hyphen_source = tmp_path / "my-source"
+    underscore_source = tmp_path / "my_source"
+    hyphen_source.mkdir()
+    underscore_source.mkdir()
+
+    assert safe_vendor_dir_name(underscore_source) == "my_source"
+    assert safe_vendor_dir_name(hyphen_source).startswith("my_source_")
+    assert safe_vendor_dir_name(hyphen_source) != safe_vendor_dir_name(
+        underscore_source
+    )
 
 
 def test_import_command_uses_detected_ors_dependency(tmp_path: Path) -> None:
@@ -531,6 +553,62 @@ class DemoEnvironment(Environment):
     assert "ors-sdk" not in pyproject
 
 
+def test_import_command_carries_source_dependencies_and_vendor_data(
+    tmp_path: Path,
+) -> None:
+    source = tmp_path / "source"
+    source.mkdir()
+    _write_single_fake_ors_env(source)
+    (source / "pyproject.toml").write_text(
+        """
+[project]
+name = "source-env"
+dependencies = [
+    "numpy>=1.26",
+]
+""".lstrip(),
+        encoding="utf-8",
+    )
+    (source / "requirements.txt").write_text(
+        """
+# Runtime dependencies for the source env
+datasets>=2.19  # reads dataset files
+-r dev-requirements.txt
+./local-package
+""".lstrip(),
+        encoding="utf-8",
+    )
+    (source / "fixtures").mkdir()
+    (source / "fixtures" / "tasks.jsonl").write_text("{}", encoding="utf-8")
+    output_dir = tmp_path / "out"
+
+    with patch("openenv.cli.commands.import_env._generate_uv_lock", return_value=True):
+        result = runner.invoke(
+            app,
+            [
+                "import",
+                str(source),
+                "--name",
+                "dependency_env",
+                "--output-dir",
+                str(output_dir),
+            ],
+        )
+
+    assert result.exit_code == 0, result.output
+    env_dir = output_dir / "dependency_env"
+    requirements = (env_dir / "server" / "requirements.txt").read_text(
+        encoding="utf-8"
+    )
+    pyproject = (env_dir / "pyproject.toml").read_text(encoding="utf-8")
+    assert "numpy>=1.26" in requirements
+    assert "datasets>=2.19" in requirements
+    assert "numpy>=1.26" in pyproject
+    assert "datasets>=2.19" in pyproject
+    assert "vendor/**/*" in pyproject
+    assert (env_dir / "vendor" / "source" / "fixtures" / "tasks.jsonl").exists()
+
+
 def test_import_command_detects_verifiers_and_generates_working_wrapper(
     tmp_path: Path,
 ) -> None:
@@ -558,6 +636,7 @@ def test_import_command_detects_verifiers_and_generates_working_wrapper(
     assert (env_dir / "vendor" / "vf_source" / "vf_demo.py").exists()
     assert (env_dir / "vendor" / "vf_source" / "verifiers" / "__init__.py").exists()
 
+    sys.modules.pop("verifiers", None)
     sys.path.insert(0, str(output_dir))
     try:
         from vf_imported_env.server.vf_imported_env_environment import (  # type: ignore
@@ -596,3 +675,96 @@ def test_import_command_detects_verifiers_and_generates_working_wrapper(
         assert client.get("/vf_imported_env/splits").status_code == 200
     finally:
         sys.path.remove(str(output_dir))
+        sys.modules.pop("verifiers", None)
+
+
+def test_verifiers_wrapper_logs_state_initialization_errors(
+    tmp_path: Path,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    source = tmp_path / "vf_harness_source"
+    source.mkdir()
+    verifiers_dir = source / "verifiers"
+    verifiers_dir.mkdir()
+    (verifiers_dir / "__init__.py").write_text(
+        """
+class Environment:
+    pass
+
+
+class State(dict):
+    @classmethod
+    def for_task(cls, task):
+        raise RuntimeError("state construction failed")
+""".lstrip(),
+        encoding="utf-8",
+    )
+    (source / "vf_harness.py").write_text(
+        """
+import verifiers as vf
+
+
+class Taskset:
+    def rows(self):
+        return [{"prompt": "Say alpha", "answer": "alpha", "example_id": 0}]
+
+    def task(self, row):
+        return dict(row)
+
+    def to_task(self, row):
+        return dict(row)
+
+
+class Harness:
+    def score_group(self, tasks, states):
+        states[0]["reward"] = 0.5
+        states[0]["metrics"] = {"scored": True}
+
+
+class HarnessEnvironment(vf.Environment):
+    def __init__(self):
+        self.taskset = Taskset()
+        self.harness = Harness()
+
+
+def load_environment() -> vf.Environment:
+    return HarnessEnvironment()
+""".lstrip(),
+        encoding="utf-8",
+    )
+    output_dir = tmp_path / "out"
+
+    with patch("openenv.cli.commands.import_env._generate_uv_lock", return_value=True):
+        result = runner.invoke(
+            app,
+            [
+                "import",
+                str(source),
+                "--name",
+                "vf_harness_env",
+                "--output-dir",
+                str(output_dir),
+            ],
+        )
+
+    assert result.exit_code == 0, result.output
+    sys.modules.pop("verifiers", None)
+    sys.path.insert(0, str(output_dir))
+    try:
+        from vf_harness_env.server.vf_harness_env_environment import (  # type: ignore
+            VfHarnessEnvironment,
+        )
+
+        env = VfHarnessEnvironment()
+        env.reset(split="train", index=0)
+        with caplog.at_level(logging.ERROR):
+            observation = env.step(
+                CallToolAction(tool_name="submit", arguments={"completion": "alpha"})
+            )
+
+        assert observation.reward == 0.5
+        assert "Failed to initialize Verifiers State for task" in caplog.text
+        assert "state construction failed" in caplog.text
+    finally:
+        sys.path.remove(str(output_dir))
+        sys.modules.pop("verifiers", None)
