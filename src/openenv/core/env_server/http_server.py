@@ -852,9 +852,7 @@ class HTTPEnvServer:
                 mcp_session_factory = getattr(_env, "mcp_session", None)
 
                 async def call_mcp_style_step(action: Action) -> Observation:
-                    is_async = overrides_method(
-                        _env.step_async, Environment.step_async
-                    )
+                    is_async = overrides_method(_env.step_async, Environment.step_async)
                     if is_async:
                         return await _env.step_async(action)
                     if managed_session_id:

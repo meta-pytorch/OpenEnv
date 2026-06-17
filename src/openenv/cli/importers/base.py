@@ -4,10 +4,10 @@ from __future__ import annotations
 
 import fnmatch
 import hashlib
-from importlib import resources
 import shutil
 import textwrap
 from dataclasses import dataclass
+from importlib import resources
 from pathlib import Path
 from string import Template
 from typing import Protocol

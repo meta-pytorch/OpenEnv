@@ -597,9 +597,7 @@ datasets>=2.19  # reads dataset files
 
     assert result.exit_code == 0, result.output
     env_dir = output_dir / "dependency_env"
-    requirements = (env_dir / "server" / "requirements.txt").read_text(
-        encoding="utf-8"
-    )
+    requirements = (env_dir / "server" / "requirements.txt").read_text(encoding="utf-8")
     pyproject = (env_dir / "pyproject.toml").read_text(encoding="utf-8")
     assert "numpy>=1.26" in requirements
     assert "datasets>=2.19" in requirements
