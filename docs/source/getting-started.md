@@ -5,14 +5,13 @@ Install OpenEnv, load an environment, and run your first step.
 ## Install OpenEnv
 
 ```bash
-pip install openenv-core
+pip install openenv
 ```
 
-```{note}
-This installs the `openenv` CLI and the `openenv.core` runtime. Environment
-projects can depend on `openenv-core[core]` when they only need the server and
-client libraries.
-```
+> [!NOTE]
+> This installs the `openenv` CLI and the `openenv.core` runtime. Environment
+> projects can depend on `openenv[core]` when they only need the server and
+> client libraries.
 
 ## Try an Environment
 
@@ -95,6 +94,21 @@ async def main():
 
 
 asyncio.run(main())
+```
+
+If you run the Hugging Face Space image yourself with `docker run`, expose port
+`7860` and connect to that port:
+
+```bash
+docker run -it -p 7860:7860 --platform=linux/amd64 \
+    registry.hf.space/openenv-echo-env:latest
+```
+
+```python
+from echo_env import EchoEnv
+
+with EchoEnv(base_url="http://localhost:7860").sync() as client:
+    result = client.reset()
 ```
 
 Or connect to a local server:

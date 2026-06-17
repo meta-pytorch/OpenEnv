@@ -1,6 +1,6 @@
 # Collecting rollouts with OpenEnv for supervised training
 
-[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/meta-pytorch/OpenEnv/blob/main/examples/sft_warmup.ipynb)
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/huggingface/OpenEnv/blob/main/examples/sft_warmup.ipynb)
 
 OpenEnv environments are not only useful for RL training — they are also a natural tool for **collecting
 rollouts that become supervised training data**. The environment handles episode management, automatic scoring,
@@ -36,9 +36,9 @@ bookkeeping. An OpenEnv environment gives you all three out of the box:
 |---|---|
 | **Student model** | [`Qwen/Qwen3-1.7B`](https://huggingface.co/Qwen/Qwen3-1.7B) |
 | **Teacher model** | `gpt-5-mini` via the OpenAI API |
-| **Environment** | [`reasoning_gym_env`](https://github.com/meta-pytorch/OpenEnv/tree/main/envs/reasoning_gym_env) / `chain_sum` |
+| **Environment** | [`reasoning_gym_env`](https://github.com/huggingface/OpenEnv/tree/main/envs/reasoning_gym_env) / `chain_sum` |
 | **SFT trainer** | [TRL `SFTTrainer`](https://huggingface.co/docs/trl/main/en/sft_trainer) |
-| **Next step** | [End-to-end walkthrough with GRPO](https://meta-pytorch.org/OpenEnv/tutorials/end-to-end-walkthrough.html) |
+| **Next step** | [End-to-end walkthrough with GRPO](end-to-end-walkthrough) |
 
 ---
 
@@ -46,7 +46,7 @@ bookkeeping. An OpenEnv environment gives you all three out of the box:
 
 ```python
 !pip install -q openai trl
-!pip install -q openenv-core
+!pip install -q openenv
 !pip install -q --no-deps git+https://huggingface.co/spaces/sergiopaniego/reasoning_gym
 !pip install -Uq "transformers>=5.3.0"
 ```
@@ -80,7 +80,7 @@ assert YOUR_HF_USERNAME != "your-username", "Replace YOUR_HF_USERNAME with your 
 
 ## 3. Define the system prompt
 
-Use the same prompt as the [GRPO tutorial](https://meta-pytorch.org/OpenEnv/tutorials/end-to-end-walkthrough.html)
+Use the same prompt as the [GRPO tutorial](end-to-end-walkthrough)
 so the SFT-trained model is a drop-in replacement when you continue with GRPO.
 
 ```python
@@ -300,10 +300,9 @@ trainer.train()
 trainer.push_to_hub(commit_message="SFT warm-up on reasoning_gym chain_sum")
 ```
 
-```{note}
-Training ~270 examples for 3 epochs takes around 5 minutes on a single A100 (40 GB). The goal is format
-compliance, not task mastery — a handful of epochs is enough. Mastery comes from GRPO.
-```
+> [!NOTE]
+> Training ~270 examples for 3 epochs takes around 5 minutes on a single A100 (40 GB). The goal is format
+> compliance, not task mastery — a handful of epochs is enough. Mastery comes from GRPO.
 
 ---
 
@@ -402,7 +401,7 @@ environment's scorer to award any credit.
 ## 11. Where to go next: GRPO
 
 The SFT checkpoint is ready to use as the starting model for GRPO. In the
-[end-to-end walkthrough](https://meta-pytorch.org/OpenEnv/tutorials/end-to-end-walkthrough.html),
+[end-to-end walkthrough](end-to-end-walkthrough),
 change one line in section 8:
 
 ```python

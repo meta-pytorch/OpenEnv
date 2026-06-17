@@ -8,6 +8,7 @@
 
 from __future__ import annotations
 
+import re
 import shutil
 import subprocess
 import sys
@@ -21,16 +22,27 @@ from .._cli_utils import console
 
 app = typer.Typer(help="Build Docker images for OpenEnv environments")
 
+_OPENENV_RUNTIME_DEP_RE = re.compile(r"^openenv(?:\s*(?:$|[<>=!~@;])|\[)")
+
+
+def _is_openenv_runtime_dependency(dep: str) -> bool:
+    """Return True for the OpenEnv runtime distribution, not openenv-* envs."""
+    normalized = dep.strip().lower()
+    return (
+        _OPENENV_RUNTIME_DEP_RE.match(normalized) is not None
+        or normalized.startswith("openenv-core")
+        or normalized.startswith("openenv_core")
+    )
+
 
 def _detect_build_context(env_path: Path) -> tuple[str, Path, Path | None]:
     """
     Detect whether we're building a standalone or in-repo environment.
 
     Returns:
-        tuple: (build_mode, build_context_path, repo_root)
-            - build_mode: "standalone" or "in-repo"
-            - build_context_path: Path to use as Docker build context
-            - repo_root: Path to repo root (None for standalone)
+        `tuple` of `(build_mode, build_context_path, repo_root)` where `build_mode` is
+        `"standalone"` or `"in-repo"`, `build_context_path` is the path to use as Docker
+        build context, and `repo_root` is the path to the repo root (`None` for standalone).
     """
     # Ensure env_path is absolute for proper comparison
     env_path = env_path.absolute()
@@ -76,7 +88,7 @@ def _prepare_standalone_build(env_path: Path, temp_dir: Path) -> Path:
     2. Ensure pyproject.toml depends on openenv
 
     Returns:
-        Path to the prepared build directory
+        `Path` to the prepared build directory.
     """
     console.print("[cyan]Preparing standalone build...[/cyan]")
 
@@ -123,7 +135,7 @@ def _prepare_inrepo_build(env_path: Path, repo_root: Path, temp_dir: Path) -> Pa
     2. Set up structure that matches expected layout
 
     Returns:
-        Path to the prepared build directory
+        `Path` to the prepared build directory.
     """
     console.print("[cyan]Preparing in-repo build...[/cyan]")
 
@@ -156,21 +168,17 @@ def _prepare_inrepo_build(env_path: Path, repo_root: Path, temp_dir: Path) -> Pa
                     pyproject = tomli.load(f)
                     deps = pyproject.get("project", {}).get("dependencies", [])
 
-                    # Replace openenv/openenv-core with local reference
+                    # Replace OpenEnv package references with local source.
                     new_deps = []
                     for dep in deps:
-                        if (
-                            dep.startswith("openenv-core")
-                            or dep.startswith("openenv_core")
-                            or dep.startswith("openenv")
-                        ):
+                        if _is_openenv_runtime_dependency(dep):
                             # Skip - we'll use local core
                             continue
                         new_deps.append(dep)
 
-                    # Write back with local core reference
+                    # Write back with local OpenEnv reference
                     pyproject["project"]["dependencies"] = new_deps + [
-                        "openenv-core @ file:///app/env/openenv"
+                        "openenv @ file:///app/env/openenv"
                     ]
 
                     # Write updated pyproject.toml
@@ -373,6 +381,8 @@ def build(
     and uv for dependency management. Run from the environment root directory.
 
     Examples:
+
+        ```bash
         # Build from environment root (recommended)
         $ cd my_env
         $ openenv build
@@ -388,6 +398,7 @@ def build(
 
         # Build from different directory
         $ openenv build envs/echo_env
+        ```
     """
     # Determine environment path (default to current directory)
     if env_path is None:

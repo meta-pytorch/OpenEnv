@@ -1,7 +1,3 @@
----
-orphan: true
----
-
 # Contributing to OpenEnv
 
 We welcome contributions from the community! OpenEnv is an open-source project and we're excited to have you join us.
@@ -10,7 +6,7 @@ We welcome contributions from the community! OpenEnv is an open-source project a
 
 ### 🐛 Report Bugs
 
-Found a bug? Please [open an issue](https://github.com/meta-pytorch/OpenEnv/issues/new) with:
+Found a bug? Please [open an issue](https://github.com/huggingface/OpenEnv/issues/new) with:
 
 - A clear description of the problem
 - Steps to reproduce
@@ -19,7 +15,7 @@ Found a bug? Please [open an issue](https://github.com/meta-pytorch/OpenEnv/issu
 
 ### 💡 Suggest Features
 
-Have an idea? Open a [feature request](https://github.com/meta-pytorch/OpenEnv/issues/new) describing:
+Have an idea? Open a [feature request](https://github.com/huggingface/OpenEnv/issues/new) describing:
 
 - The problem you're trying to solve
 - Your proposed solution
@@ -72,7 +68,9 @@ ruff check .
 
 ## Coordination
 
-Use the [OpenEnv repository](https://github.com/meta-pytorch/OpenEnv) to file
+OpenEnv is openly governed by a technical committee that includes Meta-PyTorch, Reflection, Unsloth, Modal, Prime Intellect, Nvidia, Mercor, Fleet AI, Microsoft, and Hugging Face. The committee coordinates project direction, major technical decisions, RFCs, and release planning in public.
+
+Use the [OpenEnv repository](https://github.com/huggingface/OpenEnv) to file
 issues, discuss substantial changes, and submit pull requests.
 
 ## License

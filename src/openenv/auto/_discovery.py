@@ -178,9 +178,9 @@ def _is_hub_url(name: str) -> bool:
         True if it looks like a Hub URL
 
     Examples:
-        >>> _is_hub_url("meta-pytorch/echo_env")
+        >>> _is_hub_url("openenv/echo_env")
         True
-        >>> _is_hub_url("https://huggingface.co/meta-pytorch/echo_env")
+        >>> _is_hub_url("https://huggingface.co/openenv/echo_env")
         True
         >>> _is_hub_url("echo")
         False
@@ -369,7 +369,7 @@ class EnvironmentDiscovery:
             logger.warning(f"Failed to get installed packages: {e}")
             return environments
 
-        # Filter for openenv-* packages (exclude openenv-core)
+        # Filter for openenv-* environment packages; ignore the legacy core wheel.
         for dist in distributions:
             package_name = dist.metadata["Name"]
 

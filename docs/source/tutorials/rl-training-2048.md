@@ -3,9 +3,8 @@
 This tutorial covers training a language model to play the 2048 game using
 reinforcement learning with GRPO (Group Relative Policy Optimization).
 
-```{note}
-**Time**: ~45 minutes | **Difficulty**: Advanced | **GPU Required**: Yes (T4 or better)
-```
+> [!NOTE]
+> **Time**: ~45 minutes | **Difficulty**: Advanced | **GPU Required**: Yes (T4 or better)
 
 ## What You'll Learn
 
@@ -18,7 +17,7 @@ reinforcement learning with GRPO (Group Relative Policy Optimization).
 ## Prerequisites
 
 Before starting this tutorial, you should have completed the
-[Getting Started](/auto_getting_started/index) series to understand:
+[Getting Started](index) series to understand:
 
 - How OpenEnv environments work
 - The reset/step/state API pattern
@@ -36,7 +35,7 @@ You'll also need:
 
 ```bash
 # Install required packages
-!pip install -q unsloth openenv-core trl
+!pip install -q unsloth openenv trl
 
 # For Google Colab, also run:
 !pip install -q "unsloth[colab-new] @ git+https://github.com/unslothai/unsloth.git"
@@ -533,7 +532,7 @@ In this tutorial, you learned:
 
 ## Related Resources
 
-- [OpenEnv Getting Started](../auto_getting_started/index)
-- [Building Custom Environments](../auto_getting_started/plot_03_building_environments)
+- [OpenEnv Getting Started](index)
+- [Building Custom Environments](../getting_started/environment-builder)
 - [GRPO Documentation](https://huggingface.co/docs/trl/grpo_trainer)
 - [Unsloth Documentation](https://github.com/unslothai/unsloth)

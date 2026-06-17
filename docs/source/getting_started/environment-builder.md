@@ -1,14 +1,11 @@
 # Packaging & Deploying
 
-**Part 4 of 5** in the OpenEnv Getting Started Series
-
 This guide walks you through creating a custom environment using the `OpenEnv` framework and the `openenv` CLI.
 
 The CLI handles scaffolding, builds, validation, and deployment so you can stay focused on environment logic.
 
-```{note}
-**New to OpenEnv?** If you're just getting started, we recommend completing the [Getting Started tutorials](index) first. They provide a conceptual introduction to OpenEnv and reinforcement learning fundamentals. This guide is for developers ready to build production-quality environments.
-```
+> [!NOTE]
+> **New to OpenEnv?** If you're just getting started, we recommend completing the [Getting Started tutorials](../tutorials/index) first. They provide a conceptual introduction to OpenEnv and reinforcement learning fundamentals. This guide is for developers ready to build production-quality environments.
 
 ## Quick Reference Card
 
@@ -39,9 +36,8 @@ Already familiar with OpenEnv? Here's the 8-step process at a glance:
 | `openenv push --private` | Deploy as private environment |
 | `openenv push --registry ghcr.io/ORG` | Push to GitHub Container Registry |
 
-```{tip}
-For a hands-on tutorial that builds a complete environment step-by-step, see [Building & Sharing Environments](plot_03_building_environments) in the Getting Started series.
-```
+> [!TIP]
+> For a hands-on tutorial that builds a complete environment step-by-step, see [Building Environments](../tutorials/index) in the Getting Started series.
 
 ---
 
@@ -55,15 +51,14 @@ A typical workflow looks like:
 4. Configure dependencies and the Dockerfile once.
 5. Use the CLI (`openenv build`, `openenv validate`, `openenv push`) to package and share your work.
 
-```{note}
-    These integrations are handled automatically by the `openenv` CLI when you run `openenv init`.
-```
+> [!NOTE]
+> These integrations are handled automatically by the `openenv` CLI when you run `openenv init`.
 
 ### Prerequisites
 
 - Python 3.11+ and [`uv`](https://github.com/astral-sh/uv) for dependency locking
 - Docker Desktop / Docker Engine
-- The OpenEnv library installed: `pip install https://github.com/meta-pytorch/OpenEnv.git`
+- The OpenEnv library installed: `pip install https://github.com/huggingface/OpenEnv.git`
 
 ## Step-by-Step Guide
 
@@ -353,7 +348,7 @@ openenv push --repo-id my-org/my-env
 openenv push --registry ghcr.io/my-org --tag my-env:latest
 
 # Customize image base or visibility
-openenv push --base-image ghcr.io/meta-pytorch/openenv-base:latest --private
+openenv push --base-image ghcr.io/huggingface/openenv-base:latest --private
 
 # Configure Space variables and secrets at push time
 openenv push -e OPENSPIEL_GAME=tic_tac_toe --secret OPENAI_API_KEY=sk-...
@@ -450,4 +445,4 @@ finally:
 
 Your next steps are to:
 
-- [Try out the end-to-end tutorial](https://colab.research.google.com/github/meta-pytorch/OpenEnv/blob/main/examples/OpenEnv_Tutorial.ipynb)
+- [Try out the end-to-end tutorial](https://colab.research.google.com/github/huggingface/OpenEnv/blob/main/examples/OpenEnv_Tutorial.ipynb)

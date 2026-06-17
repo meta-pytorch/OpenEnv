@@ -115,7 +115,7 @@ openenv push
 openenv push --repo-id my-org/reasoning-gym-env
 
 # Push with a custom base image
-openenv push --base-image ghcr.io/meta-pytorch/openenv-base:latest
+openenv push --base-image ghcr.io/huggingface/openenv-base:latest
 
 # Push as a private space
 openenv push --private
@@ -383,5 +383,5 @@ The Reasoning Gym environment is ideal for:
 ## Learn More
 
 - [Reasoning Gym Library](https://github.com/open-thought/reasoning-gym)
-- [OpenEnv Documentation](https://github.com/meta-pytorch/OpenEnv)
-- [OpenEnv Environment Design](https://github.com/meta-pytorch/OpenEnv/blob/main/README.md)
+- [OpenEnv Documentation](https://github.com/huggingface/OpenEnv)
+- [OpenEnv Environment Design](https://github.com/huggingface/OpenEnv/blob/main/README.md)

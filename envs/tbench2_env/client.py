@@ -54,12 +54,13 @@ class Tbench2Env(EnvClient[Tbench2Action, Tbench2Observation, Tbench2State]):
             info=obs_data.get("info", {}),
             reward=payload.get("reward"),
             done=payload.get("done", False),
-            metadata=obs_data.get("metadata", {}),
+            metadata=payload.get("metadata", obs_data.get("metadata", {})),
         )
         return StepResult(
             observation=observation,
             reward=payload.get("reward"),
             done=payload.get("done", False),
+            metadata=payload.get("metadata"),
         )
 
     def _parse_state(self, payload: dict[str, Any]) -> Tbench2State:

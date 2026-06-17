@@ -3,8 +3,8 @@ requires = ["setuptools>=45", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "openenv-core"
-version = "0.3.0"
+name = "openenv"
+version = "0.3.2.dev0"
 description = "A unified framework for reinforcement learning environments"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -12,7 +12,7 @@ dependencies = [
     # Core shared dependencies - minimal set required for all environments
     # Heavy dependencies (torch, numpy, smolagents, etc.) should be in
     # individual environment pyproject.toml files
-    "fastapi>=0.104.0",
+    "fastapi>=0.116.0",
     "pydantic>=2.0.0",
     "uvicorn>=0.24.0",
     "requests>=2.25.0",
@@ -34,7 +34,7 @@ dependencies = [
 
 [project.optional-dependencies]
 core = [
-    "fastapi>=0.104.0",
+    "fastapi>=0.116.0",
     "pydantic>=2.0.0",
     "uvicorn>=0.24.0",
     "requests>=2.25.0",
@@ -49,24 +49,9 @@ cli = [
     "tomli>=2.3.0",
     "tomli-w>=1.2.0",
 ]
-docs = [
-    "sphinx==7.2.6",
-    "pytorch-sphinx-theme2",
-    "sphinxcontrib.katex==0.9.11",
-    "docutils>=0.18.1,<0.23",
-    "sphinx-design==0.6.1",
-    "sphinxcontrib-mermaid==2.0.1",
-    "myst-parser",
-    "sphinxext-opengraph",
-    "sphinx-sitemap==2.9.0",
-    "sphinx-gallery>=0.14.0",
-    "matplotlib",
-    "nest-asyncio",
-    "smolagents",
-]
 all = [
-    "openenv-core[core]",
-    "openenv-core[cli]",
+    "openenv[core]",
+    "openenv[cli]",
 ]
 daytona = [
     "daytona>=0.136.0",

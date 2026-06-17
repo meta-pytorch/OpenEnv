@@ -10,7 +10,7 @@
 # - Standalone environments (with openenv from pip)
 # The build script (openenv build) handles context detection and sets appropriate build args.
 
-ARG BASE_IMAGE=ghcr.io/meta-pytorch/openenv-base:latest
+ARG BASE_IMAGE=ghcr.io/huggingface/openenv-base:latest
 FROM ${BASE_IMAGE} AS builder
 
 WORKDIR /app
@@ -22,8 +22,8 @@ ARG ENV_NAME=repl_env
 # Copy environment code (always at root of build context)
 COPY . /app/env
 
-# For in-repo builds, openenv-core is already in the pyproject.toml dependencies
-# For standalone builds, openenv-core will be installed from pip via pyproject.toml
+# For in-repo builds, openenv is already in the pyproject.toml dependencies
+# For standalone builds, openenv will be installed from pip via pyproject.toml
 WORKDIR /app/env
 
 # Ensure uv is available (for local builds where base image lacks it)

@@ -1,15 +1,10 @@
 # CLI
 
-The `openenv` CLI provides a set of commands for building, validating, and pushing environments to Hugging Face Spaces or a custom Docker registry. For an end-to-end tutorial on building environments with OpenEnv, see the [building an environment](auto_getting_started/environment-builder.md) guide.
+The `openenv` CLI provides a set of commands for building, validating, and pushing environments to Hugging Face Spaces or a custom Docker registry. For an end-to-end tutorial on building environments with OpenEnv, see the [building an environment](../getting_started/environment-builder.md) guide.
 
 ## `openenv init`
 
-```{eval-rst}
-.. automodule:: openenv.cli.commands.init
-   :members:
-   :undoc-members:
-   :show-inheritance:
-```
+[[autodoc]] openenv.cli.commands.init.init
 
 ## `openenv import`
 
@@ -41,48 +36,23 @@ openenv import path/to/source --name my_env --output-dir ./envs --env-class MyEn
 
 ## `openenv build`
 
-```{eval-rst}
-.. automodule:: openenv.cli.commands.build
-   :members:
-   :undoc-members:
-   :show-inheritance:
-```
+[[autodoc]] openenv.cli.commands.build.build
 
 ## `openenv validate`
 
-```{eval-rst}
-.. automodule:: openenv.cli.commands.validate
-   :members:
-   :undoc-members:
-   :show-inheritance:
-```
+[[autodoc]] openenv.cli.commands.validate.validate
 
 ## `openenv push`
 
-```{eval-rst}
-.. automodule:: openenv.cli.commands.push
-   :members:
-   :undoc-members:
-   :show-inheritance:
-```
+[[autodoc]] openenv.cli.commands.push.push
 
 ## `openenv serve`
 
-```{eval-rst}
-.. automodule:: openenv.cli.commands.serve
-   :members:
-   :undoc-members:
-   :show-inheritance:
-```
+[[autodoc]] openenv.cli.commands.serve.serve
 
 ## `openenv fork`
 
-```{eval-rst}
-.. automodule:: openenv.cli.commands.fork
-   :members:
-   :undoc-members:
-   :show-inheritance:
-```
+[[autodoc]] openenv.cli.commands.fork.fork
 
 ## `openenv skills`
 
@@ -110,7 +80,7 @@ there is only one copy to update.
 openenv skills add --claude --global  # → ~/.claude/skills/openenv-cli/
 ```
 
-**Overwrite an existing installation** (e.g. after upgrading `openenv-core`):
+**Overwrite an existing installation** (e.g. after upgrading `openenv`):
 
 ```bash
 openenv skills add --claude --force
@@ -128,38 +98,28 @@ openenv skills preview
 openenv skills add --dest /path/to/my-agent/skills/
 ```
 
-```{eval-rst}
-.. automodule:: openenv.cli.commands.skills
-   :members:
-   :undoc-members:
-   :show-inheritance:
-```
+[[autodoc]] openenv.cli.commands.skills.skills_add
+
+[[autodoc]] openenv.cli.commands.skills.skills_preview
 
 # API Reference
 
 ## Entry point
 
-```{eval-rst}
-.. automodule:: openenv.cli.__main__
-   :members:
-   :undoc-members:
-   :show-inheritance:
-```
+[[autodoc]] openenv.cli.__main__.main
 
 ## CLI helpers
 
-```{eval-rst}
-.. automodule:: openenv.cli._cli_utils
-   :members:
-   :undoc-members:
-   :show-inheritance:
-```
+[[autodoc]] openenv.cli._cli_utils.validate_env_structure
 
 ## Validation utilities
 
-```{eval-rst}
-.. automodule:: openenv.cli._validation
-   :members:
-   :undoc-members:
-   :show-inheritance:
-```
+[[autodoc]] openenv.cli._validation.validate_running_environment
+
+[[autodoc]] openenv.cli._validation.validate_multi_mode_deployment
+
+[[autodoc]] openenv.cli._validation.get_deployment_modes
+
+[[autodoc]] openenv.cli._validation.format_validation_report
+
+[[autodoc]] openenv.cli._validation.build_local_validation_json_report

@@ -1,6 +1,6 @@
 # Rubrics: Composable Reward Computation
 
-[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/meta-pytorch/OpenEnv/blob/main/examples/rubrics.ipynb)
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/huggingface/OpenEnv/blob/main/examples/rubrics.ipynb)
 
 Rubrics are OpenEnv's first-class abstraction for computing rewards. They let you build multi-criteria reward functions from small reusable pieces. This tutorial walks through the API end-to-end, from a one-line rubric to a full environment that introspects its reward signal at training time.
 
@@ -218,9 +218,8 @@ class WinLossRubric(TrajectoryRubric):
 
 `forward(action, obs)` returns `intermediate_reward` (default `0.0`) until `observation.done` is `True`, then calls `score_trajectory`. After the episode ends, call `rubric.compute_step_rewards()` to get one reward per step — same length as the trajectory. This is the hook for credit assignment: training code feeds these per-step rewards back into advantage estimation, return-to-go, or whatever your optimizer expects. `ExponentialDiscountingTrajectoryRubric` precomputes `gamma^(T-1-t) * final_score` for you; override `compute_step_rewards` in your subclass if you want a different strategy (all-to-last, equal split, task-specific shaping).
 
-:::{caution}
-If `observation.done` never becomes `True`, `score_trajectory` is never called and the trajectory grows unbounded in memory. Make sure `step` flips `done` on every terminal transition, and call `self._reset_rubric()` in `Environment.reset` so trajectories do not leak across episodes.
-:::
+> [!CAUTION]
+> If `observation.done` never becomes `True`, `score_trajectory` is never called and the trajectory grows unbounded in memory. Make sure `step` flips `done` on every terminal transition, and call `self._reset_rubric()` in `Environment.reset` so trajectories do not leak across episodes.
 
 For the common exponentially-discounted case, subclass `ExponentialDiscountingTrajectoryRubric` instead and only implement `score_trajectory`:
 
@@ -236,9 +235,8 @@ class ChessOutcomeRubric(ExponentialDiscountingTrajectoryRubric):
 
 This is exactly the pattern the built-in `envs/chess_env/` uses — see `envs/chess_env/server/rubrics.py` for the complete real-world example.
 
-:::{caution}
-The `TrajectoryRubric` keeps the trajectory in CPU memory. If your observation carries GPU tensors (images, embeddings), detach and move them to CPU before returning from `step()` — otherwise the trajectory holds onto GPU memory across the whole episode.
-:::
+> [!CAUTION]
+> The `TrajectoryRubric` keeps the trajectory in CPU memory. If your observation carries GPU tensors (images, embeddings), detach and move them to CPU before returning from `step()` — otherwise the trajectory holds onto GPU memory across the whole episode.
 
 ## Wiring a Rubric into an `Environment`
 
@@ -332,9 +330,8 @@ The three pieces the base class expects from you:
 2. **Call `self._reset_rubric()` from `reset`** so trajectory state does not leak between episodes.
 3. **Call `self._apply_rubric(action, obs)` from `step`** and attach the result to `obs.reward`. There is also `_apply_rubric_async` for `step_async`.
 
-:::{note}
-Some environments already compute `obs.reward` from game mechanics or a handcrafted multi-component signal (see `envs/chess_env/` and `envs/carla_env/`). In that case, call `self._apply_rubric(action, obs)` without assigning its return value — the rubric still accumulates the trajectory for `compute_step_rewards()` and still exposes per-component scores via `named_rubrics()`, but `obs.reward` stays authoritative.
-:::
+> [!NOTE]
+> Some environments already compute `obs.reward` from game mechanics or a handcrafted multi-component signal (see `envs/chess_env/` and `envs/carla_env/`). In that case, call `self._apply_rubric(action, obs)` without assigning its return value — the rubric still accumulates the trajectory for `compute_step_rewards()` and still exposes per-component scores via `named_rubrics()`, but `obs.reward` stays authoritative.
 
 ### Inspecting rewards from training code
 
@@ -380,6 +377,6 @@ The same rubric object used to compute training rewards doubles as the eval metr
 ## Next Steps
 
 - **Real-world trajectory example** — walk through `envs/chess_env/server/rubrics.py` and `chess_environment.py` to see `ExponentialDiscountingTrajectoryRubric` wired into a game environment.
-- **Design details** — [RFC 004](https://github.com/meta-pytorch/OpenEnv/blob/main/rfcs/004-rubrics.md) covers the rationale for the composable API and the "rewards inside the environment" invariant.
+- **Design details** — [RFC 004](https://github.com/huggingface/OpenEnv/blob/main/rfcs/004-rubrics.md) covers the rationale for the composable API and the "rewards inside the environment" invariant.
 - **Reward design basics** — the [Reward Design](../guides/rewards.md) guide covers sparse-vs-dense signals and common pitfalls that still apply on top of any rubric composition.
 - **Training loop integration** — see the [RL Framework Integration](../guides/rl-integration.md) guide and the [TRL OpenEnv integration guide](https://huggingface.co/docs/trl/main/en/openenv) for the recommended `environment_factory` pattern.
