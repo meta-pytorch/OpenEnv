@@ -8,6 +8,7 @@
 
 from __future__ import annotations
 
+import importlib.util
 import logging
 import sys
 from pathlib import Path
@@ -415,6 +416,43 @@ def test_import_command_detects_ors_and_generates_working_wrapper(
         assert "reset" in mcp_call["error"]["message"]
     finally:
         sys.path.remove(str(output_dir))
+
+
+def test_imported_environment_usage_example_runs(tmp_path: Path) -> None:
+    example_dir = Path(__file__).resolve().parents[2] / "examples/imported_environment"
+    output_dir = tmp_path / "out"
+
+    with patch("openenv.cli.commands.import_env._generate_uv_lock", return_value=True):
+        result = runner.invoke(
+            app,
+            [
+                "import",
+                str(example_dir / "source"),
+                "--name",
+                "imported_ors_demo",
+                "--output-dir",
+                str(output_dir),
+            ],
+        )
+
+    assert result.exit_code == 0, result.output
+
+    spec = importlib.util.spec_from_file_location(
+        "imported_environment_usage_example",
+        example_dir / "use_imported_environment.py",
+    )
+    assert spec is not None
+    assert spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+
+    assert module.run_imported_environment(output_dir) == {
+        "prompt": "What is 2 + 2?",
+        "tools": ["answer"],
+        "result": "correct",
+        "reward": 1.0,
+        "done": True,
+    }
 
 
 def test_import_command_handles_source_module_matching_generated_package(
