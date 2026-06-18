@@ -147,23 +147,29 @@ def serialize_observation(observation: Observation) -> Dict[str, Any]:
             - `observation` (`dict`): Observation fields.
             - `reward` (`float` or `None`): Reward value.
             - `done` (`bool`): Whether the episode is done.
+            - `metadata` (`dict`, *optional*): Additional observation metadata.
     """
-    # Use Pydantic's model_dump() for serialization
+    # Keep metadata in the nested observation payload for backwards
+    # compatibility with typed clients, and also surface it as a top-level
+    # sibling for clients that read the generic wire format directly.
     obs_dict = observation.model_dump(
         exclude={
             "reward",
             "done",
-            "metadata",
         }  # Exclude these from observation dict
     )
 
-    # Extract reward and done directly from the observation
+    # Extract reward, done, and metadata directly from the observation.
     reward = observation.reward
     done = observation.done
+    metadata = observation.metadata
 
-    # Return in EnvClient expected format
-    return {
+    # Return in EnvClient expected format.
+    result = {
         "observation": obs_dict,
         "reward": reward,
         "done": done,
     }
+    if metadata:
+        result["metadata"] = metadata
+    return result

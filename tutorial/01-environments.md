@@ -1127,6 +1127,7 @@ OpenEnv includes 3 complete examples:
 - 🟢 Nvidia
 - 💼 Mercor
 - 🚀 Fleet AI
+- 🪟 Microsoft
 - 🤗 Hugging Face
 
 **Supported by amazing organizations and contributors.**

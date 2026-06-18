@@ -93,7 +93,7 @@ class ReasoningGymEnv(EnvClient[ReasoningGymAction, ReasoningGymObservation, Sta
             correct_answer=obs_data.get("correct_answer"),
             done=payload.get("done", False),
             reward=payload.get("reward"),
-            metadata=obs_data.get("metadata", {}),
+            metadata=payload.get("metadata", obs_data.get("metadata", {})),
             dataset_metadata=obs_data.get("dataset_metadata"),
         )
 
@@ -101,6 +101,7 @@ class ReasoningGymEnv(EnvClient[ReasoningGymAction, ReasoningGymObservation, Sta
             observation=observation,
             reward=payload.get("reward"),
             done=payload.get("done", False),
+            metadata=payload.get("metadata"),
         )
 
     def _parse_state(self, payload: Dict) -> State:

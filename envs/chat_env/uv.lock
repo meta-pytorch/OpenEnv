@@ -1573,40 +1573,8 @@ wheels = [
 ]
 
 [[package]]
-name = "openenv-chat-env"
-version = "0.1.0"
-source = { editable = "." }
-dependencies = [
-    { name = "fastapi" },
-    { name = "openenv-core", extra = ["core"] },
-    { name = "pydantic" },
-    { name = "requests" },
-    { name = "transformers" },
-    { name = "uvicorn" },
-]
-
-[package.optional-dependencies]
-dev = [
-    { name = "pytest" },
-    { name = "pytest-cov" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "fastapi", specifier = ">=0.115.0" },
-    { name = "openenv-core", extras = ["core"], specifier = ">=0.2.3" },
-    { name = "pydantic", specifier = ">=2.0.0" },
-    { name = "pytest", marker = "extra == 'dev'", specifier = ">=9.0.3" },
-    { name = "pytest-cov", marker = "extra == 'dev'", specifier = ">=4.0.0" },
-    { name = "requests", specifier = ">=2.31.0" },
-    { name = "transformers" },
-    { name = "uvicorn", specifier = ">=0.24.0" },
-]
-provides-extras = ["dev"]
-
-[[package]]
-name = "openenv-core"
-version = "0.2.3"
+name = "openenv"
+version = "0.3.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "fastapi" },
@@ -1625,9 +1593,9 @@ dependencies = [
     { name = "uvicorn" },
     { name = "websockets" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/93/f3/41a5ed932a2507438c985e9d959dcaa1a6c46f293995c064348c0e52dd40/openenv_core-0.2.3.tar.gz", hash = "sha256:48aefd774474556297ce012b80f2ceb271db51253d7fd0838e6e2dcc329db0c3", size = 146944, upload-time = "2026-03-28T18:56:28.415Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/7a/16/12825046f4180173d8f845ad95ff7b7aac32486391d822df38d4e52b82df/openenv-0.3.1.tar.gz", hash = "sha256:9e99a08872c781c7c16d5ba214e532caf5cf29f2278eb9cc478544dc538f3918", size = 165346, upload-time = "2026-06-02T08:47:23.918Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/2f/22/38c339e370d198008f2c17ebdda1ae8f23bb4e1509dc7ae8eab6dc9b9cbe/openenv_core-0.2.3-py3-none-any.whl", hash = "sha256:f75a20c94452057a5f53a86e6d71a9f6a461524c3d6a865aa9344d257a92b795", size = 174557, upload-time = "2026-03-28T18:56:26.874Z" },
+    { url = "https://files.pythonhosted.org/packages/cc/28/20af86f825054561c10eb31236e19835f79036fd4a9f600f529adef42b7b/openenv-0.3.1-py3-none-any.whl", hash = "sha256:9cad4b66c08a04fd9d9fe48d7b13cd31f8322b348ff24891646e4440e0b7468c", size = 194867, upload-time = "2026-06-02T08:47:22.469Z" },
 ]
 
 [package.optional-dependencies]
@@ -1638,6 +1606,38 @@ core = [
     { name = "uvicorn" },
     { name = "websockets" },
 ]
+
+[[package]]
+name = "openenv-chat-env"
+version = "0.1.0"
+source = { editable = "." }
+dependencies = [
+    { name = "fastapi" },
+    { name = "openenv", extra = ["core"] },
+    { name = "pydantic" },
+    { name = "requests" },
+    { name = "transformers" },
+    { name = "uvicorn" },
+]
+
+[package.optional-dependencies]
+dev = [
+    { name = "pytest" },
+    { name = "pytest-cov" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "fastapi", specifier = ">=0.115.0" },
+    { name = "openenv", extras = ["core"], specifier = ">=0.2.3" },
+    { name = "pydantic", specifier = ">=2.0.0" },
+    { name = "pytest", marker = "extra == 'dev'", specifier = ">=9.0.3" },
+    { name = "pytest-cov", marker = "extra == 'dev'", specifier = ">=4.0.0" },
+    { name = "requests", specifier = ">=2.31.0" },
+    { name = "transformers" },
+    { name = "uvicorn", specifier = ">=0.24.0" },
+]
+provides-extras = ["dev"]
 
 [[package]]
 name = "opentelemetry-api"
@@ -2206,14 +2206,14 @@ wheels = [
 
 [[package]]
 name = "pyjwt"
-version = "2.12.1"
+version = "2.13.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "typing-extensions", marker = "python_full_version < '3.11'" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/c2/27/a3b6e5bf6ff856d2509292e95c8f57f0df7017cf5394921fc4e4ef40308a/pyjwt-2.12.1.tar.gz", hash = "sha256:c74a7a2adf861c04d002db713dd85f84beb242228e671280bf709d765b03672b", size = 102564, upload-time = "2026-03-13T19:27:37.25Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/3b/81/58d0ac84e1ef3a3843791d6954d94c0b33d526c75eeb1efbce9d0a4c4077/pyjwt-2.13.0.tar.gz", hash = "sha256:41571c89ca91598c79e8ef18a2d07367d4810fbbd6f637794879baf1b7703423", size = 107515, upload-time = "2026-05-21T19:54:36.618Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/e5/7a/8dd906bd22e79e47397a61742927f6747fe93242ef86645ee9092e610244/pyjwt-2.12.1-py3-none-any.whl", hash = "sha256:28ca37c070cad8ba8cd9790cd940535d40274d22f80ab87f3ac6a713e6e8454c", size = 29726, upload-time = "2026-03-13T19:27:35.677Z" },
+    { url = "https://files.pythonhosted.org/packages/a3/5e/ecf12fdb62546d64385c158514e9b2b671f7832108ef2ecd2020ce0af2d1/pyjwt-2.13.0-py3-none-any.whl", hash = "sha256:66adcc2aff09b3f1bbd95fc1e1577df8ac8723c978552fd43304c8a290ac5728", size = 31274, upload-time = "2026-05-21T19:54:35.362Z" },
 ]
 
 [package.optional-dependencies]
