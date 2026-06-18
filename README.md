@@ -174,7 +174,7 @@ Manage container deployment:
 - `LocalDockerProvider`: Run containers on local Docker daemon
 - `DockerSwarmProvider`: Deploy to Docker Swarm clusters
 - `KubernetesProvider`: Deploy to Kubernetes clusters
-- `UVProvider`, `DaytonaProvider`: Additional runtime providers
+- `UVProvider`, `DaytonaProvider`, `ACASandboxProvider`: Additional runtime providers
 
 #### 5. Models
 Type-safe data structures:
