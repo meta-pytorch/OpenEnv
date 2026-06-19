@@ -14,6 +14,7 @@ dependencies = [
     # individual environment pyproject.toml files
     "fastapi>=0.116.0",
     "pydantic>=2.0.0",
+    "typing_extensions>=4.0.0",
     "uvicorn>=0.24.0",
     "requests>=2.25.0",
     # CLI dependencies
@@ -36,6 +37,7 @@ dependencies = [
 core = [
     "fastapi>=0.116.0",
     "pydantic>=2.0.0",
+    "typing_extensions>=4.0.0",
     "uvicorn>=0.24.0",
     "requests>=2.25.0",
     "websockets>=15.0.1",
