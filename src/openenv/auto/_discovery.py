@@ -17,6 +17,8 @@ This module provides automatic discovery of OpenEnv environments by:
 This enables AutoEnv to work without coupling to src/envs/ directory.
 """
 
+from __future__ import annotations
+
 import importlib
 import importlib.metadata
 import importlib.resources
@@ -26,7 +28,7 @@ import re
 import tempfile
 from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Any, Dict, Optional, Type
+from typing import Any, Type
 
 import yaml
 
@@ -64,7 +66,7 @@ class EnvironmentInfo:
     observation_class_name: str
     default_image: str
     spec_version: int | None = None
-    manifest: Dict[str, Any] | None = None
+    manifest: dict[str, Any] | None = None
 
     def get_client_class(self) -> Type:
         """
@@ -225,7 +227,7 @@ def _infer_class_name(env_name: str, class_type: str) -> str:
 
 def _load_manifest_from_package(
     package_name: str, module_name: str
-) -> Dict[str, Any] | None:
+) -> dict[str, Any] | None:
     """
     Load openenv.yaml manifest from an installed package.
 
@@ -347,10 +349,10 @@ class EnvironmentDiscovery:
 
     def __init__(self):
         """Initialize discovery system."""
-        self._cache: Dict[str, EnvironmentInfo] | None = None
+        self._cache: dict[str, EnvironmentInfo] | None = None
         self._cache_file = Path(tempfile.gettempdir()) / "openenv_discovery_cache.json"
 
-    def _discover_installed_packages(self) -> Dict[str, EnvironmentInfo]:
+    def _discover_installed_packages(self) -> dict[str, EnvironmentInfo]:
         """
         Discover all installed openenv-* packages.
 
@@ -403,7 +405,7 @@ class EnvironmentDiscovery:
 
         return environments
 
-    def _load_cache(self) -> Dict[str, EnvironmentInfo] | None:
+    def _load_cache(self) -> dict[str, EnvironmentInfo] | None:
         """
         Load cached discovery results.
 
@@ -427,7 +429,7 @@ class EnvironmentDiscovery:
             logger.warning(f"Failed to load discovery cache: {e}")
             return None
 
-    def _save_cache(self, environments: Dict[str, EnvironmentInfo]) -> None:
+    def _save_cache(self, environments: dict[str, EnvironmentInfo]) -> None:
         """
         Save discovery results to cache.
 
@@ -445,7 +447,7 @@ class EnvironmentDiscovery:
         except Exception as e:
             logger.warning(f"Failed to save discovery cache: {e}")
 
-    def discover(self, use_cache: bool = True) -> Dict[str, EnvironmentInfo]:
+    def discover(self, use_cache: bool = True) -> dict[str, EnvironmentInfo]:
         """
         Discover all installed OpenEnv environments.
 
