@@ -63,8 +63,8 @@ class EnvironmentInfo:
     action_class_name: str
     observation_class_name: str
     default_image: str
-    spec_version: Optional[int] = None
-    manifest: Optional[Dict[str, Any]] = None
+    spec_version: int | None = None
+    manifest: Dict[str, Any] | None = None
 
     def get_client_class(self) -> Type:
         """
@@ -225,7 +225,7 @@ def _infer_class_name(env_name: str, class_type: str) -> str:
 
 def _load_manifest_from_package(
     package_name: str, module_name: str
-) -> Optional[Dict[str, Any]]:
+) -> Dict[str, Any] | None:
     """
     Load openenv.yaml manifest from an installed package.
 
@@ -259,7 +259,7 @@ def _load_manifest_from_package(
 
 def _create_env_info_from_package(
     package_name: str, module_name: str, version: str
-) -> Optional[EnvironmentInfo]:
+) -> EnvironmentInfo | None:
     """
     Create EnvironmentInfo from an installed package.
 
@@ -347,7 +347,7 @@ class EnvironmentDiscovery:
 
     def __init__(self):
         """Initialize discovery system."""
-        self._cache: Optional[Dict[str, EnvironmentInfo]] = None
+        self._cache: Dict[str, EnvironmentInfo] | None = None
         self._cache_file = Path(tempfile.gettempdir()) / "openenv_discovery_cache.json"
 
     def _discover_installed_packages(self) -> Dict[str, EnvironmentInfo]:
@@ -403,7 +403,7 @@ class EnvironmentDiscovery:
 
         return environments
 
-    def _load_cache(self) -> Optional[Dict[str, EnvironmentInfo]]:
+    def _load_cache(self) -> Dict[str, EnvironmentInfo] | None:
         """
         Load cached discovery results.
 
@@ -481,7 +481,7 @@ class EnvironmentDiscovery:
 
         return environments
 
-    def get_environment(self, env_key: str) -> Optional[EnvironmentInfo]:
+    def get_environment(self, env_key: str) -> EnvironmentInfo | None:
         """
         Get information about a specific environment.
 
@@ -500,7 +500,7 @@ class EnvironmentDiscovery:
         environments = self.discover()
         return environments.get(env_key)
 
-    def get_environment_by_name(self, name: str) -> Optional[EnvironmentInfo]:
+    def get_environment_by_name(self, name: str) -> EnvironmentInfo | None:
         """
         Get environment info by flexible name matching.
 
@@ -554,7 +554,7 @@ class EnvironmentDiscovery:
 
 
 # Global discovery instance
-_global_discovery: Optional[EnvironmentDiscovery] = None
+_global_discovery: EnvironmentDiscovery | None = None
 
 
 def get_discovery() -> EnvironmentDiscovery:
