@@ -68,7 +68,7 @@ class EnvironmentInfo:
     spec_version: int | None = None
     manifest: dict[str, Any] | None = None
 
-    def get_client_class(self) -> Type:
+    def get_client_class(self) -> Type[Any]:
         """
         Dynamically import and return the client class.
 
@@ -92,7 +92,7 @@ class EnvironmentInfo:
                 f"Class {self.client_class_name} not found in {self.client_module_path}: {e}"
             ) from e
 
-    def get_action_class(self) -> Type:
+    def get_action_class(self) -> Type[Any]:
         """
         Dynamically import and return the action class.
 
@@ -116,7 +116,7 @@ class EnvironmentInfo:
                 f"Class {self.action_class_name} not found in {self.client_module_path}: {e}"
             ) from e
 
-    def get_observation_class(self) -> Type:
+    def get_observation_class(self) -> Type[Any]:
         """
         Dynamically import and return the observation class.
 
@@ -359,7 +359,7 @@ class EnvironmentDiscovery:
         Returns:
             Dictionary mapping env_key to EnvironmentInfo
         """
-        environments = {}
+        environments: dict[str, EnvironmentInfo] = {}
 
         # Invalidate import caches to ensure we pick up newly installed packages
         importlib.invalidate_caches()
@@ -420,7 +420,7 @@ class EnvironmentDiscovery:
                 cache_data = json.load(f)
 
             # Reconstruct EnvironmentInfo objects
-            cache = {}
+            cache: dict[str, EnvironmentInfo] = {}
             for env_key, env_data in cache_data.items():
                 cache[env_key] = EnvironmentInfo(**env_data)
 
