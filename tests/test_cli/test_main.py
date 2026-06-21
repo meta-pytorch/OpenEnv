@@ -9,11 +9,28 @@
 from unittest.mock import patch
 
 import pytest
-from openenv.cli.__main__ import main
+from openenv.cli.__main__ import app, main
 from typer.testing import CliRunner
 
 
 runner = CliRunner()
+
+
+def test_cli_registers_expected_commands() -> None:
+    """Test that the top-level CLI commands are registered."""
+    command_names = [command.name for command in app.registered_commands]
+    group_names = [group.name for group in app.registered_groups]
+
+    assert command_names == [
+        "init",
+        "build",
+        "validate",
+        "push",
+        "serve",
+        "fork",
+        "collect",
+    ]
+    assert group_names == ["skills"]
 
 
 def test_main_handles_keyboard_interrupt() -> None:

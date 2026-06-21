@@ -12,6 +12,7 @@ following the Hugging Face CLI pattern.
 """
 
 import sys
+from collections.abc import Callable
 
 import typer
 from openenv.cli.commands import (
@@ -25,6 +26,9 @@ from openenv.cli.commands import (
     validate,
 )
 
+CommandCallback = Callable[..., object]
+CommandSpec = tuple[str, str, CommandCallback]
+
 # Create the main CLI app
 app = typer.Typer(
     name="openenv",
@@ -32,34 +36,44 @@ app = typer.Typer(
     no_args_is_help=True,
 )
 
-# Register commands
-app.command(name="init", help="Initialize a new OpenEnv environment")(init.init)
-app.command(name="build", help="Build Docker images for OpenEnv environments")(
-    build.build
+_COMMANDS_BEFORE_SKILLS: tuple[CommandSpec, ...] = (
+    ("init", "Initialize a new OpenEnv environment", init.init),
+    ("build", "Build Docker images for OpenEnv environments", build.build),
+    (
+        "validate",
+        "Validate environment structure and deployment readiness",
+        validate.validate,
+    ),
+    (
+        "push",
+        "Push an OpenEnv environment to Hugging Face Spaces or custom registry",
+        push.push,
+    ),
+    ("serve", "Serve environments locally (TODO: Phase 4)", serve.serve),
+    ("fork", "Fork (duplicate) a Hugging Face Space to your account", fork.fork),
 )
-app.command(
-    name="validate", help="Validate environment structure and deployment readiness"
-)(validate.validate)
-app.command(
-    name="push",
-    help="Push an OpenEnv environment to Hugging Face Spaces or custom registry",
-)(push.push)
-app.command(name="serve", help="Serve environments locally (TODO: Phase 4)")(
-    serve.serve
+_COMMANDS_AFTER_SKILLS: tuple[CommandSpec, ...] = (
+    (
+        "collect",
+        "Collect rollouts from a deployed OpenEnv environment",
+        collect.collect,
+    ),
 )
-app.command(
-    name="fork",
-    help="Fork (duplicate) a Hugging Face Space to your account",
-)(fork.fork)
+
+
+def _register_commands(commands: tuple[CommandSpec, ...]) -> None:
+    """Register top-level Typer commands."""
+    for name, help_text, callback in commands:
+        app.command(name=name, help=help_text)(callback)
+
+
+_register_commands(_COMMANDS_BEFORE_SKILLS)
 app.add_typer(
     skills.app,
     name="skills",
     help="Manage OpenEnv skills for AI assistants",
 )
-app.command(
-    name="collect",
-    help="Collect rollouts from a deployed OpenEnv environment",
-)(collect.collect)
+_register_commands(_COMMANDS_AFTER_SKILLS)
 
 
 # Entry point for setuptools
