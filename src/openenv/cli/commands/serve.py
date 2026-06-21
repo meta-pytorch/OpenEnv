@@ -66,6 +66,14 @@ def serve(
         Path.cwd().resolve() if env_path is None else Path(env_path).resolve()
     )
 
+    if not env_path_obj.exists():
+        typer.echo(f"Error: Path does not exist: {env_path_obj}", err=True)
+        raise typer.Exit(1)
+
+    if not env_path_obj.is_dir():
+        typer.echo(f"Error: Path is not a directory: {env_path_obj}", err=True)
+        raise typer.Exit(1)
+
     try:
         validate_env_structure(env_path_obj)
     except FileNotFoundError as exc:
@@ -113,6 +121,7 @@ def serve(
 
     original_path = list(sys.path)
     prev_cwd = os.getcwd()
+    prev_pythonpath = os.environ.get("PYTHONPATH")
     env_root = str(env_path_obj.resolve())
 
     try:
@@ -121,6 +130,10 @@ def serve(
             repo_src_str = str(repo_src.resolve())
             if repo_src_str not in sys.path:
                 sys.path.insert(0, repo_src_str)
+            existing = os.environ.get("PYTHONPATH", "")
+            os.environ["PYTHONPATH"] = (
+                repo_src_str if not existing else f"{repo_src_str}{os.pathsep}{existing}"
+            )
         if env_root not in sys.path:
             sys.path.insert(0, env_root)
         os.chdir(env_root)
@@ -131,7 +144,13 @@ def serve(
         )
 
         try:
-            uvicorn.run(app_spec, host=host, port=listen_port, reload=reload)
+            uvicorn.run(
+                app_spec,
+                host=host,
+                port=listen_port,
+                reload=reload,
+                app_dir=env_root,
+            )
         except OSError as exc:
             typer.echo(f"Error: {exc}", err=True)
             raise typer.Exit(1) from exc
@@ -141,3 +160,7 @@ def serve(
         except OSError:
             pass
         sys.path[:] = original_path
+        if prev_pythonpath is None:
+            os.environ.pop("PYTHONPATH", None)
+        else:
+            os.environ["PYTHONPATH"] = prev_pythonpath

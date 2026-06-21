@@ -144,7 +144,12 @@ def test_serve_echo_env_health_subprocess() -> None:
                 except subprocess.TimeoutExpired:
                     if proc.stdout:
                         proc.stdout.close()
-            out = proc.stdout.read() if proc.stdout else ""
+            out = ""
+            try:
+                if proc.stdout and not proc.stdout.closed:
+                    out = proc.stdout.read()
+            except (OSError, ValueError):
+                pass
             pytest.fail(f"/health never OK (last error={last_exc!r}): {out}")
     finally:
         if proc.poll() is None:
