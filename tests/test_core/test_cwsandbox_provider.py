@@ -215,10 +215,6 @@ def test_wait_for_ready_polls_health(fake_sdk):
 
     with (
         patch("openenv.core.containers.runtime.cwsandbox_provider.time.sleep"),
-        patch(
-            "openenv.core.containers.runtime.cwsandbox_provider.CWSandboxProvider._websocket_ready",
-            return_value=True,
-        ),
         patch("requests.get", return_value=response) as get,
     ):
         provider.wait_for_ready("http://sandbox.example.test:8000")

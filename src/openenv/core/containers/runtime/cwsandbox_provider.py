@@ -4,11 +4,8 @@ from __future__ import annotations
 
 import os
 import shlex
-import socket
-import ssl
 import time
 from typing import Any, Dict, Optional
-from urllib.parse import urlparse
 
 from .providers import ContainerProvider
 
@@ -190,7 +187,7 @@ class CWSandboxProvider(ContainerProvider):
         while time.time() < deadline:
             try:
                 response = requests.get(health_url, timeout=5.0)
-                if response.status_code == 200 and self._websocket_ready(base_url):
+                if response.status_code == 200:
                     if self._ready_settle_seconds:
                         time.sleep(self._ready_settle_seconds)
                     return
@@ -208,44 +205,6 @@ class CWSandboxProvider(ContainerProvider):
             f"OpenEnv server at {base_url} did not become ready within {timeout_s}s."
             f"{detail}"
         )
-
-    @staticmethod
-    def _websocket_ready(base_url: str, timeout: float = 5.0) -> bool:
-        """Return True once the ingress path accepts a /ws upgrade."""
-        parsed = urlparse(base_url)
-        if parsed.scheme not in {"http", "https"} or not parsed.hostname:
-            return False
-
-        port = parsed.port or (443 if parsed.scheme == "https" else 80)
-        # RFC 6455 sample nonce; this is a public probe value, not a secret.
-        websocket_key = "dGhlIHNhbXBsZSBub25jZQ=="
-        request = (
-            "GET /ws HTTP/1.1\r\n"
-            f"Host: {parsed.netloc}\r\n"
-            "Upgrade: websocket\r\n"
-            "Connection: Upgrade\r\n"
-            f"Sec-WebSocket-Key: {websocket_key}\r\n"
-            "Sec-WebSocket-Version: 13\r\n"
-            "\r\n"
-        ).encode()
-
-        try:
-            with socket.create_connection(
-                (parsed.hostname, port), timeout=timeout
-            ) as raw:
-                if parsed.scheme == "https":
-                    context = ssl.create_default_context()
-                    with context.wrap_socket(
-                        raw, server_hostname=parsed.hostname
-                    ) as sock:
-                        sock.settimeout(timeout)
-                        sock.sendall(request)
-                        return b" 101 " in sock.recv(256)
-                raw.settimeout(timeout)
-                raw.sendall(request)
-                return b" 101 " in raw.recv(256)
-        except OSError:
-            return False
 
     def _discover_server_cmd(self, sandbox: Any, port: int) -> str:
         yaml_path = self._find_openenv_yaml(sandbox)
