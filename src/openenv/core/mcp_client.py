@@ -74,6 +74,15 @@ from .env_server.mcp_types import (
 from .env_server.types import Observation, State
 
 
+def _tool_from_payload(payload: Dict[str, Any]) -> Tool:
+    """Convert a JSON tool payload into the internal Tool model."""
+    return Tool(
+        name=payload.get("name", ""),
+        description=payload.get("description", ""),
+        input_schema=payload.get("input_schema", payload.get("inputSchema", {})),
+    )
+
+
 class MCPClientBase(EnvClient[Any, Observation, State]):
     """
     Base class for MCP clients with tool discovery.
@@ -226,16 +235,7 @@ class MCPClientBase(EnvClient[Any, Observation, State]):
                     message = data.get("error", {}).get("message", "unknown error")
                     raise RuntimeError(f"list_tools failed: {message}")
                 if "result" in data and "tools" in data["result"]:
-                    tools = [
-                        Tool(
-                            name=t.get("name", ""),
-                            description=t.get("description", ""),
-                            input_schema=t.get(
-                                "input_schema", t.get("inputSchema", {})
-                            ),
-                        )
-                        for t in data["result"]["tools"]
-                    ]
+                    tools = [_tool_from_payload(t) for t in data["result"]["tools"]]
                     self._tools_cache = tools
                     return tools
             except Exception:
@@ -274,14 +274,7 @@ class MCPClientBase(EnvClient[Any, Observation, State]):
 
         # Check if this is a ListToolsObservation
         if "tools" in obs_data:
-            tools = [
-                Tool(
-                    name=t.get("name", ""),
-                    description=t.get("description", ""),
-                    input_schema=t.get("input_schema", t.get("inputSchema", {})),
-                )
-                for t in obs_data.get("tools", [])
-            ]
+            tools = [_tool_from_payload(t) for t in obs_data.get("tools", [])]
             observation = ListToolsObservation(
                 tools=tools,
                 done=payload.get("done", False),
