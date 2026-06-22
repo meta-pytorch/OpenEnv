@@ -14,7 +14,8 @@ builds, almost for free.
 
 During agent RL we normally **mask out** the environment's response tokens and
 only train on the agent's actions. **ECHO** ([arXiv 2605.24517](https://arxiv.org/abs/2605.24517),
-`microsoft/echo-rl`; and Prime Intellect's *"True Agents Model the World"*) adds
+[`microsoft/echo-rl`](https://github.com/microsoft/echo-rl); and Prime Intellect's
+[*"True Agents Model the World"*](https://www.primeintellect.ai/blog/true-agents-model-the-world)) adds
 a tiny cross-entropy loss that makes the policy **predict the environment's
 observation tokens** too:
 
@@ -26,7 +27,7 @@ The model already conditions on those observation tokens and already computes
 their logits in the same forward pass — so the extra world-modeling signal is
 **~free**: no extra rollouts, no teacher, no separate world model, just a
 different mask over logits you already have. Reported: **~2.3× faster** RL,
-TerminalBench-2.0 pass@1 ~**doubles**, recovers **50–104%** of expert-SFT with
+[TerminalBench-2.0](https://www.tbench.ai/) pass@1 ~**doubles**, recovers **50–104%** of expert-SFT with
 no teacher, and even **verifier-free** (reward off) improves held-out tasks.
 
 ## Why OpenEnv needs a small change
