@@ -108,6 +108,12 @@ class CWSandboxProvider(ContainerProvider):
     ) -> str:
         """Start an OpenEnv image in a sandbox and return its base URL."""
         port = port or 8000
+        if port != 8000:
+            raise ValueError(
+                f"CWSandboxProvider only supports port 8000 (got {port}). "
+                "OpenEnv images and generated server commands listen on port 8000."
+            )
+
         cmd = kwargs.pop("cmd", None) or self._cmd
         unknown = set(kwargs)
         if unknown:
@@ -211,13 +217,14 @@ class CWSandboxProvider(ContainerProvider):
             return False
 
         port = parsed.port or (443 if parsed.scheme == "https" else 80)
-        key = "dGhlIHNhbXBsZSBub25jZQ=="
+        # RFC 6455 sample nonce; this is a public probe value, not a secret.
+        websocket_key = "dGhlIHNhbXBsZSBub25jZQ=="
         request = (
             "GET /ws HTTP/1.1\r\n"
             f"Host: {parsed.netloc}\r\n"
             "Upgrade: websocket\r\n"
             "Connection: Upgrade\r\n"
-            f"Sec-WebSocket-Key: {key}\r\n"
+            f"Sec-WebSocket-Key: {websocket_key}\r\n"
             "Sec-WebSocket-Version: 13\r\n"
             "\r\n"
         ).encode()
@@ -267,17 +274,14 @@ class CWSandboxProvider(ContainerProvider):
         )
 
     def _find_openenv_yaml(self, sandbox: Any) -> Optional[str]:
-        for candidate in (
-            "/app/env/openenv.yaml",
-            "/app/envs/coding_env/openenv.yaml",
-        ):
-            out = self._exec_stdout(
-                sandbox,
-                f"test -f {shlex.quote(candidate)} && echo found",
-                timeout_seconds=10,
-            )
-            if "found" in out:
-                return candidate
+        candidate = "/app/env/openenv.yaml"
+        out = self._exec_stdout(
+            sandbox,
+            f"test -f {shlex.quote(candidate)} && echo found",
+            timeout_seconds=10,
+        )
+        if "found" in out:
+            return candidate
 
         path = self._exec_stdout(
             sandbox,

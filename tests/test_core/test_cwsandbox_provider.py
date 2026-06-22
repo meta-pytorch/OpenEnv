@@ -59,8 +59,8 @@ class _FakeSandbox:
         script = command[-1]
         if "test -f /app/env/openenv.yaml" in script:
             return _FakeProcess("")
-        if "test -f /app/envs/coding_env/openenv.yaml" in script:
-            return _FakeProcess("found\n")
+        if "find /app" in script:
+            return _FakeProcess("/app/envs/coding_env/openenv.yaml\n")
         if script.startswith("cat /app/envs/coding_env/openenv.yaml"):
             return _FakeProcess("spec_version: 1\napp: coding_env.server.app:app\n")
         if "kill -0" in script:
@@ -138,15 +138,25 @@ def test_start_container_configures_sandbox(fake_sdk):
     assert kwargs["network"].egress_mode == "internet"
 
 
-def test_start_container_discovers_openenv_yaml_and_starts_server(fake_sdk):
+def test_start_container_finds_openenv_yaml_with_generic_search(fake_sdk):
     provider = CWSandboxProvider(sdk=fake_sdk)
 
     provider.start_container("coding-env:latest")
 
     scripts = [" ".join(call) for call in fake_sdk._sandbox_cls.instance.exec_calls]
+    assert any(
+        "find /app -maxdepth 5 -name openenv.yaml" in script for script in scripts
+    )
     assert any("cat /app/envs/coding_env/openenv.yaml" in script for script in scripts)
     assert any("nohup bash -c" in script for script in scripts)
     assert any("coding_env.server.app:app" in script for script in scripts)
+
+
+def test_port_other_than_8000_raises(fake_sdk):
+    provider = CWSandboxProvider(sdk=fake_sdk)
+
+    with pytest.raises(ValueError, match="only supports port 8000"):
+        provider.start_container("coding-env:latest", port=3000)
 
 
 def test_service_address_uses_exposed_port_scheme(fake_sdk):
