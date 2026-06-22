@@ -19,6 +19,7 @@ Tests cover:
 8. AutoAction with skip_install parameter
 """
 
+import os
 from unittest.mock import AsyncMock, MagicMock, Mock, patch
 
 import pytest
@@ -583,6 +584,35 @@ class TestGenericEnvClientContextManager:
                 mock_connect.assert_called_once()
 
             mock_close.assert_called_once()
+
+
+# ============================================================================
+# Connection Helper Tests
+# ============================================================================
+
+
+class TestGenericEnvClientConnection:
+    """Test connection setup helpers."""
+
+    @pytest.mark.asyncio
+    async def test_connect_temporarily_extends_no_proxy_for_localhost(
+        self, monkeypatch
+    ):
+        """Local websocket connections bypass proxies without leaking env changes."""
+        monkeypatch.setenv("NO_PROXY", "example.com")
+        observed_no_proxy = []
+
+        async def fake_ws_connect(*args, **kwargs):
+            observed_no_proxy.append(os.environ.get("NO_PROXY"))
+            return MagicMock()
+
+        client = GenericEnvClient(base_url="http://localhost:8000")
+
+        with patch("openenv.core.env_client.ws_connect", side_effect=fake_ws_connect):
+            await client.connect()
+
+        assert observed_no_proxy == ["example.com,localhost,127.0.0.1"]
+        assert os.environ["NO_PROXY"] == "example.com"
 
 
 # ============================================================================
