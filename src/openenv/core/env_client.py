@@ -37,10 +37,12 @@ Examples:
 from __future__ import annotations
 
 import asyncio
+import ipaddress
 import json
 import os
 from abc import ABC, abstractmethod
 from typing import Any, Dict, Generic, Optional, Type, TYPE_CHECKING, TypeVar
+from urllib.parse import urlsplit
 
 from .client_types import StateT, StepResult
 from .containers.runtime import LocalDockerProvider, UVProvider
@@ -76,9 +78,22 @@ def _normalize_mode(mode: Optional[str]) -> str:
 
 
 def _is_localhost_ws_url(ws_url: str) -> bool:
-    """Return True when the WebSocket URL targets localhost."""
-    ws_url_lower = ws_url.lower()
-    return "localhost" in ws_url_lower or "127.0.0.1" in ws_url_lower
+    """Return True when the WebSocket URL targets the local loopback interface.
+
+    The hostname is parsed from the URL so that only the actual host is matched.
+    Substring matching is avoided because remote hosts such as
+    ``my-localhost-proxy.example.com`` or ``127.0.0.1.example.com`` must not be
+    treated as local.
+    """
+    hostname = urlsplit(ws_url).hostname
+    if hostname is None:
+        return False
+    if hostname == "localhost":
+        return True
+    try:
+        return ipaddress.ip_address(hostname).is_loopback
+    except ValueError:
+        return False
 
 
 class EnvClient(ABC, Generic[ActT, ObsT, StateT]):

@@ -25,6 +25,7 @@ from unittest.mock import AsyncMock, MagicMock, Mock, patch
 
 import pytest
 from openenv.core.client_types import StepResult
+from openenv.core.env_client import _is_localhost_ws_url
 from openenv.core.generic_client import GenericAction, GenericEnvClient
 from openenv.core.sync_client import SyncEnvClient
 
@@ -590,6 +591,35 @@ class TestGenericEnvClientContextManager:
 # ============================================================================
 # Connection Helper Tests
 # ============================================================================
+
+
+class TestIsLocalhostWsUrl:
+    """Test the loopback-host detection used to decide whether to bypass proxies."""
+
+    @pytest.mark.parametrize(
+        "ws_url",
+        [
+            "ws://localhost:8000/ws",
+            "ws://127.0.0.1:8000/ws",
+            "ws://127.5.5.5:8000/ws",  # anywhere in 127.0.0.0/8 is loopback
+            "ws://[::1]:8000/ws",
+            "wss://LocalHost:8000/ws",  # case-insensitive
+        ],
+    )
+    def test_loopback_hosts_are_localhost(self, ws_url):
+        assert _is_localhost_ws_url(ws_url) is True
+
+    @pytest.mark.parametrize(
+        "ws_url",
+        [
+            "ws://my-localhost-proxy.example.com:8000/ws",  # substring, not the host
+            "ws://127.0.0.1.example.com:8000/ws",  # substring, not the host
+            "ws://localhost.attacker.com:8000/ws",
+            "wss://remote.example.com:8000/ws",
+        ],
+    )
+    def test_remote_hosts_are_not_localhost(self, ws_url):
+        assert _is_localhost_ws_url(ws_url) is False
 
 
 class TestGenericEnvClientConnection:
