@@ -66,6 +66,7 @@ jobs:
       - name: Deploy selected environments
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
+          ENVS_CSV_INPUT: ${{ github.event.inputs.envs_csv }}
         run: |
           set -euo pipefail
           chmod +x scripts/prepare_hf_deployment.sh
@@ -90,8 +91,8 @@ jobs:
             cmd+=(--dry-run)
           fi
 
-          if [ -n "${{ github.event.inputs.envs_csv }}" ]; then
-            IFS=',' read -r -a envs <<< "${{ github.event.inputs.envs_csv }}"
+          if [ -n "$ENVS_CSV_INPUT" ]; then
+            IFS=',' read -r -a envs <<< "$ENVS_CSV_INPUT"
             for env_name in "${envs[@]}"; do
               trimmed="$(echo "$env_name" | xargs)"
               if [ -n "$trimmed" ]; then
