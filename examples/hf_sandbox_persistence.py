@@ -33,8 +33,7 @@ async def health():
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
     await websocket.accept()
-    while True:
-        message = await websocket.receive_json()
+    async for message in websocket.iter_json():
         if message["op"] == "set":
             state[message["name"]] = message["value"]
             await websocket.send_json({"ok": True})
