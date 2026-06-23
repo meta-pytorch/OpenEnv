@@ -128,6 +128,21 @@ with EchoEnv(base_url="http://localhost:8000").sync() as client:
     result = client.reset()
 ```
 
+Cloud sandbox providers implement the same `ContainerProvider` contract as
+local Docker: they start an isolated environment server and return a `base_url`
+that an `EnvClient` can connect to directly, while keeping provider-specific
+control-plane concepts (sandbox groups, projects, signed URLs, snapshots, egress
+policy) inside the provider. This keeps OpenEnv an open protocol that any hosted
+runtime — Daytona, Modal, E2B, Azure Container Apps Sandboxes, Kubernetes-backed
+sandboxes, and others — can implement without changing the client/server
+protocol.
+
+See RFC 002, "Cloud Sandbox Providers", for the provider-neutral invariants
+(direct base URL, WebSocket conformance, base URL lifetime and reconnect,
+provider-specific source mapping, orchestration-only lifecycle, explicit network
+posture), and the [Core API reference](reference/core.md) for the available
+provider implementations and their provider-specific setup.
+
 ## Next Steps
 
 - [Concepts](guides/concepts.md)

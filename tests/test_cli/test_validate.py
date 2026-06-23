@@ -297,6 +297,24 @@ def test_validate_command_rejects_nested_main_guard(tmp_path: Path) -> None:
     assert "main() function not callable" in result.output
 
 
+def test_validate_command_accepts_later_top_level_main_guard(tmp_path: Path) -> None:
+    """Local validation scans each top-level __main__ guard for a main() call."""
+    env_dir = tmp_path / "test_env"
+    _write_minimal_valid_env(env_dir)
+    (env_dir / "server" / "app.py").write_text(
+        "def main():\n    return None\n\n"
+        "if __name__ == '__main__':\n"
+        "    print('starting')\n\n"
+        "if __name__ == '__main__':\n"
+        "    main()\n"
+    )
+
+    result = runner.invoke(app, ["validate", str(env_dir)])
+
+    assert result.exit_code == 0
+    assert "[OK]" in result.output
+
+
 def test_validate_command_syntax_error_fallback_requires_dunder_main(
     tmp_path: Path,
 ) -> None:

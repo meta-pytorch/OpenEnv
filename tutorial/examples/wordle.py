@@ -69,7 +69,6 @@ python examples/scripts/openenv/wordle.py --vllm-mode colocate
 from __future__ import annotations
 
 import argparse
-import sys
 from collections import defaultdict
 from collections.abc import Iterable
 from datetime import datetime
@@ -81,13 +80,13 @@ from transformers import AutoTokenizer
 from trl import GRPOConfig, GRPOTrainer
 from trl.experimental.openenv import generate_rollout_completions
 
-
-# Ensure src/ is on the path
-sys.path.insert(0, str(Path(__file__).parent / "src"))
-
-from envs.textarena_env import TextArenaAction, TextArenaEnv
-from envs.textarena_env.models import TextArenaMessage
-from envs.textarena_env.rewards import extract_feedback_counts, extract_guess, extract_wordle_feedback
+from textarena_env import TextArenaAction, TextArenaEnv
+from textarena_env.models import TextArenaMessage
+from textarena_env.rewards import (
+    extract_feedback_counts,
+    extract_guess,
+    extract_wordle_feedback,
+)
 
 
 def parse_args() -> argparse.Namespace:
@@ -433,8 +432,6 @@ def main() -> None:
     tokenizer = AutoTokenizer.from_pretrained(args.tokenizer_id)
     tokenizer.pad_token = tokenizer.eos_token
 
-    client = TextArenaEnv(base_url=args.env_url)
-
     system_prompt = resolve_system_prompt(args.system_prompt_path)
 
     dataset = Dataset.from_dict({"prompt": [args.dataset_prompt] * args.dataset_size})
@@ -507,27 +504,25 @@ def main() -> None:
             "repetition_reward": repetition_rewards,
         }
 
-    trainer = GRPOTrainer(
-        model=args.model_id,
-        processing_class=tokenizer,
-        reward_funcs=[
-            reward_correct,
-            reward_greens,
-            reward_yellows,
-            reward_repetition,
-        ],
-        train_dataset=dataset,
-        args=grpo_config,
-        rollout_func=rollout_func,
-    )
+    with TextArenaEnv(base_url=args.env_url).sync() as client:
+        trainer = GRPOTrainer(
+            model=args.model_id,
+            processing_class=tokenizer,
+            reward_funcs=[
+                reward_correct,
+                reward_greens,
+                reward_yellows,
+                reward_repetition,
+            ],
+            train_dataset=dataset,
+            args=grpo_config,
+            rollout_func=rollout_func,
+        )
 
-    print("Starting GRPO training with Wordle environment...")
-    print(f"Using {args.num_generations} rollouts per dataset prompt")
+        print("Starting GRPO training with Wordle environment...")
+        print(f"Using {args.num_generations} rollouts per dataset prompt")
 
-    try:
         trainer.train()
-    finally:
-        client.close()
 
 
 if __name__ == "__main__":

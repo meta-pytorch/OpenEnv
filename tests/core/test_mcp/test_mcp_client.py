@@ -130,6 +130,29 @@ class TestMCPClientBase:
         assert result.observation.tools[0].name == "add"
         assert result.done is False
 
+    def test_parse_result_list_tools_accepts_input_schema_alias(self):
+        """Test _parse_result accepts MCP-style inputSchema tool payloads."""
+        client = MCPClientBase.__new__(MCPClientBase)
+        client._ws = None
+        client._tools_cache = None
+
+        payload = {
+            "observation": {
+                "tools": [
+                    {
+                        "name": "search",
+                        "description": "Search documents",
+                        "inputSchema": {"type": "object"},
+                    },
+                ],
+            },
+        }
+
+        result = client._parse_result(payload)
+
+        assert isinstance(result.observation, ListToolsObservation)
+        assert result.observation.tools[0].input_schema == {"type": "object"}
+
     def test_parse_result_call_tool_observation(self):
         """Test _parse_result for CallToolObservation."""
         client = MCPClientBase.__new__(MCPClientBase)
