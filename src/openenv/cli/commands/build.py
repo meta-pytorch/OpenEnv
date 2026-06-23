@@ -35,6 +35,15 @@ def _is_openenv_runtime_dependency(dep: str) -> bool:
     )
 
 
+def _is_in_repo_env_path(env_path: Path, repo_root: Path) -> bool:
+    """Return whether env_path points to an environment below repo_root/envs."""
+    try:
+        rel_path = env_path.relative_to(repo_root)
+    except ValueError:
+        return False
+    return len(rel_path.parts) > 1 and rel_path.parts[0] == "envs"
+
+
 def _detect_build_context(env_path: Path) -> tuple[str, Path, Path | None]:
     """
     Detect whether we're building a standalone or in-repo environment.
@@ -61,19 +70,8 @@ def _detect_build_context(env_path: Path) -> tuple[str, Path, Path | None]:
         # Not in a git repo = standalone
         return "standalone", env_path, None
 
-    # Check if environment is under envs/ (in-repo pattern)
-    try:
-        rel_path = env_path.relative_to(repo_root)
-        rel_str = str(rel_path)
-        if (
-            rel_str.startswith("envs/")
-            or rel_str.startswith("envs\\")
-            or rel_str.startswith("envs/")
-        ):
-            # In-repo environment
-            return "in-repo", repo_root, repo_root
-    except ValueError:
-        pass
+    if _is_in_repo_env_path(env_path, repo_root):
+        return "in-repo", repo_root, repo_root
 
     # Otherwise, it's standalone (environment outside repo structure)
     return "standalone", env_path, None
