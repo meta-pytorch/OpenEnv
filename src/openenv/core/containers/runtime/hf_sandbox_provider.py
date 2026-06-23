@@ -7,7 +7,7 @@ import socket
 import threading
 import time
 from contextlib import suppress
-from typing import Any, Dict, Optional
+from typing import Any
 
 import httpx
 import requests
@@ -16,14 +16,16 @@ from fastapi import FastAPI, Request, Response, WebSocket
 from huggingface_hub import HfApi
 from huggingface_hub.utils import get_token
 from starlette.websockets import WebSocketDisconnect
-from websockets.exceptions import ConnectionClosed
 from websockets.asyncio.client import connect as ws_connect
+from websockets.exceptions import ConnectionClosed
 
 from .providers import ContainerProvider
 
 
 _DEFAULT_PORT = 8000
 _DEFAULT_COMMAND = "cd /app/env && uvicorn server.app:app --host 0.0.0.0 --port 8000"
+_JOB_TIMEOUT = "24h"
+_STARTUP_TIMEOUT_S = 120.0
 _HOP_BY_HOP_HEADERS = {
     "connection",
     "content-encoding",
@@ -180,48 +182,33 @@ class HFSandboxProvider(ContainerProvider):
         self,
         *,
         flavor: str = "cpu-basic",
-        namespace: str | None = None,
-        token: str | None = None,
         command: str = _DEFAULT_COMMAND,
-        timeout: int | float | str | None = "24h",
-        startup_timeout_s: float = 120.0,
     ):
         self.flavor = flavor
-        self.namespace = namespace
-        self.token = token
         self.command = command
-        self.timeout = timeout
-        self.startup_timeout_s = startup_timeout_s
-        self._api = HfApi(token=token)
+        self._api = HfApi()
+        self._token: str | None = None
         self._job: Any = None
-        self._job_namespace: str | None = None
         self._proxy: _LocalAuthProxy | None = None
 
     def start_container(
         self,
         image: str,
-        port: Optional[int] = None,
-        env_vars: Optional[Dict[str, str]] = None,
-        **kwargs: Any,
+        port: int | None = None,
+        env_vars: dict[str, str] | None = None,
     ) -> str:
-        if kwargs:
-            unknown = ", ".join(sorted(kwargs))
-            raise ValueError(f"Unsupported HFSandboxProvider options: {unknown}")
         if self._job is not None:
             raise RuntimeError("HFSandboxProvider already has an active job")
 
-        bind_port = port or _DEFAULT_PORT
-        if bind_port != _DEFAULT_PORT:
+        if port not in (None, _DEFAULT_PORT):
             raise ValueError(
-                f"HFSandboxProvider only supports port {_DEFAULT_PORT} "
-                f"(got {bind_port})."
+                f"HFSandboxProvider only supports port {_DEFAULT_PORT} (got {port})."
             )
 
-        effective_token = self.token or get_token()
+        effective_token = get_token()
         if not effective_token:
             raise ValueError(
-                "HFSandboxProvider requires a Hugging Face token. "
-                "Pass token= or run `hf auth login`."
+                "HFSandboxProvider requires a Hugging Face token. Run `hf auth login`."
             )
 
         self._job = self._api.run_job(
@@ -229,32 +216,30 @@ class HFSandboxProvider(ContainerProvider):
             command=["sh", "-lc", self.command],
             env=env_vars,
             flavor=self.flavor,
-            timeout=self.timeout,
-            labels={"openenv-provider": "hf-sandbox"},
-            expose=[bind_port],
-            namespace=self.namespace,
+            timeout=_JOB_TIMEOUT,
+            expose=[_DEFAULT_PORT],
             token=effective_token,
         )
-        self._job_namespace = self.namespace or self._job.owner.name
-        target_url = self._wait_for_job_url(bind_port)
+        self._token = effective_token
+        target_url = self._wait_for_job_url()
         self._proxy = _LocalAuthProxy(target_url=target_url, token=effective_token)
         return self._proxy.start()
 
-    def _wait_for_job_url(self, port: int) -> str:
-        deadline = time.time() + self.startup_timeout_s
-        target_url = _job_port_url(self._job, port)
+    def _wait_for_job_url(self) -> str:
+        deadline = time.time() + _STARTUP_TIMEOUT_S
+        target_url = _job_port_url(self._job, _DEFAULT_PORT)
         while target_url is None and time.time() < deadline:
             time.sleep(0.5)
             self._job = self._api.inspect_job(
                 job_id=self._job.id,
-                namespace=self._job_namespace,
-                token=self.token,
+                namespace=self._job.owner.name,
+                token=self._token,
             )
-            target_url = _job_port_url(self._job, port)
+            target_url = _job_port_url(self._job, _DEFAULT_PORT)
         if target_url is None:
             raise RuntimeError(
-                f"HF job did not expose port {port} within "
-                f"{self.startup_timeout_s:.1f}s"
+                f"HF job did not expose port {_DEFAULT_PORT} within "
+                f"{_STARTUP_TIMEOUT_S:.1f}s"
             )
         return target_url
 
@@ -265,11 +250,11 @@ class HFSandboxProvider(ContainerProvider):
         if self._job is not None:
             self._api.cancel_job(
                 job_id=self._job.id,
-                namespace=self._job_namespace,
-                token=self.token,
+                namespace=self._job.owner.name,
+                token=self._token,
             )
             self._job = None
-            self._job_namespace = None
+            self._token = None
 
     def wait_for_ready(self, base_url: str, timeout_s: float = 120.0) -> None:
         deadline = time.time() + timeout_s
