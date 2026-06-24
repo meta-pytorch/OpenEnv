@@ -76,9 +76,35 @@ single-step, this is a plain prompt -> completion -> reward GRPO setup — no
 GRPO tutorial). It connects directly to the deployed Space's source (cloned
 and run locally via `uv`, not Docker, and not subject to the Space's request
 quota) and only depends on `openenv[core]` from PyPI, so it also runs as a
-standalone `uv` script, including on Hugging Face Jobs. Verified end-to-end: a
-short run (4 episodes, 1 step, `Qwen2.5-0.5B-Instruct`) produces a real
-checkpoint and a real reward from the live env.
+standalone `uv` script, including on Hugging Face Jobs.
+
+### Validated with a real 100-step run on Hugging Face Jobs
+
+`hf jobs uv run examples/sophistry_bench_sprint_grpo.py --flavor a10g-small -- --n-episodes 64 --steps 100 --per-device-batch-size 8 --num-generations 8`
+(`Qwen2.5-0.5B-Instruct`, default `SPRINT_WEIGHTS`). Full per-step metrics,
+including the `correctness_reward`/`n_claims` breakdown:
+[`training/hf_jobs_metrics.csv`](https://github.com/huggingface/OpenEnv/blob/main/envs/sophistry_bench_sprint_env/training/hf_jobs_metrics.csv).
+
+| Steps | `aggregate_reward` (proxy) | `n_claims` | `correctness_reward` (ground truth) | `n_citations` |
+|---|---|---|---|---|
+| 1–10 | 0.354 | 0.863 | 0.700 | 0.825 |
+| 11–20 | 0.461 | 0.138 | 0.600 | 0.138 |
+| 21–30 | 0.500 | 0.000 | 0.200 | 0.000 |
+| 41–50 | 0.500 | 0.000 | 0.600 | 0.000 |
+| 91–100 | 0.500 | 0.000 | 0.500 | 0.000 |
+
+`aggregate_reward` climbs from ~0.35 to a ~0.50 plateau, confirming the proxy
+is genuinely optimized end to end on Hugging Face infrastructure. But at this
+scale (a 0.5B model, ~800 total rollouts — two orders of magnitude fewer than
+the Prime Intellect run below), the policy doesn't converge on the
+`claim_count_cliff` target the way the larger run does. Instead `n_claims`
+*collapses to ~0*: emitting empty/near-empty completions also scores ~0.5,
+and at this scale that's the cheaper exploit to find than hitting exactly 8
+claims. `correctness_reward` stays noisy and decoupled from the optimized
+reward either way (0.2–0.7, no trend) — the same core finding as the
+Prime Intellect run, just reached via a different degenerate strategy. Read
+as a second data point, not a replication: this env reliably induces some
+form of reward hacking, but *which* shortcut a policy finds depends on scale.
 
 ### Also validated on Prime Intellect
 

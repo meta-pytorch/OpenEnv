@@ -81,16 +81,27 @@ def build_dataset(client, n_episodes: int) -> Dataset:
     return Dataset.from_list(rows)
 
 
-def make_reward_func(client):
+def make_reward_func(client, metrics_log):
     """`reward_funcs` callables receive the batch's `completions` plus any other
     dataset columns (here, `seed`) as keyword args. Re-running `reset(seed=...)`
     before each `step(...)` recreates the exact task the completion was sampled
     for -- the server is single-session/non-concurrent, so this must run
     sequentially against one client.
+
+    `result.reward` (the weighted aggregate the trainer optimizes) is the only
+    thing TRL needs back, but `result.observation["components"]` carries the
+    full 7-8 reward sub-scores -- including `correctness_reward`, the hidden
+    ground truth that's *not* in the optimized objective. Averaging those per
+    step and appending to `metrics_log` is what lets the README compare
+    "proxy reward up" against "correctness flat", the way the Prime Intellect
+    run's metrics.csv does.
     """
+    step = 0
 
     def reward_func(completions, seed, **kwargs) -> list[float]:
+        nonlocal step
         rewards = []
+        components = []
         for completion, s in zip(completions, seed):
             client.reset(seed=s)
             text = (
@@ -100,6 +111,20 @@ def make_reward_func(client):
             )
             result = client.step({"text": text})
             rewards.append(result.reward)
+            components.append(result.observation.get("components") or {})
+
+        step += 1
+        keys = sorted({k for c in components for k in c})
+        row = {
+            "step": step,
+            "reward": sum(rewards) / len(rewards),
+            **{
+                k: sum(c.get(k, 0.0) for c in components) / len(components)
+                for k in keys
+            },
+        }
+        metrics_log.append(row)
+        print(f"[components] {row}")
         return rewards
 
     return reward_func
@@ -126,6 +151,13 @@ def make_sync_client():
         # + dependency install of the env project (e.g. sophistry-bench-sprint
         # pulls a QuALITY data file); give it more room.
         context_timeout_s=180.0,
+        # correctness_reward (the hidden ground truth) is withheld from the
+        # wire by default so a harness can't leak it to the policy. We're
+        # running our own local clone, not the shared public Space, and only
+        # logging this for offline metrics (never feeding it back into the
+        # prompt) -- exactly the "trusted measurement code" opt-in the env's
+        # own README describes.
+        env_vars={"SPRINT_EXPOSE_CORRECTNESS": "1"},
     )
     base_url = provider.start()
     provider.wait_for_ready()
@@ -140,6 +172,19 @@ def main():
     ap.add_argument("--n-episodes", type=int, default=64, help="Dataset size.")
     ap.add_argument("--steps", type=int, default=50)
     ap.add_argument("--lr", type=float, default=1e-6)
+    ap.add_argument(
+        "--per-device-batch-size",
+        type=int,
+        default=2,
+        help="Unique prompts sampled per step (rollouts/step = this * --num-generations).",
+    )
+    ap.add_argument(
+        "--num-generations",
+        type=int,
+        default=2,
+        help="Completions sampled per prompt per step.",
+    )
+    ap.add_argument("--max-completion-length", type=int, default=512)
     ap.add_argument("--out", default="sophistry-grpo-Qwen2.5-0.5B")
     ap.add_argument(
         "--push-to-hub",
@@ -150,15 +195,27 @@ def main():
 
     with make_sync_client() as client:
         dataset = build_dataset(client, args.n_episodes)
-        reward_func = make_reward_func(client)
+        metrics_log: list[dict] = []
+        reward_func = make_reward_func(client, metrics_log)
 
         config = GRPOConfig(
             output_dir=args.out,
             max_steps=args.steps,
             learning_rate=args.lr,
-            per_device_train_batch_size=2,
-            num_generations=2,
-            max_completion_length=512,
+            per_device_train_batch_size=args.per_device_batch_size,
+            num_generations=args.num_generations,
+            max_completion_length=args.max_completion_length,
+            # The per-token-logprob/entropy computation materializes a
+            # [batch, completion_len, vocab_size] logits tensor; with a
+            # ~150K-token vocab (e.g. Qwen2.5) that dominates GPU memory, so
+            # bf16 (half the bytes of fp32) matters more here than usual.
+            bf16=True,
+            # The prompts here embed full QuALITY passages (~1500-2500 tokens),
+            # so backward-pass activation memory across all layers is the
+            # other big cost on top of the long-vocab logits above; trade
+            # some speed for memory by recomputing forward activations during
+            # backward instead of storing them.
+            gradient_checkpointing=True,
             log_completions=True,
             logging_steps=1,
             push_to_hub=args.push_to_hub,
@@ -174,6 +231,17 @@ def main():
         trainer.train()
         trainer.save_model(args.out)
         print(f"Saved fine-tuned model to {args.out}")
+
+        if metrics_log:
+            import csv
+
+            metrics_path = f"{args.out}-components.csv"
+            fieldnames = sorted({k for row in metrics_log for k in row})
+            with open(metrics_path, "w", newline="") as f:
+                writer = csv.DictWriter(f, fieldnames=fieldnames)
+                writer.writeheader()
+                writer.writerows(metrics_log)
+            print(f"Wrote per-step component metrics to {metrics_path}")
 
         if args.push_to_hub:
             trainer.push_to_hub()
