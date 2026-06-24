@@ -23,6 +23,8 @@ Install:
 
 Run:
     python examples/sophistry_bench_sprint_grpo.py --n-episodes 64 --steps 50
+    # Add --push-to-hub --out your-username/sophistry-grpo to publish the
+    # fine-tuned checkpoint to the Hugging Face Hub (requires `huggingface-cli login`).
 """
 
 from __future__ import annotations
@@ -91,6 +93,11 @@ def main():
     ap.add_argument("--steps", type=int, default=50)
     ap.add_argument("--lr", type=float, default=1e-6)
     ap.add_argument("--out", default="sophistry-grpo-Qwen3-1.7B")
+    ap.add_argument(
+        "--push-to-hub",
+        action="store_true",
+        help="Push the fine-tuned model to the Hugging Face Hub under --out as the repo id.",
+    )
     args = ap.parse_args()
 
     async_client = asyncio.run(make_client())
@@ -109,6 +116,8 @@ def main():
             max_completion_length=512,
             log_completions=True,
             logging_steps=1,
+            push_to_hub=args.push_to_hub,
+            hub_model_id=args.out if args.push_to_hub else None,
         )
 
         trainer = GRPOTrainer(
@@ -120,6 +129,10 @@ def main():
         trainer.train()
         trainer.save_model(args.out)
         print(f"Saved fine-tuned model to {args.out}")
+
+        if args.push_to_hub:
+            trainer.push_to_hub()
+            print(f"Pushed fine-tuned model to https://huggingface.co/{args.out}")
 
 
 if __name__ == "__main__":
