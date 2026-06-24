@@ -38,13 +38,22 @@ locally via `uv run` (`UVProvider`, the same mechanism behind
 hitting the hosted Space's public URL directly) not subject to the Space's
 request quota. This needs the project_path git-clone fix from
 https://github.com/huggingface/OpenEnv/pull/854; on an `openenv` release
-without that fix, this hangs until the 60s readiness timeout (override the
+without that fix, this hangs until the readiness timeout (override the
 `openenv[core]` dependency above with a git ref of that PR/branch until it's
 released). `app=` is passed explicitly because this env's pyproject.toml
-remaps its package dir (`server` -> `sophistry_bench_sprint_env.server`), which
-doesn't match the framework's default `app="server.app:app"`. The provider is
-built directly rather than via `from_env()` to avoid a sync/async event-loop
-mismatch -- see the docstring on `make_sync_client()`.
+remaps its package dir (`server` -> `sophistry_bench_sprint_env.server`),
+which doesn't match the framework's default `app="server.app:app"`.
+
+The provider is built directly rather than via `from_env()` for two reasons,
+both covered in `make_sync_client()`'s docstring: (1) `from_env()` + `.sync()`
+has a sync/async event-loop mismatch (also fixed in #854 -- see that PR), and
+(2) even with that fixed, this env in particular only allows **one concurrent
+session** (`SUPPORTS_CONCURRENT_SESSIONS = False`), so the orphaned first
+connection that the event-loop bug leaves behind would occupy that single
+slot and the real connection would fail with `CAPACITY_REACHED` -- the
+process-level fix doesn't have a way to cleanly close a websocket whose
+event loop is already gone. Connecting only once, through the sync wrapper's
+own loop, avoids creating that orphaned connection in the first place.
 
 Run locally:
     python examples/sophistry_bench_sprint_grpo.py --n-episodes 64 --steps 50
@@ -55,6 +64,8 @@ Run locally:
 from __future__ import annotations
 
 import argparse
+import csv
+import os
 
 from datasets import Dataset
 from openenv import GenericEnvClient
@@ -62,6 +73,21 @@ from openenv.core.containers.runtime.uv_provider import UVProvider
 from trl import GRPOConfig, GRPOTrainer
 
 SPACE_REPO_ID = "openenv-community/sophistry_bench_sprint_env"
+
+
+def _completion_text(completion) -> str:
+    """Extract the assistant's text from a TRL completion.
+
+    TRL passes either a list of chat messages (use the last one's content) or
+    a raw string, depending on whether the model/dataset use chat templating.
+    """
+    if isinstance(completion, list):
+        if not completion or not isinstance(completion[-1], dict):
+            raise ValueError(f"Unexpected completion shape from TRL: {completion!r}")
+        return completion[-1]["content"]
+    if isinstance(completion, str):
+        return completion
+    raise ValueError(f"Unexpected completion type from TRL: {type(completion)!r}")
 
 
 def build_dataset(client, n_episodes: int) -> Dataset:
@@ -100,15 +126,15 @@ def make_reward_func(client, metrics_log):
 
     def reward_func(completions, seed, **kwargs) -> list[float]:
         nonlocal step
+        assert len(completions) == len(seed), (
+            f"completions/seed length mismatch: {len(completions)} vs {len(seed)} "
+            "-- reward can't be paired with the task it was scored against"
+        )
         rewards = []
         components = []
         for completion, s in zip(completions, seed):
             client.reset(seed=s)
-            text = (
-                completion[-1]["content"]
-                if isinstance(completion, list)
-                else completion
-            )
+            text = _completion_text(completion)
             result = client.step({"text": text})
             rewards.append(result.reward)
             components.append(result.observation.get("components") or {})
@@ -139,10 +165,17 @@ def make_sync_client():
     drives all *later* calls on a second, separate background-thread loop --
     so a client connected via `asyncio.run(from_env(...))` and then wrapped in
     `.sync()` ends up with its websocket attached to a loop that's already
-    closed by the time training starts. Constructing the provider directly
-    (its `start()`/`wait_for_ready()` are plain sync calls, no event loop
+    closed by the time training starts. The fixed `connect()` in #854 detects
+    this and reconnects on the new loop rather than hanging, but it can't
+    cleanly close the *old* connection first (its loop is already gone), so
+    the old one is simply abandoned -- harmless for envs that allow
+    concurrent sessions, but this env doesn't
+    (`SUPPORTS_CONCURRENT_SESSIONS = False`), so the abandoned connection
+    occupies the only session slot and the real one fails with
+    `CAPACITY_REACHED`. Constructing the provider directly (its
+    `start()`/`wait_for_ready()` are plain sync calls, no event loop
     involved) and connecting only through the sync wrapper's own loop avoids
-    the mismatch entirely.
+    ever creating that doomed first connection.
     """
     provider = UVProvider(
         project_path=f"git+https://huggingface.co/spaces/{SPACE_REPO_ID}",
@@ -166,6 +199,17 @@ def make_sync_client():
     return client.sync()
 
 
+def write_metrics_csv(metrics_log: list[dict], path: str) -> None:
+    if not metrics_log:
+        return
+    fieldnames = sorted({k for row in metrics_log for k in row})
+    with open(path, "w", newline="") as f:
+        writer = csv.DictWriter(f, fieldnames=fieldnames)
+        writer.writeheader()
+        writer.writerows(metrics_log)
+    print(f"Wrote per-step component metrics to {path}")
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--model", default="Qwen/Qwen2.5-0.5B-Instruct")
@@ -176,7 +220,7 @@ def main():
         "--per-device-batch-size",
         type=int,
         default=2,
-        help="Unique prompts sampled per step (rollouts/step = this * --num-generations).",
+        help="Total rollouts sampled per step (must be divisible by --num-generations).",
     )
     ap.add_argument(
         "--num-generations",
@@ -192,6 +236,12 @@ def main():
         help="Push the fine-tuned model to the Hugging Face Hub under --out as the repo id.",
     )
     args = ap.parse_args()
+
+    if args.per_device_batch_size % args.num_generations != 0:
+        ap.error(
+            f"--per-device-batch-size ({args.per_device_batch_size}) must be "
+            f"divisible by --num-generations ({args.num_generations})"
+        )
 
     with make_sync_client() as client:
         dataset = build_dataset(client, args.n_episodes)
@@ -232,16 +282,9 @@ def main():
         trainer.save_model(args.out)
         print(f"Saved fine-tuned model to {args.out}")
 
-        if metrics_log:
-            import csv
-
-            metrics_path = f"{args.out}-components.csv"
-            fieldnames = sorted({k for row in metrics_log for k in row})
-            with open(metrics_path, "w", newline="") as f:
-                writer = csv.DictWriter(f, fieldnames=fieldnames)
-                writer.writeheader()
-                writer.writerows(metrics_log)
-            print(f"Wrote per-step component metrics to {metrics_path}")
+        # output_dir (args.out) is guaranteed to exist by save_model() above,
+        # unlike an arbitrary sibling path built from args.out's basename.
+        write_metrics_csv(metrics_log, os.path.join(args.out, "components.csv"))
 
         if args.push_to_hub:
             trainer.push_to_hub()
