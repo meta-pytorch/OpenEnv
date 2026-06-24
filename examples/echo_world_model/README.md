@@ -83,7 +83,7 @@ and the rollout filters exist.
 | [`rollout.py`](./rollout.py) | Oracle + policy rollouts → role-tagged trajectories. |
 | [`train_echo.py`](./train_echo.py) | The CPU demo above. |
 | [`test_echo.py`](./test_echo.py) | Unit tests for the loss + masks (`python -m pytest test_echo.py`). |
-| [`backends/`](./backends/) | The same config for the real GPU run: [SkyRL](./backends/skyrl.md) (open reference), [Tinker](./backends/tinker.md), [Foundry Fine-Tuning](./backends/foundry-finetuning.md), with rollouts isolated in [ACA Sandboxes](./backends/aca-sandboxes.md). |
+| [`backends/`](./backends/) | The same config for the real GPU run: [SkyRL](./backends/skyrl.md) (open reference), [TRL](./backends/trl.md) (OpenEnv's recommended framework), [Tinker](./backends/tinker.md), [Foundry Fine-Tuning](./backends/foundry-finetuning.md), with rollouts isolated in [ACA Sandboxes](./backends/aca-sandboxes.md). |
 
 ## The full hybrid (GRPO + ECHO) and the real numbers
 
