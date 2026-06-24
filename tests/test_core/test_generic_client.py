@@ -695,6 +695,91 @@ class TestGenericEnvClientConnection:
         assert "NO_PROXY" not in os.environ
 
 
+class TestForeignLoopReconnect:
+    """`connect()` must not silently no-op onto a websocket bound to a
+    different (often already-closed) event loop -- e.g. a client connected
+    via `await Client.from_env(...)` inside `asyncio.run(...)`, then driven
+    afterwards through `.sync()`'s own dedicated background loop.
+    """
+
+    @pytest.mark.asyncio
+    async def test_same_loop_reconnect_is_a_noop(self):
+        """Calling connect() again on the loop that created _ws is still a
+        cheap no-op -- only a genuinely different loop should reconnect.
+        """
+        client = GenericEnvClient(base_url="http://localhost:8000")
+
+        async def fake_ws_connect(*args, **kwargs):
+            return MagicMock()
+
+        with patch(
+            "openenv.core.env_client.ws_connect", side_effect=fake_ws_connect
+        ) as mock_connect:
+            await client.connect()
+            await client.connect()
+
+        mock_connect.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_foreign_loop_triggers_reconnect_not_noop(self):
+        """If _ws was bound to a different loop than the one connect() is
+        now running on, connect() must drop the stale reference and
+        establish a fresh connection on the current loop, rather than
+        returning early as if already connected.
+        """
+        client = GenericEnvClient(base_url="http://localhost:8000")
+
+        first_ws = MagicMock()
+
+        async def fake_ws_connect_first(*args, **kwargs):
+            return first_ws
+
+        with patch(
+            "openenv.core.env_client.ws_connect", side_effect=fake_ws_connect_first
+        ):
+            await client.connect()
+
+        assert client._ws is first_ws
+
+        # Simulate "connected on a different loop": the real scenario is two
+        # different asyncio event loops, which isn't practical to spin up
+        # for a unit test, so we directly substitute a sentinel loop object
+        # that isn't the one currently running.
+        client._ws_loop = object()
+
+        second_ws = MagicMock()
+
+        async def fake_ws_connect_second(*args, **kwargs):
+            return second_ws
+
+        with patch(
+            "openenv.core.env_client.ws_connect", side_effect=fake_ws_connect_second
+        ) as mock_connect:
+            await client.connect()
+
+        mock_connect.assert_called_once()
+        assert client._ws is second_ws
+        assert client._ws_loop is asyncio.get_running_loop()
+
+    @pytest.mark.asyncio
+    async def test_disconnect_clears_ws_loop(self):
+        """disconnect() must clear _ws_loop along with _ws so a later
+        connect() on the same loop doesn't think it's still connected.
+        """
+        client = GenericEnvClient(base_url="http://localhost:8000")
+
+        async def fake_ws_connect(*args, **kwargs):
+            return MagicMock()
+
+        with patch("openenv.core.env_client.ws_connect", side_effect=fake_ws_connect):
+            await client.connect()
+
+        await client.disconnect()
+
+        assert client._ws is None
+        assert client._ws_loop is None
+
+
 # ============================================================================
 # Integration Tests (require running server)
 # ============================================================================

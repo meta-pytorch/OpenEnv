@@ -182,6 +182,7 @@ class EnvClient(ABC, Generic[ActT, ObsT, StateT]):
         )  # Convert MB to bytes
         self._provider = provider
         self._ws: Optional[ClientConnection] = None
+        self._ws_loop: Optional[asyncio.AbstractEventLoop] = None
 
     def __setattr__(self, name: str, value: Any) -> None:
         """Prevent modification of _mode after initialization."""
@@ -200,7 +201,19 @@ class EnvClient(ABC, Generic[ActT, ObsT, StateT]):
             ConnectionError: If connection cannot be established
         """
         if self._ws is not None:
-            return self
+            if self._ws_loop is asyncio.get_running_loop():
+                return self
+            # Connected from a different event loop than the one running
+            # now -- e.g. `client = await Client.from_env(...)` inside
+            # `asyncio.run(...)`, then `client.sync()` drives every later
+            # call on `SyncEnvClient`'s own dedicated background loop. The
+            # websocket object is bound to internals of the original loop,
+            # which is typically already closed by the time we get here, so
+            # it cannot be reused (or even cleanly closed) from this loop.
+            # Drop the stale reference and reconnect fresh below rather than
+            # silently no-op-ing onto a dead connection.
+            self._ws = None
+            self._ws_loop = None
 
         # Disable the proxy for localhost connections via the per-connection
         # `proxy` argument rather than mutating the process-global NO_PROXY
@@ -217,6 +230,7 @@ class EnvClient(ABC, Generic[ActT, ObsT, StateT]):
                 max_size=self._max_message_size,
                 **connect_kwargs,
             )
+            self._ws_loop = asyncio.get_running_loop()
         except Exception as e:
             raise ConnectionError(f"Failed to connect to {self._ws_url}: {e}") from e
 
@@ -235,6 +249,7 @@ class EnvClient(ABC, Generic[ActT, ObsT, StateT]):
             except Exception:
                 pass
             self._ws = None
+            self._ws_loop = None
 
     async def _ensure_connected(self) -> None:
         """Ensure WebSocket connection is established."""
