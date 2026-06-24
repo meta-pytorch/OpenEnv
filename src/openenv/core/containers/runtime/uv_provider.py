@@ -26,13 +26,13 @@ def _check_uv_installed() -> None:
         ) from exc
 
 
-def _clone_git_project(git_url: str) -> str:
-    """Clone a ``git+<url>`` spec to a temp dir and return its local path.
+def _clone_git_project(git_url: str, timeout_s: float) -> str:
+    """Clone a `git+<url>` spec to a temp dir and return its local path.
 
-    ``uv run --project`` only discovers a project in a local directory (per
-    ``uv run --help``) -- it has no support for remote git sources. Callers
-    that accept a ``git+...`` ``project_path`` (e.g. ``EnvClient.from_env``)
-    must therefore clone it themselves before handing a path to ``uv run``.
+    `uv run --project` only discovers a project in a local directory (per
+    `uv run --help`) -- it has no support for remote git sources. Callers
+    that accept a `git+...` `project_path` (e.g. `EnvClient.from_env`)
+    must therefore clone it themselves before handing a path to `uv run`.
     """
     repo_url = git_url[len(GIT_URL_PREFIX) :]
     clone_dir = tempfile.mkdtemp(prefix="openenv-uv-clone-")
@@ -42,6 +42,9 @@ def _clone_git_project(git_url: str) -> str:
             check=True,
             capture_output=True,
             text=True,
+            # A hung/slow remote would otherwise block start() (and the
+            # caller's own readiness timeout) indefinitely.
+            timeout=timeout_s,
         )
     except FileNotFoundError as exc:
         shutil.rmtree(clone_dir, ignore_errors=True)
@@ -51,6 +54,11 @@ def _clone_git_project(git_url: str) -> str:
     except subprocess.CalledProcessError as exc:
         shutil.rmtree(clone_dir, ignore_errors=True)
         raise RuntimeError(f"Failed to clone {repo_url!r}: {exc.stderr}") from exc
+    except subprocess.TimeoutExpired as exc:
+        shutil.rmtree(clone_dir, ignore_errors=True)
+        raise RuntimeError(
+            f"Timed out cloning {repo_url!r} after {timeout_s:.1f}s"
+        ) from exc
     return clone_dir
 
 
@@ -121,7 +129,7 @@ class UVProvider(RuntimeProvider):
     Args:
         project_path (`str`):
             Local path to a uv project (passed to `uv run --project`), or a
-            ``git+<url>`` spec that is cloned to a temp directory on `start()`.
+            `git+<url>` spec that is cloned to a temp directory on `start()`.
         app (`str`, *optional*, defaults to `"server.app:app"`):
             ASGI application path for uvicorn.
         host (`str`, *optional*, defaults to `"0.0.0.0"`):
@@ -202,9 +210,17 @@ class UVProvider(RuntimeProvider):
 
         bind_port = port or _find_free_port()
 
+        # A previous start() may have left a clone dir behind if the spawned
+        # process later died on its own -- the "already running" guard above
+        # only checks liveness, so a restart in that state would otherwise
+        # overwrite self._clone_dir and leak the old directory.
+        if self._clone_dir is not None:
+            shutil.rmtree(self._clone_dir, ignore_errors=True)
+            self._clone_dir = None
+
         project_path = self.project_path
         if project_path.startswith(GIT_URL_PREFIX):
-            self._clone_dir = _clone_git_project(project_path)
+            self._clone_dir = _clone_git_project(project_path, self.context_timeout_s)
             project_path = self._clone_dir
 
         command = _create_uv_command(
@@ -226,6 +242,9 @@ class UVProvider(RuntimeProvider):
         try:
             self._process = subprocess.Popen(command, env=env)
         except OSError as exc:
+            if self._clone_dir is not None:
+                shutil.rmtree(self._clone_dir, ignore_errors=True)
+                self._clone_dir = None
             raise RuntimeError(f"Failed to launch `uv run`: {exc}") from exc
 
         client_host = "127.0.0.1" if self.host in {"0.0.0.0", "::"} else self.host

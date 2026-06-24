@@ -389,11 +389,18 @@ class EnvClient(ABC, Generic[ActT, ObsT, StateT]):
                         "provider_kwargs cannot be used when supplying a provider instance"
                     )
 
-            base_url = provider.start(**start_args)
-            provider.wait_for_ready()
+            try:
+                base_url = provider.start(**start_args)
+                provider.wait_for_ready()
 
-            client = cls(base_url=base_url, provider=provider)
-            await client.connect()
+                client = cls(base_url=base_url, provider=provider)
+                await client.connect()
+            except Exception:
+                # No EnvClient may exist yet for the caller to close(), so
+                # this is the only chance to release the spawned process and
+                # (for a git+ project_path) the temp clone directory.
+                provider.stop()
+                raise
             return client
 
     @abstractmethod
