@@ -23,7 +23,7 @@ from .providers import ContainerProvider
 
 
 _DEFAULT_PORT = 8000
-_DEFAULT_COMMAND = "cd /app/env && uvicorn server.app:app --host 0.0.0.0 --port 8000"
+_SERVER_COMMAND = "server"
 _JOB_TIMEOUT = "24h"
 _STARTUP_TIMEOUT_S = 120.0
 _HOP_BY_HOP_HEADERS = {
@@ -178,14 +178,8 @@ class _LocalAuthProxy:
 class HFSandboxProvider(ContainerProvider):
     """Run an OpenEnv server on Hugging Face infrastructure."""
 
-    def __init__(
-        self,
-        *,
-        flavor: str = "cpu-basic",
-        command: str = _DEFAULT_COMMAND,
-    ):
+    def __init__(self, *, flavor: str = "cpu-basic"):
         self.flavor = flavor
-        self.command = command
         self._api = HfApi()
         self._token: str | None = None
         self._job: Any = None
@@ -213,7 +207,7 @@ class HFSandboxProvider(ContainerProvider):
 
         self._job = self._api.run_job(
             image=image,
-            command=["sh", "-lc", self.command],
+            command=[_SERVER_COMMAND],
             env=env_vars,
             flavor=self.flavor,
             timeout=_JOB_TIMEOUT,
