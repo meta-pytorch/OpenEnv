@@ -2,8 +2,6 @@
 
 <div align="center">
 
-<img src="https://upload.wikimedia.org/wikipedia/commons/1/10/PyTorch_logo_icon.svg" width="200" alt="PyTorch">
-
 ## From "Hello World" to RL Training in 5 Minutes ✨
 
 **What if RL environments were as easy to use as REST APIs?**
