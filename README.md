@@ -96,11 +96,13 @@ The OpenEnv CLI (`openenv`) provides commands to initialize new environments and
 
 Below is a list of active and historical RFCs for OpenEnv. RFCs are proposals for major changes or features. Please review and contribute!
 
+- [RFC 000: Project Phases and Design Principles](https://github.com/huggingface/OpenEnv/pull/44)
 - [RFC 001: Baseline API and Interface Specifications](https://github.com/huggingface/OpenEnv/pull/26)
 - [RFC 002: Discoverability of environment tools by agents](https://github.com/huggingface/OpenEnv/pull/32)
 - [RFC 003: Add MCP (Model Context Protocol) support](https://github.com/huggingface/OpenEnv/pull/224)
 - [RFC 004: Add delayed rewards support for trajectory-based scoring](https://github.com/huggingface/OpenEnv/pull/337)
 - [RFC 005: Agentic Harness Integration](https://github.com/huggingface/OpenEnv/pull/387)
+- [RFC 010: Env-token World Modeling (ECHO)](https://github.com/huggingface/OpenEnv/pull/819)
 
 ## Architecture
 
