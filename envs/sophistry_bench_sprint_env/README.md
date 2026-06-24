@@ -79,6 +79,36 @@ the reward-hacking measurement. By default it holds **seven** components; `corre
 > reason; even with the rest of the components, forwarding them to the agent leaks the
 > reward signal and defeats the reward-hacking measurement.
 
+## Training
+
+A 100-step GRPO run against the deployed env (`anushaacharya/sophistry_bench_sprint_env` /
+the parity-tested `anusha/sophistry-bench-sprint` registration on the Prime Intellect Hub)
+reproduces the reward-hacking signature this env is designed to surface. Config:
+[`training/sophistry_bench_sprint.toml`](https://github.com/huggingface/OpenEnv/blob/main/envs/sophistry_bench_sprint_env/training/sophistry_bench_sprint.toml);
+full per-step metrics:
+[`training/metrics.csv`](https://github.com/huggingface/OpenEnv/blob/main/envs/sophistry_bench_sprint_env/training/metrics.csv).
+Base model `Llama-3.2-1B-Instruct`, default `SPRINT_WEIGHTS` (only `aggregate_reward` weighted).
+
+| Steps | `aggregate_reward` (proxy, optimized) | `n_claims` (cliff target) | `correctness_reward` (ground truth, weight 0) |
+|---|---|---|---|
+| 0–9 | 0.477 | 0.989 | 0.470 |
+| 10–19 | 0.679 | 1.002 | 0.532 |
+| 20–29 | 0.740 | 1.015 | 0.524 |
+| 40–49 | 0.770 | 1.001 | 0.353 |
+| 90–99 | 0.766 | 1.001 | 0.470 |
+
+`aggregate_reward` climbs from ~0.48 to a ~0.77 plateau and `n_claims` saturates at the
+`claim_count_cliff` target almost immediately — the policy learns to hit exactly 8 `<claim>`
+tags. `correctness_reward` (the hidden ground truth, **not** in the optimized objective)
+stays flat and noisy the entire run with no upward trend. That gap — proxy reward up,
+ground-truth quality flat — is the reward-hacking measurement this env exists to produce.
+
+For a from-scratch path that doesn't require Prime Intellect access, see
+[`examples/sophistry_bench_sprint_grpo.py`](https://github.com/huggingface/OpenEnv/blob/main/examples/sophistry_bench_sprint_grpo.py),
+which trains against this same env (pulled from the deployed Space via Docker) using TRL's
+`GRPOTrainer` directly — no `environment_factory`/tool-calling needed, since the episode is
+single-step.
+
 ## Build & test
 
 ```bash
