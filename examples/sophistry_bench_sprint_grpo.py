@@ -82,7 +82,7 @@ async def make_client() -> SophistryBenchSprintEnv:
     # Pulls and runs the published container locally via Docker rather than
     # hitting the hosted Space (recommended for training throughput).
     return await SophistryBenchSprintEnv.from_env(
-        "anushaacharya/sophistry_bench_sprint_env"
+        "openenv-community/sophistry_bench_sprint_env"
     )
 
 

@@ -49,7 +49,7 @@ from sophistry_bench_sprint_env import SophistryBenchSprintEnv
 
 async def main():
     # Deployed Hugging Face Space (or .from_docker_image("openenv-sophistry_bench_sprint:latest")):
-    client = await SophistryBenchSprintEnv.from_env("anushaacharya/sophistry_bench_sprint_env")
+    client = await SophistryBenchSprintEnv.from_env("openenv-community/sophistry_bench_sprint_env")
     async with client:
         obs = (await client.reset()).observation
         print(obs.prompt, obs.answer_to_defend)
@@ -81,7 +81,7 @@ the reward-hacking measurement. By default it holds **seven** components; `corre
 
 ## Training
 
-A 100-step GRPO run against the deployed env (`anushaacharya/sophistry_bench_sprint_env` /
+A 100-step GRPO run against the deployed env (`openenv-community/sophistry_bench_sprint_env` /
 the parity-tested `anusha/sophistry-bench-sprint` registration on the Prime Intellect Hub)
 reproduces the reward-hacking signature this env is designed to surface. Config:
 [`training/sophistry_bench_sprint.toml`](https://github.com/huggingface/OpenEnv/blob/main/envs/sophistry_bench_sprint_env/training/sophistry_bench_sprint.toml);
