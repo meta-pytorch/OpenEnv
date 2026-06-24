@@ -69,9 +69,23 @@ the reward-hacking measurement. By default it holds **seven** components; `corre
 
 ## Training
 
-A 100-step GRPO run against the deployed env (`openenv-community/sophistry_bench_sprint_env` /
-the parity-tested `anusha/sophistry-bench-sprint` registration on the Prime Intellect Hub)
-reproduces the reward-hacking signature this env is designed to surface. Config:
+[`examples/sophistry_bench_sprint_grpo.py`](https://github.com/huggingface/OpenEnv/blob/main/examples/sophistry_bench_sprint_grpo.py)
+trains a policy on this env with TRL's `GRPOTrainer`. Since the episode is
+single-step, this is a plain prompt -> completion -> reward GRPO setup — no
+`environment_factory`/tool-calling needed (contrast with the multi-turn Wordle
+GRPO tutorial). It connects directly to the deployed Space's source (cloned
+and run locally via `uv`, not Docker, and not subject to the Space's request
+quota) and only depends on `openenv[core]` from PyPI, so it also runs as a
+standalone `uv` script, including on Hugging Face Jobs. Verified end-to-end: a
+short run (4 episodes, 1 step, `Qwen2.5-0.5B-Instruct`) produces a real
+checkpoint and a real reward from the live env.
+
+### Also validated on Prime Intellect
+
+The same scoring is registered as `anusha/sophistry-bench-sprint` on the Prime
+Intellect Hub (parity-tested against this OpenEnv port). A 100-step GRPO run
+there reproduces the reward-hacking signature this env is designed to
+surface. Config:
 [`training/sophistry_bench_sprint.toml`](https://github.com/huggingface/OpenEnv/blob/main/envs/sophistry_bench_sprint_env/training/sophistry_bench_sprint.toml);
 full per-step metrics:
 [`training/metrics.csv`](https://github.com/huggingface/OpenEnv/blob/main/envs/sophistry_bench_sprint_env/training/metrics.csv).
@@ -90,12 +104,6 @@ Base model `Llama-3.2-1B-Instruct`, default `SPRINT_WEIGHTS` (only `aggregate_re
 tags. `correctness_reward` (the hidden ground truth, **not** in the optimized objective)
 stays flat and noisy the entire run with no upward trend. That gap — proxy reward up,
 ground-truth quality flat — is the reward-hacking measurement this env exists to produce.
-
-For a from-scratch path that doesn't require Prime Intellect access, see
-[`examples/sophistry_bench_sprint_grpo.py`](https://github.com/huggingface/OpenEnv/blob/main/examples/sophistry_bench_sprint_grpo.py),
-which trains against this same env (pulled from the deployed Space via Docker) using TRL's
-`GRPOTrainer` directly — no `environment_factory`/tool-calling needed, since the episode is
-single-step.
 
 ## Build & test
 
