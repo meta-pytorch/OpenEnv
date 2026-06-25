@@ -325,6 +325,23 @@ def _push_docker_image(tag: str, registry: str | None = None) -> bool:
     return result.returncode == 0
 
 
+def _parse_build_args(raw_args: list[str] | None) -> dict[str, str]:
+    """Parse Docker build args from repeated KEY=VALUE CLI options."""
+    build_args: dict[str, str] = {}
+
+    for arg in raw_args or []:
+        if "=" in arg:
+            key, value = arg.split("=", 1)
+            build_args[key] = value
+        else:
+            print(
+                f"Warning: Invalid build arg format: {arg}",
+                file=sys.stderr,
+            )
+
+    return build_args
+
+
 @app.command()
 def build(
     env_path: Annotated[
@@ -435,18 +452,7 @@ def build(
     console.print(f"[bold]Building Docker image for:[/bold] {env_path_obj.name}")
     console.print("=" * 60)
 
-    # Parse build args
-    build_args = {}
-    if build_arg:
-        for arg in build_arg:
-            if "=" in arg:
-                key, value = arg.split("=", 1)
-                build_args[key] = value
-            else:
-                print(
-                    f"Warning: Invalid build arg format: {arg}",
-                    file=sys.stderr,
-                )
+    build_args = _parse_build_args(build_arg)
 
     # Convert string paths to Path objects
     context_path_obj = Path(context) if context else None
