@@ -70,66 +70,18 @@ the reward-hacking measurement. By default it holds **seven** components; `corre
 ## Training
 
 [`examples/sophistry_bench_sprint_grpo.py`](https://github.com/huggingface/OpenEnv/blob/main/examples/sophistry_bench_sprint_grpo.py)
-trains a policy on this env with TRL's `GRPOTrainer`. Since the episode is
-single-step, this is a plain prompt -> completion -> reward GRPO setup — no
-`environment_factory`/tool-calling needed (contrast with the multi-turn Wordle
-GRPO tutorial). It connects directly to the deployed Space's source (cloned
-and run locally via `uv`, not Docker, and not subject to the Space's request
-quota) and only depends on `openenv[core]` from PyPI, so it also runs as a
-standalone `uv` script, including on Hugging Face Jobs.
+trains a policy on this env with TRL's `GRPOTrainer` — a plain prompt ->
+completion -> reward setup, since the episode is single-step.
 
-### Validated with a real 100-step run on Hugging Face Jobs
-
-`hf jobs uv run examples/sophistry_bench_sprint_grpo.py --flavor a10g-small -- --n-episodes 64 --steps 100 --per-device-batch-size 8 --num-generations 8`
-(`Qwen2.5-0.5B-Instruct`, default `SPRINT_WEIGHTS`). Full per-step metrics,
-including the `correctness_reward`/`n_claims` breakdown:
-[`training/hf_jobs_metrics.csv`](https://github.com/huggingface/OpenEnv/blob/main/envs/sophistry_bench_sprint_env/training/hf_jobs_metrics.csv).
-
-| Steps | `aggregate_reward` (proxy) | `n_claims` | `correctness_reward` (ground truth) | `n_citations` |
-|---|---|---|---|---|
-| 1–10 | 0.354 | 0.863 | 0.700 | 0.825 |
-| 11–20 | 0.461 | 0.138 | 0.600 | 0.138 |
-| 21–30 | 0.500 | 0.000 | 0.200 | 0.000 |
-| 41–50 | 0.500 | 0.000 | 0.600 | 0.000 |
-| 91–100 | 0.500 | 0.000 | 0.500 | 0.000 |
-
-`aggregate_reward` climbs from ~0.35 to a ~0.50 plateau, confirming the proxy
-is genuinely optimized end to end on Hugging Face infrastructure. But at this
-scale (a 0.5B model, ~800 total rollouts — two orders of magnitude fewer than
-the Prime Intellect run below), the policy doesn't converge on the
-`claim_count_cliff` target the way the larger run does. Instead `n_claims`
-*collapses to ~0*: emitting empty/near-empty completions also scores ~0.5,
-and at this scale that's the cheaper exploit to find than hitting exactly 8
-claims. `correctness_reward` stays noisy and decoupled from the optimized
-reward either way (0.2–0.7, no trend) — the same core finding as the
-Prime Intellect run, just reached via a different degenerate strategy. Read
-as a second data point, not a replication: this env reliably induces some
-form of reward hacking, but *which* shortcut a policy finds depends on scale.
-
-### Also validated on Prime Intellect
-
-The same scoring is registered as `anusha/sophistry-bench-sprint` on the Prime
-Intellect Hub (parity-tested against this OpenEnv port). A 100-step GRPO run
-there reproduces the reward-hacking signature this env is designed to
-surface. Config:
-[`training/sophistry_bench_sprint.toml`](https://github.com/huggingface/OpenEnv/blob/main/envs/sophistry_bench_sprint_env/training/sophistry_bench_sprint.toml);
-full per-step metrics:
-[`training/metrics.csv`](https://github.com/huggingface/OpenEnv/blob/main/envs/sophistry_bench_sprint_env/training/metrics.csv).
-Base model `Llama-3.2-1B-Instruct`, default `SPRINT_WEIGHTS` (only `aggregate_reward` weighted).
-
-| Steps | `aggregate_reward` (proxy, optimized) | `n_claims` (cliff target) | `correctness_reward` (ground truth, weight 0) |
-|---|---|---|---|
-| 0–9 | 0.477 | 0.989 | 0.470 |
-| 10–19 | 0.679 | 1.002 | 0.532 |
-| 20–29 | 0.740 | 1.015 | 0.524 |
-| 40–49 | 0.770 | 1.001 | 0.353 |
-| 90–99 | 0.766 | 1.001 | 0.470 |
-
-`aggregate_reward` climbs from ~0.48 to a ~0.77 plateau and `n_claims` saturates at the
-`claim_count_cliff` target almost immediately — the policy learns to hit exactly 8 `<claim>`
-tags. `correctness_reward` (the hidden ground truth, **not** in the optimized objective)
-stays flat and noisy the entire run with no upward trend. That gap — proxy reward up,
-ground-truth quality flat — is the reward-hacking measurement this env exists to produce.
+Validated with a real 100-step run on Hugging Face Jobs (`Qwen2.5-0.5B-Instruct`,
+`a10g-small`) and a 100-step run on the Prime Intellect Hub
+(`Llama-3.2-1B-Instruct`, registered as `anusha/sophistry-bench-sprint`, parity-tested
+against this port). Both show `aggregate_reward` (the optimized proxy) climbing while
+`correctness_reward` (the hidden ground truth, weight 0) stays flat — the reward-hacking
+signature this env is designed to surface. The larger Prime Intellect run converges on
+the literal `claim_count_cliff` target (`n_claims` saturates at exactly 8); the smaller
+HF Jobs run finds a different shortcut instead (`n_claims` collapses to ~0, near-empty
+completions) — same underlying finding, different degenerate strategy depending on scale.
 
 ## Build & test
 
