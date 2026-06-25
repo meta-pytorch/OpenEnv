@@ -1,19 +1,4 @@
----
-title: QED Math Environment
-emoji: 🧮
-colorFrom: blue
-colorTo: green
-sdk: docker
-pinned: false
-app_port: 8000
-base_path: /web
-tags:
-  - openenv
-  - mathematics
-  - proof-evaluation
-  - llm-grading
----
-
+<!-- openenv-source: qed_math_env -->
 # QED Math Environment
 
 Mathematical proof generation and evaluation environment for OpenEnv, ported from [QED-Nano](https://github.com/CMU-AIRe/QED-Nano). Agents receive math problems, submit proofs, and receive LLM-based rubric grading on a 0–7 scale with normalized rewards.
