@@ -15,6 +15,22 @@ from rich.console import Console
 console = Console()
 
 
+def _extract_hf_username(user_info: object) -> str | None:
+    """Extract a username from the supported Hugging Face whoami shapes."""
+    if isinstance(user_info, dict):
+        return (
+            user_info.get("name")
+            or user_info.get("fullname")
+            or user_info.get("username")
+        )
+
+    return (
+        getattr(user_info, "name", None)
+        or getattr(user_info, "fullname", None)
+        or getattr(user_info, "username", None)
+    )
+
+
 def validate_env_structure(env_dir: Path, strict: bool = False) -> List[str]:
     """
     Validate that the directory follows OpenEnv environment structure.
