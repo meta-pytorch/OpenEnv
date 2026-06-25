@@ -8,15 +8,11 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
+
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-sys.path.insert(
-    0, str(Path(__file__).resolve().parents[2] / "src")
-)  # make `openenv` importable
 from generate import FakeGenerate  # noqa: E402
-from openenv.core.harness.rollout_worker import (  # noqa: E402
-    HarnessRolloutWorker,
-    RolloutMessages,
-)
+from rollout import RolloutMessages  # noqa: E402
+from rollout_worker import HarnessRolloutWorker  # noqa: E402
 
 
 # ── In-memory stubs (no HTTP) to test the worker contract ──
@@ -88,7 +84,7 @@ def test_fake_mode_end_to_end_solves_all():
     Skipped if localhost binding is not permitted (e.g. a restricted sandbox)."""
     import pytest
     from harness import ProxyAgentSessionFactory, TASKS
-    from openenv.core.harness.interception import InterceptionServer
+    from interception import InterceptionServer
 
     proxy = InterceptionServer()
     try:
@@ -121,7 +117,7 @@ def test_fake_mode_concurrent_multiplexes_by_rollout_id():
 
     import pytest
     from harness import ProxyAgentSessionFactory, TASKS
-    from openenv.core.harness.interception import InterceptionServer
+    from interception import InterceptionServer
 
     proxy = InterceptionServer()
     try:

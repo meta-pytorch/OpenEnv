@@ -3,9 +3,7 @@
 A harness (an agent that owns its loop, running outside the trainer) points its OpenAI base URL at
 `/rollout/{id}/v1`. Each chat-completions call blocks here until the rollout worker generates and
 delivers a response. One instance multiplexes many rollouts by `rollout_id`. This is the on-policy
-capture seam for training agentic harnesses. The rollout worker that drives this lives on the trainer
-side (it gets vendored into the trainer, for example TRL). See `examples/trl_harness_rollout/` for a
-runnable worker built on this contract.
+capture seam for training agentic harnesses (see `rollout_worker.HarnessRolloutWorker`).
 
 Note: a richer interception/sandbox stack is proposed in PR #694. This is a clean, minimal core
 implementation focused on the transport. The two should be reconciled before merge.

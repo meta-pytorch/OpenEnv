@@ -39,7 +39,7 @@ TRL's AsyncGRPOTrainer accepts a custom `rollout_worker` implementing RolloutWor
 (a `rollout_buffer` queue + start/stop/update_model_version/check_health). Wrap the OpenEnv worker:
 
     import queue
-    from openenv.core.harness.rollout_worker import HarnessRolloutWorker
+    from rollout_worker import HarnessRolloutWorker
 
     class TrlRolloutWorkerAdapter:           # satisfies trl ... RolloutWorkerProtocol
         def __init__(self, openenv_worker: HarnessRolloutWorker, tasks):
@@ -62,19 +62,21 @@ TRL's AsyncGRPOTrainer accepts a custom `rollout_worker` implementing RolloutWor
     # trainer.train()
 
 ----------------------------------------------------------------------------------------------------
-WEIGHT SYNC CAVEAT (must be resolved on the trainer side for on-policy training)
+WEIGHT SYNC (trainer-side, only on the injected-worker path)
 ----------------------------------------------------------------------------------------------------
-In TRL today, injecting a custom `rollout_worker` sets `self.weight_transfer = None`
-(async_grpo_trainer.py, the `if rollout_worker is not None:` branch), and `_sync_weight()` only acts
-`if self.weight_transfer:`. It does NOT call `rollout_worker.send_weights(...)`. So with an injected
-worker, the trainer does NOT push updated weights to vLLM by default, and generation can drift
-off-policy.
+Weight sync is a trainer-side concern. TRL already handles it on the DEFAULT path
+(`environment_factory` + the built-in `AsyncRolloutWorker`): it builds a `WeightTransferClient` and
+`_sync_weight()` pushes weights to vLLM.
 
-The trainer side must handle this, by one of:
-  - implement weight sync inside the worker (a `send_weights` path the worker drives), or
-  - extend `_sync_weight()` to also call `rollout_worker.send_weights(...)` when `weight_transfer` is
-    None (a small TRL change).
-This is a trainer-side concern, flagged here so it is not missed. It does not affect the OpenEnv worker.
+The boundary to know: when you INJECT a custom `rollout_worker`, TRL sets `self.weight_transfer = None`
+(async_grpo_trainer.py, the `if rollout_worker is not None:` branch), and `_sync_weight()` only acts
+`if self.weight_transfer:`, so it becomes a no-op. It also calls `weight_transfer.send_weights(...)`,
+never `rollout_worker.send_weights(...)`. So on the injected-worker path the trainer side must wire
+weight sync itself, by one of:
+  - worker-driven sync (the worker owns `send_weights` + `update_model_version`, the way OpenEnv PR
+    #695's worker does), or
+  - extending `_sync_weight()` to also call `rollout_worker.send_weights(...)` (a small TRL change).
+Not a bug, the known boundary of the injected-worker path. It does not affect the OpenEnv worker.
 
 ----------------------------------------------------------------------------------------------------
 DIVISION (what is done vs to do)

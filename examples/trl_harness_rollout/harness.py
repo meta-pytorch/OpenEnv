@@ -16,7 +16,8 @@ import threading
 from typing import Any
 
 import requests
-from openenv.core.harness.interception import InterceptionServer
+from interception import InterceptionServer
+
 
 # ── Task + verifier (the env): verifiable arithmetic ──
 TASKS = [

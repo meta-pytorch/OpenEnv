@@ -1,11 +1,22 @@
 # Harness rollout worker for online RL with TRL (draft)
 
-A draft to enable integrating OpenEnv **agentic harnesses** (agents that own their own loop) with
-TRL's online RL (AsyncGRPO). It provides the **OpenEnv side** end to end and a clear, narrow **seam**
-where the TRL side plugs in. It runs today with **no GPU** (fake mode) and with **real vLLM**.
+A runnable draft example of training an OpenEnv-style **agentic harness** (an agent that owns its own
+loop) with TRL's online RL (AsyncGRPO). It runs today with **no GPU** (fake mode) and with **real
+vLLM**.
 
-This is a draft to make the integration easy to pick up: download it, implement the two seams on the
-trainer side, and wire it into AsyncGRPO. See `trl_adapter.py` for the exact spots to implement.
+This example ships in the same PR as the minimal contract it builds on (`src/openenv/core/harness/`:
+`rollout.py` + `interception.py`), so the whole dynamic is reviewable in one place. The contract is the
+OpenEnv contribution. The **worker is the trainer side**: for a real integration it gets **vendored
+into TRL** (the worker conforms to TRL's `RolloutWorkerProtocol`, so it belongs with the trainer). It
+is shown here so the contract is not just interfaces but a thing you can read and run.
+
+The example vendors `rollout.py` + `interception.py` locally so it stays self-contained (runs with just
+`aiohttp` + `requests`, no heavy imports) and is copy-pasteable into TRL as-is. Those two files mirror
+the canonical contract in `src/openenv/core/harness/`. The richer interception/sandbox stack lives in
+OpenEnv PR #694.
+
+To pick it up: implement the two seams on the trainer side and wire it into AsyncGRPO. See
+`trl_adapter.py` for the exact spots.
 
 ## The idea
 
@@ -32,20 +43,21 @@ harness (owns its loop) --HTTP--> interception proxy --> HarnessRolloutWorker
 
 ## What is done vs to do
 
-**Done (OpenEnv side, this draft):**
+**Done (this example):**
 - `HarnessRolloutWorker`: drives the harness via interception, `verify()`, emits message-level rollouts.
-- An interception proxy (a clean stand-in for OpenEnv's `InterceptionServer`, PR #694).
+- A minimal interception proxy (the richer one is OpenEnv PR #694).
 - A harness with the right dynamic (a ReAct agent that owns its loop, multi-turn, interception-gated).
 - Runnable with no GPU (fake) and with real vLLM (real token_ids + logprobs capture).
 
 **To do (trainer side):** see `trl_adapter.py`. Implement `generate` (Seam 1, with TITO) and wrap the
 worker into TRL's `RolloutWorkerProtocol` (Seam 2 + wiring into `AsyncGRPOTrainer(rollout_worker=...)`).
 
-> Not full on-policy training yet. In TRL today, injecting a custom `rollout_worker` sets
-> `weight_transfer = None` and `_sync_weight()` becomes a no-op (it does not call
-> `rollout_worker.send_weights`). Until the trainer side handles weight sync (worker-driven, or by
-> extending `_sync_weight`), generation can drift off-policy. See `trl_adapter.py`. This draft
-> validates the rollout dynamic and the seam, not a converged training run.
+> Weight sync is a trainer-side concern. TRL handles it on the default path (`environment_factory` +
+> the built-in `AsyncRolloutWorker`). When you inject a custom `rollout_worker`, TRL sets
+> `weight_transfer = None` and `_sync_weight()` becomes a no-op, so the trainer side must wire weight
+> sync itself (worker-driven, the way OpenEnv PR #695 does it with `send_weights` +
+> `update_model_version`, or by extending `_sync_weight`). It does not touch OpenEnv. See
+> `trl_adapter.py`. This draft validates the rollout dynamic and the seam, not a converged training run.
 
 ## Run
 
@@ -68,18 +80,19 @@ JSON: the exact data a TITO step would stitch into a training sample.
 
 ## Files
 
-In OpenEnv core (reusable, this PR adds them under `src/openenv/core/harness/`):
+Vendored minimal contract + transport (mirror the canonical contract in `src/openenv/core/harness/`):
 
 | File | Role |
 |------|------|
-| `rollout_worker.py` | `HarnessRolloutWorker` + the contract (`GenerateAPI`, `AgentSession`, `RolloutMessages`). |
+| `rollout.py` | The contract: `AgentSession`, `AgentSessionFactory`, `RolloutMessages`, `GenerateAPI`. |
 | `interception.py` | `InterceptionServer`: the OpenAI-compatible gating proxy. |
 
-In this example (`examples/trl_harness_rollout/`):
+The worker + the example:
 
 | File | Role |
 |------|------|
-| `harness.py` | The harness (ReAct agent owning its loop) + session + arithmetic task + verifier. Imports from core. |
+| `rollout_worker.py` | `HarnessRolloutWorker` (the trainer side): drives the harness, emits message-level rollouts. |
+| `harness.py` | The harness (ReAct agent owning its loop) + session + arithmetic task + verifier. |
 | `generate.py` | `FakeGenerate` (no GPU) and `VLLMGenerate` (real vLLM + token capture), both Seam 1. |
 | `trl_adapter.py` | Skeleton of the trainer-side integration (where Seam 1/2 + AsyncGRPO wiring go). |
 | `run.py` | Entry point, `--mode fake|vllm`. |
@@ -87,12 +100,10 @@ In this example (`examples/trl_harness_rollout/`):
 
 ## Notes
 
-- The worker and the interception live in `openenv.core.harness` (reusable by any env and any trainer
-  adapter). The example imports them. The harness-agnostic worker does not change when you swap the
-  harness.
-- The ReAct agent here gives the right dynamic without a full coding agent. A follow-up can swap it for
-  a real harness (Pi / OpenCode). The worker does not change.
-- A richer interception/sandbox stack is proposed in PR #694, and PR #695 has an environment-specific
-  worker. This adds a clean, generic core worker + interception, to be reconciled with #694.
+- `rollout.py` (contract) and `interception.py` are vendored here so the example is self-contained and
+  directly portable into TRL. They mirror the canonical contract in `src/openenv/core/harness/`.
+- The worker is harness-agnostic: it does not change when you swap the harness. The ReAct agent here
+  gives the right dynamic without a full coding agent. A follow-up can swap it for a real harness
+  (Pi / OpenCode) over OpenEnv's interception + sandbox (PR #694).
 - The core (worker + interception + message-level rollout) is framework-neutral. TRL is the first
-  integration, not the only possible one.
+  integration, not the only one.
