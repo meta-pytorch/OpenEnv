@@ -71,7 +71,10 @@ from qed_math_env.server.math_verify_service import (  # noqa: E402
 )
 from qed_math_env.server.qed_math_environment import (  # noqa: E402
     _normalize_problem,
+    answer_reward_for_status,
+    load_evaluator_prompt,
     load_problems,
+    QEDMathConfig,
     QEDMathEnvironment,
     remove_reasoning,
 )
@@ -900,7 +903,7 @@ class TestMultiStepProblems:
         env = _make_env_with_problem(MULTI_STEP_PROBLEM)
         env.reset()
 
-        # Score >= 6 (success_score_threshold default) → done immediately
+        # Score == 7 (success_score_threshold default) → done immediately
         mock_result = GradingResult(score=7, feedback="Correct!", reward=1.0)
         with patch.object(
             env._rubric, "grade", new=AsyncMock(return_value=mock_result)
@@ -1479,6 +1482,206 @@ class TestGoldCache:
         assert verifier_metrics["verifier/cache/hit_rate"] <= 1.0
 
         await env._verifier_service.stop()
+
+
+# Config defaults aligned with QED-Nano
+
+
+class TestConfigDefaults:
+    def test_default_prompt_is_v1(self):
+        assert QEDMathConfig().prompt_name == "v1"
+
+    def test_default_reasoning_delimiters(self):
+        assert QEDMathConfig().reasoning_delimiters == ["</think>"]
+
+    def test_default_answer_reward_preset(self):
+        assert QEDMathConfig().answer_reward_preset == "pure_success"
+
+    def test_grader_sampling_defaults(self):
+        cfg = QEDMathConfig()
+        assert cfg.grader_temperature == 1.0
+        assert cfg.grader_max_output_tokens is None
+
+    def test_env_strips_think_by_default(self):
+        env = _make_env()
+        assert env._reasoning_delimiters == ["</think>"]
+        assert env._strip_reasoning("<think>reasoning</think>Answer.") == "Answer."
+
+    def test_v1_prompt_loads_from_disk(self):
+        prompt = load_evaluator_prompt("v1")
+        assert "{problem}" in prompt
+        assert "{solution}" in prompt
+        assert "{marking_scheme}" in prompt
+        assert "grader" in prompt.lower()
+
+    def test_v0_prompt_loads_from_disk(self):
+        prompt = load_evaluator_prompt("v0")
+        assert "{human_solution}" in prompt
+
+
+# Problem-type auto-detection (QED-Nano `if "schema" in problem`)
+
+
+class TestProblemTypeDetection:
+    def test_rubric_list_present_is_proof(self):
+        row = {"problem": "P", "rubrics": [{"title": "t", "points": 1, "desc": "d"}]}
+        assert _normalize_problem(row, 0, "test")["problem_type"] == "proof"
+
+    def test_string_guidelines_is_proof(self):
+        row = {"problem": "P", "grading_guidelines": "Award credit for rigor."}
+        assert _normalize_problem(row, 0, "test")["problem_type"] == "proof"
+
+    def test_no_schema_is_answer(self):
+        row = {"problem": "P", "reference_solution": "4"}
+        norm = _normalize_problem(row, 0, "test")
+        assert norm["problem_type"] == "answer"
+        assert norm["evaluation_mode"] == "answer"
+        # Answer-mode gold gets boxed-wrapped.
+        assert norm["reference_solution"] == r"\boxed{4}"
+
+    def test_empty_guidelines_is_answer(self):
+        row = {"problem": "P", "grading_guidelines": "", "reference_solution": "4"}
+        assert _normalize_problem(row, 0, "test")["problem_type"] == "answer"
+
+    def test_explicit_proof_type_overrides_missing_schema(self):
+        row = {"problem": "P", "problem_type": "proof", "reference_solution": "4"}
+        assert _normalize_problem(row, 0, "test")["problem_type"] == "proof"
+
+
+# Answer-mode reward presets
+
+
+class TestAnswerRewardPresets:
+    def test_pure_success_table(self):
+        assert answer_reward_for_status("correct", "pure_success") == 1.0
+        assert answer_reward_for_status("wrong", "pure_success") == 0.0
+        assert answer_reward_for_status("no_answer", "pure_success") == 0.0
+
+    def test_base_table_penalties(self):
+        assert answer_reward_for_status("correct", "base") == 1.0
+        assert answer_reward_for_status("wrong", "base") == -0.5
+        assert answer_reward_for_status("no_answer", "base") == -1.0
+        assert answer_reward_for_status("unparsable", "base") == -1.0
+        # Infra failures stay neutral.
+        assert answer_reward_for_status("timeout", "base") == 0.0
+        assert answer_reward_for_status("internal_error", "base") == 0.0
+
+    def test_unknown_preset_falls_back_to_pure_success(self):
+        assert answer_reward_for_status("wrong", "does_not_exist") == 0.0
+
+    @pytest.mark.asyncio
+    async def test_base_preset_negative_reward_for_wrong(self):
+        env = QEDMathEnvironment(config=QEDMathConfig(answer_reward_preset="base"))
+        normalized = _normalize_problem(ANSWER_PROBLEM, 0, "test")
+        env._problems = [normalized]
+        env._build_gold_answer_cache()
+        try:
+            result = await env._grade_answer_submission(r"\boxed{5}", r"\boxed{4}")
+            assert result.score == 0
+            assert result.reward == pytest.approx(-0.5)
+        finally:
+            await env._verifier_service.stop()
+
+
+# Success threshold aligned to upstream (score == 7)
+
+
+class TestSuccessThreshold:
+    def test_default_threshold_is_seven(self):
+        norm = _normalize_problem(BOOTSTRAP_PROBLEM, 0, "test")
+        assert norm["success_score_threshold"] == 7
+
+    @pytest.mark.asyncio
+    async def test_score_six_is_not_correct(self):
+        env = _make_env_with_problem(BOOTSTRAP_PROBLEM)
+        env.reset()
+        mock_result = GradingResult(score=6, feedback="Almost.", reward=6 / 7)
+        with patch.object(
+            env._rubric, "grade", new=AsyncMock(return_value=mock_result)
+        ):
+            payload = await env.submit_proof_payload("proof")
+        assert payload["is_correct"] is False
+
+    @pytest.mark.asyncio
+    async def test_score_seven_is_correct(self):
+        env = _make_env_with_problem(BOOTSTRAP_PROBLEM)
+        env.reset()
+        mock_result = GradingResult(score=7, feedback="Perfect.", reward=1.0)
+        with patch.object(
+            env._rubric, "grade", new=AsyncMock(return_value=mock_result)
+        ):
+            payload = await env.submit_proof_payload("proof")
+        assert payload["is_correct"] is True
+
+
+# Grader sampling params + real token usage
+
+
+class TestGraderSamplingParams:
+    def test_rubric_defaults(self):
+        rubric = MathProofRubric(grader_model="test", api_key="x")
+        assert rubric.temperature == 1.0
+        assert rubric.max_output_tokens is None
+
+    @pytest.mark.asyncio
+    async def test_call_llm_forwards_temperature(self):
+        rubric = MathProofRubric(grader_model="test", api_key="x", temperature=0.3)
+        await rubric._call_llm("prompt text")
+        kwargs = rubric._client.responses.create.call_args.kwargs
+        assert kwargs["temperature"] == 0.3
+        assert kwargs["model"] == "test"
+
+    @pytest.mark.asyncio
+    async def test_call_llm_forwards_max_output_tokens(self):
+        rubric = MathProofRubric(
+            grader_model="test", api_key="x", max_output_tokens=256
+        )
+        await rubric._call_llm("prompt")
+        kwargs = rubric._client.responses.create.call_args.kwargs
+        assert kwargs["max_output_tokens"] == 256
+
+    @pytest.mark.asyncio
+    async def test_call_llm_omits_max_output_tokens_when_none(self):
+        rubric = MathProofRubric(grader_model="test", api_key="x")
+        await rubric._call_llm("prompt")
+        kwargs = rubric._client.responses.create.call_args.kwargs
+        assert "max_output_tokens" not in kwargs
+
+    def test_capture_usage_responses_api(self):
+        rubric = MathProofRubric(grader_model="test", api_key="x")
+        usage = MagicMock()
+        usage.input_tokens = 11
+        usage.output_tokens = 22
+        response = MagicMock()
+        response.usage = usage
+        rubric._capture_usage(response, responses_api=True)
+        assert rubric._last_input_tokens == 11
+        assert rubric._last_output_tokens == 22
+
+    def test_capture_usage_chat_completions(self):
+        rubric = MathProofRubric(grader_model="test", api_key="x")
+        usage = MagicMock()
+        usage.prompt_tokens = 7
+        usage.completion_tokens = 9
+        response = MagicMock()
+        response.usage = usage
+        rubric._capture_usage(response, responses_api=False)
+        assert rubric._last_input_tokens == 7
+        assert rubric._last_output_tokens == 9
+
+    @pytest.mark.asyncio
+    async def test_grade_uses_real_token_usage_when_available(self):
+        rubric = MathProofRubric(grader_model="test", api_key="x")
+
+        async def fake_call(prompt):
+            rubric._last_input_tokens = 111
+            rubric._last_output_tokens = 222
+            return "<score>7</score>"
+
+        with patch.object(rubric, "_call_llm", new=fake_call):
+            result = await rubric.grade("proof", "P", "R", "G")
+        assert result.metrics["verifier/runtime/input_tokens"] == 111
+        assert result.metrics["verifier/runtime/output_tokens"] == 222
 
 
 # Integration tests (require running server)
