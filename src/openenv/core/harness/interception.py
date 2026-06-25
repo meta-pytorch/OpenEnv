@@ -107,7 +107,7 @@ class InterceptionServer:
 
     def start(self) -> None:
         ready = threading.Event()
-        err: dict[str, BaseException] = {}
+        err: dict[str, Exception] = {}
 
         async def _run():
             try:
