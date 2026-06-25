@@ -2091,7 +2091,7 @@ wheels = [
 [[package]]
 name = "openenv-core"
 version = "0.2.3.dev0"
-source = { git = "https://github.com/meta-pytorch/OpenEnv.git#ca8e7c0970ebd2c2623248e58dedf9664fb5ae21" }
+source = { git = "https://github.com/huggingface/OpenEnv.git#ca8e7c0970ebd2c2623248e58dedf9664fb5ae21" }
 dependencies = [
     { name = "fastapi" },
     { name = "fastmcp" },
@@ -2140,7 +2140,7 @@ dev = [
 requires-dist = [
     { name = "datasets", specifier = ">=4.7.0" },
     { name = "math-verify", extras = ["antlr4-13-2"], specifier = ">=0.9.0" },
-    { name = "openenv-core", extras = ["core"], git = "https://github.com/meta-pytorch/OpenEnv.git" },
+    { name = "openenv-core", extras = ["core"], git = "https://github.com/huggingface/OpenEnv.git" },
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.0.0" },
     { name = "pytest-cov", marker = "extra == 'dev'", specifier = ">=4.0.0" },
     { name = "trackio", specifier = ">=0.19.0" },
