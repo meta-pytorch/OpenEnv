@@ -129,9 +129,7 @@ def apply_score_threshold(score: float) -> float:
     return score
 
 
-def length_penalty(
-    max_length: int, sequence_length: int, buffer_tokens: int
-) -> float:
+def length_penalty(max_length: int, sequence_length: int, buffer_tokens: int) -> float:
     """Compute an overlong penalty for sequences approaching *max_length*.
 
     When ``buffer_tokens`` is 0 the penalty is always 0 (disabled).  Otherwise
@@ -150,10 +148,7 @@ def length_penalty(
     """
     if buffer_tokens <= 0:
         return 0.0
-    if (
-        sequence_length > (max_length - buffer_tokens)
-        and sequence_length <= max_length
-    ):
+    if sequence_length > (max_length - buffer_tokens) and sequence_length <= max_length:
         return ((max_length - buffer_tokens) - sequence_length) / buffer_tokens
     return 0.0
 
@@ -184,6 +179,11 @@ class MathProofRubric(Rubric):
         max_retries: Number of LLM call attempts before giving up.
         retry_backoff: Sleep durations (seconds) between attempts.
         timeout_seconds: Per-attempt timeout for the LLM call.
+        temperature: Sampling temperature forwarded to the grader (QED-Nano
+            uses ``1.0``).
+        max_output_tokens: Optional output-token cap forwarded to the grader.
+            ``None`` omits it so the provider default applies (avoids
+            truncating the trailing ``<score>`` tag on verbose graders).
     """
 
     def __init__(
@@ -196,6 +196,8 @@ class MathProofRubric(Rubric):
         max_retries: int = _DEFAULT_MAX_RETRIES,
         retry_backoff: list[int] | None = None,
         timeout_seconds: int = 900,
+        temperature: float = 1.0,
+        max_output_tokens: int | None = None,
     ):
         super().__init__()
         self.grader_model = grader_model
@@ -204,6 +206,12 @@ class MathProofRubric(Rubric):
         self.max_retries = max_retries
         self.retry_backoff = retry_backoff or list(_DEFAULT_RETRY_BACKOFF)
         self.timeout_seconds = timeout_seconds
+        self.temperature = temperature
+        self.max_output_tokens = max_output_tokens
+        # Real token usage captured from the last successful LLM call (None when
+        # unavailable, e.g. providers that omit ``usage`` or mocked clients).
+        self._last_input_tokens: int | None = None
+        self._last_output_tokens: int | None = None
 
         client_kwargs: dict[str, Any] = {}
         if api_base_url is not None:
@@ -315,12 +323,17 @@ class MathProofRubric(Rubric):
                 metrics["verifier/runtime/latency_per_request"] = round(elapsed, 4)
                 metrics["verifier/failures/num_retries"] = attempt - 1
 
-                # Estimate tokens (rough heuristic: ~4 chars per token).
-                metrics["verifier/runtime/input_tokens"] = max(
-                    1, len(prompt) // 4
+                # Prefer real token usage from the provider; fall back to a
+                # rough heuristic (~4 chars per token) when usage is absent.
+                metrics["verifier/runtime/input_tokens"] = (
+                    self._last_input_tokens
+                    if self._last_input_tokens is not None
+                    else max(1, len(prompt) // 4)
                 )
-                metrics["verifier/runtime/output_tokens"] = max(
-                    1, len(response_text) // 4
+                metrics["verifier/runtime/output_tokens"] = (
+                    self._last_output_tokens
+                    if self._last_output_tokens is not None
+                    else max(1, len(response_text) // 4)
                 )
 
                 # Check for missing score tag (score defaults to 0).
@@ -448,13 +461,22 @@ class MathProofRubric(Rubric):
 
         Tries the Responses API first to align with QED-Nano behavior, then
         falls back to Chat Completions for providers that do not support
-        Responses.
+        Responses. Sampling parameters (``temperature``, ``max_output_tokens``)
+        are forwarded and real token usage is captured when the provider
+        returns it.
         """
+        self._last_input_tokens = None
+        self._last_output_tokens = None
         try:
-            response = await self._client.responses.create(
-                model=self.grader_model,
-                input=prompt,
-            )
+            responses_kwargs: dict[str, Any] = {
+                "model": self.grader_model,
+                "input": prompt,
+                "temperature": self.temperature,
+            }
+            if self.max_output_tokens is not None:
+                responses_kwargs["max_output_tokens"] = self.max_output_tokens
+            response = await self._client.responses.create(**responses_kwargs)
+            self._capture_usage(response, responses_api=True)
             text = getattr(response, "output_text", None)
             if isinstance(text, str) and text:
                 return text
@@ -462,11 +484,37 @@ class MathProofRubric(Rubric):
         except Exception:  # noqa: BLE001
             # Compatibility fallback for endpoints that only expose
             # chat/completions semantics.
-            response = await self._client.chat.completions.create(
-                model=self.grader_model,
-                messages=[{"role": "user", "content": prompt}],
-            )
+            chat_kwargs: dict[str, Any] = {
+                "model": self.grader_model,
+                "messages": [{"role": "user", "content": prompt}],
+                "temperature": self.temperature,
+            }
+            if self.max_output_tokens is not None:
+                chat_kwargs["max_tokens"] = self.max_output_tokens
+            response = await self._client.chat.completions.create(**chat_kwargs)
+            self._capture_usage(response, responses_api=False)
             return response.choices[0].message.content or ""
+
+    def _capture_usage(self, response: Any, responses_api: bool) -> None:
+        """Record token usage from a grader response when available.
+
+        Reads the Responses-API (``input_tokens``/``output_tokens``) or
+        Chat-Completions (``prompt_tokens``/``completion_tokens``) usage shape.
+        Leaves the cached counts as ``None`` when no usage is reported.
+        """
+        usage = getattr(response, "usage", None)
+        if usage is None:
+            return
+        if responses_api:
+            input_tokens = getattr(usage, "input_tokens", None)
+            output_tokens = getattr(usage, "output_tokens", None)
+        else:
+            input_tokens = getattr(usage, "prompt_tokens", None)
+            output_tokens = getattr(usage, "completion_tokens", None)
+        if isinstance(input_tokens, int):
+            self._last_input_tokens = input_tokens
+        if isinstance(output_tokens, int):
+            self._last_output_tokens = output_tokens
 
     def _extract_response_text(self, response: Any) -> str:
         """Best-effort extraction of plain text from a Responses API payload."""

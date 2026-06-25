@@ -30,7 +30,10 @@ import math_verify
 from fastmcp import FastMCP
 
 try:
-    from openenv.core.env_server.mcp_environment import MCPEnvironment, MCP_TOOL_CALL_TIMEOUT
+    from openenv.core.env_server.mcp_environment import (
+        MCPEnvironment,
+        MCP_TOOL_CALL_TIMEOUT,
+    )
     from openenv.core.env_server.mcp_types import (
         CallToolAction,
         CallToolObservation,
@@ -42,7 +45,10 @@ try:
     )
     from openenv.core.env_server.types import Action, Observation, State
 except ImportError:
-    from openenv.core.env_server.mcp_environment import MCPEnvironment, MCP_TOOL_CALL_TIMEOUT
+    from openenv.core.env_server.mcp_environment import (
+        MCPEnvironment,
+        MCP_TOOL_CALL_TIMEOUT,
+    )
     from openenv.core.env_server.mcp_types import (
         CallToolAction,
         CallToolObservation,
@@ -83,6 +89,51 @@ def _default_verifier_workers() -> int:
 def _default_verifier_queue_size() -> int:
     """Default queue size proportional to worker count for burst tolerance."""
     return _default_verifier_workers() * 32
+
+
+# Answer-mode reward presets keyed on the verifier ``status`` value, mirroring
+# QED-Nano's ``RewardTable`` (training/conf/rewards/*.yaml). ``pure_success`` is
+# the shipped default (correct -> 1, everything else -> 0); ``base`` adds the
+# negative penalties from QED-Nano's ``base`` reward config. ``timeout`` and
+# ``internal_error`` are infrastructure failures and stay neutral so transient
+# verifier issues never inject a spurious negative training signal. The
+# ``finished`` (truncation) dimension of the upstream table is not modelled —
+# single-turn ``submit_proof`` has no truncation signal.
+ANSWER_REWARD_PRESETS: dict[str, dict[str, float]] = {
+    "pure_success": {
+        "correct": 1.0,
+        "wrong": 0.0,
+        "no_answer": 0.0,
+        "unparsable": 0.0,
+        "timeout": 0.0,
+        "internal_error": 0.0,
+    },
+    "base": {
+        "correct": 1.0,
+        "wrong": -0.5,
+        "no_answer": -1.0,
+        "unparsable": -1.0,
+        "timeout": 0.0,
+        "internal_error": 0.0,
+    },
+}
+
+
+def answer_reward_for_status(status: str, preset: str = "pure_success") -> float:
+    """Return the answer-mode reward for a verifier *status* under *preset*.
+
+    Args:
+        status (`str`):
+            Verifier status (``correct``, ``wrong``, ``no_answer``,
+            ``unparsable``, ``timeout``, or ``internal_error``).
+        preset (`str`, *optional*, defaults to `"pure_success"`):
+            Reward-preset name. Unknown presets fall back to ``pure_success``.
+
+    Returns:
+        `float`: Reward for the given status (may be negative for ``base``).
+    """
+    table = ANSWER_REWARD_PRESETS.get(preset, ANSWER_REWARD_PRESETS["pure_success"])
+    return table.get(status, 0.0)
 
 
 class UnparsableException(Exception):
@@ -146,13 +197,16 @@ class QEDMathConfig:
 
     dataset_path: DatasetSource = None
     grader_model: str = "gemini-3-pro"
-    prompt_name: str = "v2"
+    prompt_name: str = "v1"
     custom_reward_threshold: bool = False
     max_attempts: int = 1
     discount_factor: float = 1.0
     buffer_tokens: int = 0
     max_tokens: int = 0
-    reasoning_delimiters: list[str] | None = None
+    reasoning_delimiters: list[str] | None = field(default_factory=lambda: ["</think>"])
+    grader_temperature: float = 1.0
+    grader_max_output_tokens: int | None = None
+    answer_reward_preset: str = "pure_success"
     verifier_workers: int = field(default_factory=_default_verifier_workers)
     verifier_queue_size: int = field(default_factory=_default_verifier_queue_size)
     verifier_request_timeout_seconds: float = 5.0
@@ -220,6 +274,27 @@ def _canonical_problem_type(raw_problem: dict[str, Any]) -> str:
     if isinstance(evaluation_mode, str) and evaluation_mode.strip().lower() == "answer":
         return "answer"
 
+    # Auto-detect mirroring QED-Nano's ``if "schema" in problem`` routing: the
+    # presence of a grading rubric/schema implies LLM proof grading, while its
+    # absence implies a boxed-answer problem verified with ``math_verify``.
+    grading_schema = _first_present_value(
+        raw_problem,
+        (
+            "grading_guidelines",
+            "rubrics",
+            "schema",
+            "schema_0",
+            "Grading guidelines",
+            "details",
+        ),
+        None,
+    )
+    if grading_schema is None:
+        return "answer"
+    if isinstance(grading_schema, str) and not grading_schema.strip():
+        return "answer"
+    if isinstance(grading_schema, (list, dict)) and not grading_schema:
+        return "answer"
     return "proof"
 
 
@@ -366,12 +441,14 @@ def _normalize_problem(
     problem_type = _canonical_problem_type(raw_problem)
     default_max_attempts = 1 if problem_type != "multi_step" else 3
     max_attempts = _coerce_positive_int(
-        _first_present_value(raw_problem, ("max_attempts", "attempts", "num_attempts"), None),
+        _first_present_value(
+            raw_problem, ("max_attempts", "attempts", "num_attempts"), None
+        ),
         default=default_max_attempts,
     )
     success_score_threshold = _coerce_positive_int(
         _first_present_value(raw_problem, ("success_score_threshold",), None),
-        default=6,
+        default=7,
     )
     evaluation_mode = _first_present_value(raw_problem, ("evaluation_mode",), None)
     if isinstance(evaluation_mode, str):
@@ -392,9 +469,7 @@ def _normalize_problem(
     # QED-Nano RC stream: when the prompt seen by the actor differs from the
     # original problem (e.g. after reasoning-cache summarization), the dataset
     # row carries an ``original_problem`` field that must be used for grading.
-    original_problem = _first_present_value(
-        raw_problem, ("original_problem",), None
-    )
+    original_problem = _first_present_value(raw_problem, ("original_problem",), None)
 
     return {
         "problem": problem,
@@ -556,6 +631,9 @@ class QEDMathEnvironment(MCPEnvironment):
             buffer_tokens=base_config.buffer_tokens,
             max_tokens=base_config.max_tokens,
             reasoning_delimiters=base_config.reasoning_delimiters,
+            grader_temperature=base_config.grader_temperature,
+            grader_max_output_tokens=base_config.grader_max_output_tokens,
+            answer_reward_preset=base_config.answer_reward_preset,
             verifier_workers=base_config.verifier_workers,
             verifier_queue_size=base_config.verifier_queue_size,
             verifier_request_timeout_seconds=base_config.verifier_request_timeout_seconds,
@@ -579,24 +657,21 @@ class QEDMathEnvironment(MCPEnvironment):
         self._build_gold_answer_cache()
         # Read judge credentials from JUDGE_* env vars (set in Docker) with
         # fallbacks to the standard OPENAI_* names for local development.
-        judge_api_base_url = (
-            os.environ.get("JUDGE_API_BASE_URL")
-            or os.environ.get("OPENAI_BASE_URL")
+        judge_api_base_url = os.environ.get("JUDGE_API_BASE_URL") or os.environ.get(
+            "OPENAI_BASE_URL"
         )
-        judge_api_key = (
-            os.environ.get("JUDGE_API_KEY")
-            or os.environ.get("OPENAI_API_KEY")
+        judge_api_key = os.environ.get("JUDGE_API_KEY") or os.environ.get(
+            "OPENAI_API_KEY"
         )
-        judge_model = (
-            os.environ.get("JUDGE_MODEL")
-            or self._config.grader_model
-        )
+        judge_model = os.environ.get("JUDGE_MODEL") or self._config.grader_model
         self._rubric = MathProofRubric(
             grader_model=judge_model,
             prompt_template=self._prompt_template,
             custom_threshold=self._config.custom_reward_threshold,
             api_base_url=judge_api_base_url,
             api_key=judge_api_key,
+            temperature=self._config.grader_temperature,
+            max_output_tokens=self._config.grader_max_output_tokens,
         )
         # Initialize verifier service for answer-mode grading.
         # The service is started lazily on first verify_answer call or explicit start.
@@ -656,7 +731,9 @@ class QEDMathEnvironment(MCPEnvironment):
                     "Failed to pre-parse answer-mode gold for problem_id=%s; deferring to runtime verifier.",
                     problem_id,
                 )
-            self._gold_answer_cache[self._gold_cache_key(problem_id)] = reference_solution
+            self._gold_answer_cache[self._gold_cache_key(problem_id)] = (
+                reference_solution
+            )
 
     def _refresh_gold_cache_if_needed(self) -> None:
         """Refresh answer cache when verifier settings or problem set changes."""
@@ -695,7 +772,7 @@ class QEDMathEnvironment(MCPEnvironment):
         **kwargs: Any,
     ) -> Any:
         """Async step override — fixes the run_async_safely event-loop deadlock
-        described in https://github.com/meta-pytorch/OpenEnv/issues/455.
+        described in https://github.com/huggingface/OpenEnv/issues/455.
 
         The WebSocket server detects this override and calls it directly on the
         outer event loop instead of dispatching step() into a thread executor,
@@ -991,7 +1068,9 @@ class QEDMathEnvironment(MCPEnvironment):
         """Split grader feedback into chunks for client-side streamed rendering."""
         if not feedback:
             return []
-        return [feedback[i : i + chunk_size] for i in range(0, len(feedback), chunk_size)]
+        return [
+            feedback[i : i + chunk_size] for i in range(0, len(feedback), chunk_size)
+        ]
 
     def _build_grading_progress(
         self,
@@ -1166,12 +1245,15 @@ class QEDMathEnvironment(MCPEnvironment):
         )
 
         score = 7 if answer_status == "correct" else 0
+        reward = answer_reward_for_status(
+            answer_status, self._config.answer_reward_preset
+        )
         feedback = f"answer_status={answer_status}"
 
         return GradingResult(
             score=score,
             feedback=feedback,
-            reward=score / 7.0,
+            reward=reward,
             metrics={
                 "verifier/rollouts/success": int(answer_status == "correct"),
                 "verifier/rollouts/failure": int(answer_status != "correct"),
@@ -1242,10 +1324,9 @@ class QEDMathEnvironment(MCPEnvironment):
         # Use original_problem for grading when present (QED-Nano RC stream
         # semantics: the actor prompt may be a reformulated version, but the
         # grader must evaluate against the original problem statement).
-        problem = (
-            self._current_problem.get("original_problem")
-            or self._current_problem.get("problem", "")
-        )
+        problem = self._current_problem.get(
+            "original_problem"
+        ) or self._current_problem.get("problem", "")
         reference_solution = self._current_problem.get("reference_solution", "")
         grading_guidelines = parse_schema(
             self._current_problem.get("grading_guidelines", "") or ""
@@ -1294,7 +1375,7 @@ class QEDMathEnvironment(MCPEnvironment):
         if output_length_tokens <= 0:
             return reward
 
-        reward = reward * (self._discount_factor ** output_length_tokens)
+        reward = reward * (self._discount_factor**output_length_tokens)
 
         if self._buffer_tokens > 0 and self._max_tokens > 0:
             reward += length_penalty(
@@ -1347,7 +1428,7 @@ class QEDMathEnvironment(MCPEnvironment):
 
         success_threshold = _coerce_positive_int(
             self._current_problem.get("success_score_threshold"),
-            default=6,
+            default=7,
         )
         is_correct = result.score >= success_threshold
         attempts_remaining = max(0, self._current_max_attempts - self._attempt_count)
@@ -1409,7 +1490,11 @@ class QEDMathEnvironment(MCPEnvironment):
         metrics["reward/base"] = result.reward
         metrics["reward/shaped"] = shaped_reward
         metrics["reward/score_raw"] = result.score
-        if output_length_tokens > 0 and self._buffer_tokens > 0 and self._max_tokens > 0:
+        if (
+            output_length_tokens > 0
+            and self._buffer_tokens > 0
+            and self._max_tokens > 0
+        ):
             from .rubric import length_penalty as _lp
 
             metrics["reward/overlong_penalty"] = _lp(
