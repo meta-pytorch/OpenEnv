@@ -779,6 +779,45 @@ class TestForeignLoopReconnect:
         assert client._ws is None
         assert client._ws_loop is None
 
+    @pytest.mark.asyncio
+    async def test_lazy_send_reconnects_without_explicit_connect_call(self):
+        """A caller that never explicitly calls `.connect()` -- e.g.
+        `client.sync().reset()` right after `from_env()`, which goes straight
+        to `_send()` -> `_ensure_connected()` -- must still reconnect on a
+        foreign loop. `_ensure_connected()` previously only called `connect()`
+        when `self._ws is None`, which skipped the reconnect logic entirely
+        whenever `_ws` was already set (the exact foreign-loop case).
+        """
+        client = GenericEnvClient(base_url="http://localhost:8000")
+
+        first_ws = MagicMock()
+
+        async def fake_ws_connect_first(*args, **kwargs):
+            return first_ws
+
+        with patch(
+            "openenv.core.env_client.ws_connect", side_effect=fake_ws_connect_first
+        ):
+            await client.connect()
+
+        # Simulate the foreign-loop state without an explicit connect() call
+        # in between, mirroring from_env() handing off to .sync().
+        client._ws_loop = object()
+
+        second_ws = AsyncMock()
+
+        async def fake_ws_connect_second(*args, **kwargs):
+            return second_ws
+
+        with patch(
+            "openenv.core.env_client.ws_connect", side_effect=fake_ws_connect_second
+        ) as mock_connect:
+            await client._ensure_connected()
+
+        mock_connect.assert_called_once()
+        assert client._ws is second_ws
+        assert client._ws_loop is asyncio.get_running_loop()
+
 
 # ============================================================================
 # Integration Tests (require running server)

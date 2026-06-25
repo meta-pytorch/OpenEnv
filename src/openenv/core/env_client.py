@@ -252,9 +252,19 @@ class EnvClient(ABC, Generic[ActT, ObsT, StateT]):
             self._ws_loop = None
 
     async def _ensure_connected(self) -> None:
-        """Ensure WebSocket connection is established."""
-        if self._ws is None:
-            await self.connect()
+        """Ensure WebSocket connection is established on the current loop.
+
+        Always delegates to `connect()` rather than pre-checking `self._ws is
+        None`: `connect()` itself is the one that knows whether an existing
+        `_ws` is reusable (same event loop) or stale (a different one, e.g.
+        from a prior `from_env()` call now being driven through `.sync()`'s
+        own loop). A pre-check here that only looked at `_ws is None` would
+        skip `connect()` entirely whenever `_ws` is already set -- including
+        the stale-loop case -- so the reconnect logic would never run for
+        callers that never explicitly call `.connect()` themselves (e.g.
+        `client.sync().reset()` right after `from_env()`).
+        """
+        await self.connect()
 
     async def _send(self, message: Dict[str, Any]) -> None:
         """Send a message over the WebSocket."""
