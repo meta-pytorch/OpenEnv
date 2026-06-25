@@ -16,8 +16,7 @@ import threading
 from typing import Any
 
 import requests
-
-from interception import InterceptionProxy
+from openenv.core.harness.interception import InterceptionServer
 
 # ── Task + verifier (the env): verifiable arithmetic ──
 TASKS = [
@@ -89,7 +88,7 @@ def react_agent(
 
 # ── OpenEnv session over the proxy (satisfies AgentSession) ──
 class ProxyAgentSession:
-    def __init__(self, proxy: InterceptionProxy, rollout_id: str, q, answer: int):
+    def __init__(self, proxy: InterceptionServer, rollout_id: str, q, answer: int):
         self._proxy, self._rid, self._q, self._answer = proxy, rollout_id, q, answer
         self._last = ""
 
@@ -118,7 +117,7 @@ class ProxyAgentSession:
 
 
 class ProxyAgentSessionFactory:
-    def __init__(self, proxy: InterceptionProxy):
+    def __init__(self, proxy: InterceptionServer):
         self._proxy = proxy
 
     def create(self, *, task: Any, rollout_id: str) -> ProxyAgentSession:

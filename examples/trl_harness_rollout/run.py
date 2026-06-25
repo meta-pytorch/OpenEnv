@@ -20,10 +20,13 @@ from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+sys.path.insert(
+    0, str(Path(__file__).resolve().parents[2] / "src")
+)  # make `openenv` importable
 from generate import FakeGenerate, VLLMGenerate  # noqa: E402
-from harness import TASKS, ProxyAgentSessionFactory  # noqa: E402
-from interception import InterceptionProxy  # noqa: E402
-from rollout_worker import HarnessRolloutWorker  # noqa: E402
+from harness import ProxyAgentSessionFactory, TASKS  # noqa: E402
+from openenv.core.harness.interception import InterceptionServer  # noqa: E402
+from openenv.core.harness.rollout_worker import HarnessRolloutWorker  # noqa: E402
 
 
 def _wait_for_vllm(url: str, timeout_s: float = 60) -> None:
@@ -64,7 +67,7 @@ def main() -> int:
         print("fake mode: no GPU, scripted generator driving the real harness dynamic")
         sampling = {"temperature": 1.0, "max_tokens": 256}
 
-    proxy = InterceptionProxy()
+    proxy = InterceptionServer()
     proxy.start()
     worker = HarnessRolloutWorker(
         session_factory=ProxyAgentSessionFactory(proxy),

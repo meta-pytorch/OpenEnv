@@ -1,11 +1,12 @@
-"""Interception proxy: an OpenAI-compatible HTTP proxy that gates every LLM call from the harness.
+"""InterceptionServer: an OpenAI-compatible HTTP proxy that gates every LLM call from a harness.
 
-This is a clean, minimal stand-in for OpenEnv's `InterceptionServer` (PR #694). The harness points its
-OpenAI base URL at `/rollout/{id}/v1`; each chat-completions call blocks here until the rollout worker
-generates and delivers the response. One instance multiplexes many rollouts by `rollout_id`.
+A harness (an agent that owns its loop, running outside the trainer) points its OpenAI base URL at
+`/rollout/{id}/v1`. Each chat-completions call blocks here until the rollout worker generates and
+delivers a response. One instance multiplexes many rollouts by `rollout_id`. This is the on-policy
+capture seam for training agentic harnesses (see `rollout_worker.HarnessRolloutWorker`).
 
-When this lands on top of #694, swap this file for the real `InterceptionServer`. The worker and the
-harness session do not change.
+Note: a richer interception/sandbox stack is proposed in PR #694. This is a clean, minimal core
+implementation focused on the transport. The two should be reconciled before merge.
 """
 
 from __future__ import annotations
@@ -34,7 +35,7 @@ def _resolve_if_pending(fut) -> None:
         )
 
 
-class InterceptionProxy:
+class InterceptionServer:
     def __init__(self, host: str = "127.0.0.1", port: int = 0):
         self.host, self._req_port = host, port
         self.port = port
@@ -129,13 +130,13 @@ class InterceptionProxy:
             target=self._loop.run_forever, daemon=True, name="interception"
         ).start()
         if not ready.wait(timeout=10):
-            raise RuntimeError("InterceptionProxy did not start within 10s")
+            raise RuntimeError("InterceptionServer did not start within 10s")
         if "e" in err:
             raise RuntimeError(
-                f"InterceptionProxy failed to start: {err['e']}"
+                f"InterceptionServer failed to start: {err['e']}"
             ) from err["e"]
         if not self.port:
-            raise RuntimeError("InterceptionProxy started but no port was bound")
+            raise RuntimeError("InterceptionServer started but no port was bound")
 
     def stop(self) -> None:
         async def _cleanup():

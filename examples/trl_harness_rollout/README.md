@@ -68,11 +68,18 @@ JSON: the exact data a TITO step would stitch into a training sample.
 
 ## Files
 
+In OpenEnv core (reusable, this PR adds them under `src/openenv/core/harness/`):
+
 | File | Role |
 |------|------|
-| `rollout_worker.py` | The worker + the contract (`GenerateAPI`, `AgentSession`, `RolloutMessages`). The core OpenEnv piece. |
-| `interception.py` | Interception proxy (stand-in for OpenEnv `InterceptionServer`, PR #694). |
-| `harness.py` | The harness (ReAct agent owning its loop) + session + arithmetic task + verifier. |
+| `rollout_worker.py` | `HarnessRolloutWorker` + the contract (`GenerateAPI`, `AgentSession`, `RolloutMessages`). |
+| `interception.py` | `InterceptionServer`: the OpenAI-compatible gating proxy. |
+
+In this example (`examples/trl_harness_rollout/`):
+
+| File | Role |
+|------|------|
+| `harness.py` | The harness (ReAct agent owning its loop) + session + arithmetic task + verifier. Imports from core. |
 | `generate.py` | `FakeGenerate` (no GPU) and `VLLMGenerate` (real vLLM + token capture), both Seam 1. |
 | `trl_adapter.py` | Skeleton of the trainer-side integration (where Seam 1/2 + AsyncGRPO wiring go). |
 | `run.py` | Entry point, `--mode fake|vllm`. |
@@ -80,10 +87,12 @@ JSON: the exact data a TITO step would stitch into a training sample.
 
 ## Notes
 
-- The worker is harness-agnostic. The ReAct agent here gives the right dynamic without a full coding
-  agent. A follow-up can swap it for a real harness (Pi / OpenCode over the real `InterceptionServer`,
-  PR #694). The worker does not change.
-- This is a clean draft. It is not built on PR #695 (which mixes transport, generation, tokenization,
-  and scoring into one environment-specific worker); that PR is reference only.
+- The worker and the interception live in `openenv.core.harness` (reusable by any env and any trainer
+  adapter). The example imports them. The harness-agnostic worker does not change when you swap the
+  harness.
+- The ReAct agent here gives the right dynamic without a full coding agent. A follow-up can swap it for
+  a real harness (Pi / OpenCode). The worker does not change.
+- A richer interception/sandbox stack is proposed in PR #694, and PR #695 has an environment-specific
+  worker. This adds a clean, generic core worker + interception, to be reconciled with #694.
 - The core (worker + interception + message-level rollout) is framework-neutral. TRL is the first
   integration, not the only possible one.

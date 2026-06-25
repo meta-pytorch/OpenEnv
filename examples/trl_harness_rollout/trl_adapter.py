@@ -39,7 +39,7 @@ TRL's AsyncGRPOTrainer accepts a custom `rollout_worker` implementing RolloutWor
 (a `rollout_buffer` queue + start/stop/update_model_version/check_health). Wrap the OpenEnv worker:
 
     import queue
-    from rollout_worker import HarnessRolloutWorker
+    from openenv.core.harness.rollout_worker import HarnessRolloutWorker
 
     class TrlRolloutWorkerAdapter:           # satisfies trl ... RolloutWorkerProtocol
         def __init__(self, openenv_worker: HarnessRolloutWorker, tasks):
