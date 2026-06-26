@@ -175,8 +175,8 @@ Base class for environment communication:
 Manage container deployment:
 - `LocalDockerProvider`: Run containers on local Docker daemon
 - `DockerSwarmProvider`: Deploy to Docker Swarm clusters
-- `KubernetesProvider`: Deploy to Kubernetes clusters
 - `UVProvider`, `DaytonaProvider`, `ACASandboxProvider`: Additional runtime providers
+- `KubernetesProvider`: Deploy to Kubernetes clusters (planned)
 
 #### 5. Models
 Type-safe data structures:

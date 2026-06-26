@@ -1,52 +1,125 @@
 # Runtime Providers
 
 A runtime provider starts an environment server and returns a `base_url` that an
-`EnvClient` connects to. They all implement the same `ContainerProvider` contract,
-so switching from local Docker to a cloud sandbox is a one-line change.
+`EnvClient` connects to. Container providers implement the same
+`ContainerProvider` contract, so switching from local Docker to a cloud sandbox
+is a one-line change.
 
 ## Available providers
 
-| Provider | Backend | Install |
-|----------|---------|---------|
-| `LocalDockerProvider` | Local Docker daemon | core |
-| `DockerSwarmProvider` | Docker Swarm cluster | core |
-| `KubernetesProvider` | Kubernetes cluster | core |
-| `UVProvider` | Local process via `uv` (no container) | core |
-| `DaytonaProvider` | Daytona cloud sandboxes | `pip install openenv[daytona]` |
-| `ACASandboxProvider` | Azure Container Apps Sandboxes | `pip install openenv[aca]` |
+| Provider | Backend | Install | Status |
+|----------|---------|---------|--------|
+| `LocalDockerProvider` | Local Docker daemon | core | ✅ |
+| `DockerSwarmProvider` | Docker Swarm cluster | core | ✅ |
+| `UVProvider` | Local process via `uv` (no container) | core | ✅ |
+| `DaytonaProvider` | Daytona cloud sandboxes | `pip install openenv[daytona]` | ✅ |
+| `ACASandboxProvider` | Azure Container Apps Sandboxes | `pip install openenv[aca]` | ✅ |
+| `KubernetesProvider` | Kubernetes cluster | core | 🚧 planned |
 
 Cloud-provider SDKs are optional extras, imported lazily, so installing core
-OpenEnv pulls in no cloud SDK. Import a cloud provider from its module:
+OpenEnv pulls in no cloud SDK. The core providers (`LocalDockerProvider`,
+`DockerSwarmProvider`, `UVProvider`) are re-exported from the runtime package;
+cloud providers are imported from their module:
 
 ```python
-from openenv.core.containers.runtime.daytona_provider import DaytonaProvider
+from openenv.core.containers.runtime import LocalDockerProvider  # core
+from openenv.core.containers.runtime.daytona_provider import DaytonaProvider  # cloud
 ```
 
 See the [Core API reference](../reference/core.md#container-providers) for each
 provider's full API.
 
-## Selecting a provider
+## Lifecycle
 
-`from_docker_image` uses `LocalDockerProvider` by default. Pass `provider=` to
-run the server somewhere else:
+Container providers share the same flow. `from_docker_image` uses
+`LocalDockerProvider` by default; pass `provider=` to run the server elsewhere:
 
 ```python
-from openenv.core.containers.runtime.daytona_provider import DaytonaProvider
-from tbench2_env import Tbench2Action, Tbench2Env
-
-image = DaytonaProvider.image_from_dockerfile("envs/tbench2_env/server/Dockerfile")
-provider = DaytonaProvider()
-base_url = provider.start_container(image=image)
+base_url = provider.start_container(image)
 provider.wait_for_ready(base_url, timeout_s=180)
-
 try:
-    async with Tbench2Env(base_url=base_url, provider=provider) as env:
+    async with MyEnv(base_url=base_url, provider=provider) as env:
         result = await env.reset()
-        result = await env.step(Tbench2Action(action_type="exec", command="ls -la"))
-        print(result.observation.output)
+        ...
 finally:
     provider.stop_container()
 ```
 
+`UVProvider` is not a container provider: it runs the server as a local process
+and exposes `.start()` / `.wait_for_ready()` / `.stop()` instead.
+
+## Per-provider setup
+
+### ACASandboxProvider
+
+Runs the server in an Azure Container Apps Sandbox. Requires Azure credentials
+(`credential=None` falls back to `DefaultAzureCredential`).
+
+```python
+from openenv.core.containers.runtime.aca_provider import ACASandboxProvider
+
+provider = ACASandboxProvider(
+    subscription_id="<subscription-id>",
+    resource_group="<resource-group>",
+    sandbox_group="<sandbox-group>",
+    region="eastus",   # used to derive the endpoint when endpoint=None
+    endpoint=None,
+    credential=None,   # defaults to DefaultAzureCredential()
+    sdk_kwargs={},
+)
+```
+
+### DaytonaProvider
+
+Runs the server in a Daytona cloud sandbox. Requires the `DAYTONA_API_KEY`
+environment variable.
+
+```python
+from openenv.core.containers.runtime.daytona_provider import DaytonaProvider
+
+image = DaytonaProvider.image_from_dockerfile("envs/echo_env/server/Dockerfile")
+provider = DaytonaProvider()
+```
+
 Full examples: [`examples/daytona_tbench2_simple.py`](https://github.com/huggingface/OpenEnv/blob/main/examples/daytona_tbench2_simple.py)
 and [`examples/daytona_tbench2_concurrent.py`](https://github.com/huggingface/OpenEnv/blob/main/examples/daytona_tbench2_concurrent.py).
+
+### DockerSwarmProvider
+
+Deploys the server as a service on a Docker Swarm cluster. Initializes Swarm
+automatically when it is not already active.
+
+```python
+from openenv.core.containers.runtime import DockerSwarmProvider
+
+provider = DockerSwarmProvider()
+```
+
+### KubernetesProvider
+
+🚧 Not yet implemented. The class exists as a placeholder for the planned
+Kubernetes backend.
+
+### LocalDockerProvider
+
+Runs the server on the local Docker daemon. This is the default for
+`from_docker_image`, so you rarely construct it explicitly.
+
+```python
+from openenv.core.containers.runtime import LocalDockerProvider
+
+provider = LocalDockerProvider()
+```
+
+### UVProvider
+
+Runs the server as a local process via `uv`, without a container. Useful for
+developing an environment from a checkout.
+
+```python
+from openenv.core.containers.runtime import UVProvider
+
+provider = UVProvider(project_path="path/to/env")
+base_url = provider.start()
+provider.wait_for_ready()
+```
