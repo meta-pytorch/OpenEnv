@@ -33,7 +33,7 @@ To support a new runtime (a cloud sandbox, a scheduler, etc.), subclass
 
 - Put the SDK in a named `[project.optional-dependencies]` extra in `pyproject.toml` and import it lazily, so core OpenEnv stays SDK-free.
 - Add an `[[autodoc]]` entry under "Container providers" in `docs/source/reference/core.md`.
-- Add it to the table in the [Runtime Providers guide](guides/runtime-providers.md).
+- In the [Runtime Providers guide](guides/runtime-providers.md), add a row to the table and a "Per-provider setup" subsection (kept in alphabetical order).
 - Add a test (the providers under `tests/test_core/` inject a fake SDK, so no network is needed).
 
 See the Cloud Sandbox Providers amendment proposed in RFC 002 for the
