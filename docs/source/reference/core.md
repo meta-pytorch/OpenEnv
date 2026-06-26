@@ -238,4 +238,6 @@ For a high-level explanation of how MCP-backed environments move through `step()
 
 [[autodoc]] openenv.core.containers.runtime.uv_provider.UVProvider
 
+[[autodoc]] openenv.core.containers.runtime.daytona_provider.DaytonaProvider
+
 [[autodoc]] openenv.core.containers.runtime.aca_provider.ACASandboxProvider
