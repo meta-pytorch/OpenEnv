@@ -19,11 +19,13 @@ Tests cover:
 8. AutoAction with skip_install parameter
 """
 
+import asyncio
 import os
 from unittest.mock import AsyncMock, MagicMock, Mock, patch
 
 import pytest
 from openenv.core.client_types import StepResult
+from openenv.core.env_client import _is_localhost_ws_url
 from openenv.core.generic_client import GenericAction, GenericEnvClient
 from openenv.core.sync_client import SyncEnvClient
 
@@ -591,19 +593,47 @@ class TestGenericEnvClientContextManager:
 # ============================================================================
 
 
+class TestIsLocalhostWsUrl:
+    """Test the loopback-host detection used to decide whether to bypass proxies."""
+
+    @pytest.mark.parametrize(
+        "ws_url",
+        [
+            "ws://localhost:8000/ws",
+            "ws://127.0.0.1:8000/ws",
+            "ws://127.5.5.5:8000/ws",  # anywhere in 127.0.0.0/8 is loopback
+            "ws://[::1]:8000/ws",
+            "wss://LocalHost:8000/ws",  # case-insensitive
+        ],
+    )
+    def test_loopback_hosts_are_localhost(self, ws_url):
+        assert _is_localhost_ws_url(ws_url) is True
+
+    @pytest.mark.parametrize(
+        "ws_url",
+        [
+            "ws://my-localhost-proxy.example.com:8000/ws",  # substring, not the host
+            "ws://127.0.0.1.example.com:8000/ws",  # substring, not the host
+            "ws://localhost.attacker.com:8000/ws",
+            "wss://remote.example.com:8000/ws",
+        ],
+    )
+    def test_remote_hosts_are_not_localhost(self, ws_url):
+        assert _is_localhost_ws_url(ws_url) is False
+
+
 class TestGenericEnvClientConnection:
     """Test connection setup helpers."""
 
     @pytest.mark.asyncio
-    async def test_connect_temporarily_extends_no_proxy_for_localhost(
-        self, monkeypatch
-    ):
-        """Local websocket connections bypass proxies without leaking env changes."""
+    async def test_localhost_connect_disables_proxy_per_connection(self, monkeypatch):
+        """Localhost connections pass proxy=None instead of mutating NO_PROXY."""
         monkeypatch.setenv("NO_PROXY", "example.com")
-        observed_no_proxy = []
+        observed = {}
 
         async def fake_ws_connect(*args, **kwargs):
-            observed_no_proxy.append(os.environ.get("NO_PROXY"))
+            observed["proxy"] = kwargs.get("proxy", "MISSING")
+            observed["no_proxy_during"] = os.environ.get("NO_PROXY")
             return MagicMock()
 
         client = GenericEnvClient(base_url="http://localhost:8000")
@@ -611,8 +641,58 @@ class TestGenericEnvClientConnection:
         with patch("openenv.core.env_client.ws_connect", side_effect=fake_ws_connect):
             await client.connect()
 
-        assert observed_no_proxy == ["example.com,localhost,127.0.0.1"]
+        # Proxy is disabled via the per-connection argument, and the global
+        # NO_PROXY env var is never touched.
+        assert observed["proxy"] is None
+        assert observed["no_proxy_during"] == "example.com"
         assert os.environ["NO_PROXY"] == "example.com"
+
+    @pytest.mark.asyncio
+    async def test_remote_connect_uses_default_proxy(self, monkeypatch):
+        """Non-localhost connections leave proxy handling at the default."""
+        monkeypatch.setenv("NO_PROXY", "example.com")
+        observed = {}
+
+        async def fake_ws_connect(*args, **kwargs):
+            observed["proxy"] = kwargs.get("proxy", "MISSING")
+            return MagicMock()
+
+        client = GenericEnvClient(base_url="ws://remote.example.com:8000")
+
+        with patch("openenv.core.env_client.ws_connect", side_effect=fake_ws_connect):
+            await client.connect()
+
+        # No explicit proxy override: websockets uses its default (env-derived).
+        assert observed["proxy"] == "MISSING"
+        assert os.environ["NO_PROXY"] == "example.com"
+
+    @pytest.mark.asyncio
+    async def test_concurrent_localhost_connects_do_not_leak_no_proxy(
+        self, monkeypatch
+    ):
+        """Concurrent connects must not corrupt the process-global NO_PROXY.
+
+        The previous implementation mutated os.environ["NO_PROXY"] around the
+        connect await; interleaved gather() calls could restore a stale value
+        and leak the localhost entry. Disabling the proxy per-connection makes
+        this race impossible.
+        """
+        monkeypatch.delenv("NO_PROXY", raising=False)
+
+        async def fake_ws_connect(*args, **kwargs):
+            # Yield control so the event loop interleaves the two connects.
+            await asyncio.sleep(0)
+            return MagicMock()
+
+        clients = [
+            GenericEnvClient(base_url="http://localhost:8000"),
+            GenericEnvClient(base_url="http://127.0.0.1:8000"),
+        ]
+
+        with patch("openenv.core.env_client.ws_connect", side_effect=fake_ws_connect):
+            await asyncio.gather(*(c.connect() for c in clients))
+
+        assert "NO_PROXY" not in os.environ
 
 
 # ============================================================================
