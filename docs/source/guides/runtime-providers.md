@@ -48,6 +48,33 @@ finally:
 `UVProvider` is not a container provider: it runs the server as a local process
 and exposes `.start()` / `.wait_for_ready()` / `.stop()` instead.
 
+## Running many environments in parallel
+
+Scaling out (for example, many concurrent RL rollouts) is a main reason cloud
+providers exist. The model is one provider and one client per environment: each
+provider starts its own isolated sandbox, so they run independently. Launch them
+concurrently with `asyncio.gather`, wrapping the blocking provider calls in
+`asyncio.to_thread` since most cloud SDKs are synchronous:
+
+```python
+async def run_one(env_id: int, image) -> str:
+    provider = DaytonaProvider()
+    base_url = await asyncio.to_thread(provider.start_container, image)
+    try:
+        await asyncio.to_thread(provider.wait_for_ready, base_url, 300)
+        async with MyEnv(base_url=base_url, provider=provider) as env:
+            result = await env.reset()
+            return result.observation.text
+    finally:
+        await asyncio.to_thread(provider.stop_container)
+
+image = DaytonaProvider.image_from_dockerfile("envs/echo_env/server/Dockerfile")
+results = await asyncio.gather(*(run_one(i, image) for i in range(20)))
+```
+
+Full example: [`examples/daytona_tbench2_concurrent.py`](https://github.com/huggingface/OpenEnv/blob/main/examples/daytona_tbench2_concurrent.py)
+spins up N sandboxes concurrently and reports per-stage timing.
+
 ## Per-provider setup
 
 ### ACASandboxProvider
