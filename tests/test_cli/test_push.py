@@ -157,6 +157,32 @@ def test_push_authenticates_with_hf(tmp_path: Path) -> None:
         assert mock_whoami.called
 
 
+def test_push_authenticates_after_login(tmp_path: Path) -> None:
+    """Test that push verifies the username after an interactive login."""
+    _create_test_openenv_env(tmp_path)
+
+    with (
+        patch("openenv.cli.commands.push.whoami") as mock_whoami,
+        patch("openenv.cli.commands.push.login") as mock_login,
+        patch("openenv.cli.commands.push.HfApi") as mock_hf_api_class,
+    ):
+        mock_whoami.side_effect = [Exception("Not authenticated"), {"name": "testuser"}]
+        mock_login.return_value = None
+        mock_api = MagicMock()
+        mock_hf_api_class.return_value = mock_api
+
+        old_cwd = os.getcwd()
+        try:
+            os.chdir(str(tmp_path))
+            result = runner.invoke(app, ["push"])
+        finally:
+            os.chdir(old_cwd)
+
+        assert result.exit_code == 0, result.output
+        mock_login.assert_called_once()
+        assert mock_api.upload_folder.called
+
+
 def test_push_enables_web_interface_in_dockerfile(tmp_path: Path) -> None:
     """Test that push enables web interface in Dockerfile."""
     _create_test_openenv_env(tmp_path)

@@ -37,10 +37,12 @@ Examples:
 from __future__ import annotations
 
 import asyncio
+import ipaddress
 import json
 import os
 from abc import ABC, abstractmethod
 from typing import Any, Dict, Generic, Optional, Type, TYPE_CHECKING, TypeVar
+from urllib.parse import urlsplit
 
 from .client_types import StateT, StepResult
 from .containers.runtime import LocalDockerProvider, UVProvider
@@ -57,6 +59,41 @@ from websockets.asyncio.client import connect as ws_connect
 ActT = TypeVar("ActT")
 ObsT = TypeVar("ObsT")
 EnvClientT = TypeVar("EnvClientT", bound="EnvClient")
+
+_VALID_CLIENT_MODES = ("simulation", "production")
+
+
+def _normalize_mode(mode: Optional[str]) -> str:
+    """Resolve and validate the client communication mode."""
+    raw_mode = (
+        os.environ.get("OPENENV_CLIENT_MODE", "simulation") if mode is None else mode
+    )
+    normalized_mode = raw_mode.lower()
+    if normalized_mode not in _VALID_CLIENT_MODES:
+        raise ValueError(
+            f"Invalid mode: '{normalized_mode}'. Must be 'simulation' or 'production'. "
+            f"Set via constructor parameter or OPENENV_CLIENT_MODE environment variable."
+        )
+    return normalized_mode
+
+
+def _is_localhost_ws_url(ws_url: str) -> bool:
+    """Return True when the WebSocket URL targets the local loopback interface.
+
+    The hostname is parsed from the URL so that only the actual host is matched.
+    Substring matching is avoided because remote hosts such as
+    ``my-localhost-proxy.example.com`` or ``127.0.0.1.example.com`` must not be
+    treated as local.
+    """
+    hostname = urlsplit(ws_url).hostname
+    if hostname is None:
+        return False
+    if hostname == "localhost":
+        return True
+    try:
+        return ipaddress.ip_address(hostname).is_loopback
+    except ValueError:
+        return False
 
 
 class EnvClient(ABC, Generic[ActT, ObsT, StateT]):
@@ -131,20 +168,8 @@ class EnvClient(ABC, Generic[ActT, ObsT, StateT]):
                 `OPENENV_CLIENT_MODE` environment variable. Constructor parameter takes
                 precedence over environment variable. Case-insensitive.
         """
-        # Determine mode (constructor > env var > default)
-        if mode is None:
-            mode = os.environ.get("OPENENV_CLIENT_MODE", "simulation")
-
-        # Normalize and validate mode
-        mode = mode.lower()
-        if mode not in ("simulation", "production"):
-            raise ValueError(
-                f"Invalid mode: '{mode}'. Must be 'simulation' or 'production'. "
-                f"Set via constructor parameter or OPENENV_CLIENT_MODE environment variable."
-            )
-
         # Store mode (use object.__setattr__ to bypass immutability)
-        object.__setattr__(self, "_mode", mode)
+        object.__setattr__(self, "_mode", _normalize_mode(mode))
 
         # Convert HTTP URL to WebSocket URL
         ws_url = convert_to_ws_url(base_url)
@@ -177,36 +202,23 @@ class EnvClient(ABC, Generic[ActT, ObsT, StateT]):
         if self._ws is not None:
             return self
 
-        # Bypass proxy for localhost connections
-        ws_url_lower = self._ws_url.lower()
-        is_localhost = "localhost" in ws_url_lower or "127.0.0.1" in ws_url_lower
-
-        old_no_proxy = os.environ.get("NO_PROXY")
-        if is_localhost:
-            # Set NO_PROXY to bypass proxy for localhost
-            current_no_proxy = old_no_proxy or ""
-            if "localhost" not in current_no_proxy.lower():
-                os.environ["NO_PROXY"] = (
-                    f"{current_no_proxy},localhost,127.0.0.1"
-                    if current_no_proxy
-                    else "localhost,127.0.0.1"
-                )
+        # Disable the proxy for localhost connections via the per-connection
+        # `proxy` argument rather than mutating the process-global NO_PROXY
+        # env var: concurrent connect() calls (e.g. asyncio.gather over many
+        # env clients) would otherwise race on os.environ and leak state.
+        connect_kwargs: Dict[str, Any] = {}
+        if _is_localhost_ws_url(self._ws_url):
+            connect_kwargs["proxy"] = None
 
         try:
             self._ws = await ws_connect(
                 self._ws_url,
                 open_timeout=self._connect_timeout,
                 max_size=self._max_message_size,
+                **connect_kwargs,
             )
         except Exception as e:
             raise ConnectionError(f"Failed to connect to {self._ws_url}: {e}") from e
-        finally:
-            # Restore original NO_PROXY value
-            if is_localhost:
-                if old_no_proxy is None:
-                    os.environ.pop("NO_PROXY", None)
-                else:
-                    os.environ["NO_PROXY"] = old_no_proxy
 
         return self
 

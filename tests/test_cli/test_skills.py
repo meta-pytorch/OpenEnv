@@ -82,3 +82,20 @@ def test_skills_add_creates_agent_symlink(tmp_path: Path) -> None:
     target_path = tmp_path / ".agents" / "skills" / "openenv-cli"
     assert link_path.is_symlink()
     assert link_path.resolve() == target_path.resolve()
+
+
+def test_skills_add_creates_multiple_agent_symlinks(tmp_path: Path) -> None:
+    """Multiple assistant flags create symlinks to the same central skill."""
+    old_cwd = os.getcwd()
+    try:
+        os.chdir(tmp_path)
+        result = runner.invoke(app, ["skills", "add", "--claude", "--codex"])
+    finally:
+        os.chdir(old_cwd)
+
+    assert result.exit_code == 0
+    target_path = tmp_path / ".agents" / "skills" / "openenv-cli"
+    for agent_dir in (".claude", ".codex"):
+        link_path = tmp_path / agent_dir / "skills" / "openenv-cli"
+        assert link_path.is_symlink()
+        assert link_path.resolve() == target_path.resolve()
