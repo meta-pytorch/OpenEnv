@@ -117,6 +117,33 @@ class TestGenericEnvClientInstantiation:
         mock_provider.stop_container.assert_called_once_with()
         assert client._ws_url is None
 
+    @pytest.mark.asyncio
+    async def test_new_session_reuses_provider_server(self, mock_provider):
+        """Child sessions connect to the same server without owning the provider."""
+        websockets = []
+
+        async def fake_ws_connect(*args, **kwargs):
+            ws = AsyncMock()
+            websockets.append(ws)
+            return ws
+
+        with patch("openenv.core.env_client.ws_connect", side_effect=fake_ws_connect):
+            client = GenericEnvClient(provider=mock_provider)
+            await client.connect()
+            session = await client.new_session()
+
+            assert isinstance(session, GenericEnvClient)
+            assert session is not client
+            assert session._provider is None
+            assert session._base_url == "http://localhost:8000"
+            assert session._ws_url == "ws://localhost:8000/ws"
+            assert len(websockets) == 2
+            mock_provider.start_container.assert_called_once_with()
+
+            await client.close()
+
+        mock_provider.stop_container.assert_called_once_with()
+
 
 class TestGenericEnvClientStepPayload:
     """Test _step_payload method."""
@@ -583,6 +610,28 @@ class TestSyncEnvClientWrapper:
 
         assert result.observation == {"output": "hello"}
         assert result.reward == 1.0
+
+    def test_sync_client_new_session_reuses_provider_server(self, mock_provider):
+        """The sync wrapper exposes child sessions without another context manager."""
+        websockets = []
+
+        async def fake_ws_connect(*args, **kwargs):
+            ws = AsyncMock()
+            websockets.append(ws)
+            return ws
+
+        with patch("openenv.core.env_client.ws_connect", side_effect=fake_ws_connect):
+            with GenericEnvClient(provider=mock_provider).sync() as client:
+                session = client.new_session()
+
+                assert isinstance(session, SyncEnvClient)
+                assert isinstance(session.async_client, GenericEnvClient)
+                assert session.async_client._provider is None
+                assert session.async_client._base_url == "http://localhost:8000"
+                assert len(websockets) == 2
+
+        mock_provider.start_container.assert_called_once_with()
+        mock_provider.stop_container.assert_called_once_with()
 
 
 # ============================================================================
