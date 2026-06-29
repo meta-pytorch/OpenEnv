@@ -29,6 +29,8 @@
       title: MCP Environment Lifecycle
     - local: guides/connecting
       title: Connecting to Servers
+    - local: guides/runtime-providers
+      title: Runtime Providers
     title: Advanced Guides
   title: Guides
 - sections:
