@@ -1,3 +1,9 @@
+# Copyright (c) Meta Platforms, Inc. and affiliates.
+# All rights reserved.
+#
+# This source code is licensed under the BSD-style license found in the
+# LICENSE file in the root directory of this source tree.
+
 """Hugging Face-backed provider for OpenEnv environment servers."""
 
 from __future__ import annotations
@@ -9,12 +15,12 @@ import time
 from contextlib import suppress
 from typing import Any
 
+from fastapi import FastAPI, Request, Response, WebSocket
+from huggingface_hub import HfApi, JobStage
+from huggingface_hub.utils import get_token
 import httpx
 import requests
 import uvicorn
-from fastapi import FastAPI, Request, Response, WebSocket
-from huggingface_hub import HfApi
-from huggingface_hub.utils import get_token
 from starlette.websockets import WebSocketDisconnect
 from websockets.asyncio.client import connect as ws_connect
 from websockets.exceptions import ConnectionClosed
@@ -27,6 +33,12 @@ _SERVER_COMMAND = "server"
 _JOB_TIMEOUT = "24h"
 _STARTUP_TIMEOUT_S = 120.0
 _MAX_WS_MESSAGE_SIZE = 100 * 1024 * 1024
+_TERMINAL_JOB_STAGES = {
+    JobStage.COMPLETED.value,
+    JobStage.CANCELED.value,
+    JobStage.ERROR.value,
+    JobStage.DELETED.value,
+}
 _HOP_BY_HOP_HEADERS = {
     "connection",
     "content-encoding",
@@ -94,13 +106,19 @@ class _LocalAuthProxy:
                 if key.lower() not in _HOP_BY_HOP_HEADERS
             }
             headers["authorization"] = f"Bearer {self.token}"
-            async with httpx.AsyncClient(follow_redirects=True) as client:
-                upstream = await client.request(
-                    request.method,
-                    target,
-                    content=await request.body(),
-                    headers=headers,
-                    timeout=60.0,
+            try:
+                async with httpx.AsyncClient(follow_redirects=True) as client:
+                    upstream = await client.request(
+                        request.method,
+                        target,
+                        content=await request.body(),
+                        headers=headers,
+                        timeout=60.0,
+                    )
+            except httpx.HTTPError:
+                return Response(
+                    content=b"upstream HF job unreachable",
+                    status_code=502,
                 )
             response_headers = {
                 key: value
@@ -158,6 +176,7 @@ class _LocalAuthProxy:
         return self.base_url
 
     async def _client_to_upstream(self, websocket: WebSocket, upstream: Any) -> None:
+        # EnvClient sends JSON text frames; binary frames are only relayed downstream.
         async for message in websocket.iter_text():
             await upstream.send(message)
 
@@ -200,9 +219,15 @@ class HFSandboxProvider(ContainerProvider):
         image: str | None = None,
         port: int | None = None,
         env_vars: dict[str, str] | None = None,
+        **kwargs: Any,
     ) -> str:
         if self._job is not None:
             raise RuntimeError("HFSandboxProvider already has an active job")
+        if kwargs:
+            unsupported = ", ".join(sorted(kwargs))
+            raise ValueError(
+                f"HFSandboxProvider does not support start_container kwargs: {unsupported}"
+            )
 
         if port not in (None, _DEFAULT_PORT):
             raise ValueError(
@@ -233,6 +258,13 @@ class HFSandboxProvider(ContainerProvider):
         deadline = time.time() + _STARTUP_TIMEOUT_S
         target_url = _job_port_url(self._job, _DEFAULT_PORT)
         while target_url is None and time.time() < deadline:
+            stage = getattr(getattr(self._job, "status", None), "stage", None)
+            stage_value = getattr(stage, "value", stage)
+            if stage_value in _TERMINAL_JOB_STAGES:
+                raise RuntimeError(
+                    f"HF job {self._job.id} terminated early (stage={stage_value}) "
+                    f"before exposing port {_DEFAULT_PORT}"
+                )
             time.sleep(0.5)
             self._job = self._api.inspect_job(
                 job_id=self._job.id,
@@ -245,6 +277,11 @@ class HFSandboxProvider(ContainerProvider):
                 f"HF job did not expose port {_DEFAULT_PORT} within "
                 f"{_STARTUP_TIMEOUT_S:.1f}s"
             )
+        if not target_url.startswith("https://"):
+            raise RuntimeError(
+                "HF sandbox job exposed a non-HTTPS URL. OpenEnv requires "
+                "https/wss transport."
+            )
         return target_url
 
     def stop_container(self) -> None:
@@ -252,21 +289,27 @@ class HFSandboxProvider(ContainerProvider):
             self._proxy.stop()
             self._proxy = None
         if self._job is not None:
-            self._api.cancel_job(
-                job_id=self._job.id,
-                namespace=self._job.owner.name,
-                token=self._token,
-            )
+            job = self._job
+            token = self._token
             self._job = None
             self._token = None
+            with suppress(Exception):
+                self._api.cancel_job(
+                    job_id=job.id,
+                    namespace=job.owner.name,
+                    token=token,
+                )
 
     def wait_for_ready(self, base_url: str, timeout_s: float = 120.0) -> None:
         deadline = time.time() + timeout_s
         health_url = f"{base_url}/health"
         while time.time() < deadline:
-            response = requests.get(health_url, timeout=5.0)
-            if response.status_code == 200:
-                return
+            try:
+                response = requests.get(health_url, timeout=5.0)
+                if response.status_code == 200:
+                    return
+            except requests.exceptions.RequestException:
+                pass
             time.sleep(1.0)
         raise TimeoutError(
             f"HF sandbox job at {base_url} did not become ready within {timeout_s}s"
