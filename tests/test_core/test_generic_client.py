@@ -85,6 +85,38 @@ class TestGenericEnvClientInstantiation:
         assert client._connect_timeout == 30.0
         assert client._message_timeout == 120.0
 
+    def test_instantiation_with_provider_only(self, mock_provider):
+        """Test provider-owned startup without an initial base URL."""
+        client = GenericEnvClient(provider=mock_provider)
+        assert client._ws_url is None
+
+    def test_instantiation_requires_base_url_or_provider(self):
+        """Test that clients need either a URL or a provider."""
+        with pytest.raises(ValueError, match="requires either base_url or provider"):
+            GenericEnvClient()
+
+    @pytest.mark.asyncio
+    async def test_connect_starts_provider_when_base_url_omitted(self, mock_provider):
+        """The outer client can start a provider that owns its image/source."""
+        ws = MagicMock()
+        ws.send = AsyncMock()
+        ws.close = AsyncMock()
+
+        with patch("openenv.core.env_client.ws_connect", AsyncMock(return_value=ws)):
+            client = GenericEnvClient(provider=mock_provider)
+            await client.connect()
+
+            mock_provider.start_container.assert_called_once_with()
+            mock_provider.wait_for_ready.assert_called_once_with(
+                "http://localhost:8000"
+            )
+            assert client._ws_url == "ws://localhost:8000/ws"
+
+            await client.close()
+
+        mock_provider.stop_container.assert_called_once_with()
+        assert client._ws_url is None
+
 
 class TestGenericEnvClientStepPayload:
     """Test _step_payload method."""
