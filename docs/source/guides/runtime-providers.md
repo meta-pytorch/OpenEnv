@@ -14,6 +14,7 @@ is a one-line change.
 | `UVProvider` | Local process via `uv` (no container) | core | ✅ |
 | `DaytonaProvider` | Daytona cloud sandboxes | `pip install openenv[daytona]` | ✅ |
 | `ACASandboxProvider` | Azure Container Apps Sandboxes | `pip install openenv[aca]` | ✅ |
+| `ModalProvider` | Modal sandboxes | `pip install openenv[modal]` | ✅ |
 | `KubernetesProvider` | Kubernetes cluster | core | 🚧 planned |
 
 Cloud-provider SDKs are optional extras, imported lazily, so installing core
@@ -137,6 +138,20 @@ from openenv.core.containers.runtime import LocalDockerProvider
 
 provider = LocalDockerProvider()
 ```
+
+### ModalProvider
+
+Runs the server in a Modal sandbox over an encrypted tunnel. Requires a
+configured Modal account (`modal setup`).
+
+```python
+from openenv.core.containers.runtime.modal_provider import ModalProvider
+
+image = ModalProvider.image_from_dockerfile("envs/echo_env/server/Dockerfile")
+provider = ModalProvider(app_name="openenv")
+```
+
+Full example: [`examples/modal_echo_env.py`](https://github.com/huggingface/OpenEnv/blob/main/examples/modal_echo_env.py).
 
 ### UVProvider
 
