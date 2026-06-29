@@ -28,9 +28,10 @@ RUN python -m playwright install chromium && chmod -R a+rx /usr/local/share/ms-p
 
 # Install MiniWoB++ from a pinned snapshot to avoid flaky Hub-time git clones.
 ARG MINIWOB_COMMIT=7fd85d71a4b60325c6585396ec4f48377d049838
-RUN mkdir -p /app/miniwob-plusplus && \
+RUN mkdir -p /usr/local/share/miniwob-plusplus && \
     curl -L "https://github.com/Farama-Foundation/miniwob-plusplus/archive/${MINIWOB_COMMIT}.tar.gz" \
-    | tar -xz --strip-components=1 -C /app/miniwob-plusplus
+    | tar -xz --strip-components=1 -C /usr/local/share/miniwob-plusplus && \
+    chmod -R a+rX /usr/local/share/miniwob-plusplus
 
 # Set environment variables
 ENV PYTHONUNBUFFERED=1
@@ -41,7 +42,7 @@ ENV BROWSERGYM_VIEWPORT_WIDTH=1280
 ENV BROWSERGYM_VIEWPORT_HEIGHT=720
 ENV BROWSERGYM_TIMEOUT=10000
 ENV BROWSERGYM_PORT=8000
-ENV MINIWOB_HTML_DIR=/app/miniwob-plusplus/miniwob/html
+ENV MINIWOB_HTML_DIR=/usr/local/share/miniwob-plusplus/miniwob/html
 ENV MINIWOB_HTTP_PORT=8888
 ENV MINIWOB_URL=http://127.0.0.1:8888/miniwob/
 ENV ENABLE_WEB_INTERFACE=true

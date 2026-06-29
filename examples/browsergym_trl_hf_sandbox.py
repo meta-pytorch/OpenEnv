@@ -61,7 +61,7 @@ SANDBOX_ENV_VARS = {
     "BROWSERGYM_VIEWPORT_WIDTH": "332",
     "BROWSERGYM_VIEWPORT_HEIGHT": "214",
     "PLAYWRIGHT_BROWSERS_PATH": "/usr/local/share/ms-playwright",
-    "MINIWOB_URL": "file:///app/miniwob-plusplus/miniwob/html/miniwob/",
+    "MINIWOB_URL": "file:///usr/local/share/miniwob-plusplus/miniwob/html/miniwob/",
 }
 
 SYSTEM_PROMPT = """You control a web browser to complete tasks.
