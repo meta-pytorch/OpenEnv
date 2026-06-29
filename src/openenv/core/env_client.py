@@ -40,6 +40,7 @@ import asyncio
 import ipaddress
 import json
 import os
+import time
 from abc import ABC, abstractmethod
 from typing import Any, Dict, Generic, Optional, Type, TYPE_CHECKING, TypeVar
 from urllib.parse import urlsplit
@@ -190,6 +191,7 @@ class EnvClient(ABC, Generic[ActT, ObsT, StateT]):
         self._websocket_ping_timeout_s = websocket_ping_timeout_s
         self._provider = provider
         self._ws: Optional[ClientConnection] = None
+        self._ws_loop: Optional[asyncio.AbstractEventLoop] = None
 
     def __setattr__(self, name: str, value: Any) -> None:
         """Prevent modification of _mode after initialization."""
@@ -208,7 +210,19 @@ class EnvClient(ABC, Generic[ActT, ObsT, StateT]):
             ConnectionError: If connection cannot be established
         """
         if self._ws is not None:
-            return self
+            if self._ws_loop is asyncio.get_running_loop():
+                return self
+            # Connected from a different event loop than the one running
+            # now -- e.g. `client = await Client.from_env(...)` inside
+            # `asyncio.run(...)`, then `client.sync()` drives every later
+            # call on `SyncEnvClient`'s own dedicated background loop. The
+            # websocket object is bound to internals of the original loop,
+            # which is typically already closed by the time we get here, so
+            # it cannot be reused (or even cleanly closed) from this loop.
+            # Drop the stale reference and reconnect fresh below rather than
+            # silently no-op-ing onto a dead connection.
+            self._ws = None
+            self._ws_loop = None
 
         # Disable the proxy for localhost connections via the per-connection
         # `proxy` argument rather than mutating the process-global NO_PROXY
@@ -227,6 +241,7 @@ class EnvClient(ABC, Generic[ActT, ObsT, StateT]):
                 ping_timeout=self._websocket_ping_timeout_s,
                 **connect_kwargs,
             )
+            self._ws_loop = asyncio.get_running_loop()
         except Exception as e:
             raise ConnectionError(f"Failed to connect to {self._ws_url}: {e}") from e
 
@@ -235,21 +250,36 @@ class EnvClient(ABC, Generic[ActT, ObsT, StateT]):
     async def disconnect(self) -> None:
         """Close the WebSocket connection."""
         if self._ws is not None:
+            ws = self._ws
+            ws_loop = self._ws_loop
+            same_loop = ws_loop is asyncio.get_running_loop()
             try:
-                # Send close message
-                await self._send({"type": "close"})
+                if same_loop:
+                    await ws.send(json.dumps({"type": "close"}))
             except Exception:
                 pass  # Best effort
             try:
-                await self._ws.close()
+                if same_loop:
+                    await ws.close()
             except Exception:
                 pass
             self._ws = None
+            self._ws_loop = None
 
     async def _ensure_connected(self) -> None:
-        """Ensure WebSocket connection is established."""
-        if self._ws is None:
-            await self.connect()
+        """Ensure WebSocket connection is established on the current loop.
+
+        Always delegates to `connect()` rather than pre-checking `self._ws is
+        None`: `connect()` itself is the one that knows whether an existing
+        `_ws` is reusable (same event loop) or stale (a different one, e.g.
+        from a prior `from_env()` call now being driven through `.sync()`'s
+        own loop). A pre-check here that only looked at `_ws is None` would
+        skip `connect()` entirely whenever `_ws` is already set -- including
+        the stale-loop case -- so the reconnect logic would never run for
+        callers that never explicitly call `.connect()` themselves (e.g.
+        `client.sync().reset()` right after `from_env()`).
+        """
+        await self.connect()
 
     async def _send(self, message: Dict[str, Any]) -> None:
         """Send a message over the WebSocket."""
@@ -395,11 +425,29 @@ class EnvClient(ABC, Generic[ActT, ObsT, StateT]):
                         "provider_kwargs cannot be used when supplying a provider instance"
                     )
 
-            base_url = provider.start(**start_args)
-            provider.wait_for_ready()
+            try:
+                context_timeout_s = getattr(provider, "context_timeout_s", None)
+                deadline = (
+                    time.monotonic() + context_timeout_s
+                    if context_timeout_s is not None
+                    else None
+                )
+                base_url = provider.start(**start_args)
+                if deadline is None:
+                    provider.wait_for_ready()
+                else:
+                    provider.wait_for_ready(
+                        timeout_s=max(0.0, deadline - time.monotonic())
+                    )
 
-            client = cls(base_url=base_url, provider=provider)
-            await client.connect()
+                client = cls(base_url=base_url, provider=provider)
+                await client.connect()
+            except Exception:
+                # No EnvClient may exist yet for the caller to close(), so
+                # this is the only chance to release the spawned process and
+                # (for a git+ project_path) the temp clone directory.
+                provider.stop()
+                raise
             return client
 
     @abstractmethod
