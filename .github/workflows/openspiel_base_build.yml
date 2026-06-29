@@ -58,7 +58,7 @@ jobs:
 
   # Job 2: Build OpenSpiel base image (depends on base)
   build-openspiel-base:
-    runs-on: 8-core-ubuntu
+    runs-on: ubuntu-latest
     needs: build-base  # Wait for base image to be built
     permissions:
       contents: read
