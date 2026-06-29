@@ -145,6 +145,8 @@ class EnvClient(ABC, Generic[ActT, ObsT, StateT]):
         max_message_size_mb: float = 100.0,
         provider: Optional["ContainerProvider | RuntimeProvider"] = None,
         mode: Optional[str] = None,
+        ping_interval_s: Optional[float] = 20.0,
+        ping_timeout_s: Optional[float] = 20.0,
     ):
         """
         Initialize environment client.
@@ -167,6 +169,14 @@ class EnvClient(ABC, Generic[ActT, ObsT, StateT]):
                 `'production'` for MCP JSON-RPC protocol. Can also be set via the
                 `OPENENV_CLIENT_MODE` environment variable. Constructor parameter takes
                 precedence over environment variable. Case-insensitive.
+            ping_interval_s (`float`, *optional*, defaults to `20.0`):
+                Interval in seconds between WebSocket keepalive pings. Set to `None`
+                to disable client-side keepalive, which is required for sandbox
+                tunnels that do not forward ping/pong frames (e.g. some cloud
+                providers); otherwise the connection is closed on the ping timeout.
+            ping_timeout_s (`float`, *optional*, defaults to `20.0`):
+                Seconds to wait for a pong before closing the connection. Set to
+                `None` to disable the pong timeout.
         """
         # Store mode (use object.__setattr__ to bypass immutability)
         object.__setattr__(self, "_mode", _normalize_mode(mode))
@@ -181,6 +191,8 @@ class EnvClient(ABC, Generic[ActT, ObsT, StateT]):
             max_message_size_mb * 1024 * 1024
         )  # Convert MB to bytes
         self._provider = provider
+        self._ping_interval = ping_interval_s
+        self._ping_timeout = ping_timeout_s
         self._ws: Optional[ClientConnection] = None
 
     def __setattr__(self, name: str, value: Any) -> None:
@@ -215,6 +227,8 @@ class EnvClient(ABC, Generic[ActT, ObsT, StateT]):
                 self._ws_url,
                 open_timeout=self._connect_timeout,
                 max_size=self._max_message_size,
+                ping_interval=self._ping_interval,
+                ping_timeout=self._ping_timeout,
                 **connect_kwargs,
             )
         except Exception as e:

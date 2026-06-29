@@ -694,6 +694,46 @@ class TestGenericEnvClientConnection:
 
         assert "NO_PROXY" not in os.environ
 
+    @pytest.mark.asyncio
+    async def test_keepalive_pings_forwarded_by_default(self):
+        """ws_connect receives the default keepalive (20s) unless overridden."""
+        observed = {}
+
+        async def fake_ws_connect(*args, **kwargs):
+            observed["ping_interval"] = kwargs.get("ping_interval", "MISSING")
+            observed["ping_timeout"] = kwargs.get("ping_timeout", "MISSING")
+            return MagicMock()
+
+        client = GenericEnvClient(base_url="ws://remote.example.com:8000")
+
+        with patch("openenv.core.env_client.ws_connect", side_effect=fake_ws_connect):
+            await client.connect()
+
+        assert observed["ping_interval"] == 20.0
+        assert observed["ping_timeout"] == 20.0
+
+    @pytest.mark.asyncio
+    async def test_keepalive_can_be_disabled(self):
+        """ping_interval_s=None disables keepalive for tunnels that drop ping/pong."""
+        observed = {}
+
+        async def fake_ws_connect(*args, **kwargs):
+            observed["ping_interval"] = kwargs.get("ping_interval", "MISSING")
+            observed["ping_timeout"] = kwargs.get("ping_timeout", "MISSING")
+            return MagicMock()
+
+        client = GenericEnvClient(
+            base_url="ws://remote.example.com:8000",
+            ping_interval_s=None,
+            ping_timeout_s=None,
+        )
+
+        with patch("openenv.core.env_client.ws_connect", side_effect=fake_ws_connect):
+            await client.connect()
+
+        assert observed["ping_interval"] is None
+        assert observed["ping_timeout"] is None
+
 
 # ============================================================================
 # Integration Tests (require running server)
