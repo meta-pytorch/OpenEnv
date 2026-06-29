@@ -61,12 +61,12 @@ their current control-plane APIs unchanged.
 ## Installation
 
 ```bash
-pip install "openenv[core]"
+pip install "openenv"
 ```
 
 For development:
 ```bash
-pip install "openenv[core]"
+pip install "openenv"
 ```
 
 ## Quick Start
