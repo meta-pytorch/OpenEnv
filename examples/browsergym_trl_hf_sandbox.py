@@ -104,8 +104,8 @@ with BrowserGymEnv(
 ).sync() as browsergym_env:
 
     class BrowserGymLLMEnv:
-        def __init__(self, client=browsergym_env):
-            self.client = client
+        def __init__(self):
+            self.client = browsergym_env.new_session()
             self.reward = 0.0
             self._done = False
             self._step_count = 0

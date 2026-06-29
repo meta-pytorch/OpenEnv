@@ -37,6 +37,7 @@ Examples:
 from __future__ import annotations
 
 import asyncio
+import inspect
 import ipaddress
 import json
 import os
@@ -174,6 +175,7 @@ class EnvClient(ABC, Generic[ActT, ObsT, StateT]):
         # Store mode (use object.__setattr__ to bypass immutability)
         object.__setattr__(self, "_mode", _normalize_mode(mode))
 
+        self._base_url: Optional[str] = None
         self._ws_url: Optional[str] = None
         self._connect_timeout = connect_timeout_s
         self._message_timeout = message_timeout_s
@@ -183,10 +185,12 @@ class EnvClient(ABC, Generic[ActT, ObsT, StateT]):
         self._provider = provider
         self._start_provider_on_connect = base_url is None
         self._ws: Optional[ClientConnection] = None
+        self._child_clients: list[EnvClient[Any, Any, Any]] = []
         if base_url is not None:
             self._set_base_url(base_url)
 
     def _set_base_url(self, base_url: str) -> None:
+        self._base_url = base_url.rstrip("/")
         ws_url = convert_to_ws_url(base_url)
         self._ws_url = f"{ws_url}/ws"
 
@@ -204,6 +208,46 @@ class EnvClient(ABC, Generic[ActT, ObsT, StateT]):
         else:
             raise TypeError("provider must define start_container() or start().")
         self._set_base_url(base_url)
+
+    def _create_session_client(self: EnvClientT, *, track: bool = True) -> EnvClientT:
+        self._start_provider_if_needed()
+        if self._base_url is None:
+            raise RuntimeError("EnvClient has no base URL.")
+
+        client_cls = type(self)
+        signature = inspect.signature(client_cls)
+        accepts_kwargs = any(
+            parameter.kind == inspect.Parameter.VAR_KEYWORD
+            for parameter in signature.parameters.values()
+        )
+        init_kwargs: dict[str, Any] = {
+            "base_url": self._base_url,
+            "connect_timeout_s": self._connect_timeout,
+            "message_timeout_s": self._message_timeout,
+        }
+        optional_kwargs = {
+            "max_message_size_mb": self._max_message_size / (1024 * 1024),
+            "mode": self._mode,
+        }
+        for key, value in optional_kwargs.items():
+            if accepts_kwargs or key in signature.parameters:
+                init_kwargs[key] = value
+
+        client = client_cls(**init_kwargs)
+        if track:
+            self._child_clients.append(client)
+        return client
+
+    async def new_session(self: EnvClientT) -> EnvClientT:
+        """Create a new WebSocket session against the same environment server."""
+        client = self._create_session_client(track=False)
+        try:
+            await client.connect()
+        except Exception:
+            await client.close()
+            raise
+        self._child_clients.append(client)
+        return client
 
     def __setattr__(self, name: str, value: Any) -> None:
         """Prevent modification of _mode after initialization."""
@@ -494,16 +538,24 @@ class EnvClient(ABC, Generic[ActT, ObsT, StateT]):
         If this client was created via from_docker_image() or from_env(),
         this will also stop and remove the associated container/process.
         """
-        await self.disconnect()
-
-        if self._provider is not None:
-            # Handle both ContainerProvider and RuntimeProvider
-            if hasattr(self._provider, "stop_container"):
-                self._provider.stop_container()
-            elif hasattr(self._provider, "stop"):
-                self._provider.stop()
-        if self._start_provider_on_connect:
-            self._ws_url = None
+        children = self._child_clients
+        self._child_clients = []
+        try:
+            for child in reversed(children):
+                await child.close()
+        finally:
+            try:
+                await self.disconnect()
+            finally:
+                if self._provider is not None:
+                    # Handle both ContainerProvider and RuntimeProvider
+                    if hasattr(self._provider, "stop_container"):
+                        self._provider.stop_container()
+                    elif hasattr(self._provider, "stop"):
+                        self._provider.stop()
+                if self._start_provider_on_connect:
+                    self._base_url = None
+                    self._ws_url = None
 
     async def __aenter__(self) -> "EnvClient":
         """Enter async context manager, ensuring connection is established."""
