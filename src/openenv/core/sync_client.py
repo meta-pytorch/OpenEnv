@@ -89,7 +89,6 @@ class SyncEnvClient(Generic[ActT, ObsT, StateT]):
         self._loop_ready = threading.Event()
         self._loop_init_lock = threading.Lock()
         self._async_wrapper_cache: Dict[str, Any] = {}
-        self._child_clients: list[SyncEnvClient[ActT, ObsT, StateT]] = []
 
     def _run_loop_forever(self) -> None:
         """Run a dedicated event loop for this sync client."""
@@ -211,28 +210,10 @@ class SyncEnvClient(Generic[ActT, ObsT, StateT]):
 
     def close(self) -> None:
         """Close the connection and clean up resources."""
-        children = self._child_clients
-        self._child_clients = []
         try:
-            for child in reversed(children):
-                child.close()
+            self._run(self._async.close())
         finally:
-            try:
-                self._run(self._async.close())
-            finally:
-                self._stop_loop()
-
-    def new_session(self) -> "SyncEnvClient[ActT, ObsT, StateT]":
-        """Create a new synchronous WebSocket session on the same server."""
-        async_client = self._async._create_session_client(track=False)
-        sync_client = SyncEnvClient(async_client)
-        try:
-            sync_client.connect()
-        except Exception:
-            sync_client.close()
-            raise
-        self._child_clients.append(sync_client)
-        return sync_client
+            self._stop_loop()
 
     def __enter__(self) -> "SyncEnvClient[ActT, ObsT, StateT]":
         """Enter context manager, establishing connection."""
