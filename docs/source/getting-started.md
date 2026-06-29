@@ -13,6 +13,21 @@ pip install openenv
 > projects can depend on `openenv[core]` when they only need the server and
 > client libraries.
 
+### Optional dependencies
+
+OpenEnv ships optional extras for specific integrations. Install them with
+`pip install openenv[<extra>]`:
+
+| Extra | Pulls in |
+|-------|----------|
+| `core` | Server + client runtime only (no CLI) |
+| `cli` | The `openenv` command-line interface |
+| `all` | `core` + `cli` |
+| `inspect` | The Inspect AI evaluation harness |
+
+Cloud sandbox providers ship their own extras (`daytona`, `aca`); see the Core
+API reference.
+
 ## Try an Environment
 
 Use `AutoEnv` and `AutoAction` when you want OpenEnv to find the matching client
