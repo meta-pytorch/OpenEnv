@@ -667,6 +667,26 @@ class TestGenericEnvClientConnection:
         assert os.environ["NO_PROXY"] == "example.com"
 
     @pytest.mark.asyncio
+    async def test_websocket_ping_options_forward_to_connect(self):
+        observed = {}
+
+        async def fake_ws_connect(*args, **kwargs):
+            observed["ping_interval"] = kwargs.get("ping_interval", "MISSING")
+            observed["ping_timeout"] = kwargs.get("ping_timeout", "MISSING")
+            return MagicMock()
+
+        client = GenericEnvClient(
+            base_url="ws://remote.example.com:8000",
+            websocket_ping_interval_s=None,
+            websocket_ping_timeout_s=None,
+        )
+
+        with patch("openenv.core.env_client.ws_connect", side_effect=fake_ws_connect):
+            await client.connect()
+
+        assert observed == {"ping_interval": None, "ping_timeout": None}
+
+    @pytest.mark.asyncio
     async def test_concurrent_localhost_connects_do_not_leak_no_proxy(
         self, monkeypatch
     ):

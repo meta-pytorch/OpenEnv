@@ -143,6 +143,8 @@ class EnvClient(ABC, Generic[ActT, ObsT, StateT]):
         connect_timeout_s: float = 10.0,
         message_timeout_s: float = 60.0,
         max_message_size_mb: float = 100.0,
+        websocket_ping_interval_s: Optional[float] = 20.0,
+        websocket_ping_timeout_s: Optional[float] = 20.0,
         provider: Optional["ContainerProvider | RuntimeProvider"] = None,
         mode: Optional[str] = None,
     ):
@@ -160,6 +162,10 @@ class EnvClient(ABC, Generic[ActT, ObsT, StateT]):
             max_message_size_mb (`float`, *optional*, defaults to `100.0`):
                 Maximum WebSocket message size in megabytes. Default 100MB to handle large
                 observations (screenshots, DOM, etc.).
+            websocket_ping_interval_s (`float` or `None`, *optional*, defaults to `20.0`):
+                WebSocket keepalive ping interval. Pass `None` to disable.
+            websocket_ping_timeout_s (`float` or `None`, *optional*, defaults to `20.0`):
+                WebSocket keepalive pong timeout. Pass `None` to disable.
             provider (`ContainerProvider` or `RuntimeProvider`, *optional*):
                 Container/runtime provider for lifecycle management.
             mode (`str`, *optional*):
@@ -180,6 +186,8 @@ class EnvClient(ABC, Generic[ActT, ObsT, StateT]):
         self._max_message_size = int(
             max_message_size_mb * 1024 * 1024
         )  # Convert MB to bytes
+        self._websocket_ping_interval_s = websocket_ping_interval_s
+        self._websocket_ping_timeout_s = websocket_ping_timeout_s
         self._provider = provider
         self._ws: Optional[ClientConnection] = None
 
@@ -215,6 +223,8 @@ class EnvClient(ABC, Generic[ActT, ObsT, StateT]):
                 self._ws_url,
                 open_timeout=self._connect_timeout,
                 max_size=self._max_message_size,
+                ping_interval=self._websocket_ping_interval_s,
+                ping_timeout=self._websocket_ping_timeout_s,
                 **connect_kwargs,
             )
         except Exception as e:
