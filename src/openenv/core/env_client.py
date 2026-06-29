@@ -37,12 +37,12 @@ Examples:
 from __future__ import annotations
 
 import asyncio
+import ipaddress
 import json
 import os
 from abc import ABC, abstractmethod
-from collections.abc import Iterator
-from contextlib import contextmanager
 from typing import Any, Dict, Generic, Optional, Type, TYPE_CHECKING, TypeVar
+from urllib.parse import urlsplit
 
 from .client_types import StateT, StepResult
 from .containers.runtime import LocalDockerProvider, UVProvider
@@ -78,34 +78,22 @@ def _normalize_mode(mode: Optional[str]) -> str:
 
 
 def _is_localhost_ws_url(ws_url: str) -> bool:
-    """Return True when the WebSocket URL targets localhost."""
-    ws_url_lower = ws_url.lower()
-    return "localhost" in ws_url_lower or "127.0.0.1" in ws_url_lower
+    """Return True when the WebSocket URL targets the local loopback interface.
 
-
-@contextmanager
-def _localhost_no_proxy(ws_url: str) -> Iterator[None]:
-    """Temporarily ensure localhost websocket connections bypass proxies."""
-    if not _is_localhost_ws_url(ws_url):
-        yield
-        return
-
-    old_no_proxy = os.environ.get("NO_PROXY")
-    current_no_proxy = old_no_proxy or ""
-    if "localhost" not in current_no_proxy.lower():
-        os.environ["NO_PROXY"] = (
-            f"{current_no_proxy},localhost,127.0.0.1"
-            if current_no_proxy
-            else "localhost,127.0.0.1"
-        )
-
+    The hostname is parsed from the URL so that only the actual host is matched.
+    Substring matching is avoided because remote hosts such as
+    ``my-localhost-proxy.example.com`` or ``127.0.0.1.example.com`` must not be
+    treated as local.
+    """
+    hostname = urlsplit(ws_url).hostname
+    if hostname is None:
+        return False
+    if hostname == "localhost":
+        return True
     try:
-        yield
-    finally:
-        if old_no_proxy is None:
-            os.environ.pop("NO_PROXY", None)
-        else:
-            os.environ["NO_PROXY"] = old_no_proxy
+        return ipaddress.ip_address(hostname).is_loopback
+    except ValueError:
+        return False
 
 
 class EnvClient(ABC, Generic[ActT, ObsT, StateT]):
@@ -155,6 +143,8 @@ class EnvClient(ABC, Generic[ActT, ObsT, StateT]):
         connect_timeout_s: float = 10.0,
         message_timeout_s: float = 60.0,
         max_message_size_mb: float = 100.0,
+        websocket_ping_interval_s: Optional[float] = 20.0,
+        websocket_ping_timeout_s: Optional[float] = 20.0,
         provider: Optional["ContainerProvider | RuntimeProvider"] = None,
         mode: Optional[str] = None,
     ):
@@ -172,6 +162,10 @@ class EnvClient(ABC, Generic[ActT, ObsT, StateT]):
             max_message_size_mb (`float`, *optional*, defaults to `100.0`):
                 Maximum WebSocket message size in megabytes. Default 100MB to handle large
                 observations (screenshots, DOM, etc.).
+            websocket_ping_interval_s (`float` or `None`, *optional*, defaults to `20.0`):
+                WebSocket keepalive ping interval. Pass `None` to disable.
+            websocket_ping_timeout_s (`float` or `None`, *optional*, defaults to `20.0`):
+                WebSocket keepalive pong timeout. Pass `None` to disable.
             provider (`ContainerProvider` or `RuntimeProvider`, *optional*):
                 Container/runtime provider for lifecycle management.
             mode (`str`, *optional*):
@@ -192,6 +186,8 @@ class EnvClient(ABC, Generic[ActT, ObsT, StateT]):
         self._max_message_size = int(
             max_message_size_mb * 1024 * 1024
         )  # Convert MB to bytes
+        self._websocket_ping_interval_s = websocket_ping_interval_s
+        self._websocket_ping_timeout_s = websocket_ping_timeout_s
         self._provider = provider
         self._ws: Optional[ClientConnection] = None
 
@@ -214,13 +210,23 @@ class EnvClient(ABC, Generic[ActT, ObsT, StateT]):
         if self._ws is not None:
             return self
 
+        # Disable the proxy for localhost connections via the per-connection
+        # `proxy` argument rather than mutating the process-global NO_PROXY
+        # env var: concurrent connect() calls (e.g. asyncio.gather over many
+        # env clients) would otherwise race on os.environ and leak state.
+        connect_kwargs: Dict[str, Any] = {}
+        if _is_localhost_ws_url(self._ws_url):
+            connect_kwargs["proxy"] = None
+
         try:
-            with _localhost_no_proxy(self._ws_url):
-                self._ws = await ws_connect(
-                    self._ws_url,
-                    open_timeout=self._connect_timeout,
-                    max_size=self._max_message_size,
-                )
+            self._ws = await ws_connect(
+                self._ws_url,
+                open_timeout=self._connect_timeout,
+                max_size=self._max_message_size,
+                ping_interval=self._websocket_ping_interval_s,
+                ping_timeout=self._websocket_ping_timeout_s,
+                **connect_kwargs,
+            )
         except Exception as e:
             raise ConnectionError(f"Failed to connect to {self._ws_url}: {e}") from e
 

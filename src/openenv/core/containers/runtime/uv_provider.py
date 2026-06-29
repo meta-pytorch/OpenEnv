@@ -71,7 +71,11 @@ def _poll_health(health_url: str, timeout_s: float) -> None:
             if response.status_code == 200:
                 return
         except requests.RequestException:
-            continue
+            # Server not accepting connections yet. Fall through to the sleep
+            # below rather than `continue`-ing: a refused connection returns
+            # immediately, so retrying without a pause busy-spins a CPU core
+            # for the whole timeout window while the server boots.
+            pass
 
         time.sleep(0.5)
 
@@ -182,18 +186,22 @@ class UVProvider(RuntimeProvider):
         self._base_url = f"http://{client_host}:{bind_port}"
         return self._base_url
 
-    def wait_for_ready(self, timeout_s: float = 60.0) -> None:
+    def wait_for_ready(self, timeout_s: float | None = None) -> None:
         """
         Wait for the environment to become ready.
 
         Args:
-            timeout_s (`float`, *optional*, defaults to `60.0`):
-                Maximum time in seconds to wait for the environment to become ready.
+            timeout_s (`float`, *optional*):
+                Maximum time in seconds to wait for the environment to become
+                ready. Defaults to the provider's `context_timeout_s`.
 
         Raises:
             RuntimeError: If the environment is not running.
             TimeoutError: If the environment does not become ready within the timeout.
         """
+        if timeout_s is None:
+            timeout_s = self.context_timeout_s
+
         if self._process and self._process.poll() is not None:
             code = self._process.returncode
             raise RuntimeError(f"uv process exited prematurely with code {code}")
