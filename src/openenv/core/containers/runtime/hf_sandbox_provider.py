@@ -9,6 +9,7 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import socket
 import threading
 import time
@@ -16,8 +17,6 @@ from contextlib import suppress
 from typing import Any
 
 from fastapi import FastAPI, Request, Response, WebSocket
-from huggingface_hub import HfApi, JobStage
-from huggingface_hub.utils import get_token
 import httpx
 import requests
 import uvicorn
@@ -30,15 +29,7 @@ from .providers import ContainerProvider
 
 _DEFAULT_PORT = 8000
 _SERVER_COMMAND = "server"
-_JOB_TIMEOUT = "24h"
-_STARTUP_TIMEOUT_S = 120.0
 _MAX_WS_MESSAGE_SIZE = 100 * 1024 * 1024
-_TERMINAL_JOB_STAGES = {
-    JobStage.COMPLETED.value,
-    JobStage.CANCELED.value,
-    JobStage.ERROR.value,
-    JobStage.DELETED.value,
-}
 _HOP_BY_HOP_HEADERS = {
     "connection",
     "content-encoding",
@@ -52,6 +43,8 @@ _HOP_BY_HOP_HEADERS = {
     "transfer-encoding",
     "upgrade",
 }
+_POOLS: dict[tuple[str, str], Any] = {}
+_POOL_LOCK = threading.Lock()
 
 
 def _find_available_port() -> int:
@@ -59,13 +52,6 @@ def _find_available_port() -> int:
         sock.bind(("127.0.0.1", 0))
         sock.listen(1)
         return sock.getsockname()[1]
-
-
-def _job_port_url(job: Any, port: int) -> str | None:
-    for url in job.status.expose_urls or []:
-        if f"--{port}." in url:
-            return str(url)
-    return None
 
 
 def _to_ws_url(url: str) -> str:
@@ -76,10 +62,46 @@ def _to_ws_url(url: str) -> str:
     return url
 
 
+def _pool_name(image: str, flavor: str) -> str:
+    digest = hashlib.sha1(f"{image}\0{flavor}".encode("utf-8")).hexdigest()[:12]
+    return f"openenv-{digest}"
+
+
+def _get_sandbox_pool_cls() -> Any:
+    try:
+        from huggingface_hub import SandboxPool
+    except ImportError as exc:
+        raise RuntimeError(
+            "HFSandboxProvider requires a huggingface_hub version with "
+            "SandboxPool.serve support."
+        ) from exc
+    if not hasattr(SandboxPool, "serve"):
+        raise RuntimeError(
+            "HFSandboxProvider requires a huggingface_hub version with "
+            "SandboxPool.serve support."
+        )
+    return SandboxPool
+
+
+def _get_pool(image: str, flavor: str) -> Any:
+    key = (image, flavor)
+    with _POOL_LOCK:
+        pool = _POOLS.get(key)
+        if pool is None:
+            SandboxPool = _get_sandbox_pool_cls()
+            pool = SandboxPool(
+                image=image,
+                flavor=flavor,
+                name=_pool_name(image, flavor),
+            )
+            _POOLS[key] = pool
+        return pool
+
+
 class _LocalAuthProxy:
-    def __init__(self, *, target_url: str, token: str):
+    def __init__(self, *, target_url: str, headers: dict[str, str]):
         self.target_url = target_url.rstrip("/")
-        self.token = token
+        self.headers = headers
         self.port = _find_available_port()
         self._server: uvicorn.Server | None = None
         self._thread: threading.Thread | None = None
@@ -105,7 +127,7 @@ class _LocalAuthProxy:
                 for key, value in request.headers.items()
                 if key.lower() not in _HOP_BY_HOP_HEADERS
             }
-            headers["authorization"] = f"Bearer {self.token}"
+            headers.update(self.headers)
             try:
                 async with httpx.AsyncClient(follow_redirects=True) as client:
                     upstream = await client.request(
@@ -140,7 +162,7 @@ class _LocalAuthProxy:
             await websocket.accept()
             async with ws_connect(
                 target,
-                additional_headers={"Authorization": f"Bearer {self.token}"},
+                additional_headers=self.headers,
                 max_size=_MAX_WS_MESSAGE_SIZE,
             ) as upstream:
                 to_upstream = asyncio.create_task(
@@ -209,9 +231,7 @@ class HFSandboxProvider(ContainerProvider):
         self.image = image
         self.env_vars = env_vars
         self.flavor = flavor
-        self._api = HfApi()
-        self._token: str | None = None
-        self._job: Any = None
+        self._service: Any = None
         self._proxy: _LocalAuthProxy | None = None
 
     def start_container(
@@ -221,8 +241,8 @@ class HFSandboxProvider(ContainerProvider):
         env_vars: dict[str, str] | None = None,
         **kwargs: Any,
     ) -> str:
-        if self._job is not None:
-            raise RuntimeError("HFSandboxProvider already has an active job")
+        if self._service is not None:
+            raise RuntimeError("HFSandboxProvider already has an active service")
         if kwargs:
             unsupported = ", ".join(sorted(kwargs))
             raise ValueError(
@@ -234,71 +254,34 @@ class HFSandboxProvider(ContainerProvider):
                 f"HFSandboxProvider only supports port {_DEFAULT_PORT} (got {port})."
             )
 
-        effective_token = get_token()
-        if not effective_token:
-            raise ValueError(
-                "HFSandboxProvider requires a Hugging Face token. Run `hf auth login`."
-            )
-
-        self._job = self._api.run_job(
-            image=self.image if image is None else image,
-            command=[_SERVER_COMMAND],
-            env=self.env_vars if env_vars is None else env_vars,
-            flavor=self.flavor,
-            timeout=_JOB_TIMEOUT,
-            expose=[_DEFAULT_PORT],
-            token=effective_token,
+        effective_image = self.image if image is None else image
+        effective_env = self.env_vars if env_vars is None else env_vars
+        pool = _get_pool(effective_image, self.flavor)
+        self._service = pool.serve(
+            _SERVER_COMMAND,
+            _DEFAULT_PORT,
+            path="/",
+            env=effective_env,
         )
-        self._token = effective_token
-        target_url = self._wait_for_job_url()
-        self._proxy = _LocalAuthProxy(target_url=target_url, token=effective_token)
-        return self._proxy.start()
-
-    def _wait_for_job_url(self) -> str:
-        deadline = time.time() + _STARTUP_TIMEOUT_S
-        target_url = _job_port_url(self._job, _DEFAULT_PORT)
-        while target_url is None and time.time() < deadline:
-            stage = getattr(getattr(self._job, "status", None), "stage", None)
-            stage_value = getattr(stage, "value", stage)
-            if stage_value in _TERMINAL_JOB_STAGES:
-                raise RuntimeError(
-                    f"HF job {self._job.id} terminated early (stage={stage_value}) "
-                    f"before exposing port {_DEFAULT_PORT}"
-                )
-            time.sleep(0.5)
-            self._job = self._api.inspect_job(
-                job_id=self._job.id,
-                namespace=self._job.owner.name,
-                token=self._token,
-            )
-            target_url = _job_port_url(self._job, _DEFAULT_PORT)
-        if target_url is None:
-            raise RuntimeError(
-                f"HF job did not expose port {_DEFAULT_PORT} within "
-                f"{_STARTUP_TIMEOUT_S:.1f}s"
-            )
-        if not target_url.startswith("https://"):
-            raise RuntimeError(
-                "HF sandbox job exposed a non-HTTPS URL. OpenEnv requires "
-                "https/wss transport."
-            )
-        return target_url
+        self._proxy = _LocalAuthProxy(
+            target_url=self._service.url,
+            headers=self._service.headers,
+        )
+        try:
+            return self._proxy.start()
+        except Exception:
+            self.stop_container()
+            raise
 
     def stop_container(self) -> None:
         if self._proxy is not None:
             self._proxy.stop()
             self._proxy = None
-        if self._job is not None:
-            job = self._job
-            token = self._token
-            self._job = None
-            self._token = None
+        if self._service is not None:
+            service = self._service
+            self._service = None
             with suppress(Exception):
-                self._api.cancel_job(
-                    job_id=job.id,
-                    namespace=job.owner.name,
-                    token=token,
-                )
+                service.sandbox.kill()
 
     def wait_for_ready(self, base_url: str, timeout_s: float = 120.0) -> None:
         deadline = time.time() + timeout_s
