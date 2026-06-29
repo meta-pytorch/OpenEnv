@@ -80,8 +80,9 @@ spins up N sandboxes concurrently and reports per-stage timing.
 
 ### ACASandboxProvider
 
-Runs the server in an Azure Container Apps Sandbox. Requires Azure credentials
-(`credential=None` falls back to `DefaultAzureCredential`).
+Runs the server in an Azure Container Apps Sandbox. Install with
+`pip install openenv[aca]`. Requires Azure credentials (`credential=None`
+falls back to `DefaultAzureCredential`).
 
 ```python
 from openenv.core.containers.runtime.aca_provider import ACASandboxProvider
@@ -99,8 +100,9 @@ provider = ACASandboxProvider(
 
 ### DaytonaProvider
 
-Runs the server in a Daytona cloud sandbox. Requires the `DAYTONA_API_KEY`
-environment variable.
+Runs the server in a Daytona cloud sandbox. Install with
+`pip install openenv[daytona]`. Requires the `DAYTONA_API_KEY` environment
+variable.
 
 ```python
 from openenv.core.containers.runtime.daytona_provider import DaytonaProvider
@@ -141,8 +143,9 @@ provider = LocalDockerProvider()
 
 ### ModalProvider
 
-Runs the server in a Modal sandbox over an encrypted tunnel. Requires a
-configured Modal account (`modal setup`).
+Runs the server in a Modal sandbox over an encrypted tunnel. Install with
+`pip install openenv[modal]`. Requires a configured Modal account
+(`modal setup`).
 
 ```python
 from openenv.core.containers.runtime.modal_provider import ModalProvider
