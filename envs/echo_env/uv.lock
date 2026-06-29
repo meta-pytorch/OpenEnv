@@ -1550,8 +1550,8 @@ wheels = [
 ]
 
 [[package]]
-name = "openenv-core"
-version = "0.2.2"
+name = "openenv"
+version = "0.3.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "fastapi" },
@@ -1570,9 +1570,9 @@ dependencies = [
     { name = "uvicorn" },
     { name = "websockets" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/54/b9/f134f9de0fcb4a44c1376872fb19fe86013a69d226e320dc77217ca2ec78/openenv_core-0.2.2.tar.gz", hash = "sha256:b891eeb38845cd0c72e94f72615b0fe44c893e53822fd0843c1fafc53fc31bad", size = 146412, upload-time = "2026-03-20T17:52:36.651Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/7a/16/12825046f4180173d8f845ad95ff7b7aac32486391d822df38d4e52b82df/openenv-0.3.1.tar.gz", hash = "sha256:9e99a08872c781c7c16d5ba214e532caf5cf29f2278eb9cc478544dc538f3918", size = 165346, upload-time = "2026-06-02T08:47:23.918Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/2f/fd/9ab2b271ab763ccb6bf83d7495c45cdef4e38877d96ecf9314e1c4a95fae/openenv_core-0.2.2-py3-none-any.whl", hash = "sha256:1b99233448aa824c7974ad7c53d46d2edb9302cdc5a3ab0e2ade3a4943f17a63", size = 174125, upload-time = "2026-03-20T17:52:35.605Z" },
+    { url = "https://files.pythonhosted.org/packages/cc/28/20af86f825054561c10eb31236e19835f79036fd4a9f600f529adef42b7b/openenv-0.3.1-py3-none-any.whl", hash = "sha256:9cad4b66c08a04fd9d9fe48d7b13cd31f8322b348ff24891646e4440e0b7468c", size = 194867, upload-time = "2026-06-02T08:47:22.469Z" },
 ]
 
 [package.optional-dependencies]
@@ -1590,7 +1590,7 @@ version = "0.1.0"
 source = { editable = "." }
 dependencies = [
     { name = "fastapi" },
-    { name = "openenv-core", extra = ["core"] },
+    { name = "openenv", extra = ["core"] },
     { name = "pydantic" },
     { name = "requests" },
     { name = "uvicorn" },
@@ -1605,7 +1605,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "fastapi", specifier = ">=0.115.0" },
-    { name = "openenv-core", extras = ["core"], specifier = ">=0.2.2" },
+    { name = "openenv", extras = ["core"], specifier = ">=0.3.1" },
     { name = "pydantic", specifier = ">=2.0.0" },
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=9.0.3" },
     { name = "pytest-cov", marker = "extra == 'dev'", specifier = ">=4.0.0" },
