@@ -245,6 +245,27 @@ class TestGenericEnvClientFromEnv:
             call_args = mock_provider.start_container.call_args
             assert "registry.hf.space/user-my-env" in call_args[0][0]
 
+    @pytest.mark.asyncio
+    async def test_from_env_uv_wait_uses_remaining_context_timeout(self):
+        """A slow `start()` must consume part of the UV readiness budget."""
+        provider = Mock()
+        provider.context_timeout_s = 10.0
+        provider.start.return_value = "http://localhost:8000"
+        provider.wait_for_ready.return_value = None
+
+        with (
+            patch.object(GenericEnvClient, "connect", new_callable=AsyncMock),
+            patch("openenv.core.env_client.time.monotonic", side_effect=[100.0, 103.5]),
+        ):
+            client = await GenericEnvClient.from_env(
+                "user/my-env",
+                use_docker=False,
+                provider=provider,
+            )
+
+        assert isinstance(client, GenericEnvClient)
+        provider.wait_for_ready.assert_called_once_with(timeout_s=6.5)
+
 
 # ============================================================================
 # AutoEnv skip_install Integration Tests
@@ -796,6 +817,30 @@ class TestForeignLoopReconnect:
 
         await client.disconnect()
 
+        assert client._ws is None
+        assert client._ws_loop is None
+
+    @pytest.mark.asyncio
+    async def test_disconnect_does_not_reconnect_foreign_loop_websocket(self):
+        """disconnect() must not open a replacement socket just to close it."""
+        client = GenericEnvClient(base_url="http://localhost:8000")
+
+        first_ws = AsyncMock()
+
+        async def fake_ws_connect(*args, **kwargs):
+            return first_ws
+
+        with patch("openenv.core.env_client.ws_connect", side_effect=fake_ws_connect):
+            await client.connect()
+
+        client._ws_loop = object()
+
+        with patch("openenv.core.env_client.ws_connect") as mock_connect:
+            await client.disconnect()
+
+        mock_connect.assert_not_called()
+        first_ws.send.assert_not_called()
+        first_ws.close.assert_not_called()
         assert client._ws is None
         assert client._ws_loop is None
 

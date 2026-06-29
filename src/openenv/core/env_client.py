@@ -40,6 +40,7 @@ import asyncio
 import ipaddress
 import json
 import os
+import time
 from abc import ABC, abstractmethod
 from typing import Any, Dict, Generic, Optional, Type, TYPE_CHECKING, TypeVar
 from urllib.parse import urlsplit
@@ -249,13 +250,17 @@ class EnvClient(ABC, Generic[ActT, ObsT, StateT]):
     async def disconnect(self) -> None:
         """Close the WebSocket connection."""
         if self._ws is not None:
+            ws = self._ws
+            ws_loop = self._ws_loop
+            same_loop = ws_loop is asyncio.get_running_loop()
             try:
-                # Send close message
-                await self._send({"type": "close"})
+                if same_loop:
+                    await ws.send(json.dumps({"type": "close"}))
             except Exception:
                 pass  # Best effort
             try:
-                await self._ws.close()
+                if same_loop:
+                    await ws.close()
             except Exception:
                 pass
             self._ws = None
@@ -421,8 +426,19 @@ class EnvClient(ABC, Generic[ActT, ObsT, StateT]):
                     )
 
             try:
+                context_timeout_s = getattr(provider, "context_timeout_s", None)
+                deadline = (
+                    time.monotonic() + context_timeout_s
+                    if context_timeout_s is not None
+                    else None
+                )
                 base_url = provider.start(**start_args)
-                provider.wait_for_ready()
+                if deadline is None:
+                    provider.wait_for_ready()
+                else:
+                    provider.wait_for_ready(
+                        timeout_s=max(0.0, deadline - time.monotonic())
+                    )
 
                 client = cls(base_url=base_url, provider=provider)
                 await client.connect()
