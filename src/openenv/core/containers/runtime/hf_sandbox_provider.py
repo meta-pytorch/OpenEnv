@@ -17,7 +17,6 @@ from contextlib import suppress
 from typing import Any
 
 from fastapi import FastAPI, Request, Response, WebSocket
-import httpx
 import requests
 import uvicorn
 from starlette.websockets import WebSocketDisconnect
@@ -28,7 +27,9 @@ from .providers import ContainerProvider
 
 
 _DEFAULT_PORT = 8000
-_SERVER_COMMAND = "server"
+_SERVER_COMMAND = (
+    'export SBX_PROXY_DIR="${SBX_PROXY_DIR:-$HOME/.sbx/proxy}"; exec server'
+)
 _MAX_WS_MESSAGE_SIZE = 100 * 1024 * 1024
 _HOP_BY_HOP_HEADERS = {
     "connection",
@@ -122,22 +123,22 @@ class _LocalAuthProxy:
             target = f"{self.target_url}/{path}"
             if query:
                 target = f"{target}?{query}"
-            headers = {
-                key: value
-                for key, value in request.headers.items()
-                if key.lower() not in _HOP_BY_HOP_HEADERS
-            }
-            headers.update(self.headers)
+            headers = dict(self.headers)
+            content_type = request.headers.get("content-type")
+            if content_type is not None:
+                headers["Content-Type"] = content_type
+            body = await request.body()
             try:
-                async with httpx.AsyncClient(follow_redirects=True) as client:
-                    upstream = await client.request(
+                upstream = await asyncio.to_thread(
+                    requests.request,
                         request.method,
                         target,
-                        content=await request.body(),
+                        data=body,
                         headers=headers,
                         timeout=60.0,
+                        allow_redirects=True,
                     )
-            except httpx.HTTPError:
+            except requests.RequestException:
                 return Response(
                     content=b"upstream HF job unreachable",
                     status_code=502,
@@ -159,12 +160,10 @@ class _LocalAuthProxy:
             target = f"{_to_ws_url(self.target_url)}/{path}"
             if query:
                 target = f"{target}?{query}"
+            headers = {**self.headers, "accept": "*/*"}
+            upstream = await self._connect_upstream_websocket(target, headers)
             await websocket.accept()
-            async with ws_connect(
-                target,
-                additional_headers=self.headers,
-                max_size=_MAX_WS_MESSAGE_SIZE,
-            ) as upstream:
+            try:
                 to_upstream = asyncio.create_task(
                     self._client_to_upstream(websocket, upstream)
                 )
@@ -180,6 +179,9 @@ class _LocalAuthProxy:
                 for task in done:
                     with suppress(ConnectionClosed, WebSocketDisconnect):
                         task.result()
+            finally:
+                with suppress(Exception):
+                    await upstream.close()
 
         config = uvicorn.Config(
             app,
@@ -196,6 +198,24 @@ class _LocalAuthProxy:
                 raise RuntimeError("HF sandbox auth proxy failed to start")
             time.sleep(0.05)
         return self.base_url
+
+    async def _connect_upstream_websocket(
+        self, target: str, headers: dict[str, str]
+    ) -> Any:
+        last_error: Exception | None = None
+        for _ in range(5):
+            try:
+                return await ws_connect(
+                    target,
+                    additional_headers=headers,
+                    max_size=_MAX_WS_MESSAGE_SIZE,
+                    compression=None,
+                )
+            except Exception as exc:
+                last_error = exc
+                await asyncio.sleep(0.5)
+        assert last_error is not None
+        raise last_error
 
     async def _client_to_upstream(self, websocket: WebSocket, upstream: Any) -> None:
         # EnvClient sends JSON text frames; binary frames are only relayed downstream.
@@ -261,6 +281,7 @@ class HFSandboxProvider(ContainerProvider):
             _SERVER_COMMAND,
             _DEFAULT_PORT,
             path="/",
+            shell=True,
             env=effective_env,
         )
         self._proxy = _LocalAuthProxy(

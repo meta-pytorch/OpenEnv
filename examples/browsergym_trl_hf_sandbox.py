@@ -60,6 +60,7 @@ SANDBOX_ENV_VARS = {
     "BROWSERGYM_HEADLESS": "true",
     "BROWSERGYM_VIEWPORT_WIDTH": "332",
     "BROWSERGYM_VIEWPORT_HEIGHT": "214",
+    "PLAYWRIGHT_BROWSERS_PATH": "/usr/local/share/ms-playwright",
     "MINIWOB_URL": "file:///app/miniwob-plusplus/miniwob/html/miniwob/",
 }
 

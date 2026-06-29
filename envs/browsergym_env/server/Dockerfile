@@ -20,10 +20,11 @@ COPY . .
 RUN chmod +x /app/env/server/start.sh
 
 RUN pip install --no-cache-dir uv
-RUN uv pip install --system --no-cache -e .
+RUN uv pip install --system --no-cache .
 
 # Ensure the installed Playwright package has a matching Chromium runtime.
-RUN python -m playwright install chromium
+ENV PLAYWRIGHT_BROWSERS_PATH=/usr/local/share/ms-playwright
+RUN python -m playwright install chromium && chmod -R a+rx /usr/local/share/ms-playwright
 
 # Install MiniWoB++ from a pinned snapshot to avoid flaky Hub-time git clones.
 ARG MINIWOB_COMMIT=7fd85d71a4b60325c6585396ec4f48377d049838
