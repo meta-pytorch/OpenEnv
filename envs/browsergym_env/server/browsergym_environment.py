@@ -219,15 +219,20 @@ class BrowserGymEnvironment(Environment):
         if requested_task == (self.task_name or ""):
             return
 
-        if hasattr(self, "gym_env"):
+        next_task_name = requested_task or None
+        next_env_id = self._build_env_id(next_task_name)
+        next_gym_env = self._create_gym_env(next_env_id)
+
+        previous_gym_env = getattr(self, "gym_env", None)
+        self.task_name = next_task_name
+        self.env_id = next_env_id
+        self.gym_env = next_gym_env
+
+        if previous_gym_env is not None:
             try:
-                self.gym_env.close()
+                previous_gym_env.close()
             except Exception as exc:  # noqa: BLE001 - browsergym/playwright cleanup
                 logger.warning("BrowserGym cleanup failed during task switch: %s", exc)
-
-        self.task_name = requested_task or None
-        self.env_id = self._build_env_id(self.task_name)
-        self.gym_env = self._create_gym_env(self.env_id)
 
     def reset(
         self,
