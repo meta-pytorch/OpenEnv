@@ -172,20 +172,20 @@ def main() -> None:
     output_dir = Path("outputs") / f"browsergym-grpo-{sanitize_name(MODEL_ID)}-{timestamp}"
 
     with BrowserGymEnv(
-        container_image=SANDBOX_IMAGE,
         message_timeout_s=120.0,
         max_message_size_mb=100.0,
-        provider=HFSandboxProvider(flavor=SANDBOX_FLAVOR),
-        container_kwargs={
-            "env_vars": {
+        provider=HFSandboxProvider(
+            image=SANDBOX_IMAGE,
+            flavor=SANDBOX_FLAVOR,
+            env_vars={
                 "BROWSERGYM_BENCHMARK": BENCHMARK,
                 "BROWSERGYM_TASK_NAME": TASK_NAME,
                 "BROWSERGYM_HEADLESS": "true",
                 "BROWSERGYM_VIEWPORT_WIDTH": "332",
                 "BROWSERGYM_VIEWPORT_HEIGHT": "214",
                 "MINIWOB_URL": "file:///app/miniwob-plusplus/miniwob/html/miniwob/",
-            }
-        },
+            },
+        ),
     ).sync() as browsergym_env:
         BROWSERGYM_ENV = browsergym_env
 

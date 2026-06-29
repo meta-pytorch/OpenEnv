@@ -180,7 +180,15 @@ class _LocalAuthProxy:
 class HFSandboxProvider(ContainerProvider):
     """Run an OpenEnv server on Hugging Face infrastructure."""
 
-    def __init__(self, *, flavor: str = "cpu-basic"):
+    def __init__(
+        self,
+        *,
+        image: str,
+        env_vars: dict[str, str] | None = None,
+        flavor: str = "cpu-basic",
+    ):
+        self.image = image
+        self.env_vars = env_vars
         self.flavor = flavor
         self._api = HfApi()
         self._token: str | None = None
@@ -189,7 +197,7 @@ class HFSandboxProvider(ContainerProvider):
 
     def start_container(
         self,
-        image: str,
+        image: str | None = None,
         port: int | None = None,
         env_vars: dict[str, str] | None = None,
     ) -> str:
@@ -208,9 +216,9 @@ class HFSandboxProvider(ContainerProvider):
             )
 
         self._job = self._api.run_job(
-            image=image,
+            image=self.image if image is None else image,
             command=[_SERVER_COMMAND],
-            env=env_vars,
+            env=self.env_vars if env_vars is None else env_vars,
             flavor=self.flavor,
             timeout=_JOB_TIMEOUT,
             expose=[_DEFAULT_PORT],

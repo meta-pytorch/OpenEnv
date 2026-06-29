@@ -144,8 +144,6 @@ class EnvClient(ABC, Generic[ActT, ObsT, StateT]):
         message_timeout_s: float = 60.0,
         max_message_size_mb: float = 100.0,
         provider: Optional["ContainerProvider | RuntimeProvider"] = None,
-        container_image: Optional[str] = None,
-        container_kwargs: Optional[Dict[str, Any]] = None,
         mode: Optional[str] = None,
     ):
         """
@@ -164,23 +162,14 @@ class EnvClient(ABC, Generic[ActT, ObsT, StateT]):
                 observations (screenshots, DOM, etc.).
             provider (`ContainerProvider` or `RuntimeProvider`, *optional*):
                 Container/runtime provider for lifecycle management.
-            container_image (`str`, *optional*):
-                Provider-specific image/source to start when the client connects.
-                Mutually exclusive with `base_url`.
-            container_kwargs (`dict`, *optional*):
-                Keyword arguments forwarded to `provider.start_container()`.
             mode (`str`, *optional*):
                 Communication mode: `'simulation'` for Gym-style API (default) or
                 `'production'` for MCP JSON-RPC protocol. Can also be set via the
                 `OPENENV_CLIENT_MODE` environment variable. Constructor parameter takes
                 precedence over environment variable. Case-insensitive.
         """
-        if base_url is None and container_image is None:
-            raise ValueError("EnvClient requires either base_url or container_image.")
-        if base_url is not None and container_image is not None:
-            raise ValueError("Pass either base_url or container_image, not both.")
-        if container_image is not None and provider is None:
-            provider = LocalDockerProvider()
+        if base_url is None and provider is None:
+            raise ValueError("EnvClient requires either base_url or provider.")
 
         # Store mode (use object.__setattr__ to bypass immutability)
         object.__setattr__(self, "_mode", _normalize_mode(mode))
@@ -192,8 +181,7 @@ class EnvClient(ABC, Generic[ActT, ObsT, StateT]):
             max_message_size_mb * 1024 * 1024
         )  # Convert MB to bytes
         self._provider = provider
-        self._container_image = container_image
-        self._container_kwargs = dict(container_kwargs or {})
+        self._start_provider_on_connect = base_url is None
         self._ws: Optional[ClientConnection] = None
         if base_url is not None:
             self._set_base_url(base_url)
@@ -202,19 +190,19 @@ class EnvClient(ABC, Generic[ActT, ObsT, StateT]):
         ws_url = convert_to_ws_url(base_url)
         self._ws_url = f"{ws_url}/ws"
 
-    def _start_container_if_needed(self) -> None:
+    def _start_provider_if_needed(self) -> None:
         if self._ws_url is not None:
             return
-        if self._container_image is None:
-            raise RuntimeError("EnvClient has no base URL or container image.")
-        if self._provider is None or not hasattr(self._provider, "start_container"):
-            raise TypeError("container_image requires a ContainerProvider.")
-
-        base_url = self._provider.start_container(
-            self._container_image,
-            **self._container_kwargs,
-        )
-        self._provider.wait_for_ready(base_url)
+        if self._provider is None:
+            raise RuntimeError("EnvClient has no base URL or provider.")
+        if hasattr(self._provider, "start_container"):
+            base_url = self._provider.start_container()
+            self._provider.wait_for_ready(base_url)
+        elif hasattr(self._provider, "start"):
+            base_url = self._provider.start()
+            self._provider.wait_for_ready()
+        else:
+            raise TypeError("provider must define start_container() or start().")
         self._set_base_url(base_url)
 
     def __setattr__(self, name: str, value: Any) -> None:
@@ -237,7 +225,7 @@ class EnvClient(ABC, Generic[ActT, ObsT, StateT]):
             return self
 
         try:
-            self._start_container_if_needed()
+            self._start_provider_if_needed()
         except Exception:
             await self.close()
             raise
@@ -514,7 +502,7 @@ class EnvClient(ABC, Generic[ActT, ObsT, StateT]):
                 self._provider.stop_container()
             elif hasattr(self._provider, "stop"):
                 self._provider.stop()
-        if self._container_image is not None:
+        if self._start_provider_on_connect:
             self._ws_url = None
 
     async def __aenter__(self) -> "EnvClient":

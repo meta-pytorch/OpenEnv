@@ -26,8 +26,8 @@ def run_code(base_url: str, code: str) -> str:
 
 
 def main() -> None:
-    with HFSandboxProvider() as provider:
-        base_url = provider.start_container(IMAGE)
+    with HFSandboxProvider(image=IMAGE) as provider:
+        base_url = provider.start_container()
         print(f"provider URL: {base_url}")
         provider.wait_for_ready(base_url, timeout_s=300.0)
 
