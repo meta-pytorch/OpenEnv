@@ -20,6 +20,7 @@ Tests cover:
 """
 
 import asyncio
+import json
 import os
 from unittest.mock import AsyncMock, MagicMock, Mock, patch
 
@@ -586,6 +587,82 @@ class TestGenericEnvClientContextManager:
                 mock_connect.assert_called_once()
 
             mock_close.assert_called_once()
+
+
+# ============================================================================
+# Disconnect Tests
+# ============================================================================
+
+
+class TestGenericEnvClientDisconnect:
+    """Test teardown behavior of disconnect()."""
+
+    @pytest.mark.asyncio
+    async def test_disconnect_does_not_reconnect(self):
+        """disconnect() must never run the connect path.
+
+        ``disconnect()`` previously sent the close frame via ``_send()`` ->
+        ``_ensure_connected()``. If ``_ws`` was created on a different (often
+        already-closed) event loop, routing teardown through the
+        connection-establishing path risks opening a brand new websocket during
+        cleanup and leaving the original server-side session occupied. The close
+        frame must be written directly to the existing socket instead.
+        """
+        client = GenericEnvClient(base_url="ws://localhost:8000")
+
+        ws = AsyncMock()
+        client._ws = ws
+
+        with patch(
+            "openenv.core.env_client.ws_connect", new_callable=AsyncMock
+        ) as mock_connect:
+            await client.disconnect()
+
+        # No reconnect attempt during cleanup.
+        mock_connect.assert_not_called()
+        # Close frame written directly to the original socket.
+        ws.send.assert_awaited_once_with(json.dumps({"type": "close"}))
+        ws.close.assert_awaited_once()
+        # Socket handle is cleared.
+        assert client._ws is None
+
+    @pytest.mark.asyncio
+    async def test_disconnect_clears_socket_when_send_fails(self):
+        """A failing send on a stale socket still tears down cleanly.
+
+        Even when the underlying socket was created on a closed loop (so
+        ``send()``/``close()`` raise), disconnect() must swallow the errors,
+        avoid reconnecting, and clear ``_ws`` so the client does not retain a
+        stale handle.
+        """
+        client = GenericEnvClient(base_url="ws://localhost:8000")
+
+        ws = AsyncMock()
+        ws.send.side_effect = RuntimeError("got Future attached to a different loop")
+        ws.close.side_effect = RuntimeError("Event loop is closed")
+        client._ws = ws
+
+        with patch(
+            "openenv.core.env_client.ws_connect", new_callable=AsyncMock
+        ) as mock_connect:
+            await client.disconnect()
+
+        mock_connect.assert_not_called()
+        assert client._ws is None
+
+    @pytest.mark.asyncio
+    async def test_disconnect_noop_when_not_connected(self):
+        """disconnect() is a no-op when there is no active socket."""
+        client = GenericEnvClient(base_url="ws://localhost:8000")
+        assert client._ws is None
+
+        with patch(
+            "openenv.core.env_client.ws_connect", new_callable=AsyncMock
+        ) as mock_connect:
+            await client.disconnect()
+
+        mock_connect.assert_not_called()
+        assert client._ws is None
 
 
 # ============================================================================

@@ -233,18 +233,33 @@ class EnvClient(ABC, Generic[ActT, ObsT, StateT]):
         return self
 
     async def disconnect(self) -> None:
-        """Close the WebSocket connection."""
-        if self._ws is not None:
-            try:
-                # Send close message
-                await self._send({"type": "close"})
-            except Exception:
-                pass  # Best effort
-            try:
-                await self._ws.close()
-            except Exception:
-                pass
-            self._ws = None
+        """
+        Close the WebSocket connection.
+
+        The close frame is written directly to the existing socket instead of
+        routing through `_send()`/`_ensure_connected()`. Teardown must never run
+        the connection-establishing path: if `_ws` was created on a different
+        (often already-closed) event loop, going through `_ensure_connected()`
+        risks opening a fresh websocket during cleanup, which leaves the original
+        server-side session occupied and worsens single-session capacity errors.
+        """
+        ws = self._ws
+        if ws is None:
+            return
+
+        # Drop the handle up front so cleanup can never re-enter the connect
+        # path and never leaves a stale socket referenced after failures.
+        self._ws = None
+
+        try:
+            # Send close message directly on the existing socket.
+            await ws.send(json.dumps({"type": "close"}))
+        except Exception:
+            pass  # Best effort
+        try:
+            await ws.close()
+        except Exception:
+            pass
 
     async def _ensure_connected(self) -> None:
         """Ensure WebSocket connection is established."""
