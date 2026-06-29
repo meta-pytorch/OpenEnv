@@ -170,27 +170,22 @@ def main() -> None:
 
     timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
     output_dir = Path("outputs") / f"browsergym-grpo-{sanitize_name(MODEL_ID)}-{timestamp}"
-    provider = HFSandboxProvider(flavor=SANDBOX_FLAVOR)
-
-    base_url = provider.start_container(
-        SANDBOX_IMAGE,
-        env_vars={
-            "BROWSERGYM_BENCHMARK": BENCHMARK,
-            "BROWSERGYM_TASK_NAME": TASK_NAME,
-            "BROWSERGYM_HEADLESS": "true",
-            "BROWSERGYM_VIEWPORT_WIDTH": "332",
-            "BROWSERGYM_VIEWPORT_HEIGHT": "214",
-            "MINIWOB_URL": "file:///app/miniwob-plusplus/miniwob/html/miniwob/",
-        },
-    )
-    print(f"HF Sandbox BrowserGym URL: {base_url}")
-    provider.wait_for_ready(base_url, timeout_s=300.0)
 
     with BrowserGymEnv(
-        base_url=base_url,
+        container_image=SANDBOX_IMAGE,
         message_timeout_s=120.0,
         max_message_size_mb=100.0,
-        provider=provider,
+        provider=HFSandboxProvider(flavor=SANDBOX_FLAVOR),
+        container_kwargs={
+            "env_vars": {
+                "BROWSERGYM_BENCHMARK": BENCHMARK,
+                "BROWSERGYM_TASK_NAME": TASK_NAME,
+                "BROWSERGYM_HEADLESS": "true",
+                "BROWSERGYM_VIEWPORT_WIDTH": "332",
+                "BROWSERGYM_VIEWPORT_HEIGHT": "214",
+                "MINIWOB_URL": "file:///app/miniwob-plusplus/miniwob/html/miniwob/",
+            }
+        },
     ).sync() as browsergym_env:
         BROWSERGYM_ENV = browsergym_env
 
