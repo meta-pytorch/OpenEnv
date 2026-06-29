@@ -26,6 +26,7 @@ _DEFAULT_PORT = 8000
 _SERVER_COMMAND = "server"
 _JOB_TIMEOUT = "24h"
 _STARTUP_TIMEOUT_S = 120.0
+_MAX_WS_MESSAGE_SIZE = 100 * 1024 * 1024
 _HOP_BY_HOP_HEADERS = {
     "connection",
     "content-encoding",
@@ -122,6 +123,7 @@ class _LocalAuthProxy:
             async with ws_connect(
                 target,
                 additional_headers={"Authorization": f"Bearer {self.token}"},
+                max_size=_MAX_WS_MESSAGE_SIZE,
             ) as upstream:
                 to_upstream = asyncio.create_task(
                     self._client_to_upstream(websocket, upstream)
