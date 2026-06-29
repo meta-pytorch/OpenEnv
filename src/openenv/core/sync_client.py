@@ -129,8 +129,13 @@ class SyncEnvClient(Generic[ActT, ObsT, StateT]):
             assert self._loop is not None
             return self._loop
 
+    def _claim_sync_mode(self) -> None:
+        if hasattr(self._async, "_claim_execution_mode"):
+            self._async._claim_execution_mode("sync")
+
     def _run(self, coro: Any) -> Any:
         """Run coroutine on dedicated loop and block for result."""
+        self._claim_sync_mode()
         loop = self._ensure_loop()
         future: concurrent.futures.Future[Any] = asyncio.run_coroutine_threadsafe(
             coro, loop
@@ -164,12 +169,14 @@ class SyncEnvClient(Generic[ActT, ObsT, StateT]):
         Returns:
             self for method chaining
         """
-        self._run(self._async.connect())
+        self._claim_sync_mode()
+        self._run(self._async._connect_async())
         return self
 
     def disconnect(self) -> None:
         """Close the connection."""
-        self._run(self._async.disconnect())
+        self._claim_sync_mode()
+        self._run(self._async._disconnect_async())
 
     def reset(self, **kwargs: Any) -> StepResult[ObsT]:
         """
@@ -182,7 +189,8 @@ class SyncEnvClient(Generic[ActT, ObsT, StateT]):
         Returns:
             StepResult containing initial observation
         """
-        return self._run(self._async.reset(**kwargs))
+        self._claim_sync_mode()
+        return self._run(self._async._reset_async(**kwargs))
 
     def step(self, action: ActT, **kwargs: Any) -> StepResult[ObsT]:
         """
@@ -197,7 +205,8 @@ class SyncEnvClient(Generic[ActT, ObsT, StateT]):
         Returns:
             StepResult containing observation, reward, and done status
         """
-        return self._run(self._async.step(action, **kwargs))
+        self._claim_sync_mode()
+        return self._run(self._async._step_async(action, **kwargs))
 
     def state(self) -> StateT:
         """
@@ -206,12 +215,14 @@ class SyncEnvClient(Generic[ActT, ObsT, StateT]):
         Returns:
             State object with environment state information
         """
-        return self._run(self._async.state())
+        self._claim_sync_mode()
+        return self._run(self._async._state_async())
 
     def close(self) -> None:
         """Close the connection and clean up resources."""
         try:
-            self._run(self._async.close())
+            self._claim_sync_mode()
+            self._run(self._async._close_async())
         finally:
             self._stop_loop()
 

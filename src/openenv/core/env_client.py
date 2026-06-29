@@ -41,7 +41,7 @@ import ipaddress
 import json
 import os
 from abc import ABC, abstractmethod
-from typing import Any, Dict, Generic, Optional, Type, TYPE_CHECKING, TypeVar
+from typing import Any, Callable, Dict, Generic, Optional, Type, TYPE_CHECKING, TypeVar
 from urllib.parse import urlsplit
 
 from .client_types import StateT, StepResult
@@ -59,8 +59,47 @@ from websockets.asyncio.client import connect as ws_connect
 ActT = TypeVar("ActT")
 ObsT = TypeVar("ObsT")
 EnvClientT = TypeVar("EnvClientT", bound="EnvClient")
+ResultT = TypeVar("ResultT")
 
 _VALID_CLIENT_MODES = ("simulation", "production")
+
+
+class _AutoAsyncResult(Generic[ResultT]):
+    """Awaitable result that can also be resolved by synchronous access."""
+
+    def __init__(
+        self,
+        client: "EnvClient[Any, Any, Any]",
+        coro_factory: Callable[[], Any],
+    ):
+        self._client = client
+        self._coro_factory = coro_factory
+        self._resolved = False
+        self._result: ResultT | None = None
+
+    def __await__(self):
+        async def _await_result():
+            self._client._claim_execution_mode("async")
+            return await self._coro_factory()
+
+        return _await_result().__await__()
+
+    def _sync_result(self) -> ResultT:
+        if not self._resolved:
+            self._result = self._client._run_sync(self._coro_factory)
+            self._resolved = True
+        return self._result
+
+    def __getattr__(self, name: str) -> Any:
+        return getattr(self._sync_result(), name)
+
+    def __bool__(self) -> bool:
+        return bool(self._sync_result())
+
+    def __repr__(self) -> str:
+        if self._resolved:
+            return repr(self._result)
+        return f"<{type(self).__name__} pending>"
 
 
 def _normalize_mode(mode: Optional[str]) -> str:
@@ -182,6 +221,8 @@ class EnvClient(ABC, Generic[ActT, ObsT, StateT]):
         )  # Convert MB to bytes
         self._provider = provider
         self._ws: Optional[ClientConnection] = None
+        self._execution_mode: Optional[str] = None
+        self._sync_client: Optional["SyncEnvClient[ActT, ObsT, StateT]"] = None
 
     def __setattr__(self, name: str, value: Any) -> None:
         """Prevent modification of _mode after initialization."""
@@ -189,7 +230,40 @@ class EnvClient(ABC, Generic[ActT, ObsT, StateT]):
             raise AttributeError("Cannot modify mode after initialization")
         super().__setattr__(name, value)
 
-    async def connect(self) -> "EnvClient":
+    def _claim_execution_mode(self, mode: str) -> None:
+        """Lock the client to sync or async execution on first use."""
+        if self._execution_mode is None:
+            self._execution_mode = mode
+        elif self._execution_mode != mode:
+            raise RuntimeError(
+                f"EnvClient is already being used in {self._execution_mode} mode. "
+                "Create a separate client instance when mixing sync and async code."
+            )
+
+    def _run_sync(self, coro_factory: Callable[[], Any]) -> Any:
+        """Run an async operation through the sync wrapper."""
+        self._claim_execution_mode("sync")
+        if self._sync_client is None:
+            self._sync_client = self.sync()
+        return self._sync_client._run(coro_factory())
+
+    def _dispatch(self, coro_factory: Callable[[], Any]) -> Any:
+        """Return an awaitable in async code and a concrete result in sync code."""
+        if self._execution_mode == "async":
+            return coro_factory()
+        if self._execution_mode == "sync":
+            return self._run_sync(coro_factory)
+
+        try:
+            asyncio.get_running_loop()
+        except RuntimeError:
+            return self._run_sync(coro_factory)
+        return _AutoAsyncResult(self, coro_factory)
+
+    def connect(self) -> Any:
+        return self._dispatch(self._connect_async)
+
+    async def _connect_async(self) -> "EnvClient":
         """
         Establish WebSocket connection to the server.
 
@@ -222,7 +296,10 @@ class EnvClient(ABC, Generic[ActT, ObsT, StateT]):
 
         return self
 
-    async def disconnect(self) -> None:
+    def disconnect(self) -> Any:
+        return self._dispatch(self._disconnect_async)
+
+    async def _disconnect_async(self) -> None:
         """Close the WebSocket connection."""
         if self._ws is not None:
             try:
@@ -239,7 +316,7 @@ class EnvClient(ABC, Generic[ActT, ObsT, StateT]):
     async def _ensure_connected(self) -> None:
         """Ensure WebSocket connection is established."""
         if self._ws is None:
-            await self.connect()
+            await self._connect_async()
 
     async def _send(self, message: Dict[str, Any]) -> None:
         """Send a message over the WebSocket."""
@@ -407,7 +484,10 @@ class EnvClient(ABC, Generic[ActT, ObsT, StateT]):
         """Convert a JSON response from the state endpoint to a State object."""
         raise NotImplementedError
 
-    async def reset(self, **kwargs: Any) -> StepResult[ObsT]:
+    def reset(self, **kwargs: Any) -> Any:
+        return self._dispatch(lambda: self._reset_async(**kwargs))
+
+    async def _reset_async(self, **kwargs: Any) -> StepResult[ObsT]:
         """
         Reset the environment with optional parameters.
 
@@ -425,7 +505,10 @@ class EnvClient(ABC, Generic[ActT, ObsT, StateT]):
         response = await self._send_and_receive(message)
         return self._parse_result(response.get("data", {}))
 
-    async def step(self, action: ActT, **kwargs: Any) -> StepResult[ObsT]:
+    def step(self, action: ActT, **kwargs: Any) -> Any:
+        return self._dispatch(lambda: self._step_async(action, **kwargs))
+
+    async def _step_async(self, action: ActT, **kwargs: Any) -> StepResult[ObsT]:
         """
         Execute an action in the environment.
 
@@ -445,7 +528,10 @@ class EnvClient(ABC, Generic[ActT, ObsT, StateT]):
         response = await self._send_and_receive(message)
         return self._parse_result(response.get("data", {}))
 
-    async def state(self) -> StateT:
+    def state(self) -> Any:
+        return self._dispatch(self._state_async)
+
+    async def _state_async(self) -> StateT:
         """
         Get the current environment state from the server.
 
@@ -456,14 +542,17 @@ class EnvClient(ABC, Generic[ActT, ObsT, StateT]):
         response = await self._send_and_receive(message)
         return self._parse_state(response.get("data", {}))
 
-    async def close(self) -> None:
+    def close(self) -> Any:
+        return self._dispatch(self._close_async)
+
+    async def _close_async(self) -> None:
         """
         Close the WebSocket connection and clean up resources.
 
         If this client was created via from_docker_image() or from_env(),
         this will also stop and remove the associated container/process.
         """
-        await self.disconnect()
+        await self._disconnect_async()
 
         if self._provider is not None:
             # Handle both ContainerProvider and RuntimeProvider
@@ -474,25 +563,22 @@ class EnvClient(ABC, Generic[ActT, ObsT, StateT]):
 
     async def __aenter__(self) -> "EnvClient":
         """Enter async context manager, ensuring connection is established."""
-        await self.connect()
+        self._claim_execution_mode("async")
+        await self._connect_async()
         return self
 
     async def __aexit__(self, exc_type, exc_val, exc_tb) -> None:
         """Exit async context manager, closing connection."""
-        await self.close()
+        await self._close_async()
 
     def __enter__(self) -> "EnvClient":
-        """Sync context manager entry - raises error suggesting async usage."""
-        raise TypeError(
-            "EnvClient is async by default. Use 'async with' instead of 'with', "
-            "or call .sync() to get a synchronous wrapper:\n"
-            "  async with client:  # async usage\n"
-            "  with client.sync():  # sync wrapper"
-        )
+        """Enter sync context manager, ensuring connection is established."""
+        self._run_sync(self._connect_async)
+        return self
 
     def __exit__(self, exc_type, exc_val, exc_tb) -> None:
-        """Sync context manager exit - should not be reached."""
-        pass  # pragma: no cover
+        """Exit sync context manager, closing connection."""
+        self._run_sync(self._close_async)
 
     def sync(self) -> "SyncEnvClient":
         """
