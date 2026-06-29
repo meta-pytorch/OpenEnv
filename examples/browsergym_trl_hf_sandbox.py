@@ -170,67 +170,67 @@ def main() -> None:
 
     timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
     output_dir = Path("outputs") / f"browsergym-grpo-{sanitize_name(MODEL_ID)}-{timestamp}"
+    provider = HFSandboxProvider(flavor=SANDBOX_FLAVOR)
 
-    with HFSandboxProvider(flavor=SANDBOX_FLAVOR) as provider:
-        base_url = provider.start_container(
-            SANDBOX_IMAGE,
-            env_vars={
-                "BROWSERGYM_BENCHMARK": BENCHMARK,
-                "BROWSERGYM_TASK_NAME": TASK_NAME,
-                "BROWSERGYM_HEADLESS": "true",
-                "BROWSERGYM_VIEWPORT_WIDTH": "332",
-                "BROWSERGYM_VIEWPORT_HEIGHT": "214",
-                "MINIWOB_URL": "file:///app/miniwob-plusplus/miniwob/html/miniwob/",
-            },
+    base_url = provider.start_container(
+        SANDBOX_IMAGE,
+        env_vars={
+            "BROWSERGYM_BENCHMARK": BENCHMARK,
+            "BROWSERGYM_TASK_NAME": TASK_NAME,
+            "BROWSERGYM_HEADLESS": "true",
+            "BROWSERGYM_VIEWPORT_WIDTH": "332",
+            "BROWSERGYM_VIEWPORT_HEIGHT": "214",
+            "MINIWOB_URL": "file:///app/miniwob-plusplus/miniwob/html/miniwob/",
+        },
+    )
+    print(f"HF Sandbox BrowserGym URL: {base_url}")
+    provider.wait_for_ready(base_url, timeout_s=300.0)
+
+    with BrowserGymEnv(
+        base_url=base_url,
+        message_timeout_s=120.0,
+        max_message_size_mb=100.0,
+        provider=provider,
+    ).sync() as browsergym_env:
+        BROWSERGYM_ENV = browsergym_env
+
+        grpo_config = GRPOConfig(
+            use_vllm=True,
+            vllm_mode=VLLM_MODE,
+            vllm_server_base_url=VLLM_SERVER_URL if VLLM_MODE == "server" else None,
+            vllm_gpu_memory_utilization=0.4,
+            output_dir=str(output_dir),
+            num_train_epochs=NUM_EPOCHS,
+            learning_rate=LEARNING_RATE,
+            gradient_accumulation_steps=GRADIENT_ACCUMULATION_STEPS,
+            per_device_train_batch_size=PER_DEVICE_BATCH_SIZE,
+            num_generations=NUM_GENERATIONS,
+            generation_batch_size=NUM_GENERATIONS,
+            max_completion_length=MAX_COMPLETION_LENGTH,
+            report_to="trackio",
+            trackio_space_id=f"browsergym-grpo-{sanitize_name(MODEL_ID)}-{timestamp}",
+            chat_template_kwargs={"enable_thinking": False},
         )
-        print(f"HF Sandbox BrowserGym URL: {base_url}")
-        provider.wait_for_ready(base_url, timeout_s=300.0)
 
-        with BrowserGymEnv(
-            base_url=base_url,
-            message_timeout_s=120.0,
-            max_message_size_mb=100.0,
-            provider=provider,
-        ).sync() as browsergym_env:
-            BROWSERGYM_ENV = browsergym_env
+        trainer = GRPOTrainer(
+            model=MODEL_ID,
+            reward_funcs=[reward_completion],
+            train_dataset=build_dataset(),
+            args=grpo_config,
+            environment_factory=BrowserGymLLMEnv,
+        )
 
-            grpo_config = GRPOConfig(
-                use_vllm=True,
-                vllm_mode=VLLM_MODE,
-                vllm_server_base_url=VLLM_SERVER_URL if VLLM_MODE == "server" else None,
-                vllm_gpu_memory_utilization=0.4,
-                output_dir=str(output_dir),
-                num_train_epochs=NUM_EPOCHS,
-                learning_rate=LEARNING_RATE,
-                gradient_accumulation_steps=GRADIENT_ACCUMULATION_STEPS,
-                per_device_train_batch_size=PER_DEVICE_BATCH_SIZE,
-                num_generations=NUM_GENERATIONS,
-                generation_batch_size=NUM_GENERATIONS,
-                max_completion_length=MAX_COMPLETION_LENGTH,
-                report_to="trackio",
-                trackio_space_id=f"browsergym-grpo-{sanitize_name(MODEL_ID)}-{timestamp}",
-                chat_template_kwargs={"enable_thinking": False},
-            )
+        print("=" * 80)
+        print("Starting GRPO training with BrowserGym on HF Sandbox")
+        print(f"Benchmark: {BENCHMARK}")
+        print(f"Task: {TASK_NAME}")
+        print(f"Model: {MODEL_ID}")
+        print(f"Environment image: {SANDBOX_IMAGE}")
+        print(f"Output directory: {output_dir}")
+        print("=" * 80)
+        trainer.train()
 
-            trainer = GRPOTrainer(
-                model=MODEL_ID,
-                reward_funcs=[reward_completion],
-                train_dataset=build_dataset(),
-                args=grpo_config,
-                environment_factory=BrowserGymLLMEnv,
-            )
-
-            print("=" * 80)
-            print("Starting GRPO training with BrowserGym on HF Sandbox")
-            print(f"Benchmark: {BENCHMARK}")
-            print(f"Task: {TASK_NAME}")
-            print(f"Model: {MODEL_ID}")
-            print(f"Environment image: {SANDBOX_IMAGE}")
-            print(f"Output directory: {output_dir}")
-            print("=" * 80)
-            trainer.train()
-
-            BROWSERGYM_ENV = None
+        BROWSERGYM_ENV = None
 
 
 if __name__ == "__main__":
