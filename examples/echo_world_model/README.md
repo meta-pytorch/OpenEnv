@@ -14,7 +14,8 @@ builds, almost for free.
 
 During agent RL we normally **mask out** the environment's response tokens and
 only train on the agent's actions. **ECHO** ([arXiv 2605.24517](https://arxiv.org/abs/2605.24517),
-`microsoft/echo-rl`; and Prime Intellect's *"True Agents Model the World"*) adds
+[`microsoft/echo-rl`](https://github.com/microsoft/echo-rl); and Prime Intellect's
+[*"True Agents Model the World"*](https://www.primeintellect.ai/blog/true-agents-model-the-world)) adds
 a tiny cross-entropy loss that makes the policy **predict the environment's
 observation tokens** too:
 
@@ -26,7 +27,7 @@ The model already conditions on those observation tokens and already computes
 their logits in the same forward pass — so the extra world-modeling signal is
 **~free**: no extra rollouts, no teacher, no separate world model, just a
 different mask over logits you already have. Reported: **~2.3× faster** RL,
-TerminalBench-2.0 pass@1 ~**doubles**, recovers **50–104%** of expert-SFT with
+[TerminalBench-2.0](https://www.tbench.ai/) pass@1 ~**doubles**, recovers **50–104%** of expert-SFT with
 no teacher, and even **verifier-free** (reward off) improves held-out tasks.
 
 ## Why OpenEnv needs a small change
@@ -82,7 +83,7 @@ and the rollout filters exist.
 | [`rollout.py`](./rollout.py) | Oracle + policy rollouts → role-tagged trajectories. |
 | [`train_echo.py`](./train_echo.py) | The CPU demo above. |
 | [`test_echo.py`](./test_echo.py) | Unit tests for the loss + masks (`python -m pytest test_echo.py`). |
-| [`backends/`](./backends/) | The same config for the real GPU run: [SkyRL](./backends/skyrl.md) (open reference), [Tinker](./backends/tinker.md), [Foundry Fine-Tuning](./backends/foundry-finetuning.md), with rollouts isolated in [ACA Sandboxes](./backends/aca-sandboxes.md). |
+| [`backends/`](./backends/) | The same config for the real GPU run: [SkyRL](./backends/skyrl.md) (open reference), [TRL](./backends/trl.md) (OpenEnv's recommended framework, with a runnable CPU [`trl_echo_demo.py`](./backends/trl_echo_demo.py)), [Tinker](./backends/tinker.md), [Foundry Fine-Tuning](./backends/foundry-finetuning.md), with rollouts isolated in [ACA Sandboxes](./backends/aca-sandboxes.md). |
 
 ## The full hybrid (GRPO + ECHO) and the real numbers
 
