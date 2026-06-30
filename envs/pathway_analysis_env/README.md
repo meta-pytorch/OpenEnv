@@ -94,6 +94,52 @@ Outputs are written to `envs/pathway_analysis_env/outputs/llm_eval/`.
 - `bench/geo_agent_eval.py` — GEO-oriented evaluation utility.
 - `scripts/run_llm_judge.py` — report-vs-reference LLM judging.
 
+## Add tasks from public databases (GEO)
+
+You can add more real-world tasks from public studies (for example NCBI GEO) by
+creating one case folder per study/contrast and then registering it in a manifest.
+
+Recommended process:
+
+1. **Pick a study + contrast**
+   - Choose clear conditions (for example treated vs control).
+   - Prefer datasets with enough replicates per group.
+
+2. **Prepare a count matrix**
+   - Save gene-by-sample counts as `.csv.gz`.
+   - Put it under `envs/pathway_analysis_env/data/geo_eval/<task_id>/`.
+
+3. **Create case JSON**
+   - Add `<task_id>_case.json` in the same folder.
+   - Include at minimum:
+     - `experiment_metadata` (`accession`, `reference`, `summary`)
+     - `counts_file`
+     - `sample_ids`
+     - `sample_metadata` (sample -> condition)
+     - `conditions`
+     - `default_contrast`
+     - `enrichr_libraries`
+   - You can use existing GEO cases as templates:
+     - `data/geo_eval/gse128911_mda_mb_134_vi_fulvestrant_vs_dmso/gse128911_case.json`
+     - `data/geo_eval/gse111151_tamoxifen_benchmark/gse111151_case.json`
+     - `data/geo_eval/gse216540_tpm_pseudo_benchmark/gse216540_case.json`
+
+4. **Add the task to an eval manifest**
+   - Update or create a manifest under `data/` (for example `data/eval_manifest_geo3.json`).
+   - Add an episode pointing to your new case file.
+
+5. **Run and validate**
+   - Run environment eval:
+     - `PYTHONPATH=src:envs uv run python envs/pathway_analysis_env/scripts/run_agent_eval_suite.py --manifest envs/pathway_analysis_env/data/eval_manifest_geo3.json`
+   - Run LLM eval and (optionally) judge:
+     - `PYTHONPATH=src:envs uv run python envs/pathway_analysis_env/scripts/run_llm_agent_eval.py --manifest envs/pathway_analysis_env/data/eval_manifest_geo3.json`
+     - `PYTHONPATH=src:envs uv run python envs/pathway_analysis_env/scripts/run_llm_judge.py --case geo_eval/<task_id>/<task_case.json> --agent-model gpt-5 --judge-model gpt-5`
+
+Notes:
+
+- Keep large intermediate artifacts (`de_all.json`, `enrichment.json`, `work/`) out of commits unless needed.
+- For reproducible benchmark tasks, commit the case JSON and minimal count input needed to rerun.
+
 ## Minimal client example
 
 ```python
