@@ -42,6 +42,22 @@ PYTHONPATH=src:envs uv run python envs/pathway_analysis_env/scripts/run_llm_judg
 
 ## Add a new GEO task (2 commands)
 
+### Where to download public data
+
+Use NCBI GEO as the primary source:
+
+- GEO home: [https://www.ncbi.nlm.nih.gov/geo/](https://www.ncbi.nlm.nih.gov/geo/)
+- GEO DataSets search: [https://www.ncbi.nlm.nih.gov/gds](https://www.ncbi.nlm.nih.gov/gds)
+- Series record page pattern: `https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSEXXXX`
+
+From each series page, use:
+- **Series Matrix File(s)** for metadata/expression tables
+- **Supplementary file** links for count tables
+
+If you need raw sequencing reads instead of processed tables:
+- SRA home: [https://www.ncbi.nlm.nih.gov/sra](https://www.ncbi.nlm.nih.gov/sra)
+- GEO-to-SRA links are usually available from the GEO series page
+
 ### 1) Create case + copy counts
 
 Prepare a metadata CSV with columns:
