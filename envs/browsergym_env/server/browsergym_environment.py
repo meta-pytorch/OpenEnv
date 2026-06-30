@@ -24,6 +24,27 @@ from openenv.core.env_server.interfaces import Environment
 logger = logging.getLogger(__name__)
 
 
+def _to_jsonable(value: Any) -> Any:
+    """Convert BrowserGym payload values into JSON-safe Python objects."""
+    if value is None or isinstance(value, (str, int, float, bool)):
+        return value
+    if isinstance(value, dict):
+        return {str(key): _to_jsonable(item) for key, item in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_to_jsonable(item) for item in value]
+    if hasattr(value, "tolist"):
+        try:
+            return _to_jsonable(value.tolist())
+        except Exception:  # noqa: BLE001 - third-party array-likes
+            pass
+    if hasattr(value, "item"):
+        try:
+            return _to_jsonable(value.item())
+        except Exception:  # noqa: BLE001 - third-party scalar-likes
+            pass
+    return str(value)
+
+
 def _get_axtree_txt(obs: Dict[str, Any]) -> str:
     """Extract accessibility tree text from BrowserGym observation.
 
@@ -106,6 +127,7 @@ class BrowserGymEnvironment(Environment):
         viewport_width: int = 1280,
         viewport_height: int = 720,
         timeout: float = 10000.0,
+        include_screenshot: bool = False,
         **gym_kwargs: Any,
     ):
         """Initialize the BrowserGym environment.
@@ -128,13 +150,8 @@ class BrowserGymEnvironment(Environment):
         self.viewport_width = viewport_width
         self.viewport_height = viewport_height
         self.timeout = timeout
+        self.include_screenshot = include_screenshot
         self.gym_kwargs = dict(gym_kwargs)
-
-        # Build environment ID
-        if task_name:
-            self.env_id = f"browsergym/{benchmark}.{task_name}"
-        else:
-            self.env_id = f"browsergym/{benchmark}"
 
         # force import the benchmark module
         benchmark_modules = {
@@ -158,23 +175,8 @@ class BrowserGymEnvironment(Environment):
             )
             raise ValueError(message) from import_error
 
-        # Create the BrowserGym environment
-        try:
-            self.gym_env = gym.make(
-                self.env_id,
-                headless=headless,
-                viewport={"width": viewport_width, "height": viewport_height},
-                timeout=timeout,
-                **self.gym_kwargs,
-            )
-        except Exception as e:  # noqa: BLE001 - gym.make
-            message = (
-                "Failed to create BrowserGym environment "
-                f"'{self.env_id}': {e}\n"
-                "Make sure the benchmark package is installed "
-                f"(e.g., pip install browsergym-{benchmark})."
-            )
-            raise ValueError(message) from e
+        self.env_id = self._build_env_id(task_name)
+        self.gym_env = self._create_gym_env(self.env_id)
 
         # State tracking
         self._state = BrowserGymState(
@@ -186,6 +188,51 @@ class BrowserGymEnvironment(Environment):
 
         self._last_obs: Optional[Dict[str, Any]] = None
         self._last_info: Optional[Dict[str, Any]] = None
+
+    def _build_env_id(self, task_name: Optional[str]) -> str:
+        if task_name:
+            return f"browsergym/{self.benchmark}.{task_name}"
+        return f"browsergym/{self.benchmark}"
+
+    def _create_gym_env(self, env_id: str):
+        try:
+            return gym.make(
+                env_id,
+                headless=self.headless,
+                viewport={
+                    "width": self.viewport_width,
+                    "height": self.viewport_height,
+                },
+                timeout=self.timeout,
+                **self.gym_kwargs,
+            )
+        except Exception as e:  # noqa: BLE001 - gym.make
+            message = (
+                "Failed to create BrowserGym environment "
+                f"'{env_id}': {e}\n"
+                "Make sure the benchmark package is installed "
+                f"(e.g., pip install browsergym-{self.benchmark})."
+            )
+            raise ValueError(message) from e
+
+    def _switch_task_if_needed(self, requested_task: str) -> None:
+        if requested_task == (self.task_name or ""):
+            return
+
+        next_task_name = requested_task or None
+        next_env_id = self._build_env_id(next_task_name)
+        next_gym_env = self._create_gym_env(next_env_id)
+
+        previous_gym_env = getattr(self, "gym_env", None)
+        self.task_name = next_task_name
+        self.env_id = next_env_id
+        self.gym_env = next_gym_env
+
+        if previous_gym_env is not None:
+            try:
+                previous_gym_env.close()
+            except Exception as exc:  # noqa: BLE001 - browsergym/playwright cleanup
+                logger.warning("BrowserGym cleanup failed during task switch: %s", exc)
 
     def reset(
         self,
@@ -202,11 +249,14 @@ class BrowserGymEnvironment(Environment):
             Initial observation for the task
         """
         # Generate new episode ID
+        resolved_task_name = task_name or self.task_name or ""
+        self._switch_task_if_needed(resolved_task_name)
+
         self._state = BrowserGymState(
             episode_id=str(uuid4()),
             step_count=0,
             benchmark=self.benchmark,
-            task_name=task_name or self.task_name or "",
+            task_name=resolved_task_name,
         )
 
         # Reset options
@@ -343,7 +393,9 @@ class BrowserGymEnvironment(Environment):
         self._state.goal = goal
 
         # Extract additional observation modalities
-        screenshot = obs.get("screenshot") if isinstance(obs, dict) else None
+        screenshot = None
+        if self.include_screenshot and isinstance(obs, dict):
+            screenshot = _to_jsonable(obs.get("screenshot"))
 
         # Extract last_action_error from obs (BrowserGym includes this)
         last_action_error = False
@@ -357,11 +409,11 @@ class BrowserGymEnvironment(Environment):
         if isinstance(obs, dict):
             # Include useful fields but exclude large raw objects
             browsergym_metadata["browsergym_obs"] = {
-                k: v
+                k: _to_jsonable(v)
                 for k, v in obs.items()
                 if k not in ("dom_object", "axtree_object", "screenshot")
             }
-        browsergym_metadata["browsergym_info"] = info
+        browsergym_metadata["browsergym_info"] = _to_jsonable(info)
 
         return BrowserGymObservation(
             text=text,

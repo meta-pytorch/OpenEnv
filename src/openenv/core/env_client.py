@@ -37,12 +37,13 @@ Examples:
 from __future__ import annotations
 
 import asyncio
+import ipaddress
 import json
 import os
+import time
 from abc import ABC, abstractmethod
-from collections.abc import Iterator
-from contextlib import contextmanager
 from typing import Any, Dict, Generic, Optional, Type, TYPE_CHECKING, TypeVar
+from urllib.parse import urlsplit
 
 from .client_types import StateT, StepResult
 from .containers.runtime import LocalDockerProvider, UVProvider
@@ -78,34 +79,22 @@ def _normalize_mode(mode: Optional[str]) -> str:
 
 
 def _is_localhost_ws_url(ws_url: str) -> bool:
-    """Return True when the WebSocket URL targets localhost."""
-    ws_url_lower = ws_url.lower()
-    return "localhost" in ws_url_lower or "127.0.0.1" in ws_url_lower
+    """Return True when the WebSocket URL targets the local loopback interface.
 
-
-@contextmanager
-def _localhost_no_proxy(ws_url: str) -> Iterator[None]:
-    """Temporarily ensure localhost websocket connections bypass proxies."""
-    if not _is_localhost_ws_url(ws_url):
-        yield
-        return
-
-    old_no_proxy = os.environ.get("NO_PROXY")
-    current_no_proxy = old_no_proxy or ""
-    if "localhost" not in current_no_proxy.lower():
-        os.environ["NO_PROXY"] = (
-            f"{current_no_proxy},localhost,127.0.0.1"
-            if current_no_proxy
-            else "localhost,127.0.0.1"
-        )
-
+    The hostname is parsed from the URL so that only the actual host is matched.
+    Substring matching is avoided because remote hosts such as
+    ``my-localhost-proxy.example.com`` or ``127.0.0.1.example.com`` must not be
+    treated as local.
+    """
+    hostname = urlsplit(ws_url).hostname
+    if hostname is None:
+        return False
+    if hostname == "localhost":
+        return True
     try:
-        yield
-    finally:
-        if old_no_proxy is None:
-            os.environ.pop("NO_PROXY", None)
-        else:
-            os.environ["NO_PROXY"] = old_no_proxy
+        return ipaddress.ip_address(hostname).is_loopback
+    except ValueError:
+        return False
 
 
 class EnvClient(ABC, Generic[ActT, ObsT, StateT]):
@@ -155,6 +144,8 @@ class EnvClient(ABC, Generic[ActT, ObsT, StateT]):
         connect_timeout_s: float = 10.0,
         message_timeout_s: float = 60.0,
         max_message_size_mb: float = 100.0,
+        websocket_ping_interval_s: Optional[float] = 20.0,
+        websocket_ping_timeout_s: Optional[float] = 20.0,
         provider: Optional["ContainerProvider | RuntimeProvider"] = None,
         mode: Optional[str] = None,
     ):
@@ -172,6 +163,10 @@ class EnvClient(ABC, Generic[ActT, ObsT, StateT]):
             max_message_size_mb (`float`, *optional*, defaults to `100.0`):
                 Maximum WebSocket message size in megabytes. Default 100MB to handle large
                 observations (screenshots, DOM, etc.).
+            websocket_ping_interval_s (`float` or `None`, *optional*, defaults to `20.0`):
+                WebSocket keepalive ping interval. Pass `None` to disable.
+            websocket_ping_timeout_s (`float` or `None`, *optional*, defaults to `20.0`):
+                WebSocket keepalive pong timeout. Pass `None` to disable.
             provider (`ContainerProvider` or `RuntimeProvider`, *optional*):
                 Container/runtime provider for lifecycle management.
             mode (`str`, *optional*):
@@ -192,8 +187,11 @@ class EnvClient(ABC, Generic[ActT, ObsT, StateT]):
         self._max_message_size = int(
             max_message_size_mb * 1024 * 1024
         )  # Convert MB to bytes
+        self._websocket_ping_interval_s = websocket_ping_interval_s
+        self._websocket_ping_timeout_s = websocket_ping_timeout_s
         self._provider = provider
         self._ws: Optional[ClientConnection] = None
+        self._ws_loop: Optional[asyncio.AbstractEventLoop] = None
 
     def __setattr__(self, name: str, value: Any) -> None:
         """Prevent modification of _mode after initialization."""
@@ -212,15 +210,38 @@ class EnvClient(ABC, Generic[ActT, ObsT, StateT]):
             ConnectionError: If connection cannot be established
         """
         if self._ws is not None:
-            return self
+            if self._ws_loop is asyncio.get_running_loop():
+                return self
+            # Connected from a different event loop than the one running
+            # now -- e.g. `client = await Client.from_env(...)` inside
+            # `asyncio.run(...)`, then `client.sync()` drives every later
+            # call on `SyncEnvClient`'s own dedicated background loop. The
+            # websocket object is bound to internals of the original loop,
+            # which is typically already closed by the time we get here, so
+            # it cannot be reused (or even cleanly closed) from this loop.
+            # Drop the stale reference and reconnect fresh below rather than
+            # silently no-op-ing onto a dead connection.
+            self._ws = None
+            self._ws_loop = None
+
+        # Disable the proxy for localhost connections via the per-connection
+        # `proxy` argument rather than mutating the process-global NO_PROXY
+        # env var: concurrent connect() calls (e.g. asyncio.gather over many
+        # env clients) would otherwise race on os.environ and leak state.
+        connect_kwargs: Dict[str, Any] = {}
+        if _is_localhost_ws_url(self._ws_url):
+            connect_kwargs["proxy"] = None
 
         try:
-            with _localhost_no_proxy(self._ws_url):
-                self._ws = await ws_connect(
-                    self._ws_url,
-                    open_timeout=self._connect_timeout,
-                    max_size=self._max_message_size,
-                )
+            self._ws = await ws_connect(
+                self._ws_url,
+                open_timeout=self._connect_timeout,
+                max_size=self._max_message_size,
+                ping_interval=self._websocket_ping_interval_s,
+                ping_timeout=self._websocket_ping_timeout_s,
+                **connect_kwargs,
+            )
+            self._ws_loop = asyncio.get_running_loop()
         except Exception as e:
             raise ConnectionError(f"Failed to connect to {self._ws_url}: {e}") from e
 
@@ -229,21 +250,36 @@ class EnvClient(ABC, Generic[ActT, ObsT, StateT]):
     async def disconnect(self) -> None:
         """Close the WebSocket connection."""
         if self._ws is not None:
+            ws = self._ws
+            ws_loop = self._ws_loop
+            same_loop = ws_loop is asyncio.get_running_loop()
             try:
-                # Send close message
-                await self._send({"type": "close"})
+                if same_loop:
+                    await ws.send(json.dumps({"type": "close"}))
             except Exception:
                 pass  # Best effort
             try:
-                await self._ws.close()
+                if same_loop:
+                    await ws.close()
             except Exception:
                 pass
             self._ws = None
+            self._ws_loop = None
 
     async def _ensure_connected(self) -> None:
-        """Ensure WebSocket connection is established."""
-        if self._ws is None:
-            await self.connect()
+        """Ensure WebSocket connection is established on the current loop.
+
+        Always delegates to `connect()` rather than pre-checking `self._ws is
+        None`: `connect()` itself is the one that knows whether an existing
+        `_ws` is reusable (same event loop) or stale (a different one, e.g.
+        from a prior `from_env()` call now being driven through `.sync()`'s
+        own loop). A pre-check here that only looked at `_ws is None` would
+        skip `connect()` entirely whenever `_ws` is already set -- including
+        the stale-loop case -- so the reconnect logic would never run for
+        callers that never explicitly call `.connect()` themselves (e.g.
+        `client.sync().reset()` right after `from_env()`).
+        """
+        await self.connect()
 
     async def _send(self, message: Dict[str, Any]) -> None:
         """Send a message over the WebSocket."""
@@ -389,11 +425,29 @@ class EnvClient(ABC, Generic[ActT, ObsT, StateT]):
                         "provider_kwargs cannot be used when supplying a provider instance"
                     )
 
-            base_url = provider.start(**start_args)
-            provider.wait_for_ready()
+            try:
+                context_timeout_s = getattr(provider, "context_timeout_s", None)
+                deadline = (
+                    time.monotonic() + context_timeout_s
+                    if context_timeout_s is not None
+                    else None
+                )
+                base_url = provider.start(**start_args)
+                if deadline is None:
+                    provider.wait_for_ready()
+                else:
+                    provider.wait_for_ready(
+                        timeout_s=max(0.0, deadline - time.monotonic())
+                    )
 
-            client = cls(base_url=base_url, provider=provider)
-            await client.connect()
+                client = cls(base_url=base_url, provider=provider)
+                await client.connect()
+            except Exception:
+                # No EnvClient may exist yet for the caller to close(), so
+                # this is the only chance to release the spawned process and
+                # (for a git+ project_path) the temp clone directory.
+                provider.stop()
+                raise
             return client
 
     @abstractmethod

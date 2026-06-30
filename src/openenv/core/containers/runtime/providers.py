@@ -650,19 +650,12 @@ class DockerSwarmProvider(ContainerProvider):
 
 class KubernetesProvider(ContainerProvider):
     """
-    Container provider for Kubernetes clusters.
+    Planned container provider for Kubernetes clusters.
 
-    This provider creates pods in a Kubernetes cluster and exposes them
-    via services or port-forwarding.
-
-    Examples:
-
-        ```python
-        provider = KubernetesProvider(namespace="envtorch-dev")
-        base_url = provider.start_container("echo-env:latest")
-        # Pod running in k8s, accessible via service or port-forward
-        provider.stop_container()
-        ```
+    Not yet implemented: this is a placeholder for the planned Kubernetes
+    backend and does not implement the abstract `ContainerProvider` methods, so
+    it cannot be instantiated. Use `LocalDockerProvider`, `DockerSwarmProvider`,
+    `DaytonaProvider`, or `ACASandboxProvider` instead.
     """
 
     pass

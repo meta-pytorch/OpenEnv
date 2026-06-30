@@ -62,6 +62,8 @@ LOCAL_TARGETS = {
     "opencode": Path(".opencode/skills"),
 }
 
+_AGENT_TARGET_ORDER = ("claude", "codex", "cursor", "opencode")
+
 app = typer.Typer(help="Manage OpenEnv skills for AI assistants")
 
 
@@ -130,6 +132,12 @@ def _create_symlink(
     return link_path
 
 
+def _selected_agent_targets(
+    targets: dict[str, Path], selected_agents: dict[str, bool]
+) -> list[Path]:
+    return [targets[agent] for agent in _AGENT_TARGET_ORDER if selected_agents[agent]]
+
+
 @app.command("preview")
 def skills_preview() -> None:
     """Print generated SKILL.md content."""
@@ -191,16 +199,15 @@ def skills_add(
     )
 
     targets = GLOBAL_TARGETS if global_ else LOCAL_TARGETS
-    agent_targets: list[Path] = []
-
-    if claude:
-        agent_targets.append(targets["claude"])
-    if codex:
-        agent_targets.append(targets["codex"])
-    if cursor:
-        agent_targets.append(targets["cursor"])
-    if opencode:
-        agent_targets.append(targets["opencode"])
+    agent_targets = _selected_agent_targets(
+        targets,
+        {
+            "claude": claude,
+            "codex": codex,
+            "cursor": cursor,
+            "opencode": opencode,
+        },
+    )
 
     for agent_target in agent_targets:
         link_path = _create_symlink(agent_target, central_skill_path, force)
