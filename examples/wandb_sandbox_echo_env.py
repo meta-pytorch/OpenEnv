@@ -4,7 +4,7 @@ Usage:
     wandb login
     # or: export WANDB_API_KEY=...
 
-    PYTHONPATH=src uv run --extra core --extra wandb \
+    PYTHONPATH=src uv run --extra wandb \
       --with "git+https://huggingface.co/spaces/openenv/echo_env" \
       python examples/wandb_sandbox_echo_env.py
 """
