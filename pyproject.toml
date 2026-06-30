@@ -65,6 +65,10 @@ aca = [
     "azure-containerapps-sandbox>=0.1.0b2,<0.2.0",
     "azure-identity>=1.23.0",
 ]
+modal = [
+    "modal>=1.4.0",
+    "pyyaml>=6.0",
+]
 inspect = [
     "inspect-ai>=0.3.0",
 ]

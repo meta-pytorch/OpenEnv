@@ -58,7 +58,7 @@ jobs:
 
   # Job 2: Build OpenSpiel base image (depends on base)
   build-openspiel-base:
-    runs-on: 8-core-ubuntu
+    runs-on: ubuntu-latest
     needs: build-base  # Wait for base image to be built
     permissions:
       contents: read
@@ -94,6 +94,8 @@ jobs:
           file: envs/openspiel_env/server/Dockerfile.openspiel-base
           push: true
           platforms: linux/amd64,linux/arm64
+          build-args: |
+            BASE_IMAGE=${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-base:latest
           tags: ${{ steps.meta-openspiel-base.outputs.tags }}
           labels: ${{ steps.meta-openspiel-base.outputs.labels }}
           cache-from: type=gha,scope=openspiel-base

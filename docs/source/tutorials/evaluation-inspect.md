@@ -36,9 +36,10 @@ Run via InspectAIHarness → EvalResult with structured scores
 ## Install dependencies
 
 ```bash
-pip install "inspect-ai>=0.3.0"
-pip install "openenv @ git+https://github.com/huggingface/OpenEnv.git"
+pip install "openenv[inspect] @ git+https://github.com/huggingface/OpenEnv.git"
 ```
+
+The `inspect` extra pulls in `inspect-ai` (pinned to `>=0.3.0`).
 
 `inspect-ai` is an optional dependency — `InspectAIHarness` is importable
 without it, but raises a clear `ImportError` at call time if it is missing.

@@ -13,6 +13,21 @@ pip install openenv
 > projects can depend on `openenv[core]` when they only need the server and
 > client libraries.
 
+### Optional dependencies
+
+OpenEnv ships optional extras for specific integrations. Install them with
+`pip install openenv[<extra>]`:
+
+| Extra | Pulls in |
+|-------|----------|
+| `core` | Server + client runtime only (no CLI) |
+| `cli` | The `openenv` command-line interface |
+| `all` | `core` + `cli` |
+| `inspect` | The Inspect AI evaluation harness |
+
+Cloud sandbox providers ship their own extras (`daytona`, `aca`); see the Core
+API reference.
+
 ## Try an Environment
 
 Use `AutoEnv` and `AutoAction` when you want OpenEnv to find the matching client
@@ -132,16 +147,18 @@ Cloud sandbox providers implement the same `ContainerProvider` contract as
 local Docker: they start an isolated environment server and return a `base_url`
 that an `EnvClient` can connect to directly, while keeping provider-specific
 control-plane concepts (sandbox groups, projects, signed URLs, snapshots, egress
-policy) inside the provider. This keeps OpenEnv an open protocol that any hosted
-runtime — Daytona, Modal, E2B, Azure Container Apps Sandboxes, Kubernetes-backed
-sandboxes, and others — can implement without changing the client/server
-protocol.
+policy) inside the provider. Because the contract is provider-neutral, any hosted
+runtime can implement it without changing the client/server protocol.
 
-See RFC 002, "Cloud Sandbox Providers", for the provider-neutral invariants
-(direct base URL, WebSocket conformance, base URL lifetime and reconnect,
-provider-specific source mapping, orchestration-only lifecycle, explicit network
-posture), and the [Core API reference](reference/core.md) for the available
-provider implementations and their provider-specific setup.
+Providers shipped today: `LocalDockerProvider`, `DockerSwarmProvider`,
+`UVProvider`, `DaytonaProvider`, and `ACASandboxProvider` (Azure Container Apps
+Sandboxes). A `KubernetesProvider` is planned.
+
+See the [Runtime Providers guide](guides/runtime-providers.md) for the full list,
+install extras, and how to select a provider, and the
+[Core API reference](reference/core.md) for each provider's API. The
+provider-neutral invariants are described in the Cloud Sandbox Providers amendment
+proposed in RFC 002 (env-spec).
 
 ## Next Steps
 
