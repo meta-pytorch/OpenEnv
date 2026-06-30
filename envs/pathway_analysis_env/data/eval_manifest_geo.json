@@ -1,0 +1,18 @@
+{
+  "description": "Real-world GEO task: GSE128911 fulvestrant vs DMSO.",
+  "defaults": {
+    "eval_mode": true,
+    "max_steps": 30,
+    "orchestrator_mode": true
+  },
+  "episodes": [
+    {
+      "id": "geo_gse128911_fulvestrant",
+      "case_file": "geo_eval/gse128911_mda_mb_134_vi_fulvestrant_vs_dmso/gse128911_case.json",
+      "hypothesis": "estrogen response",
+      "requires_pydeseq2": true,
+      "requires_gseapy": true,
+      "score_mode": "keywords"
+    }
+  ]
+}

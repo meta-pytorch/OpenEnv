@@ -1,0 +1,34 @@
+{
+  "description": "Three real-world GEO tasks for capability comparison.",
+  "defaults": {
+    "eval_mode": true,
+    "max_steps": 30,
+    "orchestrator_mode": true
+  },
+  "episodes": [
+    {
+      "id": "geo_gse128911_fulvestrant",
+      "case_file": "geo_eval/gse128911_mda_mb_134_vi_fulvestrant_vs_dmso/gse128911_case.json",
+      "hypothesis": "estrogen response",
+      "requires_pydeseq2": true,
+      "requires_gseapy": true,
+      "score_mode": "keywords"
+    },
+    {
+      "id": "geo_gse111151_tamoxifen_resistance",
+      "case_file": "geo_eval/gse111151_tamoxifen_benchmark/gse111151_case.json",
+      "hypothesis": "estrogen / tamoxifen resistance",
+      "requires_pydeseq2": true,
+      "requires_gseapy": true,
+      "score_mode": "keywords"
+    },
+    {
+      "id": "geo_gse216540_fulvestrant_pseudo",
+      "case_file": "geo_eval/gse216540_tpm_pseudo_benchmark/gse216540_case.json",
+      "hypothesis": "interferon / immune response",
+      "requires_pydeseq2": true,
+      "requires_gseapy": true,
+      "score_mode": "keywords"
+    }
+  ]
+}

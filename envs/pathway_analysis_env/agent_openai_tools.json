@@ -1,0 +1,161 @@
+{
+  "schema_version": "openai_chat_completions_tools_v1",
+  "notes": [
+    "One function per environment action (recommended). Map tool name -> PathwayAction.action_type in the harness.",
+    "Call env reset() before the tool loop; reset is not an OpenAI tool.",
+    "Compatible with Chat Completions tools= and Responses API function tools (same shape)."
+  ],
+  "tools": [
+    {
+      "type": "function",
+      "function": {
+        "name": "understand_experiment_design",
+        "description": "Summarize experimental groups (conditions, sample counts, default contrast). Optionally validate a DESeq2 contrast by providing reference (condition_a) and alternate (condition_b). Does not run differential expression. Provide both condition fields or neither.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "condition_a": {
+              "type": "string",
+              "description": "Reference / baseline condition name (denominator for log2FC). Must match a value in available_conditions."
+            },
+            "condition_b": {
+              "type": "string",
+              "description": "Alternate / comparison condition name. Must differ from condition_a."
+            }
+          },
+          "additionalProperties": false
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "name": "inspect_dataset",
+        "description": "Return sample IDs, per-sample condition metadata, and whether PyDESeq2 is available. Does not run DE or enrichment.",
+        "parameters": {
+          "type": "object",
+          "properties": {},
+          "additionalProperties": false
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "name": "run_differential_expression",
+        "description": "Run PyDESeq2 differential expression for reference vs alternate on the episode count matrix. Requires condition_a and condition_b unless a contrast was validated via understand_experiment_design or the case defines default_contrast.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "condition_a": {
+              "type": "string",
+              "description": "Reference condition (baseline)."
+            },
+            "condition_b": {
+              "type": "string",
+              "description": "Alternate condition (comparison)."
+            }
+          },
+          "additionalProperties": false
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "name": "run_pathway_enrichment",
+        "description": "Run over-representation analysis (Fisher ORA) on DE genes against pathway gene sets in the case. In pipeline mode, run_differential_expression must succeed first.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "gene_list": {
+              "type": "array",
+              "items": { "type": "string" },
+              "description": "Optional explicit gene list for ORA. If omitted, uses significant DE genes from the last DE step per case analysis_options."
+            }
+          },
+          "additionalProperties": false
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "name": "compare_pathways",
+        "description": "Compare exclusive vs shared differential-expression gene support between two named pathways from the case pathway_genes.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "pathway_a": {
+              "type": "string",
+              "description": "First pathway name (exact string as in enrichment results or case pathway_genes keys)."
+            },
+            "pathway_b": {
+              "type": "string",
+              "description": "Second pathway name."
+            }
+          },
+          "required": ["pathway_a", "pathway_b"],
+          "additionalProperties": false
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "name": "submit_answer",
+        "description": "Submit final hypothesis: the activated signaling pathway name. Ends the episode. String must match case pathway naming exactly (case-insensitive match on server).",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "hypothesis": {
+              "type": "string",
+              "description": "Pathway name, e.g. 'MAPK signaling'."
+            }
+          },
+          "required": ["hypothesis"],
+          "additionalProperties": false
+        }
+      }
+    }
+  ],
+  "unified_alternative": {
+    "description": "Single-tool variant that maps 1:1 to PathwayAction if you prefer one function with action_type enum.",
+    "tools": [
+      {
+        "type": "function",
+        "function": {
+          "name": "pathway_env_step",
+          "description": "Execute one step in the pathway analysis environment.",
+          "parameters": {
+            "type": "object",
+            "properties": {
+              "action_type": {
+                "type": "string",
+                "enum": [
+                  "understand_experiment_design",
+                  "inspect_dataset",
+                  "run_differential_expression",
+                  "run_pathway_enrichment",
+                  "compare_pathways",
+                  "submit_answer"
+                ]
+              },
+              "condition_a": { "type": "string" },
+              "condition_b": { "type": "string" },
+              "gene_list": {
+                "type": "array",
+                "items": { "type": "string" }
+              },
+              "hypothesis": { "type": "string" },
+              "pathway_a": { "type": "string" },
+              "pathway_b": { "type": "string" }
+            },
+            "required": ["action_type"],
+            "additionalProperties": false
+          }
+        }
+      }
+    ]
+  }
+}

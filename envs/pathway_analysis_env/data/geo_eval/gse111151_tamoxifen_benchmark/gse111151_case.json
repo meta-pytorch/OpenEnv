@@ -1,0 +1,49 @@
+{
+  "case_id": "GSE111151_tamoxifen_resistance_parental",
+  "strict_mode": false,
+  "experiment_metadata": {
+    "accession": "GSE111151",
+    "reference": "https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE111151",
+    "summary": "Merged author per-sample raw counts (GEO legacy supplement files GSE111151_GSM1417177\u201384 \u2192 GSM3024053\u201360); 8/11 matrix columns (BT-474 arm not on this FTP mirror)."
+  },
+  "counts_file": "geo_eval/gse111151_tamoxifen_benchmark/gse111151_counts.csv.gz",
+  "sample_ids": [
+    "GSM3024053",
+    "GSM3024054",
+    "GSM3024055",
+    "GSM3024056",
+    "GSM3024057",
+    "GSM3024058",
+    "GSM3024059",
+    "GSM3024060"
+  ],
+  "sample_metadata": {
+    "GSM3024053": "parental",
+    "GSM3024054": "tamoxifen_resistant",
+    "GSM3024055": "parental",
+    "GSM3024056": "tamoxifen_resistant",
+    "GSM3024057": "tamoxifen_resistant",
+    "GSM3024058": "parental",
+    "GSM3024059": "tamoxifen_resistant",
+    "GSM3024060": "tamoxifen_resistant"
+  },
+  "conditions": [
+    "parental",
+    "tamoxifen_resistant"
+  ],
+  "default_contrast": {
+    "reference": "parental",
+    "alternate": "tamoxifen_resistant"
+  },
+  "analysis_options": {
+    "min_total_count": 10,
+    "padj_alpha": 0.05,
+    "de_query_direction": "both"
+  },
+  "enrichr_libraries": [
+    "MSigDB_Hallmark_2020",
+    "KEGG_2021_Human",
+    "Reactome_2022"
+  ],
+  "true_pathway": "Unknown (GEO benchmark)"
+}
