@@ -16,9 +16,9 @@ import time
 from contextlib import suppress
 from typing import Any
 
-from fastapi import FastAPI, Request, Response, WebSocket
 import requests
 import uvicorn
+from fastapi import FastAPI, Request, Response, WebSocket
 from starlette.websockets import WebSocketDisconnect
 from websockets.asyncio.client import connect as ws_connect
 from websockets.exceptions import ConnectionClosed
@@ -131,13 +131,13 @@ class _LocalAuthProxy:
             try:
                 upstream = await asyncio.to_thread(
                     requests.request,
-                        request.method,
-                        target,
-                        data=body,
-                        headers=headers,
-                        timeout=60.0,
-                        allow_redirects=True,
-                    )
+                    request.method,
+                    target,
+                    data=body,
+                    headers=headers,
+                    timeout=60.0,
+                    allow_redirects=True,
+                )
             except requests.RequestException:
                 return Response(
                     content=b"upstream HF job unreachable",
