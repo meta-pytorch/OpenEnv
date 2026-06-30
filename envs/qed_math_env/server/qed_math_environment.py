@@ -30,33 +30,17 @@ import math_verify
 from fastmcp import FastMCP
 
 try:
-    from openenv.core.env_server.mcp_environment import (
-        MCPEnvironment,
-        MCP_TOOL_CALL_TIMEOUT,
-    )
+    from openenv.core.env_server.mcp_environment import MCPEnvironment
     from openenv.core.env_server.mcp_types import (
         CallToolAction,
         CallToolObservation,
-        ListToolsAction,
-        ListToolsObservation,
-        Tool,
-        ToolError,
-        ToolErrorType,
     )
     from openenv.core.env_server.types import Action, Observation, State
 except ImportError:
-    from openenv.core.env_server.mcp_environment import (
-        MCPEnvironment,
-        MCP_TOOL_CALL_TIMEOUT,
-    )
+    from openenv.core.env_server.mcp_environment import MCPEnvironment
     from openenv.core.env_server.mcp_types import (
         CallToolAction,
         CallToolObservation,
-        ListToolsAction,
-        ListToolsObservation,
-        Tool,
-        ToolError,
-        ToolErrorType,
     )
     from openenv.core.env_server.types import Action, Observation, State
 
@@ -1226,7 +1210,6 @@ class QEDMathEnvironment(MCPEnvironment):
             prediction=submission,
             gold=expected_answer,
             strict=self._config.verifier_strict,
-            timeout_seconds=max(1, int(self._config.verifier_request_timeout_seconds)),
             max_prediction_length=1000,
             numeric_precision=self._config.verifier_numeric_precision,
             float_rounding=self._config.verifier_float_rounding,

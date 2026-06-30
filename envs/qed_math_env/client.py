@@ -52,7 +52,9 @@ class QEDMathEnv(MCPToolClient):
             return ProblemObservation(**dict(value))
         if hasattr(value, "model_dump"):
             return ProblemObservation(**value.model_dump())
-        raise TypeError(f"Unsupported problem observation payload type: {type(value).__name__}")
+        raise TypeError(
+            f"Unsupported problem observation payload type: {type(value).__name__}"
+        )
 
     @staticmethod
     def _as_proof_submission_observation(value: Any) -> ProofSubmissionObservation:
@@ -63,7 +65,9 @@ class QEDMathEnv(MCPToolClient):
             return ProofSubmissionObservation(**dict(value))
         if hasattr(value, "model_dump"):
             return ProofSubmissionObservation(**value.model_dump())
-        raise TypeError(f"Unsupported proof submission payload type: {type(value).__name__}")
+        raise TypeError(
+            f"Unsupported proof submission payload type: {type(value).__name__}"
+        )
 
     async def reset(
         self, problem_id: Optional[str] = None, **kwargs: Any
@@ -129,7 +133,9 @@ class QEDMathEnv(MCPToolClient):
             return dict(result)
         if hasattr(result, "model_dump"):
             return result.model_dump()
-        raise TypeError(f"Unsupported grading feedback payload type: {type(result).__name__}")
+        raise TypeError(
+            f"Unsupported grading feedback payload type: {type(result).__name__}"
+        )
 
     async def get_state(self) -> State:
         """Return current environment state (episode_id, step_count)."""

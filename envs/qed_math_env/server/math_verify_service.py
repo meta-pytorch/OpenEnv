@@ -144,9 +144,7 @@ def _verify_answer_worker(request: VerifyRequest) -> VerifyResponse:
         else:
             # Parse both expressions
             gold_parsed = _parse_math_verify_expression(request.gold)
-            boxed_prediction_parsed = _parse_math_verify_expression(
-                boxed_prediction
-            )
+            boxed_prediction_parsed = _parse_math_verify_expression(boxed_prediction)
 
             if not gold_parsed or not boxed_prediction_parsed:
                 status = "unparsable"
@@ -158,6 +156,8 @@ def _verify_answer_worker(request: VerifyRequest) -> VerifyResponse:
                         boxed_prediction_parsed,
                         strict=request.strict,
                         timeout_seconds=request.timeout_seconds,
+                        numeric_precision=request.numeric_precision,
+                        float_rounding=request.float_rounding,
                     )
                     status = "correct" if equivalent else "wrong"
                 except Exception as exc:
@@ -276,9 +276,7 @@ class MathVerifierService:
             max_workers=self.max_workers,
             mp_context=mp.get_context("spawn"),
         )
-        logger.info(
-            "MathVerifierService started with %d workers", self.max_workers
-        )
+        logger.info("MathVerifierService started with %d workers", self.max_workers)
 
     async def stop(self) -> None:
         """Stop the worker process pool and clean up resources.
@@ -457,7 +455,9 @@ class MathVerifierService:
             )
 
         except Exception as exc:
-            logger.exception("Verification request %s failed with exception", request_id)
+            logger.exception(
+                "Verification request %s failed with exception", request_id
+            )
             return VerifyResponse(
                 request_id=request_id,
                 status="internal_error",
@@ -525,9 +525,7 @@ class MathVerifierService:
                 else self.numeric_precision
             ),
             float_rounding=(
-                float_rounding
-                if float_rounding is not None
-                else self.float_rounding
+                float_rounding if float_rounding is not None else self.float_rounding
             ),
         )
 
@@ -537,9 +535,8 @@ class MathVerifierService:
             while True:
                 response = await self._run_request_once(request)
 
-                if (
-                    retry_count < self.max_retries
-                    and self._is_retryable_response(response)
+                if retry_count < self.max_retries and self._is_retryable_response(
+                    response
                 ):
                     if self._requires_restart(response):
                         await self._restart_pool()

@@ -76,7 +76,9 @@ class ProofSubmissionObservation(QEDMathObservation):
         default="proof",
         description="Problem type used to evaluate this submission",
     )
-    attempt_number: int = Field(default=1, description="1-based submission attempt index")
+    attempt_number: int = Field(
+        default=1, description="1-based submission attempt index"
+    )
     attempts_remaining: int = Field(
         default=0,
         description="Remaining submission attempts in the current episode",

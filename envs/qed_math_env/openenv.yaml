@@ -16,7 +16,7 @@ version: "0.1.0"
 # Environment configuration defaults (overridable via QEDMathConfig)
 environment:
   grader_model: gemini-3-pro
-  prompt_name: v2
+  prompt_name: v1
   custom_reward_threshold: false
   discount_factor: 1.0
   buffer_tokens: 0
