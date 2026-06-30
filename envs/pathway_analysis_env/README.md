@@ -1,8 +1,21 @@
 # Pathway Analysis Environment
 
-`pathway_analysis_env` is an OpenEnv environment for pathway-analysis reasoning.
-An agent gets expression data, runs differential expression and pathway enrichment,
-then submits a pathway hypothesis.
+`pathway_analysis_env` is an OpenEnv environment for evaluating multi-step,
+tool-using agents on a realistic scientific workflow.
+
+In plain terms: each task gives an agent a gene-expression dataset with labeled
+sample groups (for example treatment vs control). The agent must:
+
+1. inspect and understand the experiment design,
+2. run **differential expression** (find genes that changed between groups),
+3. run **pathway enrichment** (map changed genes to higher-level biological
+   programs),
+4. submit a final pathway hypothesis.
+
+This environment is designed to test agent behavior that matters in production:
+sequencing decisions correctly, using tools in the right order, handling
+structured outputs, and producing evidence-backed conclusions rather than
+one-shot guesses.
 
 ## What the agent can do
 
