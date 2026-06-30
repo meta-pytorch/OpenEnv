@@ -83,8 +83,10 @@ class _FakeSandboxClass:
         self.deleted: list[dict] = []
         self.instance = _FakeSandbox()
         self.list_result = _FakeRef([])
+        self.run_count = 0
 
     def run(self, **kwargs):
+        self.run_count += 1
         self.last_run_kwargs = kwargs
         return self.instance
 
@@ -179,6 +181,19 @@ def test_stop_container_deletes_wandb_sandbox(fake_wandb_sdk):
             "missing_ok": True,
         }
     ]
+
+
+def test_wandb_provider_inherits_active_sandbox_lifecycle_guard(fake_wandb_sdk):
+    provider = WandbSandboxProvider(sdk=fake_wandb_sdk)
+    provider.start_container("echo-env:latest")
+
+    with pytest.raises(RuntimeError, match="already has an active sandbox"):
+        provider.start_container("other-env:latest")
+
+    provider.close()
+
+    assert fake_wandb_sdk._sandbox_cls.run_count == 1
+    assert fake_wandb_sdk._sandbox_cls.instance.stopped is True
 
 
 def test_lifecycle_kwargs_pass_through_to_cwsandbox_provider(fake_wandb_sdk):

@@ -2,12 +2,15 @@
 
 from __future__ import annotations
 
+import logging
 import os
 import shlex
 import time
-from typing import Any, Dict, Optional
+from typing import Any
 
 from .providers import ContainerProvider
+
+logger = logging.getLogger(__name__)
 
 
 class CWSandboxProvider(ContainerProvider):
@@ -20,22 +23,23 @@ class CWSandboxProvider(ContainerProvider):
     def __init__(
         self,
         *,
-        base_url: Optional[str] = None,
-        ingress_mode: Optional[str] = "public",
-        egress_mode: Optional[str] = "internet",
-        resources: Optional[Any] = None,
+        base_url: str | None = None,
+        ingress_mode: str | None = "public",
+        egress_mode: str | None = "internet",
+        resources: Any | None = None,
         request_timeout_seconds: float = 300.0,
-        max_lifetime_seconds: Optional[float] = None,
-        max_timeout_seconds: Optional[int] = None,
-        tags: Optional[list[str]] = None,
-        profile_ids: Optional[list[str]] = None,
-        profile_names: Optional[list[str]] = None,
-        runner_ids: Optional[list[str]] = None,
-        cmd: Optional[str] = None,
+        max_lifetime_seconds: float | None = None,
+        max_timeout_seconds: int | None = None,
+        tags: list[str] | None = None,
+        profile_ids: list[str] | None = None,
+        profile_names: list[str] | None = None,
+        runner_ids: list[str] | None = None,
+        cmd: str | None = None,
         url_scheme: str = "http",
         delete_on_stop: bool = True,
         ready_settle_seconds: float = 2.0,
-        sdk: Optional[Any] = None,
+        surface_server_logs: bool = False,
+        sdk: Any | None = None,
     ) -> None:
         self._sdk = sdk if sdk is not None else _import_cwsandbox()
         self._base_url = base_url
@@ -53,9 +57,11 @@ class CWSandboxProvider(ContainerProvider):
         self._url_scheme = url_scheme.rstrip(":/")
         self._delete_on_stop = delete_on_stop
         self._ready_settle_seconds = ready_settle_seconds
+        self._surface_server_logs = surface_server_logs
 
         self._sandbox: Any = None
-        self._base_env_url: Optional[str] = None
+        self._base_env_url: str | None = None
+        self._redact_values: set[str] = set()
 
     @classmethod
     def preflight(cls, *, sdk: Any | None = None) -> None:
@@ -78,19 +84,24 @@ class CWSandboxProvider(ContainerProvider):
             raise
 
     @property
-    def base_url(self) -> Optional[str]:
+    def base_url(self) -> str:
         """Base URL returned to OpenEnv clients after startup."""
+        if self._base_env_url is None:
+            raise RuntimeError(
+                "CWSandboxProvider has no active base_url. Start the provider "
+                "before reading base_url."
+            )
         return self._base_env_url
 
     @property
-    def sandbox_id(self) -> Optional[str]:
+    def sandbox_id(self) -> str | None:
         """Sandbox ID for debugging after startup."""
         if self._sandbox is None:
             return None
         return getattr(self._sandbox, "sandbox_id", None)
 
     @property
-    def service_address(self) -> Optional[str]:
+    def service_address(self) -> str | None:
         """External service address reported by cwsandbox after startup."""
         if self._sandbox is None:
             return None
@@ -99,11 +110,18 @@ class CWSandboxProvider(ContainerProvider):
     def start_container(
         self,
         image: str,
-        port: Optional[int] = None,
-        env_vars: Optional[Dict[str, str]] = None,
+        port: int | None = None,
+        env_vars: dict[str, str] | None = None,
         **kwargs: Any,
     ) -> str:
         """Start an OpenEnv image in a sandbox and return its base URL."""
+        if self._sandbox is not None:
+            raise RuntimeError(
+                "CWSandboxProvider already has an active sandbox. Call "
+                "stop_container() (or close()) before starting another; a "
+                "second start would orphan the running sandbox."
+            )
+
         port = port or 8000
         if port != 8000:
             raise ValueError(
@@ -142,7 +160,13 @@ class CWSandboxProvider(ContainerProvider):
             {key: value for key, value in optional_kwargs.items() if value is not None}
         )
 
-        sandbox = self._sdk.Sandbox.run(**run_kwargs)
+        self._redact_values = {value for value in (env_vars or {}).values() if value}
+        try:
+            sandbox = self._sdk.Sandbox.run(**run_kwargs)
+        except Exception:
+            self._redact_values = set()
+            raise
+
         self._sandbox = sandbox
         try:
             sandbox.wait(timeout=self._request_timeout_seconds)
@@ -151,7 +175,13 @@ class CWSandboxProvider(ContainerProvider):
             self._base_env_url = self._base_url_from_sandbox(sandbox)
             return self._base_env_url
         except Exception:
-            self.stop_container()
+            try:
+                self.stop_container()
+            except Exception as cleanup_exc:
+                logger.warning(
+                    "Failed to clean up CoreWeave sandbox after startup failure",
+                    exc_info=cleanup_exc,
+                )
             raise
 
     def stop_container(self) -> None:
@@ -160,21 +190,36 @@ class CWSandboxProvider(ContainerProvider):
         self._sandbox = None
         self._base_env_url = None
         if sandbox is None:
+            self._redact_values = set()
             return
 
         sandbox_id = getattr(sandbox, "sandbox_id", None)
+        stop_error: BaseException | None = None
         try:
             self._result_with_retries(lambda: sandbox.stop(missing_ok=True))
+        except Exception as exc:
+            if not self._is_sandbox_not_running_error(exc):
+                stop_error = exc
         finally:
-            if self._delete_on_stop and sandbox_id:
-                self._result_with_retries(
-                    lambda: self._sdk.Sandbox.delete(
-                        sandbox_id,
-                        base_url=self._base_url,
-                        timeout_seconds=self._request_timeout_seconds,
-                        missing_ok=True,
+            try:
+                if self._delete_on_stop and sandbox_id:
+                    self._result_with_retries(
+                        lambda: self._sdk.Sandbox.delete(
+                            sandbox_id,
+                            base_url=self._base_url,
+                            timeout_seconds=self._request_timeout_seconds,
+                            missing_ok=True,
+                        )
                     )
-                )
+            finally:
+                self._redact_values = set()
+
+        if stop_error is not None:
+            raise stop_error
+
+    def close(self) -> None:
+        """Stop the active sandbox, if any."""
+        self.stop_container()
 
     def wait_for_ready(self, base_url: str, timeout_s: float = 120.0) -> None:
         """Wait for the OpenEnv server to respond to /health and /ws."""
@@ -182,7 +227,7 @@ class CWSandboxProvider(ContainerProvider):
 
         deadline = time.time() + timeout_s
         health_url = f"{base_url.rstrip('/')}/health"
-        last_error: Optional[BaseException] = None
+        last_error: BaseException | None = None
 
         while time.time() < deadline:
             try:
@@ -195,8 +240,7 @@ class CWSandboxProvider(ContainerProvider):
                 last_error = exc
 
             if self._server_process_dead():
-                log = self._server_log()
-                raise RuntimeError(f"OpenEnv server process exited.\nLog:\n{log}")
+                raise RuntimeError(self._server_died_message())
 
             time.sleep(1.0)
 
@@ -232,7 +276,7 @@ class CWSandboxProvider(ContainerProvider):
             f"python -m uvicorn {shlex.quote(app)} --host 0.0.0.0 --port {port}"
         )
 
-    def _find_openenv_yaml(self, sandbox: Any) -> Optional[str]:
+    def _find_openenv_yaml(self, sandbox: Any) -> str | None:
         candidate = "/app/env/openenv.yaml"
         out = self._exec_stdout(
             sandbox,
@@ -252,7 +296,7 @@ class CWSandboxProvider(ContainerProvider):
         return None
 
     @staticmethod
-    def _parse_app_field(yaml_content: str) -> Optional[str]:
+    def _parse_app_field(yaml_content: str) -> str | None:
         try:
             import yaml
         except ImportError as exc:
@@ -326,6 +370,52 @@ class CWSandboxProvider(ContainerProvider):
             suppress_errors=True,
         )
 
+    def _redact(self, text: str, *, max_chars: int = 2000) -> str:
+        """Scrub injected env-var values before surfacing sandbox output."""
+        redacted = text or ""
+        for value in self._redact_values:
+            redacted = redacted.replace(value, "***")
+        if len(redacted) > max_chars:
+            redacted = "...(truncated)...\n" + redacted[-max_chars:]
+        return redacted
+
+    def _server_died_message(self) -> str:
+        """Build the startup-crash error, secure by default.
+
+        The sandbox can run untrusted environment code, so raw server output is
+        withheld unless explicitly requested. When surfaced, injected env-var
+        values are redacted on a best-effort basis.
+        """
+        base = (
+            "CoreWeave sandbox server process died during startup. Server output "
+            "is not surfaced to avoid leaking secrets injected into the sandbox; "
+            "retrieve /tmp/openenv-server.log from the sandbox out of band, or "
+            "construct the provider with surface_server_logs=True to include a "
+            "redacted excerpt."
+        )
+        if not self._surface_server_logs:
+            return base
+
+        log = self._redact(self._server_log())
+        return (
+            "CoreWeave sandbox server process died during startup. The excerpt "
+            "below is the sandbox server output with injected secret values "
+            "redacted (best-effort); it may still contain secrets the workload "
+            f"printed by other means.\nLog (redacted):\n{log}"
+        )
+
+    def _is_sandbox_not_running_error(self, exc: BaseException) -> bool:
+        sandbox_not_running = getattr(self._sdk, "SandboxNotRunningError", None)
+        if isinstance(sandbox_not_running, type) and isinstance(
+            exc, sandbox_not_running
+        ):
+            return True
+        exc_type = type(exc)
+        return (
+            exc_type.__name__ == "SandboxNotRunningError"
+            and exc_type.__module__.split(".", maxsplit=1)[0] in {"cwsandbox", "wandb"}
+        )
+
     @staticmethod
     def _exec_stdout(
         sandbox: Any,
@@ -348,7 +438,7 @@ class CWSandboxProvider(ContainerProvider):
 
     @staticmethod
     def _result_with_retries(operation: Any, attempts: int = 3) -> Any:
-        last_error: Optional[BaseException] = None
+        last_error: BaseException | None = None
         for attempt in range(attempts):
             try:
                 return operation().result()

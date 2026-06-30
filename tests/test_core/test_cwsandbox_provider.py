@@ -16,6 +16,10 @@ class _AuthError(Exception):
     pass
 
 
+class _SandboxNotRunningError(Exception):
+    pass
+
+
 class _FakeRef:
     def __init__(self, value=None):
         self.value = value
@@ -49,6 +53,9 @@ class _FakeSandbox:
         self.exec_calls: list[list[str]] = []
         self.wait_calls: list[float | None] = []
         self.stopped = False
+        self.dead_process = False
+        self.log = ""
+        self.stop_error: BaseException | None = None
 
     def wait(self, timeout=None):
         self.wait_calls.append(timeout)
@@ -64,14 +71,16 @@ class _FakeSandbox:
         if script.startswith("cat /app/envs/coding_env/openenv.yaml"):
             return _FakeProcess("spec_version: 1\napp: coding_env.server.app:app\n")
         if "kill -0" in script:
-            return _FakeProcess("RUNNING\n")
+            return _FakeProcess("DEAD\n" if self.dead_process else "RUNNING\n")
         if script.startswith("cat /tmp/openenv-server.log"):
-            return _FakeProcess("")
+            return _FakeProcess(self.log)
         return _FakeProcess("")
 
     def stop(self, missing_ok=False):
         self.stopped = True
         self.stop_missing_ok = missing_ok
+        if self.stop_error is not None:
+            raise self.stop_error
         return _FakeRef()
 
 
@@ -82,8 +91,10 @@ class _FakeSandboxClass:
         self.deleted: list[dict] = []
         self.instance = _FakeSandbox()
         self.list_result = _FakeRef([])
+        self.run_count = 0
 
     def run(self, **kwargs):
+        self.run_count += 1
         self.last_run_kwargs = kwargs
         return self.instance
 
@@ -101,6 +112,7 @@ def fake_sdk():
     sandbox_cls = _FakeSandboxClass()
     return SimpleNamespace(
         CWSandboxAuthenticationError=_AuthError,
+        SandboxNotRunningError=_SandboxNotRunningError,
         NetworkOptions=_FakeNetworkOptions,
         Sandbox=sandbox_cls,
         _sandbox_cls=sandbox_cls,
@@ -136,6 +148,13 @@ def test_start_container_configures_sandbox(fake_sdk):
     assert kwargs["network"].ingress_mode == "public"
     assert kwargs["network"].exposed_ports == (8000,)
     assert kwargs["network"].egress_mode == "internet"
+
+
+def test_base_url_requires_active_sandbox(fake_sdk):
+    provider = CWSandboxProvider(sdk=fake_sdk)
+
+    with pytest.raises(RuntimeError, match="no active base_url"):
+        _ = provider.base_url
 
 
 def test_start_container_finds_openenv_yaml_with_generic_search(fake_sdk):
@@ -195,6 +214,16 @@ def test_explicit_cmd_skips_yaml_discovery(fake_sdk):
     assert any("python -m server" in script for script in scripts)
 
 
+def test_start_container_rejects_second_active_sandbox(fake_sdk):
+    provider = CWSandboxProvider(sdk=fake_sdk)
+    provider.start_container("coding-env:latest")
+
+    with pytest.raises(RuntimeError, match="already has an active sandbox"):
+        provider.start_container("other-env:latest")
+
+    assert fake_sdk._sandbox_cls.run_count == 1
+
+
 def test_preflight_lists_sandboxes(fake_sdk):
     CWSandboxProvider.preflight(sdk=fake_sdk)
 
@@ -222,6 +251,47 @@ def test_wait_for_ready_polls_health(fake_sdk):
     get.assert_called_with("http://sandbox.example.test:8000/health", timeout=5.0)
 
 
+def test_wait_for_ready_suppresses_server_log_by_default(fake_sdk):
+    import requests
+
+    provider = CWSandboxProvider(sdk=fake_sdk)
+    provider.start_container("coding-env:latest", env_vars={"TOKEN": "secret-123"})
+    fake_sdk._sandbox_cls.instance.dead_process = True
+    fake_sdk._sandbox_cls.instance.log = "Traceback TOKEN=secret-123 failed"
+
+    with (
+        patch("openenv.core.containers.runtime.cwsandbox_provider.time.sleep"),
+        patch("requests.get", side_effect=requests.ConnectionError("not ready")),
+    ):
+        with pytest.raises(RuntimeError, match="Server output is not surfaced") as exc:
+            provider.wait_for_ready("http://sandbox.example.test:8000")
+
+    message = str(exc.value)
+    assert "secret-123" not in message
+    assert "Traceback" not in message
+
+
+def test_wait_for_ready_redacts_server_log_when_opted_in(fake_sdk):
+    import requests
+
+    provider = CWSandboxProvider(sdk=fake_sdk, surface_server_logs=True)
+    provider.start_container("coding-env:latest", env_vars={"TOKEN": "secret-123"})
+    fake_sdk._sandbox_cls.instance.dead_process = True
+    fake_sdk._sandbox_cls.instance.log = "Traceback TOKEN=secret-123 failed"
+
+    with (
+        patch("openenv.core.containers.runtime.cwsandbox_provider.time.sleep"),
+        patch("requests.get", side_effect=requests.ConnectionError("not ready")),
+    ):
+        with pytest.raises(RuntimeError, match="Log \\(redacted\\)") as exc:
+            provider.wait_for_ready("http://sandbox.example.test:8000")
+
+    message = str(exc.value)
+    assert "secret-123" not in message
+    assert "TOKEN=***" in message
+    assert "Traceback" in message
+
+
 def test_stop_container_is_idempotent_and_deletes(fake_sdk):
     provider = CWSandboxProvider(sdk=fake_sdk)
     provider.start_container("coding-env:latest")
@@ -240,6 +310,51 @@ def test_stop_container_is_idempotent_and_deletes(fake_sdk):
             "missing_ok": True,
         }
     ]
+
+
+def test_close_stops_and_deletes_active_sandbox(fake_sdk):
+    provider = CWSandboxProvider(sdk=fake_sdk)
+    provider.start_container("coding-env:latest")
+
+    provider.close()
+
+    sandbox = fake_sdk._sandbox_cls.instance
+    assert sandbox.stopped is True
+    assert fake_sdk._sandbox_cls.deleted == [
+        {
+            "sandbox_id": "sandbox-123",
+            "base_url": None,
+            "timeout_seconds": 300.0,
+            "missing_ok": True,
+        }
+    ]
+
+
+def test_stop_container_deletes_when_sandbox_is_already_stopped(fake_sdk):
+    provider = CWSandboxProvider(sdk=fake_sdk)
+    provider.start_container("coding-env:latest")
+    fake_sdk._sandbox_cls.instance.stop_error = _SandboxNotRunningError("stopped")
+
+    provider.stop_container()
+
+    assert fake_sdk._sandbox_cls.deleted == [
+        {
+            "sandbox_id": "sandbox-123",
+            "base_url": None,
+            "timeout_seconds": 300.0,
+            "missing_ok": True,
+        }
+    ]
+
+
+def test_stop_container_clears_redact_values(fake_sdk):
+    provider = CWSandboxProvider(sdk=fake_sdk)
+    provider.start_container("coding-env:latest", env_vars={"TOKEN": "secret-123"})
+    assert provider._redact_values == {"secret-123"}
+
+    provider.stop_container()
+
+    assert provider._redact_values == set()
 
 
 def test_missing_cwsandbox_dependency_raises_runtime_error():
