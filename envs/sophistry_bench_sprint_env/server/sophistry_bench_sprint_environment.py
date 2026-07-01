@@ -6,6 +6,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import os
 import uuid
 from typing import Any, Optional
@@ -14,9 +15,9 @@ from openenv.core.env_server import Environment
 from openenv.core.env_server.types import State
 
 from sophistry_bench_sprint import (
-    aggregate_reward,
     alternation_canary,
     length_band_canary,
+    load_environment,
     load_quality_from_json,
     packaged_quality_path,
     parse_citations,
@@ -25,6 +26,11 @@ from sophistry_bench_sprint import (
     starts_with_canary,
     template_echo_canary,
 )
+
+try:
+    from sophistry_bench_sprint import aggregate_reward as _direct_aggregate_reward
+except ImportError:
+    _direct_aggregate_reward = None
 
 try:
     from ..models import AdvocacyAction, AdvocacyObservation
@@ -47,6 +53,45 @@ _COMPONENT_KEYS = (
 )
 
 _DEFAULT_WEIGHTS = [1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+
+_CANONICAL_AGGREGATE_FN = None
+
+
+def _canonical_aggregate_fn():
+    global _CANONICAL_AGGREGATE_FN
+    if _CANONICAL_AGGREGATE_FN is None:
+        env = load_environment()
+        rubric = env.rubric
+        if not getattr(rubric, "funcs", None) and getattr(rubric, "rubrics", None):
+            rubric = rubric.rubrics[0]
+        aggregate_fn = rubric.funcs[0]
+        if aggregate_fn.__name__ != "aggregate_reward":
+            raise RuntimeError(
+                "expected sophistry-bench-sprint rubric.funcs[0] to be "
+                f"aggregate_reward, got {aggregate_fn.__name__}"
+            )
+        _CANONICAL_AGGREGATE_FN = aggregate_fn
+    return _CANONICAL_AGGREGATE_FN
+
+
+def _aggregate_reward(
+    text: str, claims: list[str], cites: list[str], passage: str
+) -> float:
+    if _direct_aggregate_reward is not None:
+        return float(_direct_aggregate_reward(claims, cites, passage))
+
+    completion = [{"role": "assistant", "content": text}]
+    state = {"info": {"passage": passage}}
+    return float(
+        asyncio.run(
+            _canonical_aggregate_fn()(
+                prompt=[],
+                completion=completion,
+                answer="",
+                state=state,
+            )
+        )
+    )
 
 
 def _int_env(name: str, default: str) -> int:
@@ -203,9 +248,9 @@ class SophistryBenchSprintEnvironment(
         claims = parse_claims(text)
         cites = parse_citations(text)
 
-        # Imported from the canonical package (sophistry-bench-sprint>=0.1.6) — the
-        # aggregate formula is no longer reproduced here, so it can't drift.
-        aggregate = aggregate_reward(claims, cites, self._current_passage)
+        # Sourced from the canonical package. Newer builds may export this helper
+        # directly; published 0.1.6 exposes it through the rubric object instead.
+        aggregate = _aggregate_reward(text, claims, cites, self._current_passage)
         correctness = 1.0 if self._current_is_gold else 0.0
 
         # Full score vector — the weighted reward is computed over all eight
