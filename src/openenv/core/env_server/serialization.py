@@ -27,6 +27,22 @@ _MCP_ACTION_TYPES: Dict[str, Type[Action]] = {
 }
 
 
+def _deserialize_mcp_action(
+    action_data: Dict[str, Any], action_cls: Type[Action]
+) -> Action | None:
+    # Only intercept when action_cls is the generic Action base or itself an
+    # MCP type. This keeps env-specific action validation authoritative.
+    action_type = action_data.get("type")
+    if action_type not in _MCP_ACTION_TYPES:
+        return None
+
+    mcp_cls = _MCP_ACTION_TYPES[action_type]
+    if action_cls is Action or action_cls in _MCP_ACTION_TYPES.values():
+        return mcp_cls.model_validate(action_data)
+
+    return None
+
+
 def deserialize_action(action_data: Dict[str, Any], action_cls: Type[Action]) -> Action:
     """
     Convert JSON dict to Action instance using Pydantic validation.
@@ -51,16 +67,9 @@ def deserialize_action(action_data: Dict[str, Any], action_cls: Type[Action]) ->
     Raises:
         `ValidationError`: If `action_data` is invalid for the action class.
     """
-    # Route MCP action types before falling through to the env action_cls.
-    # Only intercept when action_cls is the generic Action base or itself an
-    # MCP type (i.e. the server hosts an MCP environment).  This avoids
-    # silently bypassing env-specific validation for non-MCP environments
-    # that happen to use "call_tool" / "list_tools" as a type discriminator.
-    action_type = action_data.get("type")
-    if action_type in _MCP_ACTION_TYPES:
-        mcp_cls = _MCP_ACTION_TYPES[action_type]
-        if action_cls is Action or action_cls in _MCP_ACTION_TYPES.values():
-            return mcp_cls.model_validate(action_data)
+    mcp_action = _deserialize_mcp_action(action_data, action_cls)
+    if mcp_action is not None:
+        return mcp_action
 
     return action_cls.model_validate(action_data)
 
@@ -88,14 +97,9 @@ def deserialize_action_with_preprocessing(
     Raises:
         `ValidationError`: If `action_data` is invalid for the action class.
     """
-    # Route MCP action types before preprocessing (they don't need it).
-    # Same guard as deserialize_action: only intercept when action_cls is
-    # the generic Action base or itself an MCP type.
-    action_type = action_data.get("type")
-    if action_type in _MCP_ACTION_TYPES:
-        mcp_cls = _MCP_ACTION_TYPES[action_type]
-        if action_cls is Action or action_cls in _MCP_ACTION_TYPES.values():
-            return mcp_cls.model_validate(action_data)
+    mcp_action = _deserialize_mcp_action(action_data, action_cls)
+    if mcp_action is not None:
+        return mcp_action
 
     processed_data = {}
 
