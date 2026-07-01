@@ -9,7 +9,7 @@
 
 # /// script
 # dependencies = [
-#     "huggingface_hub @ git+https://github.com/huggingface/huggingface_hub.git@sandbox-proxy-poc",
+#     "huggingface_hub @ git+https://github.com/huggingface/huggingface_hub.git@5b643062ac4efa4d940d7d614a4dfc8ccaf910b5",
 # ]
 # ///
 

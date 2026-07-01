@@ -182,6 +182,8 @@ class ModalProvider(ContainerProvider):
     def __init__(
         self,
         *,
+        image: str | None = None,
+        env_vars: dict[str, str] | None = None,
         app_name: str = "openenv",
         use_sandbox_v2: bool = False,
         timeout: int = 300,
@@ -193,6 +195,12 @@ class ModalProvider(ContainerProvider):
     ):
         """
         Args:
+            image (`str`, *optional*):
+                Registry image tag or ``"dockerfile:<path>"`` source to use
+                when ``start_container()`` is called without an image.
+            env_vars (`dict`, *optional*):
+                Environment variables to use when ``start_container()`` is
+                called without explicit ``env_vars``.
             app_name (`str`, *optional*, defaults to `"openenv"`):
                 Modal app name the sandbox is created under. Looked up (and
                 created if missing) via ``modal.App.lookup``.
@@ -223,6 +231,8 @@ class ModalProvider(ContainerProvider):
                 orchestrator/CI logs. When `True`, a best-effort redacted,
                 length-bounded excerpt is included in startup-crash errors.
         """
+        self._image = image
+        self._env_vars = env_vars
         self._app_name = app_name
         self._use_sandbox_v2 = use_sandbox_v2
         self._timeout = timeout
@@ -467,7 +477,7 @@ class ModalProvider(ContainerProvider):
 
     def start_container(
         self,
-        image: str,
+        image: str | None = None,
         port: int | None = None,
         env_vars: dict[str, str] | None = None,
         **kwargs: Any,
@@ -487,10 +497,11 @@ class ModalProvider(ContainerProvider):
            ``image_from_dockerfile``).
 
         Args:
-            image (`str`):
+            image (`str`, *optional*):
                 Registry image tag (e.g. ``"echo-env:latest"``) or
                 ``"dockerfile:<path>"`` returned by
-                :meth:`image_from_dockerfile`.
+                :meth:`image_from_dockerfile`. May be omitted when supplied to
+                the constructor.
             port (`int`, *optional*):
                 Must be ``None`` or ``8000``. Modal exposes port 8000 via an
                 encrypted tunnel; other ports raise ``ValueError``.
@@ -517,18 +528,26 @@ class ModalProvider(ContainerProvider):
                 f"{_DEFAULT_MODAL_PORT} inside the sandbox."
             )
 
+        effective_image = image if image is not None else self._image
+        if effective_image is None:
+            raise ValueError(
+                "ModalProvider requires an image. Pass it to the constructor "
+                "or start_container()."
+            )
+        effective_env_vars = self._env_vars if env_vars is None else env_vars
+
         # Resolve the server command (may be None; discovery happens after
         # sandbox creation when we can inspect the filesystem).
         cmd = kwargs.pop("cmd", None) or self._cmd
 
         # CMD parsed from Dockerfile (populated for "dockerfile:" images).
         parsed_cmd: str | None = None
-        if image.startswith("dockerfile:"):
-            meta = self._dockerfile_registry.get(image[len("dockerfile:") :])
+        if effective_image.startswith("dockerfile:"):
+            meta = self._dockerfile_registry.get(effective_image[len("dockerfile:") :])
             if meta is not None:
                 parsed_cmd = meta.get("server_cmd")
 
-        modal_image = self._build_image(image)
+        modal_image = self._build_image(effective_image)
 
         extra: Dict[str, Any] = dict(kwargs)
         if self._cpu is not None:
@@ -538,7 +557,9 @@ class ModalProvider(ContainerProvider):
 
         # Record injected secret values so captured server output can be
         # scrubbed before it is ever surfaced in an error.
-        self._redact_values = {value for value in (env_vars or {}).values() if value}
+        self._redact_values = {
+            value for value in (effective_env_vars or {}).values() if value
+        }
 
         # A create failure created nothing, so just drop the recorded secrets
         # and re-raise (the double-start guard above guarantees there is no
@@ -548,7 +569,7 @@ class ModalProvider(ContainerProvider):
                 image=modal_image,
                 encrypted_ports=[_DEFAULT_MODAL_PORT],
                 timeout=self._timeout,
-                env=env_vars,
+                env=effective_env_vars,
                 extra=extra,
             )
         except Exception:
