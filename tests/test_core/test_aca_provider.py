@@ -156,6 +156,35 @@ def test_start_container_creates_disk_sandbox_and_exposes_port(adapter):
     )
 
 
+def test_constructor_image_used_when_start_omits_image(adapter):
+    provider = _provider(
+        adapter,
+        image="disk:constructor-env",
+        env_vars={"DEBUG": "1"},
+    )
+
+    provider.start_container()
+
+    created = adapter.created[0]
+    assert created["disk"] == "constructor-env"
+    assert created["env_vars"] == {"DEBUG": "1"}
+
+
+def test_start_image_overrides_constructor_image(adapter):
+    provider = _provider(adapter, image="disk:constructor-env")
+
+    provider.start_container("disk:explicit-env")
+
+    assert adapter.created[0]["disk"] == "explicit-env"
+
+
+def test_requires_image_from_constructor_or_start(adapter):
+    provider = _provider(adapter)
+
+    with pytest.raises(ValueError, match="requires an image"):
+        provider.start_container()
+
+
 def test_provider_imports_from_its_module():
     # Optional cloud providers are imported from their module, not re-exported
     # from the runtime package (matches DaytonaProvider).
