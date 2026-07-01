@@ -230,11 +230,7 @@ Keep building from the `openenv-base` image so shared tooling stays available:
 <summary>Dockerfile</summary>
 
 ```dockerfile
-# Copyright (c) Meta Platforms, Inc. and affiliates.
-# All rights reserved.
-#
-# This source code is licensed under the BSD-style license found in the
-# LICENSE file in the root directory of this source tree.
+# SPDX-License-Identifier: BSD-3-Clause
 
 # Multi-stage build using openenv-base
 # This Dockerfile is flexible and works for both:

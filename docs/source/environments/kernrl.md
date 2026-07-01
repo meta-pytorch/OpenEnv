@@ -137,4 +137,4 @@ For production deployments, consider additional isolation measures.
 
 ## License
 
-BSD-3-Clause (following OpenEnv licensing)
+BSD 3-Clause License (following OpenEnv licensing)

@@ -339,4 +339,4 @@ If you use SUMO-RL in your research, please cite:
 
 ## License
 
-This integration is licensed under the BSD-style license. SUMO-RL and SUMO have their own licenses.
+This integration is licensed under the BSD 3-Clause License. SUMO-RL and SUMO have their own licenses.

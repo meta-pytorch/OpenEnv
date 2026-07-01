@@ -361,4 +361,4 @@ Scenarios and navigation agents adapted from [sinatras/carla-env](https://github
 
 ## License
 
-BSD-3-Clause License (see [LICENSE](https://github.com/huggingface/OpenEnv/blob/main/LICENSE))
+BSD 3-Clause License (see [LICENSE](https://github.com/huggingface/OpenEnv/blob/main/LICENSE))
