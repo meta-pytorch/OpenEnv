@@ -20,7 +20,6 @@ Architecture:
 import asyncio
 import logging
 import multiprocessing as mp
-import re
 import time
 from concurrent.futures import ProcessPoolExecutor
 from dataclasses import dataclass
@@ -66,9 +65,21 @@ def _parse_math_verify_expression(value: str):
     if parsed:
         return parsed
 
-    boxed_match = re.search(r"\\boxed\{(.+?)\}", value)
-    if boxed_match:
-        return math_verify.parse(boxed_match.group(1))
+    # Use brace-depth tracking so nested expressions like \boxed{\frac{1}{2}}
+    # aren't truncated by a non-greedy regex.
+    start = value.find(r"\boxed{")
+    if start != -1:
+        i = start + len(r"\boxed{")
+        depth = 1
+        while i < len(value) and depth:
+            if value[i] == "{":
+                depth += 1
+            elif value[i] == "}":
+                depth -= 1
+            i += 1
+        inner = value[start + len(r"\boxed{") : i - 1]
+        if inner:
+            return math_verify.parse(inner)
 
     return parsed
 
@@ -510,7 +521,7 @@ class MathVerifierService:
 
         admitted = await self._try_admit_request()
         if not admitted:
-            return VerifyResponse(
+            rejection = VerifyResponse(
                 request_id=f"rejected-{self._request_counter + 1}",
                 status="internal_error",
                 elapsed_ms=0.0,
@@ -520,6 +531,8 @@ class MathVerifierService:
                     f"queue_size={self.queue_size}"
                 ),
             )
+            await self._record_result_metrics(rejection)
+            return rejection
 
         self._request_counter += 1
         request_id = f"req-{self._request_counter}"

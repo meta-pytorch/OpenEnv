@@ -15,7 +15,6 @@ import asyncio
 import json
 import logging
 import os
-import re
 from datetime import datetime, timezone
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -43,7 +42,13 @@ except ImportError:
 
 from .mcp_server import register_mcp_tools
 from .rubric import GradingResult, MathProofRubric, length_penalty, parse_schema
-from .math_verify_service import MathVerifierService
+from .math_verify_service import (
+    EmptyBoxedException,
+    MathVerifierService,
+    NoAnswerException,
+    UnparsableException,
+    _parse_math_verify_expression,
+)
 
 
 DEFAULT_EVALUATOR_PROMPT = (
@@ -110,31 +115,6 @@ def answer_reward_for_status(status: str, preset: str = "pure_success") -> float
     """
     table = ANSWER_REWARD_PRESETS.get(preset, ANSWER_REWARD_PRESETS["pure_success"])
     return table.get(status, 0.0)
-
-
-class UnparsableException(Exception):
-    """Raised when a math answer cannot be parsed for verification."""
-
-
-class NoAnswerException(Exception):
-    """Raised when a model output does not contain a boxed final answer."""
-
-
-class EmptyBoxedException(Exception):
-    """Raised when a boxed final answer is present but empty."""
-
-
-def _parse_math_verify_expression(value: str) -> Any:
-    """Parse an expression with a boxed fallback for parser compatibility."""
-    parsed = math_verify.parse(value)
-    if parsed:
-        return parsed
-
-    boxed_match = re.search(r"\\boxed\{(.+?)\}", value)
-    if boxed_match:
-        return math_verify.parse(boxed_match.group(1))
-
-    return parsed
 
 
 def remove_reasoning(
@@ -818,6 +798,7 @@ class QEDMathEnvironment(MCPEnvironment):
                 obs = CallToolObservation(tool_name=action.tool_name, result=result)
                 return self._enrich_submit_proof_obs(action, obs)
             except asyncio.TimeoutError:
+                self._pending_output_length_tokens = 0
                 return CallToolObservation(
                     tool_name=action.tool_name,
                     result=None,
@@ -827,6 +808,7 @@ class QEDMathEnvironment(MCPEnvironment):
                     ),
                 )
             except Exception as exc:
+                self._pending_output_length_tokens = 0
                 return CallToolObservation(
                     tool_name=action.tool_name,
                     result=None,

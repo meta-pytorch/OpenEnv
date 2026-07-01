@@ -55,6 +55,8 @@ def parse_schema(schema: Any) -> str:
     """
     if isinstance(schema, str):
         return schema
+    if isinstance(schema, dict):
+        return str(schema)
     if not isinstance(schema, list):
         raise TypeError(
             f"parse_schema expects a string or list of dicts, got {type(schema).__name__}"
