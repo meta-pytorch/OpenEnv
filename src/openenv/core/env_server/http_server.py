@@ -22,9 +22,20 @@ import time
 import uuid
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import AsyncExitStack
-from typing import Any, AsyncContextManager, Callable, cast, Dict, Optional, Type
+from typing import (
+    Any,
+    AsyncContextManager,
+    Awaitable,
+    Callable,
+    cast,
+    Dict,
+    Optional,
+    Type,
+    TypeVar,
+)
 
 _MISSING = object()
+_MCPResult = TypeVar("_MCPResult")
 
 from fastapi import (
     Body,
@@ -542,6 +553,25 @@ class HTTPEnvServer:
         loop = asyncio.get_event_loop()
         return await loop.run_in_executor(executor, lambda: func(*args, **kwargs))
 
+    async def _run_mcp_client_operation(
+        self,
+        mcp_client: Any,
+        mcp_session_factory: Any,
+        managed_session_id: Optional[str],
+        operation: Callable[[], Awaitable[_MCPResult]],
+    ) -> _MCPResult:
+        """Run an MCP client operation with the appropriate transport lifecycle."""
+        if managed_session_id and mcp_client.is_connected():
+            return await operation()
+
+        if callable(mcp_session_factory):
+            mcp_session_cm = cast(AsyncContextManager[Any], mcp_session_factory())
+            async with mcp_session_cm:
+                return await operation()
+
+        async with mcp_client:
+            return await operation()
+
     @property
     def active_sessions(self) -> int:
         """Return the number of active WebSocket sessions."""
@@ -835,21 +865,12 @@ class HTTPEnvServer:
                         )
 
                     if mcp_client:
-                        if managed_session_id and mcp_client.is_connected():
-                            # Session-managed with live transport — call
-                            # directly, no redundant re-entry.
-                            tools = await mcp_client.list_tools()
-                        elif callable(mcp_session_factory):
-                            # Stateless request, or session-managed but the
-                            # background transport was lost: (re-)open.
-                            mcp_session_cm = cast(
-                                AsyncContextManager[Any], mcp_session_factory()
-                            )
-                            async with mcp_session_cm:
-                                tools = await mcp_client.list_tools()
-                        else:
-                            async with mcp_client:
-                                tools = await mcp_client.list_tools()
+                        tools = await self._run_mcp_client_operation(
+                            mcp_client,
+                            mcp_session_factory,
+                            managed_session_id,
+                            mcp_client.list_tools,
+                        )
 
                         return JsonRpcResponse.success(
                             result={
@@ -903,26 +924,14 @@ class HTTPEnvServer:
                         )
 
                     if mcp_client:
-                        if managed_session_id and mcp_client.is_connected():
-                            # Session-managed with live transport.
-                            result = await mcp_client.call_tool(
+                        result = await self._run_mcp_client_operation(
+                            mcp_client,
+                            mcp_session_factory,
+                            managed_session_id,
+                            lambda: mcp_client.call_tool(
                                 name=tool_name, arguments=arguments
-                            )
-                        elif callable(mcp_session_factory):
-                            # Stateless request, or session-managed but the
-                            # background transport was lost: (re-)open.
-                            mcp_session_cm = cast(
-                                AsyncContextManager[Any], mcp_session_factory()
-                            )
-                            async with mcp_session_cm:
-                                result = await mcp_client.call_tool(
-                                    name=tool_name, arguments=arguments
-                                )
-                        else:
-                            async with mcp_client:
-                                result = await mcp_client.call_tool(
-                                    name=tool_name, arguments=arguments
-                                )
+                            ),
+                        )
                     elif mcp_server:
                         server_tools = get_server_tools(mcp_server)
                         if tool_name in server_tools:

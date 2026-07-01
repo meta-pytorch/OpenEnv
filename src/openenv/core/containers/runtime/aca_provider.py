@@ -287,8 +287,12 @@ class ACASandboxProvider(ContainerProvider):
     orphaning the running sandbox.
 
     ```python
-    with ACASandboxProvider(anonymous_port=True, ...) as provider:
-        base_url = provider.start_container("disk:my-env", cmd=...)
+    with ACASandboxProvider(
+        image="disk:my-env",
+        anonymous_port=True,
+        ...,
+    ) as provider:
+        base_url = provider.start_container(cmd=...)
         ...
     # sandbox deleted and SDK client closed on exit
     ```
@@ -311,6 +315,8 @@ class ACASandboxProvider(ContainerProvider):
         labels: Optional[Dict[str, str]] = None,
         egress_policy: Any = None,
         anonymous_port: Literal[True] | None = None,
+        image: Optional[str] = None,
+        env_vars: Optional[Dict[str, str]] = None,
         cmd: Optional[str] = None,
         working_directory: Optional[str] = None,
         surface_server_logs: bool = False,
@@ -339,6 +345,8 @@ class ACASandboxProvider(ContainerProvider):
         self.labels = dict(labels or {})
         self.egress_policy = egress_policy
         self.anonymous_port = anonymous_port
+        self._image = image
+        self._env_vars = dict(env_vars or {}) if env_vars is not None else None
         self.cmd = cmd
         self.working_directory = working_directory
         self.surface_server_logs = surface_server_logs
@@ -404,7 +412,7 @@ class ACASandboxProvider(ContainerProvider):
 
     def start_container(
         self,
-        image: str,
+        image: Optional[str] = None,
         port: Optional[int] = None,
         env_vars: Optional[Dict[str, str]] = None,
         **kwargs: Any,
@@ -413,9 +421,10 @@ class ACASandboxProvider(ContainerProvider):
 
         `image` is an ACA sandbox *source*, not a Docker/OCI registry image: a
         bare string or `disk:<name>` for a public disk image, or `disk-id:<id>`
-        for a private one. A value that looks like a container image (a registry
-        path or `name:tag`) is rejected with guidance. Only port 8000 is
-        supported. `**kwargs` accepts per-start overrides (`cmd`, `labels`,
+        for a private one. It may be omitted when supplied to the constructor.
+        A value that looks like a container image (a registry path or
+        `name:tag`) is rejected with guidance. Only port 8000 is supported.
+        `**kwargs` accepts per-start overrides (`cmd`, `labels`,
         `egress_policy`, `anonymous_port`); unknown options raise `ValueError`
         so typos cannot silently change sandbox behavior.
         """
@@ -433,7 +442,15 @@ class ACASandboxProvider(ContainerProvider):
                 f"(got {bind_port})."
             )
 
-        disk, disk_id = _source_from_image(image)
+        effective_image = image if image is not None else self._image
+        if effective_image is None:
+            raise ValueError(
+                "ACASandboxProvider requires an image. Pass it to the constructor "
+                "or start_container()."
+            )
+        effective_env_vars = self._env_vars if env_vars is None else env_vars
+
+        disk, disk_id = _source_from_image(effective_image)
         labels = dict(self.labels)
         labels.update(kwargs.pop("labels", {}) or {})
         cmd = kwargs.pop("cmd", None) or self.cmd
@@ -464,7 +481,9 @@ class ACASandboxProvider(ContainerProvider):
 
         # Record injected secret values so captured server output can be scrubbed
         # before it is ever surfaced in an error (security invariant S4).
-        self._redact_values = {value for value in (env_vars or {}).values() if value}
+        self._redact_values = {
+            value for value in (effective_env_vars or {}).values() if value
+        }
 
         # Two-stage cleanup. A create failure created nothing, so just drop the
         # recorded secrets and re-raise (notably it must NOT delete a sandbox
@@ -474,7 +493,7 @@ class ACASandboxProvider(ContainerProvider):
             self._sandbox = self._adapter.create_sandbox(
                 disk=disk,
                 disk_id=disk_id,
-                env_vars=dict(env_vars or {}) if env_vars else None,
+                env_vars=dict(effective_env_vars or {}) if effective_env_vars else None,
                 labels=labels or None,
                 egress_policy=egress_policy,
                 cpu=self.cpu,
