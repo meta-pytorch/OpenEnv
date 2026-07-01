@@ -440,30 +440,37 @@ def _has_main_guard_call(app_content: str) -> bool:
         )
 
     for node in ast.iter_child_nodes(tree):
-        if not isinstance(node, ast.If):
+        if not isinstance(node, ast.If) or not _is_main_guard(node.test):
             continue
 
-        test = node.test
-        if not (
-            isinstance(test, ast.Compare)
-            and isinstance(test.left, ast.Name)
-            and test.left.id == "__name__"
-            and len(test.ops) == 1
-            and isinstance(test.ops[0], ast.Eq)
-            and len(test.comparators) == 1
-            and isinstance(test.comparators[0], ast.Constant)
-            and test.comparators[0].value == "__main__"
-        ):
-            continue
-
-        for guarded_node in node.body:
-            for candidate in ast.walk(guarded_node):
-                if isinstance(candidate, ast.Call):
-                    func = candidate.func
-                    if isinstance(func, ast.Name) and func.id == "main":
-                        return True
+        if any(_contains_main_call(guarded_node) for guarded_node in node.body):
+            return True
 
     return False
+
+
+def _is_main_guard(test: ast.expr) -> bool:
+    """Return True for `if __name__ == "__main__"` tests."""
+    return (
+        isinstance(test, ast.Compare)
+        and isinstance(test.left, ast.Name)
+        and test.left.id == "__name__"
+        and len(test.ops) == 1
+        and isinstance(test.ops[0], ast.Eq)
+        and len(test.comparators) == 1
+        and isinstance(test.comparators[0], ast.Constant)
+        and test.comparators[0].value == "__main__"
+    )
+
+
+def _contains_main_call(node: ast.AST) -> bool:
+    """Return True when an AST node contains a direct `main(...)` call."""
+    return any(
+        isinstance(candidate, ast.Call)
+        and isinstance(candidate.func, ast.Name)
+        and candidate.func.id == "main"
+        for candidate in ast.walk(node)
+    )
 
 
 _OPENENV_RUNTIME_DEP_RE = re.compile(r"^openenv(?:\s*(?:$|[<>=!~@;])|\[)")

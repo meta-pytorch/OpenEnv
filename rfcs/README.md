@@ -93,6 +93,9 @@ Each RFC should include the following sections:
 ### Agentic Harnesses
 - [005-agentic-harnesses.md](./005-agentic-harnesses.md) - Agentic Harness Integration (OpenClaw, Claude Code, etc.)
 
+### World Modeling
+- [010-echo-env-token-world-model.md](./010-echo-env-token-world-model.md) - Env-token World Modeling (ECHO): trajectory token-role masks + an optimizer world-loss seam
+
 ## Questions?
 
 For questions about the RFC process, reach out to the core team or open a discussion in the project repository.

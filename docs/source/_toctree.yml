@@ -29,6 +29,8 @@
       title: MCP Environment Lifecycle
     - local: guides/connecting
       title: Connecting to Servers
+    - local: guides/runtime-providers
+      title: Runtime Providers
     title: Advanced Guides
   title: Guides
 - sections:
@@ -125,6 +127,8 @@
     title: Agent World Model
   - local: environments/opencode
     title: OpenCode
+  - local: environments/sophistry_bench_sprint
+    title: Sophistry Bench Sprint
   title: Environments
 - isExpanded: false
   sections:

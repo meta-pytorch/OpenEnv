@@ -95,7 +95,10 @@ with env.sync() as client:
 |--------|----------|---------|
 | HTTP URL | Remote servers, Hugging Face Spaces | `EnvClient(base_url="https://...")` |
 | Docker | Local development | `EnvClient.from_docker_image("env:latest")` |
+| Cloud / custom runtime | Run the server on a cloud sandbox | `EnvClient.from_docker_image("env:latest", provider=DaytonaProvider())` |
 | Auto-discovery | Installed packages or known environments | `AutoEnv.from_env("echo")` |
+
+See the [Runtime Providers guide](runtime-providers.md) for the available providers and how to pick one.
 
 ## Environment Anatomy
 

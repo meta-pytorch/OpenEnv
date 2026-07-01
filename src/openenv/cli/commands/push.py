@@ -243,6 +243,32 @@ def _validate_openenv_directory(directory: Path) -> tuple[str, dict]:
     return env_name, manifest
 
 
+def _extract_hf_username(user_info: object) -> str | None:
+    """Extract a username from the supported Hugging Face whoami shapes."""
+    if isinstance(user_info, dict):
+        return (
+            user_info.get("name")
+            or user_info.get("fullname")
+            or user_info.get("username")
+        )
+
+    return (
+        getattr(user_info, "name", None)
+        or getattr(user_info, "fullname", None)
+        or getattr(user_info, "username", None)
+    )
+
+
+def _get_hf_username() -> str:
+    """Return the authenticated Hugging Face username from whoami()."""
+    username = _extract_hf_username(whoami())
+    if not username:
+        raise ValueError("Could not extract username from whoami response")
+
+    console.print(f"[bold green]✓[/bold green] Authenticated as: {username}")
+    return username
+
+
 def _ensure_hf_authenticated() -> str:
     """
     Ensure user is authenticated with Hugging Face.
@@ -251,28 +277,7 @@ def _ensure_hf_authenticated() -> str:
         `str`: username of the authenticated user.
     """
     try:
-        # Try to get current user
-        user_info = whoami()
-        # Handle both dict and object return types
-        if isinstance(user_info, dict):
-            username = (
-                user_info.get("name")
-                or user_info.get("fullname")
-                or user_info.get("username")
-            )
-        else:
-            # If it's an object, try to get name attribute
-            username = (
-                getattr(user_info, "name", None)
-                or getattr(user_info, "fullname", None)
-                or getattr(user_info, "username", None)
-            )
-
-        if not username:
-            raise ValueError("Could not extract username from whoami response")
-
-        console.print(f"[bold green]✓[/bold green] Authenticated as: {username}")
-        return username
+        return _get_hf_username()
     except Exception:
         # Not authenticated, prompt for login
         console.print(
@@ -281,27 +286,7 @@ def _ensure_hf_authenticated() -> str:
 
         try:
             login()
-            # Verify login worked
-            user_info = whoami()
-            # Handle both dict and object return types
-            if isinstance(user_info, dict):
-                username = (
-                    user_info.get("name")
-                    or user_info.get("fullname")
-                    or user_info.get("username")
-                )
-            else:
-                username = (
-                    getattr(user_info, "name", None)
-                    or getattr(user_info, "fullname", None)
-                    or getattr(user_info, "username", None)
-                )
-
-            if not username:
-                raise ValueError("Could not extract username from whoami response")
-
-            console.print(f"[bold green]✓[/bold green] Authenticated as: {username}")
-            return username
+            return _get_hf_username()
         except Exception as e:
             raise typer.BadParameter(
                 f"Hugging Face authentication failed: {e}. Please run login manually."
