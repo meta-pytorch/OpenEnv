@@ -345,7 +345,7 @@ my_env/
 │   ├── environment.py   # Your environment logic
 │   └── Dockerfile
 ├── models.py            # Action/Observation types
-├── client.py            # HTTP client
+├── client.py            # Client (EnvClient subclass)
 ├── openenv.yaml         # Manifest
 └── pyproject.toml
 ```

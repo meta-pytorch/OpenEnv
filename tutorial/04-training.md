@@ -69,7 +69,9 @@ For more information, refer to the [TRL-OpenEnv documentation](https://huggingfa
 from envs.textarena_env import TextArenaEnv
 
 textarena_url = "https://burtenshaw-textarena.hf.space" # Duplicate the Space and update this!
-env = TextArenaEnv(base_url=textarena_url)
+# EnvClient is async; .sync() returns a synchronous wrapper so GRPOTrainer's
+# synchronous rollout_func can call env.reset()/env.step() directly.
+env = TextArenaEnv(base_url=textarena_url).sync()
 ```
 
 ---

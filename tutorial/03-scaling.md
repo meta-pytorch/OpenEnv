@@ -25,7 +25,7 @@ with EchoEnv.from_hub(
     repo_id="openenv/echo-env", 
     provider=swarm_provider, 
     replicas=4,
-) as env:
+).sync() as env:  # .sync() wraps the async client for synchronous use
   result = env.reset()
   result = env.step(EchoAction(message="Hello"))
 ```
@@ -62,13 +62,14 @@ With WebSocket, **one container handles many isolated sessions**. Each WebSocket
 # docker run -d -p 8000:8000 my-env:latest
 
 # Each client gets an isolated environment instance
-with MyEnv(base_url="http://localhost:8000") as env1:  # Session 1
+# (.sync() wraps the async client so we can use plain `with` + reset())
+with MyEnv(base_url="http://localhost:8000").sync() as env1:  # Session 1
     result = env1.reset()
     
-with MyEnv(base_url="http://localhost:8000") as env2:  # Session 2
+with MyEnv(base_url="http://localhost:8000").sync() as env2:  # Session 2
     result = env2.reset()
     
-with MyEnv(base_url="http://localhost:8000") as env3:  # Session 3
+with MyEnv(base_url="http://localhost:8000").sync() as env3:  # Session 3
     result = env3.reset()
 ```
 
@@ -275,7 +276,7 @@ Connect through the load balancer:
 
 ```python
 # Clients connect to Envoy, which distributes to backend containers
-with MyEnv(base_url="http://localhost:8080") as env:
+with MyEnv(base_url="http://localhost:8080").sync() as env:
     result = env.reset()
 ```
 
