@@ -128,11 +128,15 @@ def serve(
         repo_src = _find_repo_src_for_openenv(env_path_obj)
         if repo_src is not None:
             repo_src_str = str(repo_src.resolve())
+            repo_root_str = str(repo_src.parent.resolve())
+            if repo_root_str not in sys.path:
+                sys.path.insert(0, repo_root_str)
             if repo_src_str not in sys.path:
                 sys.path.insert(0, repo_src_str)
             existing = os.environ.get("PYTHONPATH", "")
+            prefix = f"{repo_root_str}{os.pathsep}{repo_src_str}"
             os.environ["PYTHONPATH"] = (
-                repo_src_str if not existing else f"{repo_src_str}{os.pathsep}{existing}"
+                prefix if not existing else f"{prefix}{os.pathsep}{existing}"
             )
         if env_root not in sys.path:
             sys.path.insert(0, env_root)
