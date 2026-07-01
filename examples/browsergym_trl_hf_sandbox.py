@@ -18,7 +18,7 @@
 #     "trl[vllm,peft]",
 #     "trackio",
 #     "kernels",
-#     "huggingface_hub @ git+https://github.com/huggingface/huggingface_hub.git@ben/sandbox-pool-serve",
+#     "huggingface_hub @ git+https://github.com/huggingface/huggingface_hub.git@sandbox-proxy-poc",
 #     "transformers>=5.0.0",
 # ]
 # ///

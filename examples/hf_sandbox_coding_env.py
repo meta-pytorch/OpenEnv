@@ -7,6 +7,12 @@
 
 """Smoke-check a real OpenEnv server through the HF sandbox provider."""
 
+# /// script
+# dependencies = [
+#     "huggingface_hub @ git+https://github.com/huggingface/huggingface_hub.git@sandbox-proxy-poc",
+# ]
+# ///
+
 from __future__ import annotations
 
 import sys

@@ -28,7 +28,9 @@ from .providers import ContainerProvider
 
 _DEFAULT_PORT = 8000
 _SERVER_COMMAND = (
-    'export SBX_PROXY_DIR="${SBX_PROXY_DIR:-$HOME/.sbx/proxy}"; exec server'
+    'export SBX_PROXY_DIR="${SBX_PROXY_DIR:-$HOME/.sbx/proxy}"; '
+    'mkdir -p "$SBX_PROXY_DIR"; '
+    'nohup server >"$HOME/openenv-server.log" 2>&1 &'
 )
 _MAX_WS_MESSAGE_SIZE = 100 * 1024 * 1024
 _HOP_BY_HOP_HEADERS = {
@@ -74,13 +76,8 @@ def _get_sandbox_pool_cls() -> Any:
     except ImportError as exc:
         raise RuntimeError(
             "HFSandboxProvider requires a huggingface_hub version with "
-            "SandboxPool.serve support."
+            "SandboxPool.create and Sandbox.proxy_url_for support."
         ) from exc
-    if not hasattr(SandboxPool, "serve"):
-        raise RuntimeError(
-            "HFSandboxProvider requires a huggingface_hub version with "
-            "SandboxPool.serve support."
-        )
     return SandboxPool
 
 
@@ -251,7 +248,7 @@ class HFSandboxProvider(ContainerProvider):
         self.image = image
         self.env_vars = env_vars
         self.flavor = flavor
-        self._service: Any = None
+        self._sandbox: Any = None
         self._proxy: _LocalAuthProxy | None = None
 
     def start_container(
@@ -261,7 +258,7 @@ class HFSandboxProvider(ContainerProvider):
         env_vars: dict[str, str] | None = None,
         **kwargs: Any,
     ) -> str:
-        if self._service is not None:
+        if self._sandbox is not None:
             raise RuntimeError("HFSandboxProvider already has an active service")
         if kwargs:
             unsupported = ", ".join(sorted(kwargs))
@@ -277,18 +274,23 @@ class HFSandboxProvider(ContainerProvider):
         effective_image = self.image if image is None else image
         effective_env = self.env_vars if env_vars is None else env_vars
         pool = _get_pool(effective_image, self.flavor)
-        self._service = pool.serve(
-            _SERVER_COMMAND,
-            _DEFAULT_PORT,
-            path="/",
-            shell=True,
-            env=effective_env,
-        )
-        self._proxy = _LocalAuthProxy(
-            target_url=self._service.url,
-            headers=self._service.headers,
-        )
+        self._sandbox = pool.create(env=effective_env)
         try:
+            if not hasattr(self._sandbox, "proxy_url_for") or not hasattr(
+                self._sandbox, "proxy_headers"
+            ):
+                raise RuntimeError(
+                    "HFSandboxProvider requires a huggingface_hub version with "
+                    "Sandbox.proxy_url_for and Sandbox.proxy_headers support."
+                )
+            self._sandbox.run(
+                _SERVER_COMMAND,
+                shell=True,
+            )
+            self._proxy = _LocalAuthProxy(
+                target_url=self._sandbox.proxy_url_for(_DEFAULT_PORT, "/"),
+                headers=self._sandbox.proxy_headers,
+            )
             return self._proxy.start()
         except Exception:
             self.stop_container()
@@ -298,11 +300,11 @@ class HFSandboxProvider(ContainerProvider):
         if self._proxy is not None:
             self._proxy.stop()
             self._proxy = None
-        if self._service is not None:
-            service = self._service
-            self._service = None
+        if self._sandbox is not None:
+            sandbox = self._sandbox
+            self._sandbox = None
             with suppress(Exception):
-                service.sandbox.kill()
+                sandbox.kill()
 
     def wait_for_ready(self, base_url: str, timeout_s: float = 120.0) -> None:
         deadline = time.time() + timeout_s
