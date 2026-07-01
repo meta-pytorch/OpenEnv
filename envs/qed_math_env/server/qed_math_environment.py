@@ -823,7 +823,8 @@ class QEDMathEnvironment(MCPEnvironment):
                     self._async_call_tool(action.tool_name, action.arguments),
                     timeout=timeout,
                 )
-                return CallToolObservation(tool_name=action.tool_name, result=result)
+                obs = CallToolObservation(tool_name=action.tool_name, result=result)
+                return self._enrich_submit_proof_obs(action, obs)
             except asyncio.TimeoutError:
                 return CallToolObservation(
                     tool_name=action.tool_name,
@@ -894,7 +895,11 @@ class QEDMathEnvironment(MCPEnvironment):
                     ),
                     None,
                 )
-                self._current_problem = selected or self._problems[0]
+                if selected is None:
+                    raise ValueError(
+                        f"problem_id {selected_problem_id!r} not found in the loaded dataset."
+                    )
+                self._current_problem = selected
             elif seed is not None:
                 rng = random.Random(seed)
                 self._current_problem = rng.choice(self._problems)
@@ -988,8 +993,12 @@ class QEDMathEnvironment(MCPEnvironment):
         self._state.step_count += 1
         obs = super().step(action, timeout_s=timeout_s, **kwargs)
 
-        # For proof submissions, surface proof-grading semantics
-        # on the returned observation while preserving MCP compatibility.
+        return self._enrich_submit_proof_obs(action, obs)
+
+    def _enrich_submit_proof_obs(
+        self, action: Any, obs: Any
+    ) -> Any:
+        """Attach reward/done from submit_proof payload onto the CallToolObservation."""
         if (
             isinstance(action, CallToolAction)
             and action.tool_name == "submit_proof"
@@ -1020,7 +1029,6 @@ class QEDMathEnvironment(MCPEnvironment):
                     reward=proof_obs.reward,
                     metadata=metadata,
                 )
-
         return obs
 
     @staticmethod

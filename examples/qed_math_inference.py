@@ -94,7 +94,11 @@ def _tools_to_openai_format(tools: list) -> list[dict[str, Any]]:
     for tool in tools:
         properties: dict[str, Any] = {}
         required: list[str] = []
-        input_schema = getattr(tool, "input_schema", None) or getattr(tool, "inputSchema", None) or {}
+        input_schema = (
+            getattr(tool, "input_schema", None)
+            or getattr(tool, "inputSchema", None)
+            or {}
+        )
         if input_schema and "properties" in input_schema:
             for name, schema in input_schema["properties"].items():
                 properties[name] = {
@@ -269,7 +273,9 @@ async def run_episode(
             done = bool(result_dict.get("done", True))
             if VERBOSE:
                 if done:
-                    outcome = "CORRECT" if result_dict.get("is_correct") else "INCORRECT"
+                    outcome = (
+                        "CORRECT" if result_dict.get("is_correct") else "INCORRECT"
+                    )
                     print(
                         f"\nOutcome: {outcome}  score={final_score}/7  reward={final_reward:.3f}"
                     )
