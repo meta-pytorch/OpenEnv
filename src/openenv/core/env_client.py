@@ -37,11 +37,13 @@ Examples:
 from __future__ import annotations
 
 import asyncio
+import inspect
 import ipaddress
 import json
 import os
 import time
 from abc import ABC, abstractmethod
+from contextlib import suppress
 from typing import Any, Dict, Generic, Optional, Type, TYPE_CHECKING, TypeVar
 from urllib.parse import urlsplit
 
@@ -97,6 +99,25 @@ def _is_localhost_ws_url(ws_url: str) -> bool:
         return False
 
 
+def _required_start_container_parameters(provider: Any) -> list[str]:
+    """Return required arguments for a bound provider.start_container()."""
+    try:
+        signature = inspect.signature(provider.start_container)
+    except (TypeError, ValueError):
+        return []
+    return [
+        name
+        for name, parameter in signature.parameters.items()
+        if parameter.default is inspect.Parameter.empty
+        and parameter.kind
+        in (
+            inspect.Parameter.POSITIONAL_ONLY,
+            inspect.Parameter.POSITIONAL_OR_KEYWORD,
+            inspect.Parameter.KEYWORD_ONLY,
+        )
+    ]
+
+
 class EnvClient(ABC, Generic[ActT, ObsT, StateT]):
     """
     Async environment client for persistent sessions.
@@ -140,7 +161,7 @@ class EnvClient(ABC, Generic[ActT, ObsT, StateT]):
 
     def __init__(
         self,
-        base_url: str,
+        base_url: Optional[str] = None,
         connect_timeout_s: float = 10.0,
         message_timeout_s: float = 60.0,
         max_message_size_mb: float = 100.0,
@@ -153,9 +174,10 @@ class EnvClient(ABC, Generic[ActT, ObsT, StateT]):
         Initialize environment client.
 
         Args:
-            base_url (`str`):
+            base_url (`str`, *optional*):
                 Base URL of the environment server (http:// or ws://). Will be converted to
-                ws:// if http:// is provided.
+                ws:// if http:// is provided. May be omitted when the provider
+                has enough constructor state to start itself.
             connect_timeout_s (`float`, *optional*, defaults to `10.0`):
                 Timeout for establishing WebSocket connection.
             message_timeout_s (`float`, *optional*, defaults to `60.0`):
@@ -175,13 +197,14 @@ class EnvClient(ABC, Generic[ActT, ObsT, StateT]):
                 `OPENENV_CLIENT_MODE` environment variable. Constructor parameter takes
                 precedence over environment variable. Case-insensitive.
         """
+        if base_url is None and provider is None:
+            raise ValueError("EnvClient requires either base_url or provider.")
+
         # Store mode (use object.__setattr__ to bypass immutability)
         object.__setattr__(self, "_mode", _normalize_mode(mode))
 
-        # Convert HTTP URL to WebSocket URL
-        ws_url = convert_to_ws_url(base_url)
-
-        self._ws_url = f"{ws_url}/ws"
+        self._base_url: Optional[str] = None
+        self._ws_url: Optional[str] = None
         self._connect_timeout = connect_timeout_s
         self._message_timeout = message_timeout_s
         self._max_message_size = int(
@@ -190,8 +213,85 @@ class EnvClient(ABC, Generic[ActT, ObsT, StateT]):
         self._websocket_ping_interval_s = websocket_ping_interval_s
         self._websocket_ping_timeout_s = websocket_ping_timeout_s
         self._provider = provider
+        self._start_provider_on_connect = base_url is None
+        self._child_clients: list[EnvClient[Any, Any, Any]] = []
         self._ws: Optional[ClientConnection] = None
         self._ws_loop: Optional[asyncio.AbstractEventLoop] = None
+        if base_url is not None:
+            self._set_base_url(base_url)
+
+    def _set_base_url(self, base_url: str) -> None:
+        self._base_url = base_url.rstrip("/")
+        ws_url = convert_to_ws_url(base_url)
+        self._ws_url = f"{ws_url}/ws"
+
+    def _start_provider_if_needed(self) -> None:
+        if self._ws_url is not None:
+            return
+        if self._provider is None:
+            raise RuntimeError("EnvClient has no base URL or provider.")
+        if hasattr(self._provider, "start_container"):
+            required_parameters = _required_start_container_parameters(self._provider)
+            if required_parameters:
+                required = ", ".join(required_parameters)
+                raise ValueError(
+                    f"{type(self._provider).__name__} does not support "
+                    "provider-owned startup because start_container() requires "
+                    f"{required}. Start the provider manually and pass base_url, "
+                    "or configure a provider with a constructor-owned image/source."
+                )
+            base_url = self._provider.start_container()
+            self._provider.wait_for_ready(base_url)
+        elif hasattr(self._provider, "start"):
+            base_url = self._provider.start()
+            self._provider.wait_for_ready()
+        else:
+            raise TypeError("provider must define start_container() or start().")
+        self._set_base_url(base_url)
+
+    def _create_session_client(self) -> "EnvClient[Any, Any, Any]":
+        self._start_provider_if_needed()
+        if self._base_url is None:
+            raise RuntimeError("EnvClient has no base URL.")
+
+        signature = inspect.signature(type(self))
+        accepts_kwargs = any(
+            parameter.kind == inspect.Parameter.VAR_KEYWORD
+            for parameter in signature.parameters.values()
+        )
+        candidate_kwargs = {
+            "base_url": self._base_url,
+            "connect_timeout_s": self._connect_timeout,
+            "message_timeout_s": self._message_timeout,
+            "max_message_size_mb": self._max_message_size / (1024 * 1024),
+            "websocket_ping_interval_s": self._websocket_ping_interval_s,
+            "websocket_ping_timeout_s": self._websocket_ping_timeout_s,
+            "mode": self._mode,
+        }
+        constructor_kwargs = {}
+        for name, value in candidate_kwargs.items():
+            if accepts_kwargs or name in signature.parameters:
+                constructor_kwargs[name] = value
+
+        client = type(self)(**constructor_kwargs)
+        return client
+
+    async def new_session(self) -> "EnvClient[Any, Any, Any]":
+        """
+        Create and connect a new session against the same environment server.
+
+        Returns:
+            `EnvClient`: A connected child client of the same concrete type.
+
+        The child session is tracked by this parent and closed when the parent
+        is closed. Server-side capacity still applies: when the server is at
+        `MAX_CONCURRENT_ENVS`, opening the child WebSocket can fail and is
+        surfaced as a connection error.
+        """
+        client = self._create_session_client()
+        await client.connect()
+        self._child_clients.append(client)
+        return client
 
     def __setattr__(self, name: str, value: Any) -> None:
         """Prevent modification of _mode after initialization."""
@@ -224,6 +324,14 @@ class EnvClient(ABC, Generic[ActT, ObsT, StateT]):
             self._ws = None
             self._ws_loop = None
 
+        try:
+            self._start_provider_if_needed()
+        except Exception:
+            await self.close()
+            raise
+
+        assert self._ws_url is not None
+
         # Disable the proxy for localhost connections via the per-connection
         # `proxy` argument rather than mutating the process-global NO_PROXY
         # env var: concurrent connect() calls (e.g. asyncio.gather over many
@@ -243,6 +351,7 @@ class EnvClient(ABC, Generic[ActT, ObsT, StateT]):
             )
             self._ws_loop = asyncio.get_running_loop()
         except Exception as e:
+            await self.close()
             raise ConnectionError(f"Failed to connect to {self._ws_url}: {e}") from e
 
         return self
@@ -521,14 +630,25 @@ class EnvClient(ABC, Generic[ActT, ObsT, StateT]):
         If this client was created via from_docker_image() or from_env(),
         this will also stop and remove the associated container/process.
         """
-        await self.disconnect()
+        for child in list(self._child_clients):
+            with suppress(Exception):
+                await child.close()
+        self._child_clients.clear()
 
-        if self._provider is not None:
-            # Handle both ContainerProvider and RuntimeProvider
-            if hasattr(self._provider, "stop_container"):
-                self._provider.stop_container()
-            elif hasattr(self._provider, "stop"):
-                self._provider.stop()
+        try:
+            await self.disconnect()
+        finally:
+            try:
+                if self._provider is not None:
+                    # Handle both ContainerProvider and RuntimeProvider
+                    if hasattr(self._provider, "stop_container"):
+                        self._provider.stop_container()
+                    elif hasattr(self._provider, "stop"):
+                        self._provider.stop()
+            finally:
+                if self._start_provider_on_connect:
+                    self._base_url = None
+                    self._ws_url = None
 
     async def __aenter__(self) -> "EnvClient":
         """Enter async context manager, ensuring connection is established."""
