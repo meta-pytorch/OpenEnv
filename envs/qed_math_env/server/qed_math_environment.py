@@ -29,20 +29,12 @@ import math_verify
 
 from fastmcp import FastMCP
 
-try:
-    from openenv.core.env_server.mcp_environment import MCPEnvironment
-    from openenv.core.env_server.mcp_types import (
-        CallToolAction,
-        CallToolObservation,
-    )
-    from openenv.core.env_server.types import Action, Observation, State
-except ImportError:
-    from openenv.core.env_server.mcp_environment import MCPEnvironment
-    from openenv.core.env_server.mcp_types import (
-        CallToolAction,
-        CallToolObservation,
-    )
-    from openenv.core.env_server.types import Action, Observation, State
+from openenv.core.env_server.mcp_environment import MCPEnvironment
+from openenv.core.env_server.mcp_types import (
+    CallToolAction,
+    CallToolObservation,
+)
+from openenv.core.env_server.types import Action, Observation, State
 
 try:
     from ..models import ProblemObservation, ProofSubmissionObservation
@@ -865,10 +857,9 @@ class QEDMathEnvironment(MCPEnvironment):
         Returns:
             ProblemObservation with problem details.
 
-        Note:
-            Full implementation will load problems from dataset
-            and return ProblemObservation with problem, reference_solution,
-            grading_guidelines, problem_id, and dataset_source.
+        Loads a problem from the dataset and returns a ProblemObservation
+        with problem, reference_solution, grading_guidelines, problem_id,
+        and dataset_source.
         """
         selected_problem_id = kwargs.pop("problem_id", None)
         self._refresh_gold_cache_if_needed()
@@ -995,9 +986,7 @@ class QEDMathEnvironment(MCPEnvironment):
 
         return self._enrich_submit_proof_obs(action, obs)
 
-    def _enrich_submit_proof_obs(
-        self, action: Any, obs: Any
-    ) -> Any:
+    def _enrich_submit_proof_obs(self, action: Any, obs: Any) -> Any:
         """Attach reward/done from submit_proof payload onto the CallToolObservation."""
         if (
             isinstance(action, CallToolAction)
@@ -1290,6 +1279,11 @@ class QEDMathEnvironment(MCPEnvironment):
     async def shutdown_verifier_service(self) -> None:
         """Explicit async shutdown hook for deterministic test and run cleanup."""
         await self._verifier_service.stop()
+
+    def close(self) -> None:
+        """Release the verifier worker pool before tearing down MCP resources."""
+        self._verifier_service.close_sync()
+        super().close()
 
     def _strip_reasoning(self, text: str) -> str:
         """Strip reasoning traces using configured delimiters."""

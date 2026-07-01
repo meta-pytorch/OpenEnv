@@ -9,13 +9,15 @@
 Provides tool-calling style interactions with the QED Math environment
 via MCP (Model Context Protocol).
 
-Example:
-    >>> with QEDMathEnv(base_url="http://localhost:8000") as env:
-    ...     env.reset()
-    ...     tools = env.list_tools()
-    ...     print([t.name for t in tools])
-    ...     result = env.call_tool("get_problem")
-    ...     result = env.call_tool("submit_proof", proof="By induction...")
+Examples:
+
+```python
+with QEDMathEnv(base_url="http://localhost:8000") as env:
+    env.reset()
+    tools = env.list_tools()
+    result = env.call_tool("get_problem")
+    result = env.call_tool("submit_proof", proof="By induction...")
+```
 """
 
 from typing import Any, Mapping, Optional
@@ -36,11 +38,14 @@ class QEDMathEnv(MCPToolClient):
     - ``call_tool(name, **kwargs)``: Call a tool by name
     - ``reset(**kwargs)``: Reset the environment
 
-    Example:
-        >>> with QEDMathEnv(base_url="http://localhost:8000") as env:
-        ...     env.reset()
-        ...     result = env.call_tool("get_problem")
-        ...     result = env.call_tool("submit_proof", proof="By induction...")
+    Examples:
+
+    ```python
+    with QEDMathEnv(base_url="http://localhost:8000") as env:
+        env.reset()
+        result = env.call_tool("get_problem")
+        result = env.call_tool("submit_proof", proof="By induction...")
+    ```
     """
 
     @staticmethod

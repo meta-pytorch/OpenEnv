@@ -10,12 +10,15 @@ FastAPI application for the QED Math Environment.
 Exposes QEDMathEnvironment over HTTP and WebSocket endpoints,
 compatible with MCPToolClient.
 
-Usage:
-    # Development (with auto-reload):
-    uvicorn server.app:app --reload --host 0.0.0.0 --port 8000
+Examples:
 
-    # Or via uv:
-    uv run --project . server
+```bash
+# Development (with auto-reload):
+uvicorn server.app:app --reload --host 0.0.0.0 --port 8000
+
+# Or via uv:
+uv run --project . server
+```
 """
 
 # Support both in-repo and standalone imports

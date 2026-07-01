@@ -293,6 +293,19 @@ class MathVerifierService:
         self._executor = None
         logger.info("MathVerifierService stopped")
 
+    def close_sync(self) -> None:
+        """Synchronously cancel and release the worker pool.
+
+        Called from synchronous close() hooks where no event loop is available.
+        Uses cancel_futures=True so in-flight workers are signalled immediately;
+        wait=False avoids blocking the caller.
+        """
+        if self._executor is None:
+            return
+        self._executor.shutdown(wait=False, cancel_futures=True)
+        self._executor = None
+        logger.info("MathVerifierService pool released (sync close)")
+
     async def _restart_pool(self) -> None:
         """Restart the worker pool after a fatal worker/executor failure."""
         async with self._restart_lock:
