@@ -578,25 +578,32 @@ class TestGenericEnvClientContextManager:
 
             mock_close.assert_called_once()
 
-    def test_sync_context_manager_raises_error(self):
-        """Test that sync context manager raises helpful error."""
-        client = GenericEnvClient(base_url="http://localhost:8000")
+    def test_sync_context_manager_enter_exit(self):
+        """Test that sync context manager works correctly."""
+        with (
+            patch.object(
+                GenericEnvClient, "_connect_async", new_callable=AsyncMock
+            ) as mock_connect,
+            patch.object(
+                GenericEnvClient, "_close_async", new_callable=AsyncMock
+            ) as mock_close,
+        ):
+            client = GenericEnvClient(base_url="http://localhost:8000")
 
-        with pytest.raises(TypeError) as exc_info:
-            with client:
-                pass
+            with client as active_client:
+                assert active_client is client
+                mock_connect.assert_called_once()
 
-        assert "async by default" in str(exc_info.value)
-        assert ".sync()" in str(exc_info.value)
+            mock_close.assert_called_once()
 
     def test_sync_wrapper_context_manager(self):
         """Test SyncEnvClient context manager works correctly."""
         with (
             patch.object(
-                GenericEnvClient, "connect", new_callable=AsyncMock
+                GenericEnvClient, "_connect_async", new_callable=AsyncMock
             ) as mock_connect,
             patch.object(
-                GenericEnvClient, "close", new_callable=AsyncMock
+                GenericEnvClient, "_close_async", new_callable=AsyncMock
             ) as mock_close,
         ):
             async_client = GenericEnvClient(base_url="http://localhost:8000")

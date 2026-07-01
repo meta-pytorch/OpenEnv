@@ -259,16 +259,24 @@ class EnvClient(ABC, Generic[ActT, ObsT, StateT]):
 
     def _dispatch(self, coro_factory: Callable[[], Any]) -> Any:
         """Return an awaitable in async code and a concrete result in sync code."""
+        try:
+            asyncio.get_running_loop()
+        except RuntimeError:
+            running_loop = False
+        else:
+            running_loop = True
+
+        if running_loop:
+            if self._execution_mode is None:
+                return _AutoAsyncResult(self, coro_factory)
+            return coro_factory()
+
         if self._execution_mode == "async":
             return coro_factory()
         if self._execution_mode == "sync":
             return self._run_sync(coro_factory)
 
-        try:
-            asyncio.get_running_loop()
-        except RuntimeError:
-            return self._run_sync(coro_factory)
-        return _AutoAsyncResult(self, coro_factory)
+        return self._run_sync(coro_factory)
 
     def connect(self) -> Any:
         return self._dispatch(self._connect_async)
@@ -618,12 +626,12 @@ class EnvClient(ABC, Generic[ActT, ObsT, StateT]):
     async def __aenter__(self) -> "EnvClient":
         """Enter async context manager, ensuring connection is established."""
         self._claim_execution_mode("async")
-        await self._connect_async()
+        await self.connect()
         return self
 
     async def __aexit__(self, exc_type, exc_val, exc_tb) -> None:
         """Exit async context manager, closing connection."""
-        await self._close_async()
+        await self.close()
 
     def __enter__(self) -> "EnvClient":
         """Enter sync context manager, ensuring connection is established."""

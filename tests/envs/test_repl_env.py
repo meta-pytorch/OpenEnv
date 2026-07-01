@@ -968,7 +968,7 @@ class TestREPLEnvRemoteClient:
                 return {"data": {}}
             raise AssertionError(f"Unexpected message type: {message['type']}")
 
-        monkeypatch.setattr(env.async_client, "connect", fake_connect)
+        monkeypatch.setattr(env.async_client, "_connect_async", fake_connect)
         monkeypatch.setattr(
             env.async_client, "_send_and_receive", fake_send_and_receive
         )
