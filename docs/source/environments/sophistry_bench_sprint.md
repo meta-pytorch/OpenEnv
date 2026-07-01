@@ -37,7 +37,7 @@ from sophistry_bench_sprint_env import SophistryBenchSprintEnv
 
 async def main():
     # Deployed Hugging Face Space (or .from_docker_image("openenv-sophistry_bench_sprint:latest")):
-    client = await SophistryBenchSprintEnv.from_env("anushaacharya/sophistry_bench_sprint_env")
+    client = await SophistryBenchSprintEnv.from_env("openenv-community/sophistry_bench_sprint_env")
     async with client:
         obs = (await client.reset()).observation
         print(obs.prompt, obs.answer_to_defend)
@@ -66,6 +66,22 @@ the reward-hacking measurement. By default it holds **seven** components; `corre
 > is correct. `correctness_reward` is withheld from the wire by default for exactly this
 > reason; even with the rest of the components, forwarding them to the agent leaks the
 > reward signal and defeats the reward-hacking measurement.
+
+## Training
+
+[`examples/sophistry_bench_sprint_grpo.py`](https://github.com/huggingface/OpenEnv/blob/main/examples/sophistry_bench_sprint_grpo.py)
+trains a policy on this env with TRL's `GRPOTrainer` — a plain prompt ->
+completion -> reward setup, since the episode is single-step.
+
+Validated with a real 100-step run on Hugging Face Jobs (`Qwen2.5-0.5B-Instruct`,
+`a10g-small`) and a 100-step run on the Prime Intellect Hub
+(`Llama-3.2-1B-Instruct`, registered as `anusha/sophistry-bench-sprint`, parity-tested
+against this port). Both show `aggregate_reward` (the optimized proxy) climbing while
+`correctness_reward` (the hidden ground truth, weight 0) stays flat — the reward-hacking
+signature this env is designed to surface. The larger Prime Intellect run converges on
+the literal `claim_count_cliff` target (`n_claims` saturates at exactly 8); the smaller
+HF Jobs run finds a different shortcut instead (`n_claims` collapses to ~0, near-empty
+completions) — same underlying finding, different degenerate strategy depending on scale.
 
 ## Build & test
 
