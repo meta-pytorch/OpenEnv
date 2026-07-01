@@ -85,6 +85,111 @@ class TestGenericEnvClientInstantiation:
         assert client._connect_timeout == 30.0
         assert client._message_timeout == 120.0
 
+    def test_instantiation_with_provider_only(self, mock_provider):
+        """Test provider-owned startup without an initial base URL."""
+        client = GenericEnvClient(provider=mock_provider)
+        assert client._ws_url is None
+
+    def test_instantiation_requires_base_url_or_provider(self):
+        """Test that clients need either a URL or a provider."""
+        with pytest.raises(ValueError, match="requires either base_url or provider"):
+            GenericEnvClient()
+
+    @pytest.mark.asyncio
+    async def test_connect_starts_provider_when_base_url_omitted(self, mock_provider):
+        """The outer client can start a provider that owns its image/source."""
+        ws = MagicMock()
+        ws.send = AsyncMock()
+        ws.close = AsyncMock()
+
+        with patch("openenv.core.env_client.ws_connect", AsyncMock(return_value=ws)):
+            client = GenericEnvClient(provider=mock_provider)
+            await client.connect()
+
+            mock_provider.start_container.assert_called_once_with()
+            mock_provider.wait_for_ready.assert_called_once_with(
+                "http://localhost:8000"
+            )
+            assert client._ws_url == "ws://localhost:8000/ws"
+
+            await client.close()
+
+        mock_provider.stop_container.assert_called_once_with()
+        assert client._ws_url is None
+
+    @pytest.mark.asyncio
+    async def test_provider_owned_startup_requires_no_arg_start_container(self):
+        """Providers that require an image fail with actionable guidance."""
+
+        class _RequiresImageProvider:
+            def start_container(self, image):
+                raise AssertionError("start_container should not be called")
+
+            def wait_for_ready(self, base_url):
+                raise AssertionError("wait_for_ready should not be called")
+
+            def stop_container(self):
+                pass
+
+        client = GenericEnvClient(provider=_RequiresImageProvider())
+
+        with pytest.raises(ValueError, match=r"start_container\(\) requires image"):
+            await client.connect()
+
+    @pytest.mark.asyncio
+    async def test_new_session_reuses_provider_server(self, mock_provider):
+        """Child sessions connect to the same server without owning the provider."""
+        websockets = []
+
+        async def fake_ws_connect(*args, **kwargs):
+            ws = AsyncMock()
+            websockets.append(ws)
+            return ws
+
+        with patch("openenv.core.env_client.ws_connect", side_effect=fake_ws_connect):
+            client = GenericEnvClient(provider=mock_provider)
+            await client.connect()
+            session = await client.new_session()
+
+            assert isinstance(session, GenericEnvClient)
+            assert session is not client
+            assert session._provider is None
+            assert session._base_url == "http://localhost:8000"
+            assert session._ws_url == "ws://localhost:8000/ws"
+            assert len(websockets) == 2
+            mock_provider.start_container.assert_called_once_with()
+
+            await client.close()
+
+        mock_provider.stop_container.assert_called_once_with()
+
+    @pytest.mark.asyncio
+    async def test_close_stops_provider_when_child_close_raises(self, mock_provider):
+        """Parent cleanup continues even when a child session close fails."""
+        client = GenericEnvClient(provider=mock_provider)
+        child = MagicMock()
+        child.close = AsyncMock(side_effect=RuntimeError("child close failed"))
+        client._child_clients.append(child)
+
+        await client.close()
+
+        child.close.assert_awaited_once_with()
+        assert client._child_clients == []
+        mock_provider.stop_container.assert_called_once_with()
+
+    def test_session_client_filters_constructor_kwargs(self):
+        """Child creation respects subclasses with narrower __init__ signatures."""
+
+        class MinimalGenericClient(GenericEnvClient):
+            def __init__(self, base_url):
+                super().__init__(base_url=base_url)
+
+        client = MinimalGenericClient(base_url="http://localhost:8000")
+        child = client._create_session_client()
+
+        assert isinstance(child, MinimalGenericClient)
+        assert child._base_url == "http://localhost:8000"
+
 
 class TestGenericEnvClientStepPayload:
     """Test _step_payload method."""
@@ -551,6 +656,41 @@ class TestSyncEnvClientWrapper:
 
         assert result.observation == {"output": "hello"}
         assert result.reward == 1.0
+
+    def test_sync_client_new_session_reuses_provider_server(self, mock_provider):
+        """The sync wrapper exposes child sessions without another context manager."""
+        websockets = []
+
+        async def fake_ws_connect(*args, **kwargs):
+            ws = AsyncMock()
+            websockets.append(ws)
+            return ws
+
+        with patch("openenv.core.env_client.ws_connect", side_effect=fake_ws_connect):
+            with GenericEnvClient(provider=mock_provider).sync() as client:
+                session = client.new_session()
+
+                assert isinstance(session, SyncEnvClient)
+                assert isinstance(session.async_client, GenericEnvClient)
+                assert session.async_client._provider is None
+                assert session.async_client._base_url == "http://localhost:8000"
+                assert len(websockets) == 2
+
+        mock_provider.start_container.assert_called_once_with()
+        mock_provider.stop_container.assert_called_once_with()
+
+    def test_sync_close_stops_provider_when_child_close_raises(self, mock_provider):
+        """Sync parent cleanup continues when child close fails."""
+        client = GenericEnvClient(provider=mock_provider).sync()
+        child = Mock()
+        child.close.side_effect = RuntimeError("child close failed")
+        client._child_clients.append(child)
+
+        client.close()
+
+        child.close.assert_called_once_with()
+        assert client._child_clients == []
+        mock_provider.stop_container.assert_called_once_with()
 
 
 # ============================================================================
