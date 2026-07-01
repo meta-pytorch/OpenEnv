@@ -32,8 +32,24 @@ provider's full API.
 
 ## Lifecycle
 
-Container providers share the same flow. `from_docker_image` uses
-`LocalDockerProvider` by default; pass `provider=` to run the server elsewhere:
+Container providers that store their source image on the provider can be owned
+by the client. In this form, the client starts the provider on first connect,
+waits for readiness, and stops the provider when the client closes:
+
+```python
+image = DaytonaProvider.image_from_dockerfile("envs/echo_env/server/Dockerfile")
+provider = DaytonaProvider(image=image)
+
+async with MyEnv(provider=provider) as env:
+    result = await env.reset()
+    ...
+```
+
+`ModalProvider`, `DaytonaProvider`, and `ACASandboxProvider` support this
+provider-owned flow. Providers that require an explicit image at
+`start_container()` time, such as `LocalDockerProvider` and
+`DockerSwarmProvider`, should still be started manually and passed in with the
+returned `base_url`:
 
 ```python
 base_url = provider.start_container(image)
@@ -48,6 +64,23 @@ finally:
 
 `UVProvider` is not a container provider: it runs the server as a local process
 and exposes `.start()` / `.wait_for_ready()` / `.stop()` instead.
+
+## Reusing one server for multiple sessions
+
+After a client has connected, call `new_session()` to open another independent
+environment session against the same running server:
+
+```python
+async with MyEnv(provider=provider) as env:
+    first = await env.reset()
+    child = await env.new_session()
+    second = await child.reset()
+```
+
+Child sessions are owned by the parent client: closing the parent also closes
+any children it created. You can still close a child earlier when you no longer
+need it. Server capacity limits still apply, so `new_session()` can fail while
+opening the child WebSocket when the server has reached `MAX_CONCURRENT_ENVS`.
 
 ## Running many environments in parallel
 
@@ -88,6 +121,7 @@ falls back to `DefaultAzureCredential`).
 from openenv.core.containers.runtime.aca_provider import ACASandboxProvider
 
 provider = ACASandboxProvider(
+    image="disk:my-env",
     subscription_id="<subscription-id>",
     resource_group="<resource-group>",
     sandbox_group="<sandbox-group>",
@@ -108,7 +142,7 @@ variable.
 from openenv.core.containers.runtime.daytona_provider import DaytonaProvider
 
 image = DaytonaProvider.image_from_dockerfile("envs/echo_env/server/Dockerfile")
-provider = DaytonaProvider()
+provider = DaytonaProvider(image=image)
 ```
 
 Full examples: [`examples/daytona_tbench2_simple.py`](https://github.com/huggingface/OpenEnv/blob/main/examples/daytona_tbench2_simple.py)
@@ -151,7 +185,7 @@ Runs the server in a Modal sandbox over an encrypted tunnel. Install with
 from openenv.core.containers.runtime.modal_provider import ModalProvider
 
 image = ModalProvider.image_from_dockerfile("envs/echo_env/server/Dockerfile")
-provider = ModalProvider(app_name="openenv")
+provider = ModalProvider(app_name="openenv", image=image)
 ```
 
 Full example: [`examples/modal_echo_env.py`](https://github.com/huggingface/OpenEnv/blob/main/examples/modal_echo_env.py).
