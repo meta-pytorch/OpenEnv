@@ -19,7 +19,7 @@ dependencies = [
     "openai>=1.106.1",
     "mcp-agent==0.2.6",
     # Used by the custom Gradio web UI (server/web_ui.py).
-    "gradio>=4.0.0",
+    "gradio>=6.15.0",
 ]
 
 [project.optional-dependencies]
