@@ -119,6 +119,20 @@ def test_reset_clears_imports():
     )
 
 
+def test_json_import_is_available_by_default():
+    """Test that the coding env permits common JSON serialization code."""
+    env = PythonCodeActEnv()
+    env.reset()
+
+    action = CodeAction(
+        code="import json\nprint(json.dumps({'status': 'ok', 'n': 3}, sort_keys=True))"
+    )
+    obs = env.step(action)
+
+    assert obs.exit_code == 0
+    assert obs.stdout.strip() == '{"n": 3, "status": "ok"}'
+
+
 def test_reset_preserves_step_count_reset():
     """Test that reset() properly resets step count."""
     env = PythonCodeActEnv()
