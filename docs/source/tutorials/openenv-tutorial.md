@@ -2,8 +2,6 @@
 
 <div align="center">
 
-<img src="https://upload.wikimedia.org/wikipedia/commons/1/10/PyTorch_logo_icon.svg" width="200" alt="PyTorch">
-
 ## From "Hello World" to RL Training in 5 Minutes ✨
 
 **What if RL environments were as easy to use as REST APIs?**
@@ -1251,7 +1249,7 @@ OpenEnv includes 3 complete examples:
 
 Technical direction, RFCs, and release planning are coordinated in public through the OpenEnv repository.
 
-**License**: BSD 3-Clause (very permissive!)
+**License**: BSD 3-Clause License
 
 **Contributions**: Always welcome! Check out the issues tab.
 

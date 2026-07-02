@@ -1,8 +1,4 @@
-# Copyright (c) Meta Platforms, Inc. and affiliates.
-# All rights reserved.
-#
-# This source code is licensed under the BSD-style license found in the
-# LICENSE file in the root directory of this source tree.
+# SPDX-License-Identifier: BSD-3-Clause
 
 """
 Environment Auto-Discovery System
@@ -17,6 +13,8 @@ This module provides automatic discovery of OpenEnv environments by:
 This enables AutoEnv to work without coupling to src/envs/ directory.
 """
 
+from __future__ import annotations
+
 import importlib
 import importlib.metadata
 import importlib.resources
@@ -26,7 +24,7 @@ import re
 import tempfile
 from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Any, Dict, Optional, Type
+from typing import Any, Type
 
 import yaml
 
@@ -63,10 +61,10 @@ class EnvironmentInfo:
     action_class_name: str
     observation_class_name: str
     default_image: str
-    spec_version: Optional[int] = None
-    manifest: Optional[Dict[str, Any]] = None
+    spec_version: int | None = None
+    manifest: dict[str, Any] | None = None
 
-    def get_client_class(self) -> Type:
+    def get_client_class(self) -> Type[Any]:
         """
         Dynamically import and return the client class.
 
@@ -90,7 +88,7 @@ class EnvironmentInfo:
                 f"Class {self.client_class_name} not found in {self.client_module_path}: {e}"
             ) from e
 
-    def get_action_class(self) -> Type:
+    def get_action_class(self) -> Type[Any]:
         """
         Dynamically import and return the action class.
 
@@ -114,7 +112,7 @@ class EnvironmentInfo:
                 f"Class {self.action_class_name} not found in {self.client_module_path}: {e}"
             ) from e
 
-    def get_observation_class(self) -> Type:
+    def get_observation_class(self) -> Type[Any]:
         """
         Dynamically import and return the observation class.
 
@@ -225,7 +223,7 @@ def _infer_class_name(env_name: str, class_type: str) -> str:
 
 def _load_manifest_from_package(
     package_name: str, module_name: str
-) -> Optional[Dict[str, Any]]:
+) -> dict[str, Any] | None:
     """
     Load openenv.yaml manifest from an installed package.
 
@@ -259,7 +257,7 @@ def _load_manifest_from_package(
 
 def _create_env_info_from_package(
     package_name: str, module_name: str, version: str
-) -> Optional[EnvironmentInfo]:
+) -> EnvironmentInfo | None:
     """
     Create EnvironmentInfo from an installed package.
 
@@ -347,17 +345,17 @@ class EnvironmentDiscovery:
 
     def __init__(self):
         """Initialize discovery system."""
-        self._cache: Optional[Dict[str, EnvironmentInfo]] = None
+        self._cache: dict[str, EnvironmentInfo] | None = None
         self._cache_file = Path(tempfile.gettempdir()) / "openenv_discovery_cache.json"
 
-    def _discover_installed_packages(self) -> Dict[str, EnvironmentInfo]:
+    def _discover_installed_packages(self) -> dict[str, EnvironmentInfo]:
         """
         Discover all installed openenv-* packages.
 
         Returns:
             Dictionary mapping env_key to EnvironmentInfo
         """
-        environments = {}
+        environments: dict[str, EnvironmentInfo] = {}
 
         # Invalidate import caches to ensure we pick up newly installed packages
         importlib.invalidate_caches()
@@ -403,7 +401,7 @@ class EnvironmentDiscovery:
 
         return environments
 
-    def _load_cache(self) -> Optional[Dict[str, EnvironmentInfo]]:
+    def _load_cache(self) -> dict[str, EnvironmentInfo] | None:
         """
         Load cached discovery results.
 
@@ -418,7 +416,7 @@ class EnvironmentDiscovery:
                 cache_data = json.load(f)
 
             # Reconstruct EnvironmentInfo objects
-            cache = {}
+            cache: dict[str, EnvironmentInfo] = {}
             for env_key, env_data in cache_data.items():
                 cache[env_key] = EnvironmentInfo(**env_data)
 
@@ -427,7 +425,7 @@ class EnvironmentDiscovery:
             logger.warning(f"Failed to load discovery cache: {e}")
             return None
 
-    def _save_cache(self, environments: Dict[str, EnvironmentInfo]) -> None:
+    def _save_cache(self, environments: dict[str, EnvironmentInfo]) -> None:
         """
         Save discovery results to cache.
 
@@ -445,7 +443,7 @@ class EnvironmentDiscovery:
         except Exception as e:
             logger.warning(f"Failed to save discovery cache: {e}")
 
-    def discover(self, use_cache: bool = True) -> Dict[str, EnvironmentInfo]:
+    def discover(self, use_cache: bool = True) -> dict[str, EnvironmentInfo]:
         """
         Discover all installed OpenEnv environments.
 
@@ -481,7 +479,7 @@ class EnvironmentDiscovery:
 
         return environments
 
-    def get_environment(self, env_key: str) -> Optional[EnvironmentInfo]:
+    def get_environment(self, env_key: str) -> EnvironmentInfo | None:
         """
         Get information about a specific environment.
 
@@ -500,7 +498,7 @@ class EnvironmentDiscovery:
         environments = self.discover()
         return environments.get(env_key)
 
-    def get_environment_by_name(self, name: str) -> Optional[EnvironmentInfo]:
+    def get_environment_by_name(self, name: str) -> EnvironmentInfo | None:
         """
         Get environment info by flexible name matching.
 
@@ -554,7 +552,7 @@ class EnvironmentDiscovery:
 
 
 # Global discovery instance
-_global_discovery: Optional[EnvironmentDiscovery] = None
+_global_discovery: EnvironmentDiscovery | None = None
 
 
 def get_discovery() -> EnvironmentDiscovery:

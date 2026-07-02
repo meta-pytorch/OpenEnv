@@ -1,8 +1,4 @@
-# Copyright (c) Meta Platforms, Inc. and affiliates.
-# All rights reserved.
-#
-# This source code is licensed under the BSD-style license found in the
-# LICENSE file in the root directory of this source tree.
+# SPDX-License-Identifier: BSD-3-Clause
 
 """
 MCP Client classes for tool-calling environments.
@@ -74,6 +70,15 @@ from .env_server.mcp_types import (
 from .env_server.types import Observation, State
 
 
+def _tool_from_payload(payload: Dict[str, Any]) -> Tool:
+    """Convert a JSON tool payload into the internal Tool model."""
+    return Tool(
+        name=payload.get("name", ""),
+        description=payload.get("description", ""),
+        input_schema=payload.get("input_schema", payload.get("inputSchema", {})),
+    )
+
+
 class MCPClientBase(EnvClient[Any, Observation, State]):
     """
     Base class for MCP clients with tool discovery.
@@ -91,6 +96,8 @@ class MCPClientBase(EnvClient[Any, Observation, State]):
         base_url: str,
         connect_timeout_s: float = 10.0,
         message_timeout_s: float = 60.0,
+        websocket_ping_interval_s: Optional[float] = 20.0,
+        websocket_ping_timeout_s: Optional[float] = 20.0,
         provider: Optional[Any] = None,
         mode: Optional[str] = None,
     ):
@@ -104,6 +111,10 @@ class MCPClientBase(EnvClient[Any, Observation, State]):
                 Timeout for establishing WebSocket connection.
             message_timeout_s (`float`, *optional*, defaults to `60.0`):
                 Timeout for receiving responses to messages.
+            websocket_ping_interval_s (`float` or `None`, *optional*, defaults to `20.0`):
+                WebSocket keepalive ping interval. Pass `None` to disable.
+            websocket_ping_timeout_s (`float` or `None`, *optional*, defaults to `20.0`):
+                WebSocket keepalive pong timeout. Pass `None` to disable.
             provider (*optional*):
                 Container/runtime provider for lifecycle management.
             mode (`str`, *optional*):
@@ -125,6 +136,8 @@ class MCPClientBase(EnvClient[Any, Observation, State]):
             base_url=base_url,
             connect_timeout_s=connect_timeout_s,
             message_timeout_s=message_timeout_s,
+            websocket_ping_interval_s=websocket_ping_interval_s,
+            websocket_ping_timeout_s=websocket_ping_timeout_s,
             provider=provider,
             mode=mode,
         )
@@ -226,16 +239,7 @@ class MCPClientBase(EnvClient[Any, Observation, State]):
                     message = data.get("error", {}).get("message", "unknown error")
                     raise RuntimeError(f"list_tools failed: {message}")
                 if "result" in data and "tools" in data["result"]:
-                    tools = [
-                        Tool(
-                            name=t.get("name", ""),
-                            description=t.get("description", ""),
-                            input_schema=t.get(
-                                "input_schema", t.get("inputSchema", {})
-                            ),
-                        )
-                        for t in data["result"]["tools"]
-                    ]
+                    tools = [_tool_from_payload(t) for t in data["result"]["tools"]]
                     self._tools_cache = tools
                     return tools
             except Exception:
@@ -274,14 +278,7 @@ class MCPClientBase(EnvClient[Any, Observation, State]):
 
         # Check if this is a ListToolsObservation
         if "tools" in obs_data:
-            tools = [
-                Tool(
-                    name=t.get("name", ""),
-                    description=t.get("description", ""),
-                    input_schema=t.get("input_schema", t.get("inputSchema", {})),
-                )
-                for t in obs_data.get("tools", [])
-            ]
+            tools = [_tool_from_payload(t) for t in obs_data.get("tools", [])]
             observation = ListToolsObservation(
                 tools=tools,
                 done=payload.get("done", False),

@@ -1,8 +1,4 @@
-# Copyright (c) Meta Platforms, Inc. and affiliates.
-# All rights reserved.
-#
-# This source code is licensed under the BSD-style license found in the
-# LICENSE file in the root directory of this source tree.
+# SPDX-License-Identifier: BSD-3-Clause
 
 """
 Tests for MCPToolClient.
@@ -129,6 +125,29 @@ class TestMCPClientBase:
         assert len(result.observation.tools) == 1
         assert result.observation.tools[0].name == "add"
         assert result.done is False
+
+    def test_parse_result_list_tools_accepts_input_schema_alias(self):
+        """Test _parse_result accepts MCP-style inputSchema tool payloads."""
+        client = MCPClientBase.__new__(MCPClientBase)
+        client._ws = None
+        client._tools_cache = None
+
+        payload = {
+            "observation": {
+                "tools": [
+                    {
+                        "name": "search",
+                        "description": "Search documents",
+                        "inputSchema": {"type": "object"},
+                    },
+                ],
+            },
+        }
+
+        result = client._parse_result(payload)
+
+        assert isinstance(result.observation, ListToolsObservation)
+        assert result.observation.tools[0].input_schema == {"type": "object"}
 
     def test_parse_result_call_tool_observation(self):
         """Test _parse_result for CallToolObservation."""

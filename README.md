@@ -1,4 +1,4 @@
-# <img width="35" height="35" alt="image" src="https://github.com/user-attachments/assets/2700a971-e5d6-4036-b03f-2f89c9791609" /> OpenEnv: Agentic Execution Environments
+# OpenEnv: Agentic Execution Environments
 
 An e2e framework for creating, deploying and using isolated execution environments for agentic RL training, built using Gymnasium style simple APIs.
 
@@ -96,11 +96,13 @@ The OpenEnv CLI (`openenv`) provides commands to initialize new environments and
 
 Below is a list of active and historical RFCs for OpenEnv. RFCs are proposals for major changes or features. Please review and contribute!
 
+- [RFC 000: Project Phases and Design Principles](https://github.com/huggingface/OpenEnv/pull/44)
 - [RFC 001: Baseline API and Interface Specifications](https://github.com/huggingface/OpenEnv/pull/26)
 - [RFC 002: Discoverability of environment tools by agents](https://github.com/huggingface/OpenEnv/pull/32)
 - [RFC 003: Add MCP (Model Context Protocol) support](https://github.com/huggingface/OpenEnv/pull/224)
 - [RFC 004: Add delayed rewards support for trajectory-based scoring](https://github.com/huggingface/OpenEnv/pull/337)
 - [RFC 005: Agentic Harness Integration](https://github.com/huggingface/OpenEnv/pull/387)
+- [RFC 010: Env-token World Modeling (ECHO)](https://github.com/huggingface/OpenEnv/pull/819)
 
 ## Architecture
 
@@ -173,8 +175,8 @@ Base class for environment communication:
 Manage container deployment:
 - `LocalDockerProvider`: Run containers on local Docker daemon
 - `DockerSwarmProvider`: Deploy to Docker Swarm clusters
-- `KubernetesProvider`: Deploy to Kubernetes clusters
-- `UVProvider`, `DaytonaProvider`: Additional runtime providers
+- `UVProvider`, `DaytonaProvider`, `ACASandboxProvider`: Additional runtime providers
+- `KubernetesProvider`: Deploy to Kubernetes clusters (planned)
 
 #### 5. Models
 Type-safe data structures:
@@ -370,11 +372,11 @@ See the [Oumi example](https://github.com/oumi-ai/oumi/blob/main/notebooks/Oumi%
 
 ## Community Support & Acknowledgments
 
-OpenEnv is governed by a technical committee that coordinates project direction, major technical decisions, RFCs, and release planning through the public issue tracker, pull requests, and RFC process. Current committee members: Meta-PyTorch, Reflection, Unsloth, Modal, Prime Intellect, Nvidia, Mercor, Fleet AI, Microsoft, and Hugging Face.
+OpenEnv is governed by a technical committee that coordinates project direction, major technical decisions, RFCs, and release planning through the public issue tracker, pull requests, and RFC process. Current committee members: Meta-PyTorch, Reflection, Unsloth, Modal, Prime Intellect, Nvidia, Mercor, Fleet AI, Microsoft, Hugging Face, and RadixArk.
 
 The project is also supported by a broader community of organizations. If you would like to add your project or organization here, please open a pull request for maintainer review.
 
-Supporters include: [Meta-PyTorch](https://github.com/meta-pytorch), [Hugging Face](https://huggingface.co), [Scaler AI Labs](https://scalerailabs.com), [Patronus AI](https://patronus.ai), [Surge AI](https://surgehq.ai), [LastMile AI](https://www.lastmileai.dev), [Unsloth](https://unsloth.ai), [Reflection](https://reflection.ai), [vLLM](https://vllm.ai), [SkyRL](https://skyrl.readthedocs.io) (UC-Berkeley), [Lightning AI](https://lightning.ai), [Axolotl AI](https://github.com/axolotl-ai-cloud/axolotl), [Stanford Scaling Intelligence Lab](https://scalingintelligence.stanford.edu/), [Mithril](https://mithril.ai), [OpenMined](https://openmined.org/), [Fleet AI](https://fleetai.com), [Halluminate](https://halluminate.ai/), [Turing](https://www.turing.com/), [Scale AI](https://scale.com/), [Scorecard](https://www.scorecard.io/), [Snorkel AI](https://snorkel.ai/)
+Supporters include: [Meta-PyTorch](https://github.com/meta-pytorch), [Hugging Face](https://huggingface.co), [Scaler AI Labs](https://scalerailabs.com), [Patronus AI](https://patronus.ai), [Surge AI](https://surgehq.ai), [LastMile AI](https://www.lastmileai.dev), [Unsloth](https://unsloth.ai), [Reflection](https://reflection.ai), [vLLM](https://vllm.ai), [SkyRL](https://skyrl.readthedocs.io) (UC-Berkeley), [Lightning AI](https://lightning.ai), [Axolotl AI](https://github.com/axolotl-ai-cloud/axolotl), [Stanford Scaling Intelligence Lab](https://scalingintelligence.stanford.edu/), [Mithril](https://mithril.ai), [OpenMined](https://openmined.org/), [Fleet AI](https://fleetai.com), [Halluminate](https://halluminate.ai/), [Turing](https://www.turing.com/), [Scale AI](https://scale.com/), [Scorecard](https://www.scorecard.io/), [Snorkel AI](https://snorkel.ai/), [SGLang](https://github.com/sgl-project/sglang), [Miles](https://github.com/radixark/miles)
 
 And we'd also like to acknowledge the team at Farama Foundation as the OpenEnv API was heavily inspired by the work you all have done on Gymnasium. Cheers!
 

@@ -1,9 +1,5 @@
 #!/usr/bin/env python
-# Copyright (c) Meta Platforms, Inc. and affiliates.
-# All rights reserved.
-#
-# This source code is licensed under the BSD-style license found in the
-# LICENSE file in the root directory of this source tree.
+# SPDX-License-Identifier: BSD-3-Clause
 
 """End-to-end opencode_env example: write binary_search.py and verify it.
 
@@ -91,8 +87,9 @@ async def main() -> int:
     print(f"Instruction:     {INSTRUCTION.splitlines()[0]} ...")
     print()
 
-    async with OpenCodeEnv(base_url=SPACE) as env:
-        await env.reset()
+    env = OpenCodeEnv(base_url=SPACE)
+    env.use_production_mode = True
+    try:
         raw = await env.call_tool(
             "run_rollout",
             endpoint="openai",  # vllm | openai | hf_router
@@ -106,6 +103,8 @@ async def main() -> int:
             agent_timeout_s=600,
         )
         result = RolloutResult.model_validate_json(_extract_text(raw))
+    finally:
+        await env.close()
 
     print("--- result ---")
     print(f"reward:    {result.reward}")

@@ -1,8 +1,4 @@
-# Copyright (c) Meta Platforms, Inc. and affiliates.
-# All rights reserved.
-#
-# This source code is licensed under the BSD-style license found in the
-# LICENSE file in the root directory of this source tree.
+# SPDX-License-Identifier: BSD-3-Clause
 
 """Build Docker images for OpenEnv environments."""
 
@@ -35,6 +31,15 @@ def _is_openenv_runtime_dependency(dep: str) -> bool:
     )
 
 
+def _is_in_repo_env_path(env_path: Path, repo_root: Path) -> bool:
+    """Return whether env_path points to an environment below repo_root/envs."""
+    try:
+        rel_path = env_path.relative_to(repo_root)
+    except ValueError:
+        return False
+    return len(rel_path.parts) > 1 and rel_path.parts[0] == "envs"
+
+
 def _detect_build_context(env_path: Path) -> tuple[str, Path, Path | None]:
     """
     Detect whether we're building a standalone or in-repo environment.
@@ -61,19 +66,8 @@ def _detect_build_context(env_path: Path) -> tuple[str, Path, Path | None]:
         # Not in a git repo = standalone
         return "standalone", env_path, None
 
-    # Check if environment is under envs/ (in-repo pattern)
-    try:
-        rel_path = env_path.relative_to(repo_root)
-        rel_str = str(rel_path)
-        if (
-            rel_str.startswith("envs/")
-            or rel_str.startswith("envs\\")
-            or rel_str.startswith("envs/")
-        ):
-            # In-repo environment
-            return "in-repo", repo_root, repo_root
-    except ValueError:
-        pass
+    if _is_in_repo_env_path(env_path, repo_root):
+        return "in-repo", repo_root, repo_root
 
     # Otherwise, it's standalone (environment outside repo structure)
     return "standalone", env_path, None
@@ -327,6 +321,23 @@ def _push_docker_image(tag: str, registry: str | None = None) -> bool:
     return result.returncode == 0
 
 
+def _parse_build_args(raw_args: list[str] | None) -> dict[str, str]:
+    """Parse Docker build args from repeated KEY=VALUE CLI options."""
+    build_args: dict[str, str] = {}
+
+    for arg in raw_args or []:
+        if "=" in arg:
+            key, value = arg.split("=", 1)
+            build_args[key] = value
+        else:
+            print(
+                f"Warning: Invalid build arg format: {arg}",
+                file=sys.stderr,
+            )
+
+    return build_args
+
+
 @app.command()
 def build(
     env_path: Annotated[
@@ -437,18 +448,7 @@ def build(
     console.print(f"[bold]Building Docker image for:[/bold] {env_path_obj.name}")
     console.print("=" * 60)
 
-    # Parse build args
-    build_args = {}
-    if build_arg:
-        for arg in build_arg:
-            if "=" in arg:
-                key, value = arg.split("=", 1)
-                build_args[key] = value
-            else:
-                print(
-                    f"Warning: Invalid build arg format: {arg}",
-                    file=sys.stderr,
-                )
+    build_args = _parse_build_args(build_arg)
 
     # Convert string paths to Path objects
     context_path_obj = Path(context) if context else None

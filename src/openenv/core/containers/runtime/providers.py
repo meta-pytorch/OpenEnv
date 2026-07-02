@@ -1,8 +1,4 @@
-# Copyright (c) Meta Platforms, Inc. and affiliates.
-# All rights reserved.
-#
-# This source code is licensed under the BSD-style license found in the
-# LICENSE file in the root directory of this source tree.
+# SPDX-License-Identifier: BSD-3-Clause
 
 """
 Container provider abstractions for running environment servers.
@@ -14,7 +10,9 @@ This module provides a pluggable architecture for different container providers
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import Any, Dict, Optional, Sequence
+from typing import Any, Dict, Optional, Sequence, TypeVar
+
+_ContainerProviderT = TypeVar("_ContainerProviderT", bound="ContainerProvider")
 
 
 class ContainerProvider(ABC):
@@ -54,7 +52,10 @@ class ContainerProvider(ABC):
 
         Args:
             image (`str`):
-                Container image name (e.g., `"echo-env:latest"`).
+                Provider-specific container *source* identifier. For
+                container-based providers this is a registry image name (e.g.
+                `"echo-env:latest"`); other providers may map it to a
+                provider-specific source (see the provider's documentation).
             port (`int`, *optional*):
                 Port to expose. If `None`, the provider chooses.
             env_vars (`dict`, *optional*):
@@ -96,6 +97,24 @@ class ContainerProvider(ABC):
             TimeoutError: If container doesn't become ready in time.
         """
         pass
+
+    def close(self) -> None:
+        """
+        Release provider-held resources (e.g. SDK clients, connections).
+
+        Defaults to a no-op so existing providers are unaffected. Providers that
+        hold external resources beyond the container itself (such as a cloud SDK
+        client) override this to release them; it is also invoked on context-
+        manager exit. Lightweight providers need not override it.
+        """
+        pass
+
+    def __enter__(self: _ContainerProviderT) -> _ContainerProviderT:
+        return self
+
+    def __exit__(self, exc_type, exc, tb) -> Optional[bool]:
+        self.close()
+        return None
 
 
 class LocalDockerProvider(ContainerProvider):
@@ -627,19 +646,12 @@ class DockerSwarmProvider(ContainerProvider):
 
 class KubernetesProvider(ContainerProvider):
     """
-    Container provider for Kubernetes clusters.
+    Planned container provider for Kubernetes clusters.
 
-    This provider creates pods in a Kubernetes cluster and exposes them
-    via services or port-forwarding.
-
-    Examples:
-
-        ```python
-        provider = KubernetesProvider(namespace="envtorch-dev")
-        base_url = provider.start_container("echo-env:latest")
-        # Pod running in k8s, accessible via service or port-forward
-        provider.stop_container()
-        ```
+    Not yet implemented: this is a placeholder for the planned Kubernetes
+    backend and does not implement the abstract `ContainerProvider` methods, so
+    it cannot be instantiated. Use `LocalDockerProvider`, `DockerSwarmProvider`,
+    `DaytonaProvider`, or `ACASandboxProvider` instead.
     """
 
     pass
