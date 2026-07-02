@@ -1,6 +1,7 @@
 """FastAPI server for the BrowserGym environment."""
 
 import os
+from contextlib import suppress
 from functools import partial
 
 from browsergym_env.models import BrowserGymAction, BrowserGymObservation
@@ -17,7 +18,9 @@ timeout = float(os.environ.get("BROWSERGYM_TIMEOUT", "10000"))
 include_screenshot = (
     os.environ.get("BROWSERGYM_INCLUDE_SCREENSHOT", "false").lower() == "true"
 )
-port = int(os.environ.get("BROWSERGYM_PORT", "8000"))
+port = int(
+    os.environ.get("SBX_SERVICE_PORT", os.environ.get("BROWSERGYM_PORT", "8000"))
+)
 
 max_concurrent = int(os.environ.get("MAX_CONCURRENT_ENVS", "8"))
 
@@ -43,7 +46,14 @@ def main():
     """Main entry point for running the server."""
     import uvicorn
 
-    uvicorn.run(app, host="0.0.0.0", port=port)
+    if proxy_dir := os.environ.get("SBX_PROXY_DIR"):
+        socket_path = os.path.join(proxy_dir, f"{port}.sock")
+        os.makedirs(proxy_dir, exist_ok=True)
+        with suppress(FileNotFoundError):
+            os.unlink(socket_path)
+        uvicorn.run(app, uds=socket_path)
+    else:
+        uvicorn.run(app, host="0.0.0.0", port=port)
 
 
 if __name__ == "__main__":
