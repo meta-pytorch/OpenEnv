@@ -692,6 +692,78 @@ class TestSyncEnvClientWrapper:
         assert client._child_clients == []
         mock_provider.stop_container.assert_called_once_with()
 
+    def test_sync_call_after_async_connect_blocks_for_result(self, monkeypatch):
+        """Sync calls after async setup return concrete results, not coroutines."""
+        client = GenericEnvClient(base_url="http://localhost:8000")
+
+        async def connect_client():
+            with patch.object(
+                GenericEnvClient, "_connect_async", new_callable=AsyncMock
+            ) as mock_connect:
+                await client.connect()
+                mock_connect.assert_awaited_once()
+
+        asyncio.run(connect_client())
+        assert client._execution_mode == "async"
+
+        expected = StepResult(
+            observation={"ready": True},
+            reward=0.0,
+            done=False,
+        )
+
+        async def fake_reset(**kwargs):
+            return expected
+
+        monkeypatch.setattr(client, "_reset_async", fake_reset)
+
+        result = client.reset()
+        if asyncio.iscoroutine(result):
+            result.close()
+            pytest.fail("client.reset() returned a coroutine in synchronous code")
+
+        assert result is expected
+
+    @pytest.mark.asyncio
+    async def test_sync_locked_dispatch_inside_running_loop_uses_sync_loop(
+        self, monkeypatch
+    ):
+        """Sync-locked clients keep work on the sync wrapper loop."""
+        client = GenericEnvClient(base_url="http://localhost:8000")
+        sync_client = client.sync()
+
+        async def fake_connect():
+            return client
+
+        monkeypatch.setattr(client, "_connect_async", fake_connect)
+        sync_client.connect()
+
+        expected = StepResult(
+            observation={"ready": True},
+            reward=0.0,
+            done=False,
+        )
+        observed = {}
+
+        async def fake_reset(**kwargs):
+            observed["loop"] = asyncio.get_running_loop()
+            return expected
+
+        monkeypatch.setattr(client, "_reset_async", fake_reset)
+
+        try:
+            current_loop = asyncio.get_running_loop()
+            result = client.reset()
+            if asyncio.iscoroutine(result):
+                result.close()
+                pytest.fail("sync-locked client.reset() returned a coroutine")
+
+            assert result is expected
+            assert observed["loop"] is sync_client._loop
+            assert observed["loop"] is not current_loop
+        finally:
+            sync_client.close()
+
 
 # ============================================================================
 # Context Manager Tests

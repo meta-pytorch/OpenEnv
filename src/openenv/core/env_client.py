@@ -350,9 +350,17 @@ class EnvClient(ABC, Generic[ActT, ObsT, StateT]):
                 "Create a separate client instance when mixing sync and async code."
             )
 
-    def _run_sync(self, coro_factory: Callable[[], Any]) -> Any:
+    def _run_sync(
+        self,
+        coro_factory: Callable[[], Any],
+        *,
+        allow_async_handoff: bool = False,
+    ) -> Any:
         """Run an async operation through the sync wrapper."""
-        self._claim_execution_mode("sync")
+        if allow_async_handoff and self._execution_mode == "async":
+            self._execution_mode = "sync"
+        else:
+            self._claim_execution_mode("sync")
         if self._sync_client is None:
             self._sync_client = self.sync()
         return self._sync_client._run(coro_factory())
@@ -360,23 +368,23 @@ class EnvClient(ABC, Generic[ActT, ObsT, StateT]):
     def _dispatch(self, coro_factory: Callable[[], Any]) -> Any:
         """Return an awaitable in async code and a concrete result in sync code."""
         try:
-            asyncio.get_running_loop()
+            running_loop = asyncio.get_running_loop()
         except RuntimeError:
-            running_loop = False
-        else:
-            running_loop = True
+            running_loop = None
 
-        if running_loop:
-            if self._execution_mode is None:
-                return _AutoAsyncResult(self, coro_factory)
-            return coro_factory()
-
-        if self._execution_mode == "async":
-            return coro_factory()
         if self._execution_mode == "sync":
+            sync_loop = (
+                self._sync_client._loop if self._sync_client is not None else None
+            )
+            if running_loop is sync_loop:
+                return coro_factory()
             return self._run_sync(coro_factory)
+        if running_loop is not None:
+            if self._execution_mode == "async":
+                return coro_factory()
+            return _AutoAsyncResult(self, coro_factory)
 
-        return self._run_sync(coro_factory)
+        return self._run_sync(coro_factory, allow_async_handoff=True)
 
     def connect(self) -> Any:
         return self._dispatch(self._connect_async)
@@ -729,7 +737,7 @@ class EnvClient(ABC, Generic[ActT, ObsT, StateT]):
         self._child_clients.clear()
 
         try:
-            await self.disconnect()
+            await self._disconnect_async()
         finally:
             try:
                 if self._provider is not None:
@@ -788,4 +796,6 @@ class EnvClient(ABC, Generic[ActT, ObsT, StateT]):
         """
         from .sync_client import SyncEnvClient
 
-        return SyncEnvClient(self)
+        if self._sync_client is None:
+            self._sync_client = SyncEnvClient(self)
+        return self._sync_client
