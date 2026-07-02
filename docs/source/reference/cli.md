@@ -20,6 +20,9 @@ The `openenv` CLI provides a set of commands for building, validating, and pushi
 
 ## `openenv serve`
 
+Local serving is not implemented in the CLI yet. This command exits non-zero
+and prints alternative ways to run an environment server.
+
 [[autodoc]] openenv.cli.commands.serve.serve
 
 ## `openenv fork`
