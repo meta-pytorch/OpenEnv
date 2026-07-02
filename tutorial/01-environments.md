@@ -270,9 +270,9 @@ Think of it like this: You don't run your database in the same process as your w
     await env.state()    # Under the hood: a state message over WebSocket
     ```
 
-    `EnvClient` is async. In a notebook you can `await` directly; in a plain script
-    use `asyncio.run(...)` or the synchronous `.sync()` wrapper. The magic? OpenEnv
-    handles all the plumbing. You focus on RL! ✨
+    In a notebook you can `await` directly; in a plain script, the same calls
+    block automatically. The magic? OpenEnv handles all the plumbing. You focus
+    on RL! ✨
 
 ---
 
@@ -418,12 +418,12 @@ class OpenSpielEnv(EnvClient[OpenSpielAction, OpenSpielObservation, OpenSpielSta
         return OpenSpielState(...)
 ```
 
-Usage is the same as any OpenEnv environment. `EnvClient` is async, so we use the
-`.sync()` wrapper here for a plain-script feel (in a notebook you can `await` the
-async client directly instead):
+Usage is the same as any OpenEnv environment. In a plain script, these calls
+block automatically (in a notebook you can `await` the same client directly
+instead):
 
 ```python
-env = OpenSpielEnv(base_url="http://localhost:8000").sync()
+env = OpenSpielEnv(base_url="http://localhost:8000")
 
 result = env.reset()                                                # StepResult[OpenSpielObservation]
 result = env.step(OpenSpielAction(action_id=2, game_name="catch"))
@@ -598,7 +598,7 @@ print("   ✅ Importing Real OpenSpiel Environment!")
 print("🎮 " + "="*64 + " 🎮\n")
 
 print("📦 What we just imported:")
-print("   • OpenSpielEnv - async client (EnvClient) for OpenSpiel games")
+print("   • OpenSpielEnv - EnvClient for OpenSpiel games")
 print("   • OpenSpielAction - Type-safe actions")
 print("   • OpenSpielObservation - Type-safe observations")
 print("   • OpenSpielState - Episode metadata\n")
@@ -622,7 +622,7 @@ print("   • Talks to the server over WebSocket (we'll see that next!)\n")
 🎮 ================================================================ 🎮
 
 📦 What we just imported:
-   • OpenSpielEnv - async client (EnvClient) for OpenSpiel games
+   • OpenSpielEnv - EnvClient for OpenSpiel games
    • OpenSpielAction - Type-safe actions
    • OpenSpielObservation - Type-safe observations
    • OpenSpielState - Episode metadata
@@ -898,7 +898,7 @@ server_process = subprocess.Popen(
 )
 
 # Same client works!
-client = OpenSpielEnv(base_url="http://localhost:8000").sync()
+client = OpenSpielEnv(base_url="http://localhost:8000")
 result = client.reset()  # Now playing Tic-Tac-Toe!
 ```
 
@@ -956,8 +956,9 @@ class YourEnvironment(Environment):
 
 ### Step 3: Create Client (`client.py`)
 
-The client subclasses the **async** `EnvClient` and implements 3 hooks. Callers
-`await` `reset()`/`step()`/`state()` (or use the `.sync()` wrapper).
+The client subclasses `EnvClient` and implements 3 hooks. Callers can `await`
+`reset()`/`step()`/`state()` in async contexts, or call them directly from
+synchronous scripts.
 
 ```python
 from openenv.core.env_client import EnvClient
