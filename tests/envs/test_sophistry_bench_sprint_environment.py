@@ -1,4 +1,5 @@
-# Copyright (c) Meta Platforms, Inc. and affiliates. All rights reserved.
+# SPDX-License-Identifier: BSD-3-Clause
+
 """Tests for the sophistry-bench sprint OpenEnv environment."""
 
 import asyncio

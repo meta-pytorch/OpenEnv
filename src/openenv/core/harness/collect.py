@@ -1,8 +1,4 @@
-# Copyright (c) Meta Platforms, Inc. and affiliates.
-# All rights reserved.
-#
-# This source code is licensed under the BSD-style license found in the
-# LICENSE file in the root directory of this source tree.
+# SPDX-License-Identifier: BSD-3-Clause
 
 """Rollout collection helpers for synthetic dataset generation.
 
@@ -46,20 +42,21 @@ RESULTS_FILENAME = "results.jsonl"
 METADATA_FILENAME = "metadata.json"
 
 
+def _tool_trace_entry_to_plain(entry: Any) -> dict[str, Any]:
+    return {
+        "tool_name": entry.tool_name,
+        "arguments": dict(entry.arguments),
+        "result": {
+            "data": entry.result.data,
+            "done": entry.result.done,
+            "metadata": dict(entry.result.metadata),
+            "error": entry.result.error,
+        },
+    }
+
+
 def _tool_trace_to_plain(rollout: HarnessRolloutResult) -> list[dict[str, Any]]:
-    return [
-        {
-            "tool_name": entry.tool_name,
-            "arguments": dict(entry.arguments),
-            "result": {
-                "data": entry.result.data,
-                "done": entry.result.done,
-                "metadata": dict(entry.result.metadata),
-                "error": entry.result.error,
-            },
-        }
-        for entry in rollout.tool_trace
-    ]
+    return [_tool_trace_entry_to_plain(entry) for entry in rollout.tool_trace]
 
 
 @dataclass
@@ -175,19 +172,7 @@ def _rollout_final_state(rollout: HarnessRolloutResult) -> dict[str, Any]:
             {"type": event.type, "payload": dict(event.payload)}
             for event in rollout.events
         ],
-        "tool_trace": [
-            {
-                "tool_name": entry.tool_name,
-                "arguments": dict(entry.arguments),
-                "result": {
-                    "data": entry.result.data,
-                    "done": entry.result.done,
-                    "metadata": dict(entry.result.metadata),
-                    "error": entry.result.error,
-                },
-            }
-            for entry in rollout.tool_trace
-        ],
+        "tool_trace": _tool_trace_to_plain(rollout),
     }
 
 

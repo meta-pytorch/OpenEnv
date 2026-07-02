@@ -1,8 +1,4 @@
-# Copyright (c) Meta Platforms, Inc. and affiliates.
-# All rights reserved.
-#
-# This source code is licensed under the BSD-style license found in the
-# LICENSE file in the root directory of this source tree.
+# SPDX-License-Identifier: BSD-3-Clause
 
 """
 MCP Environment base class for OpenEnv.
@@ -105,6 +101,33 @@ def get_server_tools(mcp_server: Any) -> Dict[str, Any]:
         tools_list = run_async_safely(mcp_server.list_tools())
         return {t.name: t for t in tools_list}
     return {}
+
+
+def _tool_from_server_tool(tool: Any) -> Tool:
+    """Convert a FastMCP tool object into OpenEnv's Tool model."""
+    return Tool(
+        name=tool.name,
+        description=tool.description or "",
+        input_schema=tool.inputSchema if hasattr(tool, "inputSchema") else {},
+    )
+
+
+def _tool_from_mode_schema(schema: Dict[str, Any]) -> Tool:
+    """Convert a stored mode-aware schema into OpenEnv's Tool model."""
+    return Tool(
+        name=schema["name"],
+        description=schema["description"],
+        input_schema=schema["input_schema"],
+    )
+
+
+def _schema_for_mode(
+    mode_schemas: Dict[Optional[str], Dict[str, Any]], current_mode: Optional[str]
+) -> Optional[Dict[str, Any]]:
+    """Return the schema visible for the current mode, if any."""
+    if None in mode_schemas:
+        return mode_schemas[None]
+    return mode_schemas.get(current_mode)
 
 
 class MCPEnvironment(Environment):
@@ -474,34 +497,11 @@ class MCPEnvironment(Environment):
             tools = []
             for tool in tools_result:
                 if tool.name not in self._mode_tool_schemas:
-                    tools.append(
-                        Tool(
-                            name=tool.name,
-                            description=tool.description or "",
-                            input_schema=tool.inputSchema
-                            if hasattr(tool, "inputSchema")
-                            else {},
-                        )
-                    )
-            for tool_name, mode_schemas in self._mode_tool_schemas.items():
-                if None in mode_schemas:
-                    schema = mode_schemas[None]
-                    tools.append(
-                        Tool(
-                            name=schema["name"],
-                            description=schema["description"],
-                            input_schema=schema["input_schema"],
-                        )
-                    )
-                elif current_mode in mode_schemas:
-                    schema = mode_schemas[current_mode]
-                    tools.append(
-                        Tool(
-                            name=schema["name"],
-                            description=schema["description"],
-                            input_schema=schema["input_schema"],
-                        )
-                    )
+                    tools.append(_tool_from_server_tool(tool))
+            for mode_schemas in self._mode_tool_schemas.values():
+                schema = _schema_for_mode(mode_schemas, current_mode)
+                if schema is not None:
+                    tools.append(_tool_from_mode_schema(schema))
             return ListToolsObservation(tools=tools)
         except Exception as e:
             return ListToolsObservation(

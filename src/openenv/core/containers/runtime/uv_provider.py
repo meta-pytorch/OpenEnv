@@ -3,14 +3,18 @@
 from __future__ import annotations
 
 import os
+import shutil
 import socket
 import subprocess
+import tempfile
 import time
 from typing import Dict, Optional
 
 import requests
 
 from .providers import RuntimeProvider
+
+GIT_URL_PREFIX = "git+"
 
 
 def _check_uv_installed() -> None:
@@ -20,6 +24,42 @@ def _check_uv_installed() -> None:
         raise RuntimeError(
             "`uv` executable not found. Install uv from https://docs.astral.sh and ensure it is on PATH."
         ) from exc
+
+
+def _clone_git_project(git_url: str, timeout_s: float) -> str:
+    """Clone a `git+<url>` spec to a temp dir and return its local path.
+
+    `uv run --project` only discovers a project in a local directory (per
+    `uv run --help`) -- it has no support for remote git sources. Callers
+    that accept a `git+...` `project_path` (e.g. `EnvClient.from_env`)
+    must therefore clone it themselves before handing a path to `uv run`.
+    """
+    repo_url = git_url[len(GIT_URL_PREFIX) :]
+    clone_dir = tempfile.mkdtemp(prefix="openenv-uv-clone-")
+    try:
+        subprocess.run(
+            ["git", "clone", "--depth", "1", repo_url, clone_dir],
+            check=True,
+            capture_output=True,
+            text=True,
+            # A hung/slow remote would otherwise block start() (and the
+            # caller's own readiness timeout) indefinitely.
+            timeout=timeout_s,
+        )
+    except FileNotFoundError as exc:
+        shutil.rmtree(clone_dir, ignore_errors=True)
+        raise RuntimeError(
+            f"`git` executable not found; required to clone project_path {git_url!r}."
+        ) from exc
+    except subprocess.CalledProcessError as exc:
+        shutil.rmtree(clone_dir, ignore_errors=True)
+        raise RuntimeError(f"Failed to clone {repo_url!r}: {exc.stderr}") from exc
+    except subprocess.TimeoutExpired as exc:
+        shutil.rmtree(clone_dir, ignore_errors=True)
+        raise RuntimeError(
+            f"Timed out cloning {repo_url!r} after {timeout_s:.1f}s"
+        ) from exc
+    return clone_dir
 
 
 def _find_free_port() -> int:
@@ -88,7 +128,8 @@ class UVProvider(RuntimeProvider):
 
     Args:
         project_path (`str`):
-            Local path to a uv project (passed to `uv run --project`).
+            Local path to a uv project (passed to `uv run --project`), or a
+            `git+<url>` spec that is cloned to a temp directory on `start()`.
         app (`str`, *optional*, defaults to `"server.app:app"`):
             ASGI application path for uvicorn.
         host (`str`, *optional*, defaults to `"0.0.0.0"`):
@@ -122,7 +163,14 @@ class UVProvider(RuntimeProvider):
         context_timeout_s: float = 60.0,
     ):
         """Initialize the UVProvider."""
-        self.project_path = os.path.abspath(project_path)
+        # `os.path.abspath` would mangle a `git+<url>` spec (e.g. collapsing
+        # `https://` to `https:/`) and is meaningless for one anyway -- only
+        # resolve it for genuine local paths. Git specs are cloned in `start()`.
+        self.project_path = (
+            project_path
+            if project_path.startswith(GIT_URL_PREFIX)
+            else os.path.abspath(project_path)
+        )
         self.app = app
         self.host = host
         self.reload = reload
@@ -131,6 +179,7 @@ class UVProvider(RuntimeProvider):
         _check_uv_installed()
         self._process = None
         self._base_url = None
+        self._clone_dir: Optional[str] = None
 
     def start(
         self,
@@ -161,13 +210,26 @@ class UVProvider(RuntimeProvider):
 
         bind_port = port or _find_free_port()
 
+        # A previous start() may have left a clone dir behind if the spawned
+        # process later died on its own -- the "already running" guard above
+        # only checks liveness, so a restart in that state would otherwise
+        # overwrite self._clone_dir and leak the old directory.
+        if self._clone_dir is not None:
+            shutil.rmtree(self._clone_dir, ignore_errors=True)
+            self._clone_dir = None
+
+        project_path = self.project_path
+        if project_path.startswith(GIT_URL_PREFIX):
+            self._clone_dir = _clone_git_project(project_path, self.context_timeout_s)
+            project_path = self._clone_dir
+
         command = _create_uv_command(
             host=self.host,
             port=bind_port,
             reload=self.reload,
             workers=workers,
             app=self.app,
-            project_path=self.project_path,
+            project_path=project_path,
         )
 
         env = os.environ.copy()
@@ -180,6 +242,9 @@ class UVProvider(RuntimeProvider):
         try:
             self._process = subprocess.Popen(command, env=env)
         except OSError as exc:
+            if self._clone_dir is not None:
+                shutil.rmtree(self._clone_dir, ignore_errors=True)
+                self._clone_dir = None
             raise RuntimeError(f"Failed to launch `uv run`: {exc}") from exc
 
         client_host = "127.0.0.1" if self.host in {"0.0.0.0", "::"} else self.host
@@ -212,19 +277,21 @@ class UVProvider(RuntimeProvider):
         """
         Stop the environment.
         """
-        if self._process is None:
-            return
+        if self._process is not None:
+            if self._process.poll() is None:
+                self._process.terminate()
+                try:
+                    self._process.wait(timeout=10.0)
+                except subprocess.TimeoutExpired:
+                    self._process.kill()
+                    self._process.wait(timeout=5.0)
 
-        if self._process.poll() is None:
-            self._process.terminate()
-            try:
-                self._process.wait(timeout=10.0)
-            except subprocess.TimeoutExpired:
-                self._process.kill()
-                self._process.wait(timeout=5.0)
+            self._process = None
+            self._base_url = None
 
-        self._process = None
-        self._base_url = None
+        if self._clone_dir is not None:
+            shutil.rmtree(self._clone_dir, ignore_errors=True)
+            self._clone_dir = None
 
     @property
     def base_url(self) -> str:
