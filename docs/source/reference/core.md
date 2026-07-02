@@ -232,10 +232,12 @@ For a high-level explanation of how MCP-backed environments move through `step()
 
 [[autodoc]] openenv.core.containers.runtime.providers.DockerSwarmProvider
 
-[[autodoc]] openenv.core.containers.runtime.providers.KubernetesProvider
-
 [[autodoc]] openenv.core.containers.runtime.providers.RuntimeProvider
 
 [[autodoc]] openenv.core.containers.runtime.uv_provider.UVProvider
 
+[[autodoc]] openenv.core.containers.runtime.daytona_provider.DaytonaProvider
+
 [[autodoc]] openenv.core.containers.runtime.aca_provider.ACASandboxProvider
+
+[[autodoc]] openenv.core.containers.runtime.modal_provider.ModalProvider

@@ -1,8 +1,4 @@
-# Copyright (c) Meta Platforms, Inc. and affiliates.
-# All rights reserved.
-#
-# This source code is licensed under the BSD-style license found in the
-# LICENSE file in the root directory of this source tree.
+# SPDX-License-Identifier: BSD-3-Clause
 
 """Base Rubric class for reward computation.
 
@@ -81,6 +77,23 @@ class Rubric(ABC):
 
     def _call_sync(self, action: Any, observation: Any, result: float) -> float:
         """Synchronous call path."""
+        return self._finish_forward(action, observation, result)
+
+    def _run_forward_pre_hooks(self, action: Any, observation: Any) -> None:
+        """Run pre-forward hooks synchronously."""
+        for hook in self._forward_pre_hooks:
+            hook(self, action, observation)
+
+    async def _run_forward_pre_hooks_async(self, action: Any, observation: Any) -> None:
+        """Run pre-forward hooks from an async call path."""
+        for hook in self._forward_pre_hooks:
+            if inspect.iscoroutinefunction(hook):
+                await hook(self, action, observation)
+            else:
+                hook(self, action, observation)
+
+    def _finish_forward(self, action: Any, observation: Any, result: float) -> float:
+        """Store the result and run post-forward hooks synchronously."""
         self.last_score = result
 
         # Post-forward hooks
@@ -89,17 +102,10 @@ class Rubric(ABC):
 
         return result
 
-    async def _call_async(self, action: Any, observation: Any, result_coro) -> float:
-        """Asynchronous call path."""
-        # Pre-forward hooks
-        for hook in self._forward_pre_hooks:
-            if inspect.iscoroutinefunction(hook):
-                await hook(self, action, observation)
-            else:
-                hook(self, action, observation)
-
-        # Await the forward result
-        result = await result_coro
+    async def _finish_forward_async(
+        self, action: Any, observation: Any, result: float
+    ) -> float:
+        """Store the result and run post-forward hooks from an async call path."""
         self.last_score = result
 
         # Post-forward hooks
@@ -110,6 +116,15 @@ class Rubric(ABC):
                 hook(self, action, observation, result)
 
         return result
+
+    async def _call_async(self, action: Any, observation: Any, result_coro) -> float:
+        """Asynchronous call path."""
+        # Pre-forward hooks
+        await self._run_forward_pre_hooks_async(action, observation)
+
+        # Await the forward result
+        result = await result_coro
+        return await self._finish_forward_async(action, observation, result)
 
     @abstractmethod
     def forward(self, action: Any, observation: Any) -> float:

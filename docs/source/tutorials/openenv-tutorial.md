@@ -1249,7 +1249,7 @@ OpenEnv includes 3 complete examples:
 
 Technical direction, RFCs, and release planning are coordinated in public through the OpenEnv repository.
 
-**License**: BSD 3-Clause (very permissive!)
+**License**: BSD 3-Clause License
 
 **Contributions**: Always welcome! Check out the issues tab.
 

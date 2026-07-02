@@ -25,7 +25,7 @@ dependencies = [
     { name = "huggingface-hub" },
     { name = "mcp-agent" },
     { name = "openai" },
-    { name = "openenv", extra = ["core"] },
+    { name = "openenv" },
     { name = "pydantic" },
     { name = "requests" },
     { name = "sqlalchemy" },
@@ -43,11 +43,11 @@ dev = [
 requires-dist = [
     { name = "fastapi", specifier = ">=0.115.0" },
     { name = "fastapi-mcp", specifier = "==0.4.0" },
-    { name = "gradio", specifier = ">=4.0.0" },
+    { name = "gradio", specifier = ">=6.15.0" },
     { name = "huggingface-hub", specifier = ">=0.20.0" },
     { name = "mcp-agent", specifier = "==0.2.6" },
     { name = "openai", specifier = ">=1.106.1" },
-    { name = "openenv", extras = ["core"], specifier = ">=0.2.2" },
+    { name = "openenv", specifier = ">=0.2.2" },
     { name = "pydantic", specifier = ">=2.0.0" },
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=9.0.3" },
     { name = "pytest-asyncio", marker = "extra == 'dev'", specifier = ">=0.23.0" },
@@ -1149,7 +1149,7 @@ wheels = [
 
 [[package]]
 name = "gradio"
-version = "6.13.0"
+version = "6.15.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "anyio" },
@@ -1183,9 +1183,9 @@ dependencies = [
     { name = "typing-extensions" },
     { name = "uvicorn" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/7d/93/022b6cae8b566424683a80c21ca04c364f9b88120f08a9ba2b93c6b7c8e3/gradio-6.13.0.tar.gz", hash = "sha256:23457dde02202d97f636a5c170967a846297e20f40c3152b41aa4c3460245e3b", size = 36016802, upload-time = "2026-04-20T23:16:10.057Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/8f/7d/0f81cbbe84bcec5f1636428ea67cd7e7351c2939979cf9c89122ec2f6224/gradio-6.15.0.tar.gz", hash = "sha256:dce148292c95493990cbe358ac9f2295a11fa27bff218263e0422f004693270b", size = 36424891, upload-time = "2026-05-26T20:58:59.217Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/3f/95/0ad40fb92ba3e6fe36182f722f81d69842a1e93cab1d9c6171256ef55418/gradio-6.13.0-py3-none-any.whl", hash = "sha256:46953f88aad36db9bc369ad2d1d6c4f200274da28f232b54842b2d4942a24f8f", size = 19684382, upload-time = "2026-04-20T23:16:06.298Z" },
+    { url = "https://files.pythonhosted.org/packages/19/32/410b3f58814c9fcae51d835829e7923364d347a0f62693a044047a02baad/gradio-6.15.0-py3-none-any.whl", hash = "sha256:c71bf7aeb3fd788de9a97961ae97f06bfddd6a3cc4cf1bd0bd3c62d016849fc8", size = 20091423, upload-time = "2026-05-26T20:58:55.146Z" },
 ]
 
 [[package]]
@@ -2162,15 +2162,6 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/7a/16/12825046f4180173d8f845ad95ff7b7aac32486391d822df38d4e52b82df/openenv-0.3.1.tar.gz", hash = "sha256:9e99a08872c781c7c16d5ba214e532caf5cf29f2278eb9cc478544dc538f3918", size = 165346, upload-time = "2026-06-02T08:47:23.918Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/cc/28/20af86f825054561c10eb31236e19835f79036fd4a9f600f529adef42b7b/openenv-0.3.1-py3-none-any.whl", hash = "sha256:9cad4b66c08a04fd9d9fe48d7b13cd31f8322b348ff24891646e4440e0b7468c", size = 194867, upload-time = "2026-06-02T08:47:22.469Z" },
-]
-
-[package.optional-dependencies]
-core = [
-    { name = "fastapi" },
-    { name = "pydantic" },
-    { name = "requests" },
-    { name = "uvicorn" },
-    { name = "websockets" },
 ]
 
 [[package]]

@@ -4,7 +4,7 @@ An e2e framework for creating, deploying and using isolated execution environmen
 
 In addition to making it easier for researchers and RL framework writers, we also provide tools for environment creators making it easier for them to create richer environments and make them available over familiar protocols like HTTP and packaged using canonical technologies like docker. Environment creators can use the OpenEnv framework to create environments that are isolated, secure, and easy to deploy and use.
 
-OpenEnv is openly governed by a technical committee that includes Meta-PyTorch, Reflection, Unsloth, Modal, Prime Intellect, Nvidia, Mercor, Fleet AI, Microsoft, and Hugging Face. The committee coordinates project direction, major technical decisions, RFCs, and release planning through the public issue tracker, pull requests, and RFC process.
+OpenEnv is openly governed by a technical committee that includes Meta-PyTorch, Reflection, Unsloth, Modal, Prime Intellect, Nvidia, Mercor, Fleet AI, Microsoft, Hugging Face, and RadixArk. The committee coordinates project direction, major technical decisions, RFCs, and release planning through the public issue tracker, pull requests, and RFC process.
 
 
 ## Overview
@@ -61,12 +61,12 @@ their current control-plane APIs unchanged.
 ## Installation
 
 ```bash
-pip install "openenv[core]"
+pip install "openenv"
 ```
 
 For development:
 ```bash
-pip install "openenv[core]"
+pip install "openenv"
 ```
 
 ## Quick Start
@@ -228,7 +228,7 @@ Base interface for environment implementations:
 
 ## License
 
-This project is licensed under the BSD-3-Clause License - see the LICENSE file for details.
+This project is licensed under the BSD 3-Clause License - see the LICENSE file for details.
 
 ## Contributing
 
