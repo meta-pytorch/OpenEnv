@@ -58,15 +58,19 @@ parallel environment runs, and integrations with async frameworks.
 ```python
 import asyncio
 
-from echo_env import EchoAction, EchoEnv
+from echo_env import CallToolAction, EchoEnv
 
 
 async def main():
     async with EchoEnv(base_url="https://openenv-echo-env.hf.space") as client:
-        result = await client.reset()
-        print(result.observation.echoed_message)
+        await client.reset()
 
-        result = await client.step(EchoAction(message="Hello, World!"))
+        result = await client.step(
+            CallToolAction(
+                tool_name="echo_message",
+                arguments={"message": "Hello, World!"},
+            )
+        )
         print(result.reward)
 
 
@@ -76,12 +80,17 @@ asyncio.run(main())
 For scripts and notebooks, use `.sync()`:
 
 ```python
-from echo_env import EchoAction, EchoEnv
+from echo_env import CallToolAction, EchoEnv
 
 with EchoEnv(base_url="https://openenv-echo-env.hf.space").sync() as client:
-    result = client.reset()
-    result = client.step(EchoAction(message="Hello, World!"))
-    print(result.observation.echoed_message)
+    client.reset()
+    result = client.step(
+        CallToolAction(
+            tool_name="echo_message",
+            arguments={"message": "Hello, World!"},
+        )
+    )
+    print(result.observation.result)
 ```
 
 ## Use Containers or Local Servers

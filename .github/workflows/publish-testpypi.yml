@@ -143,11 +143,13 @@ jobs:
           python -m venv .testpypi-verify
           . .testpypi-verify/bin/activate
           python -m pip install --upgrade pip
+          python -m pip install --index-url https://pypi.org/simple/ dist/*.whl
+          python -m pip uninstall -y openenv
 
           for attempt in 1 2 3 4 5; do
             if python -m pip install \
+              --no-deps \
               --index-url https://test.pypi.org/simple/ \
-              --extra-index-url https://pypi.org/simple/ \
               "openenv==${{ needs.build.outputs.version }}"; then
               break
             fi
