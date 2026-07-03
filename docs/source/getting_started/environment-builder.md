@@ -17,7 +17,7 @@ Already familiar with OpenEnv? Here's the 8-step process at a glance:
 | 2 | Edit `models.py` | Define Action & Observation dataclasses |
 | 3 | Edit `server/my_environment.py` | Implement `reset()` and `step()` methods |
 | 4 | Edit `client.py` | Implement `_step_payload()`, `_parse_result()`, `_parse_state()` |
-| 5 | `openenv serve` | Start local dev server for testing |
+| 5 | `uv run --project . server` | Start local dev server for testing |
 | 6 | `openenv validate` | Validate environment structure |
 | 7 | `openenv push` | Deploy to Hugging Face Hub |
 | 8 | Share the URL! | Others use via `MyEnv.from_hub("you/my-env")` |
@@ -27,7 +27,8 @@ Already familiar with OpenEnv? Here's the 8-step process at a glance:
 | Command | Description |
 |---------|-------------|
 | `openenv init NAME` | Scaffold new environment |
-| `openenv serve` | Start local dev server |
+| `openenv import SOURCE --name NAME --output-dir DIR` | Wrap a supported third-party environment source tree |
+| `uv run --project . server` | Start local dev server |
 | `openenv build` | Build Docker image |
 | `openenv validate --verbose` | Validate environment structure |
 | `openenv push` | Deploy to Hugging Face Hub |
@@ -95,6 +96,14 @@ my_env/
 ```
 
 Python classes are generated for the action, observation, environment, and client. For example, you will find `MyEnvironment`, `MyAction`, `MyObservation`, and `MyEnv` (client) in the `my_env` directory based on the name you provided. The environment uses the core `State` class from `openenv.core.env_server.types`.
+
+If you already have an ORS/OpenReward or Prime Intellect Verifiers environment
+source tree, use `openenv import SOURCE --name my_env --output-dir /Users/you/envs`
+instead. The importer detects the source type from the code, vendors the source
+under the generated package, and emits an OpenEnv wrapper with task/split and
+MCP-style tool actions. Non-secret data files in the source tree are included as
+package data, and portable dependencies declared in source `pyproject.toml` or
+`requirements.txt` files are added to the generated environment.
 
 ### 2. Define Models
 
