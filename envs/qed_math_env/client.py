@@ -48,6 +48,28 @@ class QEDMathEnv(MCPToolClient):
     ```
     """
 
+    DEFAULT_MESSAGE_TIMEOUT_S = 600.0
+
+    def __init__(
+        self,
+        base_url: Optional[str] = None,
+        connect_timeout_s: float = 10.0,
+        message_timeout_s: float = DEFAULT_MESSAGE_TIMEOUT_S,
+        websocket_ping_interval_s: Optional[float] = 20.0,
+        websocket_ping_timeout_s: Optional[float] = 20.0,
+        provider: Optional[Any] = None,
+        mode: Optional[str] = None,
+    ):
+        super().__init__(
+            base_url=base_url,
+            connect_timeout_s=connect_timeout_s,
+            message_timeout_s=message_timeout_s,
+            websocket_ping_interval_s=websocket_ping_interval_s,
+            websocket_ping_timeout_s=websocket_ping_timeout_s,
+            provider=provider,
+            mode=mode,
+        )
+
     @staticmethod
     def _as_problem_observation(value: Any) -> ProblemObservation:
         """Normalize tool/reset outputs into a ProblemObservation instance."""
@@ -74,9 +96,7 @@ class QEDMathEnv(MCPToolClient):
             f"Unsupported proof submission payload type: {type(value).__name__}"
         )
 
-    async def reset(
-        self, problem_id: Optional[str] = None, **kwargs: Any
-    ) -> StepResult[Observation]:
+    def reset(self, problem_id: Optional[str] = None, **kwargs: Any) -> Any:
         """
         Reset the environment, optionally selecting a specific problem.
 
@@ -90,16 +110,20 @@ class QEDMathEnv(MCPToolClient):
         """
         if problem_id is not None:
             kwargs["problem_id"] = problem_id
-        result = await super().reset(**kwargs)
+        return self._dispatch(lambda: self._reset_async(**kwargs))
+
+    async def _reset_async(self, **kwargs: Any) -> StepResult[Observation]:
+        result = await super()._reset_async(**kwargs)
         observation = result.observation if isinstance(result, StepResult) else result
         normalized_observation = self._as_problem_observation(observation)
         return StepResult(
             observation=normalized_observation,
             reward=result.reward,
             done=result.done,
+            metadata=result.metadata,
         )
 
-    async def submit_proof(self, proof: str) -> ProofSubmissionObservation:
+    def submit_proof(self, proof: str) -> Any:
         """
         Submit a proof attempt for the current problem.
 
@@ -109,30 +133,39 @@ class QEDMathEnv(MCPToolClient):
         Returns:
             ProofSubmissionObservation with score (0-7), feedback, and reward.
         """
+        return self._dispatch(lambda: self._submit_proof_async(proof))
+
+    async def _submit_proof_async(self, proof: str) -> ProofSubmissionObservation:
         result = await self.call_tool("submit_proof", proof=proof)
         return self._as_proof_submission_observation(result)
 
-    async def get_current_problem(self) -> ProblemObservation:
+    def get_current_problem(self) -> Any:
         """
         Retrieve the current problem statement without resetting.
 
         Returns:
             ProblemObservation for the active problem.
         """
+        return self._dispatch(self._get_current_problem_async)
+
+    async def _get_current_problem_async(self) -> ProblemObservation:
         result = await self.call_tool("get_problem")
         return self._as_problem_observation(result)
 
-    async def get_problem(self) -> ProblemObservation:
+    def get_problem(self) -> Any:
         """Compatibility alias for get_current_problem()."""
-        return await self.get_current_problem()
+        return self.get_current_problem()
 
-    async def get_grading_feedback(self) -> dict[str, Any]:
+    def get_grading_feedback(self) -> Any:
         """
         Retrieve the grading guidelines/rubric for the current problem.
 
         Returns:
             Tool payload containing grading_guidelines and problem metadata.
         """
+        return self._dispatch(self._get_grading_feedback_async)
+
+    async def _get_grading_feedback_async(self) -> dict[str, Any]:
         result = await self.call_tool("get_grading_guidelines")
         if isinstance(result, Mapping):
             return dict(result)
@@ -142,11 +175,10 @@ class QEDMathEnv(MCPToolClient):
             f"Unsupported grading feedback payload type: {type(result).__name__}"
         )
 
-    async def get_state(self) -> State:
+    def get_state(self) -> Any:
         """Return current environment state (episode_id, step_count)."""
-        return await super().state()
+        return self.state()
 
     def get_state_sync(self) -> State:
         """Synchronous helper for code paths that do not use async/await."""
-        with self.sync() as client:
-            return client.state()
+        return self.state()

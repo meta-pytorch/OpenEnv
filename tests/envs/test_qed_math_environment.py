@@ -26,6 +26,7 @@ Run from repo root:
 
 from __future__ import annotations
 
+import inspect
 import json
 import sys
 from pathlib import Path
@@ -59,6 +60,7 @@ pytest.importorskip("math_verify", reason="math_verify is not installed")
 pytest.importorskip("fastmcp", reason="fastmcp is not installed")
 
 from openenv.core.env_server.mcp_environment import get_server_tools  # noqa: E402
+from openenv.core.env_server.types import State  # noqa: E402
 from qed_math_env.models import (  # noqa: E402
     ProblemObservation,
     ProofSubmissionObservation,
@@ -1682,6 +1684,67 @@ class TestGraderSamplingParams:
             result = await rubric.grade("proof", "P", "R", "G")
         assert result.metrics["verifier/runtime/input_tokens"] == 111
         assert result.metrics["verifier/runtime/output_tokens"] == 222
+
+
+class TestQEDMathEnvClient:
+    def test_default_message_timeout_matches_submit_proof_timeout(self):
+        from qed_math_env.client import QEDMathEnv
+
+        client = QEDMathEnv(base_url="http://localhost:8000")
+
+        assert client._message_timeout == pytest.approx(600.0)
+
+    def test_reset_uses_dispatcher_not_async_only_method(self):
+        from qed_math_env.client import QEDMathEnv
+
+        assert not inspect.iscoroutinefunction(QEDMathEnv.reset)
+
+    @pytest.mark.asyncio
+    async def test_reset_normalizes_problem_observation(self):
+        from qed_math_env.client import QEDMathEnv
+
+        client = QEDMathEnv(base_url="http://localhost:8000")
+        client._send_and_receive = AsyncMock(
+            return_value={
+                "data": {
+                    "observation": {
+                        "problem": "What is 2+2?",
+                        "reference_solution": "4",
+                        "grading_guidelines": "",
+                        "problem_id": "answer_001",
+                        "dataset_source": "test",
+                        "problem_type": "answer",
+                        "max_attempts": 1,
+                    },
+                    "reward": None,
+                    "done": False,
+                    "metadata": {"source": "unit"},
+                }
+            }
+        )
+
+        result = await client.reset(problem_id="answer_001")
+
+        assert isinstance(result.observation, ProblemObservation)
+        assert result.observation.problem_id == "answer_001"
+        assert result.metadata == {"source": "unit"}
+        client._send_and_receive.assert_awaited_once_with(
+            {"type": "reset", "data": {"problem_id": "answer_001"}}
+        )
+
+    def test_get_state_sync_uses_current_session(self, monkeypatch):
+        from qed_math_env.client import QEDMathEnv
+
+        client = QEDMathEnv(base_url="http://localhost:8000")
+        expected_state = State(episode_id="episode-1", step_count=3)
+        state_mock = MagicMock(return_value=expected_state)
+        sync_mock = MagicMock(side_effect=AssertionError("opened a new session"))
+        monkeypatch.setattr(client, "state", state_mock)
+        monkeypatch.setattr(client, "sync", sync_mock)
+
+        assert client.get_state_sync() is expected_state
+        state_mock.assert_called_once_with()
+        sync_mock.assert_not_called()
 
 
 # Integration tests (require running server)
