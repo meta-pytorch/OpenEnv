@@ -48,6 +48,9 @@ openenv import path/to/source --name my_env --output-dir ./envs --env-class MyEn
 
 ## `openenv serve`
 
+Local serving is not implemented in the CLI yet. This command exits non-zero
+and prints alternative ways to run an environment server.
+
 [[autodoc]] openenv.cli.commands.serve.serve
 
 ## `openenv fork`
