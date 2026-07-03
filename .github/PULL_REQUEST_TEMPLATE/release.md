@@ -24,4 +24,4 @@
 - [ ] `publish-pypi.yml` completed successfully from the tag
 - [ ] GitHub Release was created by the successful PyPI publish workflow
 - [ ] `pip install openenv==X.Y.Z` from production PyPI verified
-- [ ] `auto-bump-version.yml` created `bump/X.Y.(Z+1).dev0` PR
+- [ ] `publish-pypi.yml` created `bump/X.Y.(Z+1).dev0` PR
