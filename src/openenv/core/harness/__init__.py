@@ -697,6 +697,8 @@ def build_harness_rollout_func(
     return rollout_func
 
 
+from .pi_cli import PiCLIHarnessAdapter
+
 __all__ = [
     "CLIHarnessAdapter",
     "HarnessAdapter",
@@ -706,6 +708,7 @@ __all__ = [
     "Message",
     "ModelStep",
     "ModelStepResult",
+    "PiCLIHarnessAdapter",
     "RESERVED_TOOL_NAMES",
     "ResourceSession",
     "ResourceSessionFactory",
