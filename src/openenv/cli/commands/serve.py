@@ -87,4 +87,4 @@ def serve(
         console.print("  From an environment directory with pyproject.toml:")
         console.print(f"     [dim]$ uv run --project . server --port {port}[/dim]\n")
 
-    raise typer.Exit(0)
+    raise typer.Exit(1)
