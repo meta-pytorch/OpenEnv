@@ -1,8 +1,4 @@
-# Copyright (c) Meta Platforms, Inc. and affiliates.
-# All rights reserved.
-#
-# This source code is licensed under the BSD-style license found in the
-# LICENSE file in the root directory of this source tree.
+# SPDX-License-Identifier: BSD-3-Clause
 
 """Tests for InspectAIHarness with mocked inspect_ai dependencies."""
 
@@ -186,24 +182,30 @@ class TestInspectAIHarnessRun:
             {
                 "model": "openai/gpt-4o",
                 "max_samples": 100,
+                "max_connections": 4,
                 "temperature": 0.5,
                 "max_tokens": 256,
                 "epochs": 3,
+                "model_base_url": "https://example.test/v1",
             }
         )
         _, kwargs = mock_eval.call_args
         assert kwargs["max_samples"] == 100
+        assert kwargs["max_connections"] == 4
         assert kwargs["temperature"] == 0.5
         assert kwargs["max_tokens"] == 256
         assert kwargs["epochs"] == 3
+        assert kwargs["model_base_url"] == "https://example.test/v1"
 
     def test_none_optional_kwargs_omitted(self):
         _, mock_eval = self._run_harness({"model": "openai/gpt-4o"})
         _, kwargs = mock_eval.call_args
         assert "max_samples" not in kwargs
+        assert "max_connections" not in kwargs
         assert "temperature" not in kwargs
         assert "max_tokens" not in kwargs
         assert "epochs" not in kwargs
+        assert "model_base_url" not in kwargs
 
     def test_task_args_passed_through(self):
         _, mock_eval = self._run_harness(

@@ -61,12 +61,12 @@ their current control-plane APIs unchanged.
 ## Installation
 
 ```bash
-pip install "openenv[core]"
+pip install "openenv"
 ```
 
 For development:
 ```bash
-pip install "openenv[core]"
+pip install "openenv"
 ```
 
 ## Quick Start
@@ -228,7 +228,7 @@ Base interface for environment implementations:
 
 ## License
 
-This project is licensed under the BSD-3-Clause License - see the LICENSE file for details.
+This project is licensed under the BSD 3-Clause License - see the LICENSE file for details.
 
 ## Contributing
 

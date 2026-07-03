@@ -1,8 +1,4 @@
-# Copyright (c) Meta Platforms, Inc. and affiliates.
-# All rights reserved.
-#
-# This source code is licensed under the BSD-style license found in the
-# LICENSE file in the root directory of this source tree.
+# SPDX-License-Identifier: BSD-3-Clause
 
 """Unit tests for ModalProvider.
 
@@ -156,6 +152,29 @@ class TestStartContainer:
     def test_env_vars_forwarded(self, provider, adapter):
         provider.start_container("echo-env:latest", env_vars={"FOO": "bar"})
         assert adapter.created[0]["env"] == {"FOO": "bar"}
+
+    def test_constructor_image_used_when_start_omits_image(self, adapter):
+        provider = ModalProvider(
+            _adapter=adapter,
+            image="constructor-env:latest",
+            env_vars={"FOO": "bar"},
+        )
+        provider.start_container()
+        image = adapter.created[0]["image"]
+        assert image.kind == "registry"
+        assert image.ref == "constructor-env:latest"
+        assert adapter.created[0]["env"] == {"FOO": "bar"}
+
+    def test_start_image_overrides_constructor_image(self, adapter):
+        provider = ModalProvider(_adapter=adapter, image="constructor-env:latest")
+        provider.start_container("explicit-env:latest")
+        image = adapter.created[0]["image"]
+        assert image.ref == "explicit-env:latest"
+
+    def test_requires_image_from_constructor_or_start(self, adapter):
+        provider = ModalProvider(_adapter=adapter)
+        with pytest.raises(ValueError, match="requires an image"):
+            provider.start_container()
 
     def test_server_started_in_background(self, provider, adapter):
         provider.start_container("echo-env:latest")

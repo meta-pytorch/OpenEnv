@@ -17,7 +17,7 @@ Already familiar with OpenEnv? Here's the 8-step process at a glance:
 | 2 | Edit `models.py` | Define Action & Observation dataclasses |
 | 3 | Edit `server/my_environment.py` | Implement `reset()` and `step()` methods |
 | 4 | Edit `client.py` | Implement `_step_payload()`, `_parse_result()`, `_parse_state()` |
-| 5 | `openenv serve` | Start local dev server for testing |
+| 5 | `uv run --project . server` | Start local dev server for testing |
 | 6 | `openenv validate` | Validate environment structure |
 | 7 | `openenv push` | Deploy to Hugging Face Hub |
 | 8 | Share the URL! | Others use via `MyEnv.from_hub("you/my-env")` |
@@ -27,7 +27,7 @@ Already familiar with OpenEnv? Here's the 8-step process at a glance:
 | Command | Description |
 |---------|-------------|
 | `openenv init NAME` | Scaffold new environment |
-| `openenv serve` | Start local dev server |
+| `uv run --project . server` | Start local dev server |
 | `openenv build` | Build Docker image |
 | `openenv validate --verbose` | Validate environment structure |
 | `openenv push` | Deploy to Hugging Face Hub |
@@ -230,11 +230,7 @@ Keep building from the `openenv-base` image so shared tooling stays available:
 <summary>Dockerfile</summary>
 
 ```dockerfile
-# Copyright (c) Meta Platforms, Inc. and affiliates.
-# All rights reserved.
-#
-# This source code is licensed under the BSD-style license found in the
-# LICENSE file in the root directory of this source tree.
+# SPDX-License-Identifier: BSD-3-Clause
 
 # Multi-stage build using openenv-base
 # This Dockerfile is flexible and works for both:

@@ -1,8 +1,4 @@
-# Copyright (c) Meta Platforms, Inc. and affiliates.
-# All rights reserved.
-#
-# This source code is licensed under the BSD-style license found in the
-# LICENSE file in the root directory of this source tree.
+# SPDX-License-Identifier: BSD-3-Clause
 
 """Tests for the openenv init command."""
 
@@ -366,7 +362,7 @@ def test_init_requirements_file(tmp_path: Path) -> None:
     req_content = requirements.read_text()
     assert "fastapi" in req_content
     assert "uvicorn" in req_content
-    assert "openenv[core]>=0.2.0" in req_content
+    assert "openenv>=0.2.0" in req_content
 
 
 def test_init_validates_empty_env_name(tmp_path: Path) -> None:

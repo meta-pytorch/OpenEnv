@@ -1,8 +1,4 @@
-# Copyright (c) Meta Platforms, Inc. and affiliates.
-# All rights reserved.
-#
-# This source code is licensed under the BSD-style license found in the
-# LICENSE file in the root directory of this source tree.
+# SPDX-License-Identifier: BSD-3-Clause
 
 """
 Environment client for persistent sessions.
@@ -37,11 +33,14 @@ Examples:
 from __future__ import annotations
 
 import asyncio
+import inspect
 import ipaddress
 import json
 import os
+import time
 from abc import ABC, abstractmethod
-from typing import Any, Dict, Generic, Optional, Type, TYPE_CHECKING, TypeVar
+from contextlib import suppress
+from typing import Any, Callable, Dict, Generic, Optional, Type, TYPE_CHECKING, TypeVar
 from urllib.parse import urlsplit
 
 from .client_types import StateT, StepResult
@@ -59,8 +58,47 @@ from websockets.asyncio.client import connect as ws_connect
 ActT = TypeVar("ActT")
 ObsT = TypeVar("ObsT")
 EnvClientT = TypeVar("EnvClientT", bound="EnvClient")
+ResultT = TypeVar("ResultT")
 
 _VALID_CLIENT_MODES = ("simulation", "production")
+
+
+class _AutoAsyncResult(Generic[ResultT]):
+    """Awaitable result that can also be resolved by synchronous access."""
+
+    def __init__(
+        self,
+        client: "EnvClient[Any, Any, Any]",
+        coro_factory: Callable[[], Any],
+    ):
+        self._client = client
+        self._coro_factory = coro_factory
+        self._resolved = False
+        self._result: ResultT | None = None
+
+    def __await__(self):
+        async def _await_result():
+            self._client._claim_execution_mode("async")
+            return await self._coro_factory()
+
+        return _await_result().__await__()
+
+    def _sync_result(self) -> ResultT:
+        if not self._resolved:
+            self._result = self._client._run_sync(self._coro_factory)
+            self._resolved = True
+        return self._result
+
+    def __getattr__(self, name: str) -> Any:
+        return getattr(self._sync_result(), name)
+
+    def __bool__(self) -> bool:
+        return bool(self._sync_result())
+
+    def __repr__(self) -> str:
+        if self._resolved:
+            return repr(self._result)
+        return f"<{type(self).__name__} pending>"
 
 
 def _normalize_mode(mode: Optional[str]) -> str:
@@ -94,6 +132,25 @@ def _is_localhost_ws_url(ws_url: str) -> bool:
         return ipaddress.ip_address(hostname).is_loopback
     except ValueError:
         return False
+
+
+def _required_start_container_parameters(provider: Any) -> list[str]:
+    """Return required arguments for a bound provider.start_container()."""
+    try:
+        signature = inspect.signature(provider.start_container)
+    except (TypeError, ValueError):
+        return []
+    return [
+        name
+        for name, parameter in signature.parameters.items()
+        if parameter.default is inspect.Parameter.empty
+        and parameter.kind
+        in (
+            inspect.Parameter.POSITIONAL_ONLY,
+            inspect.Parameter.POSITIONAL_OR_KEYWORD,
+            inspect.Parameter.KEYWORD_ONLY,
+        )
+    ]
 
 
 class EnvClient(ABC, Generic[ActT, ObsT, StateT]):
@@ -139,10 +196,12 @@ class EnvClient(ABC, Generic[ActT, ObsT, StateT]):
 
     def __init__(
         self,
-        base_url: str,
+        base_url: Optional[str] = None,
         connect_timeout_s: float = 10.0,
         message_timeout_s: float = 60.0,
         max_message_size_mb: float = 100.0,
+        websocket_ping_interval_s: Optional[float] = 20.0,
+        websocket_ping_timeout_s: Optional[float] = 20.0,
         provider: Optional["ContainerProvider | RuntimeProvider"] = None,
         mode: Optional[str] = None,
     ):
@@ -150,9 +209,10 @@ class EnvClient(ABC, Generic[ActT, ObsT, StateT]):
         Initialize environment client.
 
         Args:
-            base_url (`str`):
+            base_url (`str`, *optional*):
                 Base URL of the environment server (http:// or ws://). Will be converted to
-                ws:// if http:// is provided.
+                ws:// if http:// is provided. May be omitted when the provider
+                has enough constructor state to start itself.
             connect_timeout_s (`float`, *optional*, defaults to `10.0`):
                 Timeout for establishing WebSocket connection.
             message_timeout_s (`float`, *optional*, defaults to `60.0`):
@@ -160,6 +220,10 @@ class EnvClient(ABC, Generic[ActT, ObsT, StateT]):
             max_message_size_mb (`float`, *optional*, defaults to `100.0`):
                 Maximum WebSocket message size in megabytes. Default 100MB to handle large
                 observations (screenshots, DOM, etc.).
+            websocket_ping_interval_s (`float` or `None`, *optional*, defaults to `20.0`):
+                WebSocket keepalive ping interval. Pass `None` to disable.
+            websocket_ping_timeout_s (`float` or `None`, *optional*, defaults to `20.0`):
+                WebSocket keepalive pong timeout. Pass `None` to disable.
             provider (`ContainerProvider` or `RuntimeProvider`, *optional*):
                 Container/runtime provider for lifecycle management.
             mode (`str`, *optional*):
@@ -168,20 +232,103 @@ class EnvClient(ABC, Generic[ActT, ObsT, StateT]):
                 `OPENENV_CLIENT_MODE` environment variable. Constructor parameter takes
                 precedence over environment variable. Case-insensitive.
         """
+        if base_url is None and provider is None:
+            raise ValueError("EnvClient requires either base_url or provider.")
+
         # Store mode (use object.__setattr__ to bypass immutability)
         object.__setattr__(self, "_mode", _normalize_mode(mode))
 
-        # Convert HTTP URL to WebSocket URL
-        ws_url = convert_to_ws_url(base_url)
-
-        self._ws_url = f"{ws_url}/ws"
+        self._base_url: Optional[str] = None
+        self._ws_url: Optional[str] = None
         self._connect_timeout = connect_timeout_s
         self._message_timeout = message_timeout_s
         self._max_message_size = int(
             max_message_size_mb * 1024 * 1024
         )  # Convert MB to bytes
+        self._websocket_ping_interval_s = websocket_ping_interval_s
+        self._websocket_ping_timeout_s = websocket_ping_timeout_s
         self._provider = provider
+        self._start_provider_on_connect = base_url is None
+        self._child_clients: list[EnvClient[Any, Any, Any]] = []
         self._ws: Optional[ClientConnection] = None
+        self._execution_mode: Optional[str] = None
+        self._sync_client: Optional["SyncEnvClient[ActT, ObsT, StateT]"] = None
+        self._ws_loop: Optional[asyncio.AbstractEventLoop] = None
+        if base_url is not None:
+            self._set_base_url(base_url)
+
+    def _set_base_url(self, base_url: str) -> None:
+        self._base_url = base_url.rstrip("/")
+        ws_url = convert_to_ws_url(base_url)
+        self._ws_url = f"{ws_url}/ws"
+
+    def _start_provider_if_needed(self) -> None:
+        if self._ws_url is not None:
+            return
+        if self._provider is None:
+            raise RuntimeError("EnvClient has no base URL or provider.")
+        if hasattr(self._provider, "start_container"):
+            required_parameters = _required_start_container_parameters(self._provider)
+            if required_parameters:
+                required = ", ".join(required_parameters)
+                raise ValueError(
+                    f"{type(self._provider).__name__} does not support "
+                    "provider-owned startup because start_container() requires "
+                    f"{required}. Start the provider manually and pass base_url, "
+                    "or configure a provider with a constructor-owned image/source."
+                )
+            base_url = self._provider.start_container()
+            self._provider.wait_for_ready(base_url)
+        elif hasattr(self._provider, "start"):
+            base_url = self._provider.start()
+            self._provider.wait_for_ready()
+        else:
+            raise TypeError("provider must define start_container() or start().")
+        self._set_base_url(base_url)
+
+    def _create_session_client(self) -> "EnvClient[Any, Any, Any]":
+        self._start_provider_if_needed()
+        if self._base_url is None:
+            raise RuntimeError("EnvClient has no base URL.")
+
+        signature = inspect.signature(type(self))
+        accepts_kwargs = any(
+            parameter.kind == inspect.Parameter.VAR_KEYWORD
+            for parameter in signature.parameters.values()
+        )
+        candidate_kwargs = {
+            "base_url": self._base_url,
+            "connect_timeout_s": self._connect_timeout,
+            "message_timeout_s": self._message_timeout,
+            "max_message_size_mb": self._max_message_size / (1024 * 1024),
+            "websocket_ping_interval_s": self._websocket_ping_interval_s,
+            "websocket_ping_timeout_s": self._websocket_ping_timeout_s,
+            "mode": self._mode,
+        }
+        constructor_kwargs = {}
+        for name, value in candidate_kwargs.items():
+            if accepts_kwargs or name in signature.parameters:
+                constructor_kwargs[name] = value
+
+        client = type(self)(**constructor_kwargs)
+        return client
+
+    async def new_session(self) -> "EnvClient[Any, Any, Any]":
+        """
+        Create and connect a new session against the same environment server.
+
+        Returns:
+            `EnvClient`: A connected child client of the same concrete type.
+
+        The child session is tracked by this parent and closed when the parent
+        is closed. Server-side capacity still applies: when the server is at
+        `MAX_CONCURRENT_ENVS`, opening the child WebSocket can fail and is
+        surfaced as a connection error.
+        """
+        client = self._create_session_client()
+        await client.connect()
+        self._child_clients.append(client)
+        return client
 
     def __setattr__(self, name: str, value: Any) -> None:
         """Prevent modification of _mode after initialization."""
@@ -189,7 +336,56 @@ class EnvClient(ABC, Generic[ActT, ObsT, StateT]):
             raise AttributeError("Cannot modify mode after initialization")
         super().__setattr__(name, value)
 
-    async def connect(self) -> "EnvClient":
+    def _claim_execution_mode(self, mode: str) -> None:
+        """Lock the client to sync or async execution on first use."""
+        if self._execution_mode is None:
+            self._execution_mode = mode
+        elif self._execution_mode != mode:
+            raise RuntimeError(
+                f"EnvClient is already being used in {self._execution_mode} mode. "
+                "Create a separate client instance when mixing sync and async code."
+            )
+
+    def _run_sync(
+        self,
+        coro_factory: Callable[[], Any],
+        *,
+        allow_async_handoff: bool = False,
+    ) -> Any:
+        """Run an async operation through the sync wrapper."""
+        if allow_async_handoff and self._execution_mode == "async":
+            self._execution_mode = "sync"
+        else:
+            self._claim_execution_mode("sync")
+        if self._sync_client is None:
+            self._sync_client = self.sync()
+        return self._sync_client._run(coro_factory())
+
+    def _dispatch(self, coro_factory: Callable[[], Any]) -> Any:
+        """Return an awaitable in async code and a concrete result in sync code."""
+        try:
+            running_loop = asyncio.get_running_loop()
+        except RuntimeError:
+            running_loop = None
+
+        if self._execution_mode == "sync":
+            sync_loop = (
+                self._sync_client._loop if self._sync_client is not None else None
+            )
+            if running_loop is sync_loop:
+                return coro_factory()
+            return self._run_sync(coro_factory)
+        if running_loop is not None:
+            if self._execution_mode == "async":
+                return coro_factory()
+            return _AutoAsyncResult(self, coro_factory)
+
+        return self._run_sync(coro_factory, allow_async_handoff=True)
+
+    def connect(self) -> Any:
+        return self._dispatch(self._connect_async)
+
+    async def _connect_async(self) -> "EnvClient":
         """
         Establish WebSocket connection to the server.
 
@@ -200,7 +396,27 @@ class EnvClient(ABC, Generic[ActT, ObsT, StateT]):
             ConnectionError: If connection cannot be established
         """
         if self._ws is not None:
-            return self
+            if self._ws_loop is asyncio.get_running_loop():
+                return self
+            # Connected from a different event loop than the one running
+            # now -- e.g. `client = await Client.from_env(...)` inside
+            # `asyncio.run(...)`, then `client.sync()` drives every later
+            # call on `SyncEnvClient`'s own dedicated background loop. The
+            # websocket object is bound to internals of the original loop,
+            # which is typically already closed by the time we get here, so
+            # it cannot be reused (or even cleanly closed) from this loop.
+            # Drop the stale reference and reconnect fresh below rather than
+            # silently no-op-ing onto a dead connection.
+            self._ws = None
+            self._ws_loop = None
+
+        try:
+            self._start_provider_if_needed()
+        except Exception:
+            await self.close()
+            raise
+
+        assert self._ws_url is not None
 
         # Disable the proxy for localhost connections via the per-connection
         # `proxy` argument rather than mutating the process-global NO_PROXY
@@ -215,31 +431,49 @@ class EnvClient(ABC, Generic[ActT, ObsT, StateT]):
                 self._ws_url,
                 open_timeout=self._connect_timeout,
                 max_size=self._max_message_size,
+                ping_interval=self._websocket_ping_interval_s,
+                ping_timeout=self._websocket_ping_timeout_s,
                 **connect_kwargs,
             )
+            self._ws_loop = asyncio.get_running_loop()
         except Exception as e:
+            await self.close()
             raise ConnectionError(f"Failed to connect to {self._ws_url}: {e}") from e
 
         return self
 
-    async def disconnect(self) -> None:
+    def disconnect(self) -> Any:
+        return self._dispatch(self._disconnect_async)
+
+    async def _disconnect_async(self) -> None:
         """Close the WebSocket connection."""
         if self._ws is not None:
+            ws = self._ws
+            ws_loop = self._ws_loop
+            same_loop = ws_loop is asyncio.get_running_loop()
             try:
-                # Send close message
-                await self._send({"type": "close"})
+                if same_loop:
+                    await ws.send(json.dumps({"type": "close"}))
             except Exception:
                 pass  # Best effort
             try:
-                await self._ws.close()
+                if same_loop:
+                    await ws.close()
             except Exception:
                 pass
             self._ws = None
+            self._ws_loop = None
 
     async def _ensure_connected(self) -> None:
-        """Ensure WebSocket connection is established."""
-        if self._ws is None:
-            await self.connect()
+        """Ensure WebSocket connection is established on the current loop.
+
+        Always delegates to `_connect_async()` rather than pre-checking
+        `self._ws is None`: `_connect_async()` itself is the one that knows
+        whether an existing `_ws` is reusable (same event loop) or stale (a
+        different one, e.g. from a prior `from_env()` call now being driven
+        through `.sync()`'s own loop).
+        """
+        await self._connect_async()
 
     async def _send(self, message: Dict[str, Any]) -> None:
         """Send a message over the WebSocket."""
@@ -385,11 +619,29 @@ class EnvClient(ABC, Generic[ActT, ObsT, StateT]):
                         "provider_kwargs cannot be used when supplying a provider instance"
                     )
 
-            base_url = provider.start(**start_args)
-            provider.wait_for_ready()
+            try:
+                context_timeout_s = getattr(provider, "context_timeout_s", None)
+                deadline = (
+                    time.monotonic() + context_timeout_s
+                    if context_timeout_s is not None
+                    else None
+                )
+                base_url = provider.start(**start_args)
+                if deadline is None:
+                    provider.wait_for_ready()
+                else:
+                    provider.wait_for_ready(
+                        timeout_s=max(0.0, deadline - time.monotonic())
+                    )
 
-            client = cls(base_url=base_url, provider=provider)
-            await client.connect()
+                client = cls(base_url=base_url, provider=provider)
+                await client.connect()
+            except Exception:
+                # No EnvClient may exist yet for the caller to close(), so
+                # this is the only chance to release the spawned process and
+                # (for a git+ project_path) the temp clone directory.
+                provider.stop()
+                raise
             return client
 
     @abstractmethod
@@ -407,7 +659,10 @@ class EnvClient(ABC, Generic[ActT, ObsT, StateT]):
         """Convert a JSON response from the state endpoint to a State object."""
         raise NotImplementedError
 
-    async def reset(self, **kwargs: Any) -> StepResult[ObsT]:
+    def reset(self, **kwargs: Any) -> Any:
+        return self._dispatch(lambda: self._reset_async(**kwargs))
+
+    async def _reset_async(self, **kwargs: Any) -> StepResult[ObsT]:
         """
         Reset the environment with optional parameters.
 
@@ -425,7 +680,10 @@ class EnvClient(ABC, Generic[ActT, ObsT, StateT]):
         response = await self._send_and_receive(message)
         return self._parse_result(response.get("data", {}))
 
-    async def step(self, action: ActT, **kwargs: Any) -> StepResult[ObsT]:
+    def step(self, action: ActT, **kwargs: Any) -> Any:
+        return self._dispatch(lambda: self._step_async(action, **kwargs))
+
+    async def _step_async(self, action: ActT, **kwargs: Any) -> StepResult[ObsT]:
         """
         Execute an action in the environment.
 
@@ -445,7 +703,10 @@ class EnvClient(ABC, Generic[ActT, ObsT, StateT]):
         response = await self._send_and_receive(message)
         return self._parse_result(response.get("data", {}))
 
-    async def state(self) -> StateT:
+    def state(self) -> Any:
+        return self._dispatch(self._state_async)
+
+    async def _state_async(self) -> StateT:
         """
         Get the current environment state from the server.
 
@@ -456,24 +717,39 @@ class EnvClient(ABC, Generic[ActT, ObsT, StateT]):
         response = await self._send_and_receive(message)
         return self._parse_state(response.get("data", {}))
 
-    async def close(self) -> None:
+    def close(self) -> Any:
+        return self._dispatch(self._close_async)
+
+    async def _close_async(self) -> None:
         """
         Close the WebSocket connection and clean up resources.
 
         If this client was created via from_docker_image() or from_env(),
         this will also stop and remove the associated container/process.
         """
-        await self.disconnect()
+        for child in list(self._child_clients):
+            with suppress(Exception):
+                await child.close()
+        self._child_clients.clear()
 
-        if self._provider is not None:
-            # Handle both ContainerProvider and RuntimeProvider
-            if hasattr(self._provider, "stop_container"):
-                self._provider.stop_container()
-            elif hasattr(self._provider, "stop"):
-                self._provider.stop()
+        try:
+            await self._disconnect_async()
+        finally:
+            try:
+                if self._provider is not None:
+                    # Handle both ContainerProvider and RuntimeProvider
+                    if hasattr(self._provider, "stop_container"):
+                        self._provider.stop_container()
+                    elif hasattr(self._provider, "stop"):
+                        self._provider.stop()
+            finally:
+                if self._start_provider_on_connect:
+                    self._base_url = None
+                    self._ws_url = None
 
     async def __aenter__(self) -> "EnvClient":
         """Enter async context manager, ensuring connection is established."""
+        self._claim_execution_mode("async")
         await self.connect()
         return self
 
@@ -482,17 +758,13 @@ class EnvClient(ABC, Generic[ActT, ObsT, StateT]):
         await self.close()
 
     def __enter__(self) -> "EnvClient":
-        """Sync context manager entry - raises error suggesting async usage."""
-        raise TypeError(
-            "EnvClient is async by default. Use 'async with' instead of 'with', "
-            "or call .sync() to get a synchronous wrapper:\n"
-            "  async with client:  # async usage\n"
-            "  with client.sync():  # sync wrapper"
-        )
+        """Enter sync context manager, ensuring connection is established."""
+        self._run_sync(self._connect_async)
+        return self
 
     def __exit__(self, exc_type, exc_val, exc_tb) -> None:
-        """Sync context manager exit - should not be reached."""
-        pass  # pragma: no cover
+        """Exit sync context manager, closing connection."""
+        self._run_sync(self._close_async)
 
     def sync(self) -> "SyncEnvClient":
         """
@@ -520,4 +792,6 @@ class EnvClient(ABC, Generic[ActT, ObsT, StateT]):
         """
         from .sync_client import SyncEnvClient
 
-        return SyncEnvClient(self)
+        if self._sync_client is None:
+            self._sync_client = SyncEnvClient(self)
+        return self._sync_client

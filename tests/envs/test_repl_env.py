@@ -1,8 +1,4 @@
-# Copyright (c) Meta Platforms, Inc. and affiliates.
-# All rights reserved.
-#
-# This source code is licensed under the BSD-style license found in the
-# LICENSE file in the root directory of this source tree.
+# SPDX-License-Identifier: BSD-3-Clause
 
 """Tests for the REPL Environment."""
 
@@ -968,7 +964,7 @@ class TestREPLEnvRemoteClient:
                 return {"data": {}}
             raise AssertionError(f"Unexpected message type: {message['type']}")
 
-        monkeypatch.setattr(env.async_client, "connect", fake_connect)
+        monkeypatch.setattr(env.async_client, "_connect_async", fake_connect)
         monkeypatch.setattr(
             env.async_client, "_send_and_receive", fake_send_and_receive
         )

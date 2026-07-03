@@ -1,12 +1,14 @@
 [build-system]
-requires = ["setuptools>=45", "wheel"]
+requires = ["setuptools>=77", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "openenv"
-version = "0.3.2.dev0"
+version = "0.4.1.dev0"
 description = "A unified framework for reinforcement learning environments"
 readme = "README.md"
+license = "BSD-3-Clause"
+license-files = ["LICENSE"]
 requires-python = ">=3.10"
 dependencies = [
     # Core shared dependencies - minimal set required for all environments
@@ -34,27 +36,8 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-core = [
-    "fastapi>=0.116.0",
-    "pydantic>=2.0.0",
-    "typing_extensions>=4.0.0",
-    "uvicorn>=0.24.0",
-    "requests>=2.25.0",
-    "websockets>=15.0.1",
-]
-cli = [
-    "typer>=0.9.0",
-    "rich>=13.0.0",
-    "pyyaml>=6.0",
-    "huggingface_hub>=0.20.0",
-    "openai>=2.7.2",
-    "tomli>=2.3.0",
-    "tomli-w>=1.2.0",
-]
-all = [
-    "openenv[core]",
-    "openenv[cli]",
-]
+# `pip install openenv` includes the full runtime; the extras below are
+# optional integrations.
 daytona = [
     "daytona>=0.136.0",
     "pyyaml>=6.0",

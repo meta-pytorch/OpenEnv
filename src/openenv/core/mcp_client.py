@@ -1,8 +1,4 @@
-# Copyright (c) Meta Platforms, Inc. and affiliates.
-# All rights reserved.
-#
-# This source code is licensed under the BSD-style license found in the
-# LICENSE file in the root directory of this source tree.
+# SPDX-License-Identifier: BSD-3-Clause
 
 """
 MCP Client classes for tool-calling environments.
@@ -112,6 +108,8 @@ class MCPClientBase(EnvClient[Any, Observation, State]):
         base_url: str,
         connect_timeout_s: float = 10.0,
         message_timeout_s: float = 60.0,
+        websocket_ping_interval_s: Optional[float] = 20.0,
+        websocket_ping_timeout_s: Optional[float] = 20.0,
         provider: Optional[Any] = None,
         mode: Optional[str] = None,
     ):
@@ -125,6 +123,10 @@ class MCPClientBase(EnvClient[Any, Observation, State]):
                 Timeout for establishing WebSocket connection.
             message_timeout_s (`float`, *optional*, defaults to `60.0`):
                 Timeout for receiving responses to messages.
+            websocket_ping_interval_s (`float` or `None`, *optional*, defaults to `20.0`):
+                WebSocket keepalive ping interval. Pass `None` to disable.
+            websocket_ping_timeout_s (`float` or `None`, *optional*, defaults to `20.0`):
+                WebSocket keepalive pong timeout. Pass `None` to disable.
             provider (*optional*):
                 Container/runtime provider for lifecycle management.
             mode (`str`, *optional*):
@@ -146,6 +148,8 @@ class MCPClientBase(EnvClient[Any, Observation, State]):
             base_url=base_url,
             connect_timeout_s=connect_timeout_s,
             message_timeout_s=message_timeout_s,
+            websocket_ping_interval_s=websocket_ping_interval_s,
+            websocket_ping_timeout_s=websocket_ping_timeout_s,
             provider=provider,
             mode=mode,
         )
