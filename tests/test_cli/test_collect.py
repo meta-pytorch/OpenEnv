@@ -9,6 +9,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 from openenv.cli.__main__ import app
+from openenv.cli.commands.collect import _extract_legal_actions
 from typer.testing import CliRunner
 
 runner = CliRunner()
@@ -219,6 +220,27 @@ def test_openai_provider_errors_without_model(tmp_path: Path, mock_pipeline):
 
     assert result.exit_code != 0
     assert "model" in result.output.lower()
+
+
+def test_extract_legal_actions_from_json_observation():
+    actions = _extract_legal_actions(
+        [
+            {"content": "ignored"},
+            {"content": '{"legal_actions": [2, 4, 6]}'},
+        ]
+    )
+
+    assert actions == [2, 4, 6]
+
+
+def test_extract_legal_actions_from_text_observation():
+    actions = _extract_legal_actions(
+        [
+            {"content": "Legal actions: [1, 3, 5]"},
+        ]
+    )
+
+    assert actions == [1, 3, 5]
 
 
 def test_keep_losses_disables_filter(tmp_path: Path, mock_pipeline):
