@@ -178,6 +178,18 @@ class OpenAIClient(LLMClient):
             api_key=api_key if api_key is not None else "not-needed",
         )
 
+    def _chat_completion_kwargs(
+        self, messages: list[dict[str, Any]], **kwargs: Any
+    ) -> dict[str, Any]:
+        create_kwargs: dict[str, Any] = {
+            "model": self.model,
+            "messages": messages,
+            self._tokens_param: kwargs.get("max_tokens", self.max_tokens),
+        }
+        if not self._omit_temperature:
+            create_kwargs["temperature"] = kwargs.get("temperature", self.temperature)
+        return create_kwargs
+
     async def complete(self, prompt: str, **kwargs) -> str:
         """Send a chat completion request.
 
@@ -195,13 +207,7 @@ class OpenAIClient(LLMClient):
             messages.append({"role": "system", "content": self.system_prompt})
         messages.append({"role": "user", "content": prompt})
 
-        call_kwargs: dict[str, Any] = {
-            "model": self.model,
-            "messages": messages,
-            self._tokens_param: kwargs.get("max_tokens", self.max_tokens),
-        }
-        if not self._omit_temperature:
-            call_kwargs["temperature"] = kwargs.get("temperature", self.temperature)
+        call_kwargs = self._chat_completion_kwargs(messages, **kwargs)
         response = await self._client.chat.completions.create(**call_kwargs)
         return response.choices[0].message.content or ""
 
@@ -211,13 +217,7 @@ class OpenAIClient(LLMClient):
         tools: list[dict[str, Any]],
         **kwargs: Any,
     ) -> LLMResponse:
-        create_kwargs: dict[str, Any] = {
-            "model": self.model,
-            "messages": messages,
-            self._tokens_param: kwargs.get("max_tokens", self.max_tokens),
-        }
-        if not self._omit_temperature:
-            create_kwargs["temperature"] = kwargs.get("temperature", self.temperature)
+        create_kwargs = self._chat_completion_kwargs(messages, **kwargs)
         openai_tools = _mcp_tools_to_openai(tools)
         if openai_tools:
             create_kwargs["tools"] = openai_tools
