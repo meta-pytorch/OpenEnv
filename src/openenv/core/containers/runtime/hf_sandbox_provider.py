@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import asyncio
 import hashlib
+import re
 import socket
 import threading
 import time
@@ -39,6 +40,28 @@ _DEDICATED_SERVER_COMMAND = (
 _SERVER_COMMAND = _POOLED_SERVER_COMMAND
 _MAX_WS_MESSAGE_SIZE = 100 * 1024 * 1024
 _MAX_HTTP_RESPONSE_SIZE = 100 * 1024 * 1024
+_CREDENTIAL_ENV_NAME = re.compile(
+    r"(?i)(?:^|[_-])(?:auth(?:orization)?|credentials?|password|passwd|"
+    r"private[_-]?key|secret|token|api[_-]?key|access[_-]?key(?:[_-]?id)?)"
+    r"(?:$|[_-])|(?:^|[_-])(?:jwt|pat|askpass)(?:$|[_-])"
+)
+_CREDENTIAL_ENV_ALIASES = frozenset(
+    {"PGPASSWORD", "PGPASSFILE", "MYSQL_PWD", "GIT_ASKPASS", "NETRC"}
+)
+_CREDENTIAL_ENV_VALUE = (
+    re.compile(r"(?i)\bbearer\s+\S+"),
+    re.compile(r"(?i)\b(?:hf_|sk-|github_pat_|gh[pousr]_)[A-Za-z0-9_-]{8,}\b"),
+    re.compile(r"\b(?:AKIA|ASIA)[0-9A-Z]{16}\b"),
+    re.compile(r"-----BEGIN [A-Z ]*PRIVATE KEY-----"),
+    re.compile(r"(?i)\b[a-z][a-z0-9+.-]*://[^/\s@]*:[^/\s@]+@"),
+    re.compile(
+        r"(?i)\b[a-z][a-z0-9+.-]*://[^\s#]*[?&]"
+        r"(?:auth(?:orization)?|credentials?|password|passwd|token|"
+        r"api[_-]?key|access[_-]?key|key|sig(?:nature)?|awsaccesskeyid|"
+        r"googleaccessid|x[-_]amz[-_](?:credential|security[-_]token|signature)|"
+        r"x[-_]goog[-_](?:credential|signature))=[^&#\s]+"
+    ),
+)
 _HOP_BY_HOP_HEADERS = {
     "connection",
     "content-encoding",
@@ -54,6 +77,21 @@ _HOP_BY_HOP_HEADERS = {
 }
 _POOLS: dict[tuple[str, str], Any] = {}
 _POOL_LOCK = threading.Lock()
+
+
+def credential_environment_names(env_vars: dict[str, str] | None) -> list[str]:
+    """Return names whose name or value appears to carry credentials."""
+    flagged: list[str] = []
+    for raw_name, raw_value in (env_vars or {}).items():
+        name = str(raw_name)
+        value = str(raw_value)
+        if (
+            name.upper() in _CREDENTIAL_ENV_ALIASES
+            or _CREDENTIAL_ENV_NAME.search(name)
+            or any(pattern.search(value) for pattern in _CREDENTIAL_ENV_VALUE)
+        ):
+            flagged.append(name)
+    return sorted(flagged)
 
 
 class _NoRedirectWebSocketConnect(ws_connect):
@@ -300,6 +338,10 @@ class HFSandboxProvider(ContainerProvider):
         self._secrets = dict(secrets) if secrets is not None else None
         self.flavor = flavor
         self._mode = mode
+        self._official_certification = False
+        self._official_image: str | None = None
+        self._official_flavor: str | None = None
+        self._official_env_vars: dict[str, str] | None = None
         self._sandbox: Any = None
         self._server_process: Any = None
         self._proxy: _LocalAuthProxy | None = None
@@ -325,6 +367,34 @@ class HFSandboxProvider(ContainerProvider):
         except (AttributeError, RuntimeError):
             return "unknown"
         return "dedicated" if host_id is None else "pooled"
+
+    def _lock_for_official_certification(self) -> None:
+        """Freeze the settings that cross the official runner trust boundary."""
+        if self._sandbox is not None:
+            raise RuntimeError(
+                "Official certification must validate and lock the provider "
+                "before a Hugging Face sandbox is started."
+            )
+        self._official_certification = True
+        self._official_image = self.image
+        self._official_flavor = self.flavor
+        self._official_env_vars = (
+            dict(self._env_vars) if self._env_vars is not None else None
+        )
+
+    def _verify_official_runtime_isolation(self) -> None:
+        try:
+            host_id = self._sandbox.host_id
+        except (AttributeError, RuntimeError) as exc:
+            raise RuntimeError(
+                "Official certification could not verify dedicated isolation "
+                "for the created Hugging Face sandbox."
+            ) from exc
+        if host_id is not None:
+            raise RuntimeError(
+                "Official certification requires a dedicated Hugging Face sandbox; "
+                "the created sandbox is attached to a shared host."
+            )
 
     def _create_sandbox(self, *, image: str, env_vars: dict[str, str] | None) -> Any:
         if self.mode == "dedicated":
@@ -360,12 +430,37 @@ class HFSandboxProvider(ContainerProvider):
                 f"HFSandboxProvider only supports port {_DEFAULT_PORT} (got {port})."
             )
 
+        if self._official_certification:
+            if (
+                self.image != self._official_image
+                or self.flavor != self._official_flavor
+                or self.mode != "dedicated"
+                or self._env_vars != self._official_env_vars
+                or (image is not None and image != self._official_image)
+            ):
+                raise RuntimeError(
+                    "Official certification does not allow execution-setting changes "
+                    "after the provider trust check."
+                )
+            if env_vars is not None:
+                raise RuntimeError(
+                    "Official certification does not allow environment overrides "
+                    "after the provider trust check."
+                )
+            credential_names = credential_environment_names(self._env_vars)
+            if credential_names or self._secrets:
+                raise RuntimeError(
+                    "Official subject sandboxes cannot receive coordinator credentials."
+                )
+
         effective_image = self.image if image is None else image
         effective_env = self._env_vars if env_vars is None else env_vars
         self._sandbox = self._create_sandbox(
             image=effective_image, env_vars=effective_env
         )
         try:
+            if self._official_certification:
+                self._verify_official_runtime_isolation()
             if not hasattr(self._sandbox, "proxy_url_for") or not hasattr(
                 self._sandbox, "proxy_headers"
             ):

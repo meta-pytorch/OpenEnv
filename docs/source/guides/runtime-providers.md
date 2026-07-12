@@ -164,7 +164,8 @@ provider = DockerSwarmProvider()
 
 Runs a registry image in a Hugging Face Sandbox. Pooled mode is the default and
 is appropriate for trusted same-user rollout fan-out. Dedicated mode allocates
-one VM per sandbox and is suited to untrusted or GPU workloads.
+one VM per sandbox and is suited to untrusted or GPU workloads. Official
+validation requires dedicated mode and rejects pooled execution.
 
 ```python
 from openenv.core.containers.runtime.hf_sandbox_provider import HFSandboxProvider
@@ -178,7 +179,8 @@ provider.wait_for_ready(base_url)
 ```
 
 Plain `env_vars` are visible as Job environment metadata. Use the dedicated
-mode's `secrets=` argument for encrypted runtime secrets.
+mode's `secrets=` argument for encrypted runtime secrets. Official validation
+does not forward coordinator secrets through either channel.
 
 ### KubernetesProvider
 

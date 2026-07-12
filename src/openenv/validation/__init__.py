@@ -24,6 +24,7 @@ from .planner import (
     OPENENV_VALIDATION_POLICY,
     VALIDATION_POLICY_VERSION,
 )
+from .security import ensure_official_hf_sandbox
 
 __all__ = [
     "CheckOutcome",
@@ -42,6 +43,7 @@ __all__ = [
     "ValidationSeverity",
     "ValidationStatus",
     "build_validation_plan",
+    "ensure_official_hf_sandbox",
     "execute_validation_plan",
     "format_shared_validation_report",
     "run_local_validation",
