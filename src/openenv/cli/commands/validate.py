@@ -12,13 +12,6 @@ from pathlib import Path
 from typing import Annotated
 
 import typer
-from openenv.cli._validation import (
-    build_local_validation_json_report,
-    format_validation_report,
-    get_deployment_modes,
-    validate_multi_mode_deployment,
-    validate_running_environment,
-)
 from openenv.validation import (
     format_shared_validation_report,
     run_local_validation,
@@ -60,7 +53,7 @@ def validate(
         str | None,
         typer.Option(
             "--profile",
-            help="Validation profile: static, runtime, or full",
+            help="Validation profile: static, runtime, full, or publish",
         ),
     ] = None,
     output: Annotated[
@@ -93,7 +86,9 @@ def validate(
 
     Runtime validation checks if a live OpenEnv server conforms to the
     versioned runtime API contract and returns a criteria-based JSON report.
-    Explicit static, runtime, and full profiles emit the RFC 008 shared report.
+    Every profile emits the RFC 008 shared report. The publish profile is a
+    strict release gate: blocking skipped checks are incomplete and exit
+    non-zero.
     Reports identify the served OpenEnv spec and pinned adapter; external task
     package formats are intentionally outside this command's dispatch surface.
     Automatic runtime launch is intended for trusted local source; connect to
@@ -141,158 +136,76 @@ def validate(
             raise typer.Exit(1)
         runtime_target = target
 
-    # Machine-readable and explicit-profile invocations use the RFC 008 shared
-    # report. Only the unqualified human rendering stays on the legacy path.
-    if profile is not None or output is not None or json_output:
-        if profile is None:
-            selected_profile = (
-                ValidationProfile.RUNTIME
-                if runtime_target is not None
-                else ValidationProfile.STATIC
-            )
-        else:
-            try:
-                selected_profile = ValidationProfile(profile.lower())
-            except ValueError as exc:
-                typer.echo(
-                    "Error: --profile must be one of: static, runtime, full",
-                    err=True,
-                )
-                raise typer.Exit(1) from exc
-
-        if runtime_target is not None and selected_profile is ValidationProfile.STATIC:
+    if profile is None:
+        selected_profile = (
+            ValidationProfile.RUNTIME
+            if runtime_target is not None
+            else ValidationProfile.STATIC
+        )
+    else:
+        try:
+            selected_profile = ValidationProfile(profile.lower())
+        except ValueError as exc:
             typer.echo(
-                "Error: The static profile requires a local source directory",
+                "Error: --profile must be one of: static, runtime, full, publish",
                 err=True,
             )
-            raise typer.Exit(1)
-
-        if runtime_target is not None:
-            shared_target: str | Path = runtime_target
-            shared_runtime_url = runtime_target
-        else:
-            shared_target = Path.cwd() if target is None else Path(target)
-            shared_runtime_url = None
-            if not shared_target.exists():
-                typer.echo(f"Error: Path does not exist: {shared_target}", err=True)
-                raise typer.Exit(1)
-            if not shared_target.is_dir():
-                typer.echo(f"Error: Path is not a directory: {shared_target}", err=True)
-                raise typer.Exit(1)
-
-        try:
-            report = run_local_validation(
-                shared_target,
-                profile=selected_profile,
-                runtime_url=shared_runtime_url,
-                timeout_s=timeout,
-            )
-        except ValueError as exc:
-            typer.echo(f"Error: {exc}", err=True)
             raise typer.Exit(1) from exc
-        payload = report.to_dict()
-        serialized = json.dumps(payload, indent=2)
 
-        if output is not None:
-            try:
-                output.parent.mkdir(parents=True, exist_ok=True)
-                output.write_text(f"{serialized}\n", encoding="utf-8")
-            except OSError as exc:
-                typer.echo(
-                    f"Error: Unable to write validation report: {type(exc).__name__}",
-                    err=True,
-                )
-                raise typer.Exit(1) from exc
-
-        if json_output:
-            typer.echo(serialized)
-        else:
-            typer.echo(format_shared_validation_report(report))
-            if output is not None:
-                typer.echo(f"Report written to {output}")
-
-        if not report.passed:
-            raise typer.Exit(1)
-        return
+    if runtime_target is not None and selected_profile in {
+        ValidationProfile.STATIC,
+        ValidationProfile.PUBLISH,
+    }:
+        typer.echo(
+            f"Error: The {selected_profile.value} profile requires a local source directory",
+            err=True,
+        )
+        raise typer.Exit(1)
 
     if runtime_target is not None:
+        shared_target: str | Path = runtime_target
+        shared_runtime_url = runtime_target
+    else:
+        shared_target = Path.cwd() if target is None else Path(target)
+        shared_runtime_url = None
+        if not shared_target.exists():
+            typer.echo(f"Error: Path does not exist: {shared_target}", err=True)
+            raise typer.Exit(1)
+        if not shared_target.is_dir():
+            typer.echo(f"Error: Path is not a directory: {shared_target}", err=True)
+            raise typer.Exit(1)
+
+    try:
+        report = run_local_validation(
+            shared_target,
+            profile=selected_profile,
+            runtime_url=shared_runtime_url,
+            timeout_s=timeout,
+        )
+    except ValueError as exc:
+        typer.echo(f"Error: {exc}", err=True)
+        raise typer.Exit(1) from exc
+
+    serialized = json.dumps(report.to_dict(), indent=2)
+    if output is not None:
         try:
-            report = validate_running_environment(runtime_target, timeout_s=timeout)
-        except ValueError as exc:
-            typer.echo(f"Error: {exc}", err=True)
+            output.parent.mkdir(parents=True, exist_ok=True)
+            output.write_text(f"{serialized}\n", encoding="utf-8")
+        except OSError as exc:
+            typer.echo(
+                f"Error: Unable to write validation report: {type(exc).__name__}",
+                err=True,
+            )
             raise typer.Exit(1) from exc
 
-        typer.echo(json.dumps(report, indent=2))
-        if not report.get("passed", False):
-            raise typer.Exit(1)
-        return
-
-    # Determine environment path (default to current directory)
-    if target is None:
-        env_path_obj = Path.cwd()
+    # URL validation historically emitted JSON without an explicit --json;
+    # retain that presentation while using the shared planner and schema.
+    if json_output or (runtime_target is not None and profile is None):
+        typer.echo(serialized)
     else:
-        env_path_obj = Path(target)
+        typer.echo(format_shared_validation_report(report))
+        if output is not None:
+            typer.echo(f"Report written to {output}")
 
-    if not env_path_obj.exists():
-        typer.echo(f"Error: Path does not exist: {env_path_obj}", err=True)
-        raise typer.Exit(1)
-
-    if not env_path_obj.is_dir():
-        typer.echo(f"Error: Path is not a directory: {env_path_obj}", err=True)
-        raise typer.Exit(1)
-
-    # Check for openenv.yaml to confirm this is an environment directory
-    openenv_yaml = env_path_obj / "openenv.yaml"
-    if not openenv_yaml.exists():
-        typer.echo(
-            f"Error: Not an OpenEnv environment directory (missing openenv.yaml): {env_path_obj}",
-            err=True,
-        )
-        typer.echo(
-            "Hint: Run this command from the environment root directory or specify the path",
-            err=True,
-        )
-        raise typer.Exit(1)
-
-    env_name = env_path_obj.name
-    if env_name.endswith("_env"):
-        base_name = env_name[:-4]
-    else:
-        base_name = env_name
-
-    # Run validation
-    is_valid, issues = validate_multi_mode_deployment(env_path_obj)
-    modes = get_deployment_modes(env_path_obj)
-
-    if json_output:
-        report = build_local_validation_json_report(
-            env_name=base_name,
-            env_path=env_path_obj,
-            is_valid=is_valid,
-            issues=issues,
-            deployment_modes=modes if verbose else None,
-        )
-        typer.echo(json.dumps(report, indent=2))
-        if not is_valid:
-            raise typer.Exit(1)
-        return
-
-    # Show validation report
-    report = format_validation_report(base_name, is_valid, issues)
-    typer.echo(report)
-
-    # Show deployment modes if verbose
-    if verbose:
-        typer.echo("\nSupported deployment modes:")
-        for mode, supported in modes.items():
-            status = "[YES]" if supported else "[NO]"
-            typer.echo(f"  {status} {mode}")
-
-        if is_valid:
-            typer.echo("\nUsage examples:")
-            typer.echo(f"  cd {env_path_obj.name} && uv run server")
-            typer.echo(f"  cd {env_path_obj.name} && openenv build")
-            typer.echo(f"  cd {env_path_obj.name} && openenv push")
-
-    if not is_valid:
+    if not report.passed:
         raise typer.Exit(1)

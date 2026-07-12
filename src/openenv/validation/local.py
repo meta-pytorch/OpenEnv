@@ -524,5 +524,8 @@ def format_shared_validation_report(report: ValidationReport) -> str:
         )
         if result.message:
             lines.append(f"    {result.message}")
+        issues = result.evidence.get("issues")
+        if isinstance(issues, list):
+            lines.extend(f"    {issue}" for issue in issues if isinstance(issue, str))
     lines.append("Certification: not claimed by local validation")
     return "\n".join(lines)

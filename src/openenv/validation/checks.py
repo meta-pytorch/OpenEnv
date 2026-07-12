@@ -36,9 +36,16 @@ except ModuleNotFoundError:
 
 
 _STATIC_PROFILES = frozenset(
-    {ValidationProfile.STATIC, ValidationProfile.RUNTIME, ValidationProfile.FULL}
+    {
+        ValidationProfile.STATIC,
+        ValidationProfile.RUNTIME,
+        ValidationProfile.FULL,
+        ValidationProfile.PUBLISH,
+    }
 )
-_RUNTIME_PROFILES = frozenset({ValidationProfile.RUNTIME, ValidationProfile.FULL})
+_RUNTIME_PROFILES = frozenset(
+    {ValidationProfile.RUNTIME, ValidationProfile.FULL, ValidationProfile.PUBLISH}
+)
 _FULL_PROFILE = frozenset({ValidationProfile.FULL})
 _OPENENV_DEPENDENCY = re.compile(r"^openenv(?:\s*(?:$|[<>=!~@;])|\[)")
 _OPENENV_CORE_DEPENDENCY = re.compile(r"^openenv-core(?:\s*(?:$|[<>=!~@;])|\[)")

@@ -62,6 +62,7 @@ class ValidationProfile(str, Enum):
     STATIC = "static"
     RUNTIME = "runtime"
     FULL = "full"
+    PUBLISH = "publish"
 
 
 class ValidationCapability(str, Enum):
@@ -443,7 +444,13 @@ class ValidationReport:
 
     @property
     def passed(self) -> bool:
-        """Return whether all executed blocking criteria avoid failure/error."""
+        """Return whether blocking criteria satisfy this profile's gate."""
+        if self.profile is ValidationProfile.PUBLISH:
+            return not any(
+                result.severity is ValidationSeverity.BLOCKING
+                and result.status is not ValidationStatus.PASS
+                for result in self.results
+            )
         return not any(
             result.severity is ValidationSeverity.BLOCKING
             and result.status in {ValidationStatus.FAIL, ValidationStatus.ERROR}
@@ -471,6 +478,12 @@ class ValidationReport:
             if result.severity is ValidationSeverity.BLOCKING
             and result.status in {ValidationStatus.FAIL, ValidationStatus.ERROR}
         ]
+        blocking_skipped = [
+            result.criterion_id
+            for result in self.results
+            if result.severity is ValidationSeverity.BLOCKING
+            and result.status is ValidationStatus.SKIP
+        ]
         return {
             "passed_count": counts[ValidationStatus.PASS.value],
             "failed_count": counts[ValidationStatus.FAIL.value],
@@ -479,6 +492,7 @@ class ValidationReport:
             "total_count": len(self.results),
             "failed_criteria": failed,
             "blocking_failed_criteria": blocking_failed,
+            "blocking_skipped_criteria": blocking_skipped,
             "required_passed_count": sum(
                 1
                 for result in self.results
@@ -547,5 +561,8 @@ class ValidationReport:
             ]
             serialized_summary["blocking_failed_criteria"] = payload["summary"][
                 "blocking_failed_criteria"
+            ]
+            serialized_summary["blocking_skipped_criteria"] = payload["summary"][
+                "blocking_skipped_criteria"
             ]
         return serialized

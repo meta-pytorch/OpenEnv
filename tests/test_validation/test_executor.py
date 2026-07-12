@@ -78,6 +78,46 @@ def _absent_spec() -> SpecLoad:
     return SpecLoad(state=SpecLoadState.ABSENT)
 
 
+def _blocking_capability_skip_report(tmp_path: Path, profile: ValidationProfile):
+    check = ValidationCheck(
+        criterion_id="test.publish-readiness",
+        requirement="Publish readiness requires source inspection",
+        capabilities=frozenset({ValidationCapability.SOURCE}),
+        severity=ValidationSeverity.BLOCKING,
+        timeout_s=1.0,
+        evaluator=lambda _context: CheckOutcome.pass_(),
+    )
+    plan = ValidationPlan(
+        target=str(tmp_path),
+        profile=profile,
+        policy_version="test-policy",
+        capabilities=RunnerCapabilities(runner="local"),
+        checks=(check,),
+    )
+    context = ValidationContext(target=tmp_path, spec_load=_absent_spec())
+    return execute_validation_plan(plan, context)
+
+
+def test_publish_profile_makes_a_blocking_skip_fail_readiness(
+    tmp_path: Path,
+) -> None:
+    report = _blocking_capability_skip_report(
+        tmp_path,
+        ValidationProfile.PUBLISH,
+    )
+
+    assert report.results[0].status is ValidationStatus.SKIP
+    assert report.passed is False
+
+
+def test_existing_profiles_keep_blocking_skips_nonfatal(tmp_path: Path) -> None:
+    for profile in (ValidationProfile.STATIC, ValidationProfile.RUNTIME):
+        report = _blocking_capability_skip_report(tmp_path, profile)
+
+        assert report.results[0].status is ValidationStatus.SKIP
+        assert report.passed is True
+
+
 def test_echo_env_local_and_remote_executors_share_criterion_results() -> None:
     env_dir = Path(__file__).resolve().parents[2] / "envs" / "echo_env"
     local_plan, local_context = build_validation_plan(

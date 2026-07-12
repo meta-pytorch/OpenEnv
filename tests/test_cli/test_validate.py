@@ -6,10 +6,11 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 from openenv.cli.__main__ import app
 from openenv.cli._validation import validate_running_environment
+from openenv.validation import ValidationProfile
 from typer.testing import CliRunner
 
 
@@ -177,24 +178,33 @@ def test_validate_running_environment_failure() -> None:
 
 
 def test_validate_command_runtime_target_outputs_json() -> None:
-    """CLI validates runtime targets and prints JSON report."""
-    mock_report = {
+    """CLI validates runtime targets through the shared report path."""
+    payload = {
         "target": "https://example.com",
-        "validation_type": "running_environment",
-        "standard_version": "1.0.0",
+        "validation_type": "openenv_validation",
+        "report_schema_version": "1.0",
+        "profile": "runtime",
         "passed": True,
         "criteria": [],
     }
+    mock_report = MagicMock()
+    mock_report.passed = True
+    mock_report.to_dict.return_value = payload
 
     with patch(
-        "openenv.cli.commands.validate.validate_running_environment",
+        "openenv.cli.commands.validate.run_local_validation",
         return_value=mock_report,
     ) as mock_validate:
         result = runner.invoke(app, ["validate", "https://example.com"])
 
     assert result.exit_code == 0
-    assert json.loads(result.output) == mock_report
-    mock_validate.assert_called_once_with("https://example.com", timeout_s=5.0)
+    assert json.loads(result.output) == payload
+    mock_validate.assert_called_once_with(
+        "https://example.com",
+        profile=ValidationProfile.RUNTIME,
+        runtime_url="https://example.com",
+        timeout_s=5.0,
+    )
 
 
 def test_validate_shared_profile_reports_invalid_runtime_url() -> None:
@@ -216,6 +226,21 @@ def test_validate_command_local_path_still_works(tmp_path: Path) -> None:
 
     assert result.exit_code == 0
     assert "[OK]" in result.output
+
+
+def test_unqualified_local_validate_uses_shared_static_semantics(
+    tmp_path: Path,
+) -> None:
+    env_dir = tmp_path / "test_env"
+    _write_minimal_valid_env(env_dir)
+    (env_dir / "openenv.yaml").write_text("spec_version: [\n")
+
+    result = runner.invoke(app, ["validate", str(env_dir)])
+
+    assert result.exit_code == 1
+    assert "static validation" in result.output
+    assert "source.validation_spec" in result.output
+    assert "The validation spec could not be loaded" in result.output
 
 
 def test_validate_command_local_json_output(tmp_path: Path) -> None:
