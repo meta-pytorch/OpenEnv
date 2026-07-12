@@ -23,7 +23,8 @@ OpenEnv's served-runtime checks.
 The same check implementations and report schema run through two execution
 paths:
 
-- `openenv validate` runs local static and runtime-capable checks.
+- `openenv validate` runs checks on the developer host or, when requested, in
+  a dedicated Hugging Face Sandbox and returns an unofficial author report.
 - Hub-triggered remote certification runs isolated, privileged, multi-host,
   artifact, and model-based checks.
 
@@ -60,6 +61,8 @@ multiple trust domains.
 6. Preserve a quick local workflow without overstating what it proves.
 7. Keep planners, executors, and reports independent of any one task-package
    format or execution model.
+8. Give environment authors a strict pre-publish loop with structured,
+   machine-readable guidance for fixing invalid environments.
 
 ### Non-goals
 
@@ -191,12 +194,24 @@ and required capabilities. The report contains:
 - criterion results and status counts; and
 - separate `passed`, `certification_eligible`, and `certified` fields.
 
-Only blocking `fail` and `error` results make an execution fail. A blocking
-`skip` prevents certification eligibility. A report becomes certified only
-after an official dedicated runner completes the blocking policy and the
-signed report is verified. The executor itself can only emit a signature-ready
-eligible report with `certified: false`; the report registry derives certified
-status after verifying the immutable signed envelope.
+Static, runtime, and full profiles distinguish unavailable checks from failed
+checks: only blocking `fail` and `error` results make those executions fail,
+while a blocking `skip` prevents certification eligibility. The strict
+`publish` profile treats a blocking `skip` as incomplete and therefore
+non-passing. A report becomes certified only after an official dedicated
+runner completes the blocking policy and the signed report is verified. The
+executor itself can only emit a signature-ready eligible report with
+`certified: false`; the report registry derives certified status after
+verifying the immutable signed envelope.
+
+Failed, errored, and incomplete criteria may also carry typed diagnostics and
+remediation. Diagnostics use stable reason codes and repository-relative
+locations (including a document pointer or source line when known).
+Remediation is trusted policy or adapter output, represented as structured
+edits, documentation links, or command argument vectors rather than shell
+strings. It is display-only, never executes automatically, and cannot change a
+criterion's status or severity. Submitted verifier output and runtime evidence
+cannot author remediation instructions.
 
 #### Environment-specific criteria
 
@@ -208,7 +223,7 @@ validation may inspect the declaration but does not execute it on the host.
 
 ### Local execution
 
-`openenv validate` validates served OpenEnv environments and supports three
+`openenv validate` validates served OpenEnv environments and supports four
 explicit profiles:
 
 - `--profile static`: manifest, layout, dependencies, lockfile, source schema,
@@ -219,10 +234,33 @@ explicit profiles:
   the agent/control boundary: MCP cannot expose `reset`, `step`, or `state`.
 - `--profile full`: every policy check; unavailable certification-only
   capabilities are reported as skipped.
+- `--profile publish`: the runtime check set used as an author release gate.
+  Every blocking criterion must pass; a blocking skip, failure, or error exits
+  non-zero.
 
 `--json` writes the shared schema to stdout, and `--output PATH` writes the same
-JSON document to disk. Unqualified invocations retain the legacy rendering
-during migration.
+JSON document to disk. All local invocations use the shared planner and report;
+unqualified invocations differ only in presentation. Human output includes
+actionable diagnostics and remediation, and `--verbose` additionally renders
+safe criterion evidence.
+
+`--remote` archives the selected source revision, uploads it to a newly created
+dedicated Hugging Face Sandbox, runs the pinned validator there, and returns
+the same report schema. This author-triggered path never uses `SandboxPool`,
+never forwards the developer's Hugging Face token into the workload, and never
+claims certification. The archive excludes credentials, local virtual
+environments, VCS metadata, caches, and prior generated reports. The exact
+validator source is uploaded alongside the environment so the report is bound
+to the CLI policy version that initiated the run.
+
+`openenv push` requires a passing remote `publish` report before uploading an
+environment to the Hub. It writes a path-normalized copy to
+`.openenv/validation-report.json` inside the staging tree, so the author report
+is versioned with the Space revision it gated. This report is explicitly
+unofficial and is useful for author and agent feedback; it does not satisfy
+collection admission or replace the independently generated certification
+report. Custom-registry pushes use the same strict profile locally until that
+workflow has an equivalent isolated runner.
 
 Local execution never claims certification for cross-host reproducibility,
 enforced egress isolation, official reference-model results, signatures, or
@@ -251,6 +289,11 @@ executes submitted Python.
 Executions are keyed by `(repo_id, head_sha, spec_id, adapter_version,
 policy_version)` for idempotency. Duplicate webhook deliveries reuse the same
 execution, and a newer revision cancels obsolete work.
+
+The author-triggered `--remote` runner is not this coordinator. It performs one
+ephemeral publish validation and returns its report directly to the caller; it
+has no service token, registry-writing authority, certification key, or
+collection-admission role.
 
 #### Hugging Face runtime lane
 
@@ -301,9 +344,11 @@ infrastructure and thresholds are calibrated through a policy update.
 4. Task verifiers run separately, without credentials.
 5. Environment-variable values are never serialized into plans, logs, reports,
    or artifacts; only variable names may appear as evidence.
-6. Immutable reports live in an OpenEnv validation Dataset or object store.
-   Large logs and trajectories are referenced artifacts.
-7. Reports are not committed into submitted Spaces, avoiding webhook loops.
+6. Immutable official reports live in an OpenEnv validation Dataset or object
+   store. Large logs and trajectories are referenced artifacts.
+7. Official reports are not committed into submitted Spaces, avoiding webhook
+   loops. The unofficial pre-publish report is included in the original
+   submitted revision and never added through a follow-up commit.
 8. The official collection reads the report registry and admits only the exact
    revision passing the current blocking policy.
 9. GitHub Actions tests and publishes trusted validator/coordinator images but
@@ -368,6 +413,9 @@ openenv validate --url http://localhost:8000 --profile runtime --json
 
 # Run every local check and record remote-only skips
 openenv validate envs/echo_env --profile full --output validation.json
+
+# Run the strict author gate inside a dedicated HF Sandbox
+openenv validate envs/echo_env --profile publish --remote --output validation.json
 ```
 
 Example result excerpt:
@@ -402,8 +450,9 @@ Example result excerpt:
 ## Delivery phases
 
 1. Implement the trusted spec-adapter registry, normalized requirements,
-   planner, report schema, Harbor auxiliary loader, local profiles, and
-   dedicated HF provider mode.
+   planner, report schema, Harbor auxiliary loader, local profiles, structured
+   remediation, strict publish gate, and dedicated author-triggered HF Sandbox
+   runner.
 2. Deploy the webhook-triggered coordinator Job and dedicated HF runtime lane.
 3. Add ACA security and artifact-inspection lanes.
 4. Add cross-host, GPU/reference-model, and learnability lanes.
