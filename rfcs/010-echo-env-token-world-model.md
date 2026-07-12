@@ -5,9 +5,9 @@
 **Authors**: @thegovind
 **RFC ID**: 010
 
-> Numbers 006–009 are reserved for the self-improving-gym RFC family
-> (curriculum/adversarial designer, harness optimization, mock foundry,
-> environments-from-traces). This RFC is a small, cross-cutting amendment to
+> Numbers 006, 007, and 009 are reserved for the self-improving-gym RFC family.
+> RFC 008 specifies OpenEnv validation and certification. This RFC is a small,
+> cross-cutting amendment to
 > **RFC 007** (the optimizer seam) and **RFC 009** (the trajectory schema).
 
 ## Summary
