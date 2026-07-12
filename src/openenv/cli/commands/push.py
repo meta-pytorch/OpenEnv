@@ -4,23 +4,50 @@
 
 from __future__ import annotations
 
+import json
 import shutil
 import sys
 import tempfile
 from fnmatch import fnmatch
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, Any
 
 import typer
 import yaml
 from huggingface_hub import HfApi, login, whoami
+from openenv.validation import (
+    format_shared_validation_report,
+    RemoteValidationError,
+    run_local_validation,
+    run_remote_validation,
+    validation_source_digest,
+    validation_source_path_allowed,
+    ValidationProfile,
+    ValidationReport,
+    ValidationSeverity,
+    ValidationStatus,
+)
 
-from .._cli_utils import _extract_hf_username, console, validate_env_structure
+from .._cli_utils import _extract_hf_username, console
 
 app = typer.Typer(help="Push an OpenEnv environment to Hugging Face Spaces")
 
 
-DEFAULT_PUSH_IGNORE_PATTERNS = [".*", "__pycache__", "*.pyc"]
+DEFAULT_PUSH_IGNORE_PATTERNS = [
+    ".env",
+    ".env.*",
+    ".git/",
+    ".hg/",
+    ".mypy_cache/",
+    ".pytest_cache/",
+    ".ruff_cache/",
+    ".svn/",
+    ".tox/",
+    ".venv/",
+    "__pycache__/",
+    "*.pyc",
+]
+_VERSIONED_VALIDATION_REPORT = Path(".openenv/validation-report.json")
 
 
 def _format_kv_entry_for_error(entry: str, *, flag: str) -> str:
@@ -127,6 +154,20 @@ def _should_exclude_path(relative_path: Path, ignore_patterns: list[str]) -> boo
     )
 
 
+def _excludes_versioned_report(ignore_patterns: list[str]) -> bool:
+    """Return whether an upload pattern can omit the required author report."""
+    required_paths = (
+        _VERSIONED_VALIDATION_REPORT,
+        *_VERSIONED_VALIDATION_REPORT.parents,
+    )
+    return any(
+        _path_matches_pattern(required_path, pattern)
+        for pattern in ignore_patterns
+        for required_path in required_paths
+        if required_path != Path(".")
+    )
+
+
 def _read_ignore_file(ignore_path: Path) -> tuple[list[str], int]:
     """Read ignore patterns from a file and return (patterns, ignored_negations)."""
     patterns: list[str] = []
@@ -198,8 +239,15 @@ def _copytree_ignore_factory(env_dir: Path, ignore_patterns: list[str]):
                 # candidate is not under env_dir (e.g. symlink or
                 # copytree root differs from env_dir); skip filtering.
                 continue
-            if _should_exclude_path(relative_path, ignore_patterns):
+            if _should_exclude_path(
+                relative_path, ignore_patterns
+            ) or not validation_source_path_allowed(relative_path):
                 ignored.add(name)
+            elif candidate.is_symlink():
+                raise typer.BadParameter(
+                    "Source contains a symbolic link that would enter the "
+                    f"validation snapshot: {relative_path}"
+                )
 
         return ignored
 
@@ -207,26 +255,16 @@ def _copytree_ignore_factory(env_dir: Path, ignore_patterns: list[str]):
 
 
 def _validate_openenv_directory(directory: Path) -> tuple[str, dict]:
-    """
-    Validate that the directory is an OpenEnv environment.
+    """Load the minimal manifest identity needed before shared validation.
 
     Returns:
         `tuple` of `(env_name, manifest_data)`.
     """
-    # Use the comprehensive validation function
-    try:
-        warnings = validate_env_structure(directory)
-        for warning in warnings:
-            console.print(f"[bold yellow]⚠[/bold yellow] {warning}")
-    except FileNotFoundError as e:
-        raise typer.BadParameter(f"Invalid OpenEnv environment structure: {e}") from e
-
-    # Load and validate manifest
     manifest_path = directory / "openenv.yaml"
     try:
-        with open(manifest_path, "r") as f:
+        with manifest_path.open(encoding="utf-8") as f:
             manifest = yaml.safe_load(f)
-    except Exception as e:
+    except (OSError, yaml.YAMLError) as e:
         raise typer.BadParameter(f"Failed to parse openenv.yaml: {e}") from e
 
     if not isinstance(manifest, dict):
@@ -237,6 +275,86 @@ def _validate_openenv_directory(directory: Path) -> tuple[str, dict]:
         raise typer.BadParameter("openenv.yaml must contain a 'name' field")
 
     return env_name, manifest
+
+
+def _run_publish_validation(
+    directory: Path, *, remote: bool = True
+) -> ValidationReport:
+    """Run the shared strict publish profile locally or in an HF Sandbox."""
+    if remote:
+        return run_remote_validation(directory, profile=ValidationProfile.PUBLISH)
+    return run_local_validation(directory, profile=ValidationProfile.PUBLISH)
+
+
+def _render_publish_gate(report: ValidationReport) -> None:
+    """Render author guidance and stop when blocking criteria are not satisfied."""
+    console.print(format_shared_validation_report(report), markup=False)
+    if report.passed:
+        console.print("[bold green]✓[/bold green] Publish validation passed")
+        return
+
+    blocking_skip = any(
+        result.severity is ValidationSeverity.BLOCKING
+        and result.status is ValidationStatus.SKIP
+        for result in report.results
+    )
+    outcome = "incomplete" if blocking_skip else "failed"
+    console.print(
+        f"[bold red]✗[/bold red] Publish validation {outcome}; upload was not attempted"
+    )
+    raise typer.Exit(1)
+
+
+def _portable_report_value(value: Any, source_root: Path) -> Any:
+    """Remove machine- and Sandbox-specific source roots from a report payload."""
+    if isinstance(value, dict):
+        return {
+            key: _portable_report_value(item, source_root)
+            for key, item in value.items()
+        }
+    if isinstance(value, list):
+        return [_portable_report_value(item, source_root) for item in value]
+    if isinstance(value, str):
+        local_root = str(source_root.resolve())
+        portable = value.replace(f"{local_root}/", "./")
+        portable = "." if portable == local_root else portable
+        portable = portable.replace("/workspace/source/", "./")
+        return "." if portable == "/workspace/source" else portable
+    return value
+
+
+def _write_versioned_validation_report(
+    staging_dir: Path, report: ValidationReport
+) -> None:
+    """Write the portable, explicitly non-certified author report into the upload."""
+    payload = _portable_report_value(report.to_dict(), staging_dir)
+    payload["target"] = "."
+    payload["certified"] = False
+    payload["certification_eligible"] = False
+    report_path = staging_dir / _VERSIONED_VALIDATION_REPORT
+    report_path.parent.mkdir(parents=True, exist_ok=True)
+    report_path.write_text(
+        f"{json.dumps(payload, indent=2, sort_keys=True)}\n",
+        encoding="utf-8",
+    )
+
+
+def _verify_snapshot_binding(staging_dir: Path, report: ValidationReport) -> None:
+    """Require the report digest to match the exact tree about to be uploaded."""
+    try:
+        actual_digest = validation_source_digest(staging_dir)
+    except RemoteValidationError as exc:
+        raise typer.BadParameter(str(exc)) from exc
+    if report.source_digest is None:
+        console.print(
+            "[bold red]✗[/bold red] Publish validation report is missing its source digest"
+        )
+        raise typer.Exit(1)
+    if report.source_digest != actual_digest:
+        console.print(
+            "[bold red]✗[/bold red] The staged environment changed after validation; upload was not attempted"
+        )
+        raise typer.Exit(1)
 
 
 def _get_hf_username() -> str:
@@ -292,12 +410,20 @@ def _prepare_staging_directory(
     # Create staging directory structure
     staging_dir.mkdir(parents=True, exist_ok=True)
 
-    # Copy all files from env directory
+    # Use the same file policy as the validation archive so every uploaded
+    # source file is covered by the report's source digest.
     copy_ignore = _copytree_ignore_factory(env_dir, ignore_patterns)
     for item in env_dir.iterdir():
         relative_path = item.relative_to(env_dir)
-        if _should_exclude_path(relative_path, ignore_patterns):
+        if _should_exclude_path(
+            relative_path, ignore_patterns
+        ) or not validation_source_path_allowed(relative_path):
             continue
+        if item.is_symlink():
+            raise typer.BadParameter(
+                "Source contains a symbolic link that would enter the "
+                f"validation snapshot: {relative_path}"
+            )
 
         dest = staging_dir / item.name
         if item.is_dir():
@@ -734,6 +860,13 @@ def push(
 
     # Handle custom registry push
     if registry:
+        try:
+            validation_report = _run_publish_validation(env_dir, remote=False)
+        except (RemoteValidationError, ValueError) as exc:
+            console.print(f"[bold red]✗[/bold red] Publish validation failed: {exc}")
+            raise typer.Exit(1) from exc
+        _render_publish_gate(validation_report)
+
         console.print("[bold cyan]Preparing to push to custom registry...[/bold cyan]")
         if enable_interface:
             console.print("[bold cyan]Web interface will be enabled[/bold cyan]")
@@ -778,6 +911,11 @@ def push(
         return
 
     ignore_patterns = _load_ignore_patterns(env_dir, exclude)
+    if _excludes_versioned_report(ignore_patterns):
+        raise typer.BadParameter(
+            "Push excludes must preserve the versioned author report at "
+            f"{_VERSIONED_VALIDATION_REPORT.as_posix()}"
+        )
 
     # Ensure authentication for HuggingFace
     username = _ensure_hf_authenticated()
@@ -813,6 +951,19 @@ def push(
             base_image=base_image,
             enable_interface=enable_interface,
         )
+
+        console.print(
+            "[bold cyan]Running strict publish validation in a dedicated Hugging Face Sandbox...[/bold cyan]"
+        )
+        try:
+            validation_report = _run_publish_validation(staging_dir)
+        except (RemoteValidationError, ValueError) as exc:
+            console.print(f"[bold red]✗[/bold red] Remote validation failed: {exc}")
+            raise typer.Exit(1) from exc
+        _render_publish_gate(validation_report)
+        _verify_snapshot_binding(staging_dir, validation_report)
+        _write_versioned_validation_report(staging_dir, validation_report)
+        _verify_snapshot_binding(staging_dir, validation_report)
 
         if count > 1:
             base_repo_id = repo_id

@@ -31,6 +31,7 @@ from .remote import (
     RemoteValidationError,
     run_remote_validation,
     validation_source_digest,
+    validation_source_path_allowed,
 )
 from .security import ensure_official_hf_sandbox
 
@@ -61,4 +62,5 @@ __all__ = [
     "run_local_validation",
     "run_remote_validation",
     "validation_source_digest",
+    "validation_source_path_allowed",
 ]

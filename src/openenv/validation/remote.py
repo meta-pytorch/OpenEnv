@@ -86,7 +86,11 @@ class RemoteValidationError(RuntimeError):
     """Remote author validation could not produce a trustworthy report payload."""
 
 
-def _archive_path_allowed(relative: Path) -> bool:
+def validation_source_path_allowed(relative: str | Path) -> bool:
+    """Return whether a relative file path belongs in a validation snapshot."""
+    relative = Path(relative)
+    if relative.is_absolute() or ".." in relative.parts or not relative.parts:
+        return False
     if any(part in _EXCLUDED_PARTS or part.startswith(".") for part in relative.parts):
         return False
     name = relative.name
@@ -119,7 +123,7 @@ def validation_source_digest(root: str | Path) -> str:
     digest = hashlib.sha256()
     for candidate in sorted(root_path.rglob("*")):
         relative = candidate.relative_to(root_path)
-        if not _archive_path_allowed(relative) or not candidate.is_file():
+        if not validation_source_path_allowed(relative) or not candidate.is_file():
             continue
         encoded_path = relative.as_posix().encode("utf-8")
         digest.update(len(encoded_path).to_bytes(8, "big"))
@@ -151,7 +155,7 @@ def _add_tree(archive: tarfile.TarFile, root: Path, *, prefix: Path) -> None:
     for candidate in sorted(root.rglob("*")):
         relative = candidate.relative_to(root)
         if (
-            not _archive_path_allowed(relative)
+            not validation_source_path_allowed(relative)
             or candidate.is_symlink()
             or not (candidate.is_file() or candidate.is_dir())
         ):

@@ -2,13 +2,24 @@
 
 """Tests for the openenv push command."""
 
+import json
 import os
 import re
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
+import pytest
 import yaml
 from openenv.cli.__main__ import app
+from openenv.validation import (
+    RunnerCapabilities,
+    validation_source_digest,
+    ValidationProfile,
+    ValidationReport,
+    ValidationResult,
+    ValidationSeverity,
+    ValidationStatus,
+)
 from typer.testing import CliRunner
 
 
@@ -19,6 +30,56 @@ ANSI_ESCAPE_RE = re.compile(r"\x1b\[[0-9;]*m")
 def _strip_ansi(text: str) -> str:
     """Remove ANSI escape sequences from CLI output for stable assertions."""
     return ANSI_ESCAPE_RE.sub("", text)
+
+
+def _publish_validation_report(
+    *,
+    target: str = ".",
+    status: ValidationStatus = ValidationStatus.PASS,
+    criterion_id: str = "source.publish_ready",
+    message: str | None = None,
+    evidence: dict[str, object] | None = None,
+    source_digest: str | None = None,
+) -> ValidationReport:
+    """Build a small shared report without launching an environment."""
+    return ValidationReport(
+        target=target,
+        profile=ValidationProfile.PUBLISH,
+        policy_version="rfc008-v1",
+        runner=RunnerCapabilities(runner="hf-sandbox", isolation_mode="dedicated"),
+        results=(
+            ValidationResult(
+                criterion_id=criterion_id,
+                requirement="The environment satisfies strict publish validation",
+                status=status,
+                severity=ValidationSeverity.BLOCKING,
+                evidence=evidence or {},
+                duration_s=0.01,
+                timeout_s=5.0,
+                required_capabilities=frozenset(),
+                message=message,
+            ),
+        ),
+        duration_s=0.01,
+        started_at="2026-07-12T12:00:00+00:00",
+        finished_at="2026-07-12T12:00:00.010000+00:00",
+        source_digest=source_digest,
+    )
+
+
+@pytest.fixture(autouse=True)
+def _mock_publish_validation():
+    """Keep push tests isolated from the strict remote validator."""
+
+    def passing(source: Path, **_: object) -> ValidationReport:
+        return _publish_validation_report(
+            target=str(source),
+            source_digest=validation_source_digest(source),
+        )
+
+    with patch("openenv.cli.commands.push._run_publish_validation") as validation:
+        validation.side_effect = passing
+        yield validation
 
 
 def _create_test_openenv_env(env_dir: Path, env_name: str = "test_env") -> None:
@@ -470,18 +531,27 @@ def test_push_accepts_dockerfile_at_env_root(tmp_path: Path) -> None:
         assert "server/Dockerfile" not in files
 
 
-def test_push_handles_missing_dockerfile(tmp_path: Path) -> None:
+def test_push_handles_missing_dockerfile(
+    tmp_path: Path, _mock_publish_validation: MagicMock
+) -> None:
     """Test that push fails when Dockerfile is missing (required for deployment)."""
     _create_test_openenv_env(tmp_path)
     # Remove Dockerfile (no root Dockerfile either)
     (tmp_path / "server" / "Dockerfile").unlink()
+    _mock_publish_validation.side_effect = None
+    _mock_publish_validation.return_value = _publish_validation_report(
+        status=ValidationStatus.FAIL,
+        criterion_id="source.dockerfile",
+        message="Missing Dockerfile and normalized container-image declaration",
+    )
 
-    old_cwd = os.getcwd()
-    try:
-        os.chdir(str(tmp_path))
-        result = runner.invoke(app, ["push"])
-    finally:
-        os.chdir(old_cwd)
+    with patch("openenv.cli.commands.push.whoami", return_value={"name": "testuser"}):
+        old_cwd = os.getcwd()
+        try:
+            os.chdir(str(tmp_path))
+            result = runner.invoke(app, ["push"])
+        finally:
+            os.chdir(old_cwd)
 
     # Dockerfile is now required - should fail
     assert result.exit_code != 0
@@ -489,21 +559,27 @@ def test_push_handles_missing_dockerfile(tmp_path: Path) -> None:
 
 
 def test_push_handles_missing_readme(tmp_path: Path) -> None:
-    """Test that push fails when README.md is missing (required for deployment)."""
+    """A missing optional README warns without bypassing publish validation."""
     _create_test_openenv_env(tmp_path)
     # Remove README
     (tmp_path / "README.md").unlink()
 
-    old_cwd = os.getcwd()
-    try:
-        os.chdir(str(tmp_path))
-        result = runner.invoke(app, ["push"])
-    finally:
-        os.chdir(old_cwd)
+    with (
+        patch("openenv.cli.commands.push.whoami", return_value={"name": "testuser"}),
+        patch("openenv.cli.commands.push.HfApi") as mock_hf_api_class,
+    ):
+        mock_api = MagicMock()
+        mock_hf_api_class.return_value = mock_api
+        old_cwd = os.getcwd()
+        try:
+            os.chdir(str(tmp_path))
+            result = runner.invoke(app, ["push"])
+        finally:
+            os.chdir(old_cwd)
 
-    # README.md is now required - should fail
-    assert result.exit_code != 0
-    assert "readme" in result.output.lower() or "missing" in result.output.lower()
+    assert result.exit_code == 0, result.output
+    assert "readme" in result.output.lower()
+    assert mock_api.upload_folder.called
 
 
 def test_push_initializes_hf_api_without_token(tmp_path: Path) -> None:
@@ -568,7 +644,6 @@ def test_push_bare_repo_id_expands_to_username(tmp_path: Path) -> None:
         patch("openenv.cli.commands.push.HfApi") as mock_hf_api_class,
         patch("openenv.cli.commands.push._upload_to_hf_space") as mock_upload,
         patch("openenv.cli.commands.push._create_hf_space") as mock_create,
-        patch("openenv.cli.commands.push._prepare_staging_directory") as _mock_stage,
     ):
         mock_whoami.return_value = {"name": "testuser"}
         mock_login.return_value = None
@@ -842,7 +917,9 @@ excluded_dir/
             ignore_patterns = kwargs["ignore_patterns"]
             assert "excluded_dir/" in ignore_patterns
             assert "*.bin" in ignore_patterns
-            assert ".*" in ignore_patterns
+            assert ".git/" in ignore_patterns
+            assert ".env" in ignore_patterns
+            assert ".*" not in ignore_patterns
 
             staged = Path(kwargs["folder_path"])
             assert not (staged / "excluded_dir").exists()
@@ -1588,3 +1665,221 @@ def test_push_exits_cleanly_if_setting_space_variable_fails(tmp_path: Path) -> N
         assert "failed to set variable openspiel_game" in result.output.lower()
         assert "permission denied" in result.output.lower()
         assert "traceback" not in result.output.lower()
+
+
+def test_push_validates_staged_snapshot_before_hf_upload(
+    tmp_path: Path, _mock_publish_validation: MagicMock
+) -> None:
+    _create_test_openenv_env(tmp_path)
+    (tmp_path / "excluded.txt").write_text("not uploaded\n")
+    ignore_file = tmp_path / ".openenvignore"
+    ignore_file.write_text("excluded.txt\n")
+    events: list[str] = []
+
+    def validate_staging(source: Path, **_: object) -> ValidationReport:
+        events.append("validate")
+        assert source.name == "staging"
+        assert (source / "Dockerfile").is_file()
+        assert not (source / "server" / "Dockerfile").exists()
+        assert not (source / "excluded.txt").exists()
+        return _publish_validation_report(
+            target=str(source),
+            source_digest=validation_source_digest(source),
+        )
+
+    def upload(**_: object) -> None:
+        events.append("upload")
+
+    _mock_publish_validation.side_effect = validate_staging
+    with (
+        patch("openenv.cli.commands.push.whoami", return_value={"name": "testuser"}),
+        patch("openenv.cli.commands.push.HfApi") as api_class,
+    ):
+        api = MagicMock()
+        api.upload_folder.side_effect = upload
+        api_class.return_value = api
+        result = runner.invoke(
+            app,
+            ["push", str(tmp_path), "--exclude", str(ignore_file)],
+        )
+
+    assert result.exit_code == 0, result.output
+    assert events == ["validate", "upload"]
+
+
+def test_push_stages_safe_versioned_validation_report_for_hf(
+    tmp_path: Path, _mock_publish_validation: MagicMock
+) -> None:
+    _create_test_openenv_env(tmp_path)
+    (tmp_path / ".envrc").write_text("export HF_TOKEN=do-not-upload\n")
+    (tmp_path / ".netrc").write_text("password do-not-upload\n")
+    (tmp_path / "credentials.json").write_text('{"token": "do-not-upload"}\n')
+    (tmp_path / "validation-report.json").write_text("{}\n")
+    (tmp_path / "SECRET.PEM").write_text("do-not-upload\n")
+    (tmp_path / "node_modules").mkdir()
+    (tmp_path / "node_modules" / "payload.js").write_text("unchecked\n")
+    outside = tmp_path.parent / "excluded-venv-python"
+    outside.write_text("do-not-upload\n")
+    (tmp_path / ".venv" / "bin").mkdir(parents=True)
+    (tmp_path / ".venv" / "bin" / "python").symlink_to(outside)
+    captured: dict[str, object] = {}
+
+    def validate_staging(source: Path, **_: object) -> ValidationReport:
+        assert not (source / ".envrc").exists()
+        assert not (source / ".netrc").exists()
+        assert not (source / "credentials.json").exists()
+        assert not (source / "validation-report.json").exists()
+        assert not (source / "SECRET.PEM").exists()
+        assert not (source / "node_modules").exists()
+        assert not (source / ".venv").exists()
+        return _publish_validation_report(
+            target=str(source),
+            evidence={
+                "source_path": f"{source}/server/app.py",
+                "sandbox_path": "/workspace/source/openenv.yaml",
+            },
+            source_digest=validation_source_digest(source),
+        )
+
+    def capture_upload(*, folder_path: str, ignore_patterns: list[str], **_: object):
+        staging = Path(folder_path)
+        report_path = staging / ".openenv" / "validation-report.json"
+        captured["payload"] = json.loads(report_path.read_text())
+        captured["ignore_patterns"] = ignore_patterns
+
+    _mock_publish_validation.side_effect = validate_staging
+    with (
+        patch("openenv.cli.commands.push.whoami", return_value={"name": "testuser"}),
+        patch("openenv.cli.commands.push.HfApi") as api_class,
+    ):
+        api = MagicMock()
+        api.upload_folder.side_effect = capture_upload
+        api_class.return_value = api
+        result = runner.invoke(app, ["push", str(tmp_path)])
+
+    assert result.exit_code == 0, result.output
+    payload = captured["payload"]
+    assert isinstance(payload, dict)
+    assert payload["report_schema_version"] == "1.0"
+    assert payload["policy_version"] == "rfc008-v1"
+    assert payload["target"] == "."
+    assert payload["source_digest"].startswith("sha256:")
+    assert "/workspace/source" not in json.dumps(payload)
+    assert payload["certified"] is False
+    assert ".*" not in captured["ignore_patterns"]
+
+
+@pytest.mark.parametrize(
+    "pattern",
+    [".*", ".openenv", ".openenv/", ".openenv/*", "validation-report.json"],
+)
+def test_push_rejects_excludes_that_drop_versioned_validation_report(
+    tmp_path: Path, pattern: str
+) -> None:
+    _create_test_openenv_env(tmp_path)
+    ignore_file = tmp_path / ".openenvignore"
+    ignore_file.write_text(f"{pattern}\n")
+
+    with (
+        patch("openenv.cli.commands.push.whoami", return_value={"name": "testuser"}),
+        patch("openenv.cli.commands.push.HfApi") as api_class,
+    ):
+        api = MagicMock()
+        api_class.return_value = api
+        result = runner.invoke(
+            app,
+            ["push", str(tmp_path), "--exclude", str(ignore_file)],
+        )
+
+    assert result.exit_code != 0
+    assert ".openenv/validation-report.json" in _strip_ansi(result.output)
+    api.upload_folder.assert_not_called()
+
+
+def test_push_rejects_source_symlinks(tmp_path: Path) -> None:
+    _create_test_openenv_env(tmp_path)
+    outside = tmp_path.parent / "outside-secret.txt"
+    outside.write_text("do-not-upload\n")
+    (tmp_path / "linked-secret.txt").symlink_to(outside)
+
+    with patch("openenv.cli.commands.push.whoami", return_value={"name": "testuser"}):
+        result = runner.invoke(app, ["push", str(tmp_path)])
+
+    assert result.exit_code != 0
+    assert "symbolic link" in _strip_ansi(result.output).lower()
+
+
+def test_push_rejects_snapshot_changed_after_validation(
+    tmp_path: Path, _mock_publish_validation: MagicMock
+) -> None:
+    _create_test_openenv_env(tmp_path)
+
+    def mutate_after_validation(source: Path, **_: object) -> ValidationReport:
+        digest = validation_source_digest(source)
+        (source / "server" / "app.py").write_text("tampered\n")
+        return _publish_validation_report(
+            target=str(source),
+            source_digest=digest,
+        )
+
+    _mock_publish_validation.side_effect = mutate_after_validation
+    with (
+        patch("openenv.cli.commands.push.whoami", return_value={"name": "testuser"}),
+        patch("openenv.cli.commands.push.HfApi") as api_class,
+    ):
+        api = MagicMock()
+        api_class.return_value = api
+        result = runner.invoke(app, ["push", str(tmp_path)])
+
+    assert result.exit_code != 0
+    assert "changed after validation" in _strip_ansi(result.output).lower()
+    api.upload_folder.assert_not_called()
+
+
+@pytest.mark.parametrize(
+    ("status", "criterion_id", "message", "actionable_word"),
+    [
+        (
+            ValidationStatus.FAIL,
+            "source.dependencies",
+            "Missing required dependency: openenv>=0.2.0",
+            "failed",
+        ),
+        (
+            ValidationStatus.SKIP,
+            "runtime.websocket",
+            "The strict runtime check did not run",
+            "incomplete",
+        ),
+    ],
+)
+def test_push_rejects_failed_or_incomplete_validation_before_upload(
+    tmp_path: Path,
+    _mock_publish_validation: MagicMock,
+    status: ValidationStatus,
+    criterion_id: str,
+    message: str,
+    actionable_word: str,
+) -> None:
+    _create_test_openenv_env(tmp_path)
+    _mock_publish_validation.side_effect = None
+    _mock_publish_validation.return_value = _publish_validation_report(
+        status=status,
+        criterion_id=criterion_id,
+        message=message,
+    )
+
+    with (
+        patch("openenv.cli.commands.push.whoami", return_value={"name": "testuser"}),
+        patch("openenv.cli.commands.push.HfApi") as api_class,
+    ):
+        api = MagicMock()
+        api_class.return_value = api
+        result = runner.invoke(app, ["push", str(tmp_path)])
+
+    clean_output = _strip_ansi(result.output).lower()
+    assert result.exit_code != 0
+    api.upload_folder.assert_not_called()
+    assert actionable_word in clean_output
+    assert criterion_id in clean_output
+    assert message.lower() in clean_output
