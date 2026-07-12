@@ -1,0 +1,13 @@
+schema_version = "1.1"
+
+[task]
+name = "openenv/__ENV_NAME__"
+description = "__ENV_TITLE_NAME__ OpenEnv environment"
+
+[environment]
+cpus = 1
+memory_mb = 2048
+storage_mb = 10240
+gpus = 0
+# Set this to false when the environment does not need outbound internet.
+allow_internet = true

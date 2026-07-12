@@ -79,11 +79,14 @@ Ask only what changes architecture or contracts.
 Mark complete only when all are true:
 
 - `envs/<name>_env/openenv.yaml` exists, uses `spec_version: 1`, and points to `server.app:app`.
+- `envs/<name>_env/task.toml` uses Harbor schema 1.1 and truthfully declares
+  publish-time resource and network requirements.
 - `models.py` defines typed action/observation/state.
 - `server/<name>_environment.py` implements `reset`, `step`, and `state`.
 - `server/app.py` calls `create_app` with action/observation classes.
 - `client.py` matches the selected archetype and correctly serializes/parses data.
 - `__init__.py` exports the public API.
 - `README.md` includes quickstart and configuration.
-- `openenv build` and `openenv validate --verbose` pass, or failures are documented.
+- `openenv build` and `openenv validate --profile publish --remote` pass, or
+  failures are documented.
 - Runtime smoke check is executed (`/health`; optionally `openenv validate --url`).

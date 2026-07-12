@@ -39,6 +39,7 @@ def test_init_creates_directory_structure(tmp_path: Path) -> None:
     assert (env_dir / "client.py").exists()
     assert (env_dir / "README.md").exists()
     assert (env_dir / "openenv.yaml").exists()
+    assert (env_dir / "task.toml").exists()
     assert (env_dir / "server").exists()
     assert (env_dir / "server" / "__init__.py").exists()
     assert (env_dir / "server" / "app.py").exists()
@@ -114,6 +115,22 @@ def test_init_generates_openenv_yaml(tmp_path: Path) -> None:
     assert "app: server.app:app" in yaml_content
     assert "port: 8000" in yaml_content
     assert "__ENV_NAME__" not in yaml_content
+
+
+def test_init_generates_publish_requirements(tmp_path: Path) -> None:
+    env_name = "test_env"
+    result = runner.invoke(
+        app,
+        ["init", env_name, "--output-dir", str(tmp_path)],
+        input="\n",
+    )
+
+    assert result.exit_code == 0
+    task_content = (tmp_path / env_name / "task.toml").read_text()
+    assert 'schema_version = "1.1"' in task_content
+    assert 'name = "openenv/test_env"' in task_content
+    assert "[environment]" in task_content
+    assert "__ENV_NAME__" not in task_content
 
 
 def test_init_readme_has_hf_frontmatter(tmp_path: Path) -> None:

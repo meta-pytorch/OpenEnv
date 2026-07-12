@@ -120,6 +120,8 @@ Use these standards:
 - For MCP/tool-call UIs that send stringified JSON arguments, add action validators/parsers in `server/app.py`.
 - Export public client/models symbols in `__init__.py`.
 - Keep `openenv.yaml` aligned with current scaffold format (`spec_version: 1`, `name`, `type`, `runtime`, `app`, `port`).
+- Add a Harbor schema 1.1 `task.toml` and configure truthful resource,
+  networking, timeout, verifier, and artifact requirements for the environment.
 - Avoid training/evaluation code paths in this skill.
 
 ### 8. Validate before handoff
@@ -134,6 +136,7 @@ PYTHONPATH=src:envs uv run python -c "from envs.<name>_env.server.<name>_environ
 cd envs/<name>_env
 openenv build
 openenv validate --verbose
+openenv validate --profile publish --remote
 PYTHONPATH=src:envs uv run pytest envs/<name>_env -q
 ```
 

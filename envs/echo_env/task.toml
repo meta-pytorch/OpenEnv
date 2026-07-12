@@ -1,0 +1,12 @@
+schema_version = "1.1"
+
+[task]
+name = "openenv/echo-env"
+description = "Canonical OpenEnv echo environment used for validation and examples."
+
+[environment]
+cpus = 1
+memory_mb = 2048
+storage_mb = 10240
+gpus = 0
+allow_internet = false
