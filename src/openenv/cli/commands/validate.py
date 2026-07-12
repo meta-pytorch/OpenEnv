@@ -14,7 +14,9 @@ from typing import Annotated
 import typer
 from openenv.validation import (
     format_shared_validation_report,
+    RemoteValidationError,
     run_local_validation,
+    run_remote_validation,
     ValidationProfile,
 )
 
@@ -56,6 +58,20 @@ def validate(
             help="Validation profile: static, runtime, full, or publish",
         ),
     ] = None,
+    remote: Annotated[
+        bool,
+        typer.Option(
+            "--remote",
+            help="Run validation in a fresh dedicated Hugging Face Sandbox",
+        ),
+    ] = False,
+    hf_flavor: Annotated[
+        str,
+        typer.Option(
+            "--hf-flavor",
+            help="Hugging Face Sandbox hardware flavor used with --remote",
+        ),
+    ] = "cpu-basic",
     output: Annotated[
         Path | None,
         typer.Option(
@@ -136,12 +152,22 @@ def validate(
             raise typer.Exit(1)
         runtime_target = target
 
-    if profile is None:
-        selected_profile = (
-            ValidationProfile.RUNTIME
-            if runtime_target is not None
-            else ValidationProfile.STATIC
+    if remote and runtime_target is not None:
+        typer.echo(
+            "Error: --remote requires a local source directory, not a runtime URL",
+            err=True,
         )
+        raise typer.Exit(1)
+
+    if profile is None:
+        if remote:
+            selected_profile = ValidationProfile.PUBLISH
+        else:
+            selected_profile = (
+                ValidationProfile.RUNTIME
+                if runtime_target is not None
+                else ValidationProfile.STATIC
+            )
     else:
         try:
             selected_profile = ValidationProfile(profile.lower())
@@ -176,13 +202,22 @@ def validate(
             raise typer.Exit(1)
 
     try:
-        report = run_local_validation(
-            shared_target,
-            profile=selected_profile,
-            runtime_url=shared_runtime_url,
-            timeout_s=timeout,
-        )
-    except ValueError as exc:
+        if remote:
+            assert isinstance(shared_target, Path)
+            report = run_remote_validation(
+                shared_target,
+                profile=selected_profile,
+                flavor=hf_flavor,
+                runtime_timeout_s=timeout,
+            )
+        else:
+            report = run_local_validation(
+                shared_target,
+                profile=selected_profile,
+                runtime_url=shared_runtime_url,
+                timeout_s=timeout,
+            )
+    except (RemoteValidationError, ValueError) as exc:
         typer.echo(f"Error: {exc}", err=True)
         raise typer.Exit(1) from exc
 

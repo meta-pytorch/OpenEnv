@@ -339,6 +339,53 @@ def test_shared_verbose_report_includes_structured_evidence(tmp_path: Path) -> N
     assert "dockerfile_installs_openenv" in result.output
 
 
+def test_validate_remote_defaults_to_publish_profile(tmp_path: Path) -> None:
+    env_dir = tmp_path / "test_env"
+    _write_minimal_valid_env(env_dir)
+    remote_report = MagicMock()
+    remote_report.passed = True
+    remote_report.to_dict.return_value = {
+        "validation_type": "openenv_validation",
+        "report_schema_version": "1.0",
+        "profile": "publish",
+        "passed": True,
+        "criteria": [],
+    }
+
+    with (
+        patch(
+            "openenv.cli.commands.validate.run_remote_validation",
+            return_value=remote_report,
+            create=True,
+        ) as run_remote,
+        patch("openenv.cli.commands.validate.run_local_validation") as run_local,
+    ):
+        result = runner.invoke(
+            app,
+            ["validate", str(env_dir), "--remote", "--json"],
+        )
+
+    assert result.exit_code == 0, result.output
+    assert json.loads(result.output)["profile"] == "publish"
+    run_remote.assert_called_once_with(
+        env_dir,
+        profile=ValidationProfile.PUBLISH,
+        flavor="cpu-basic",
+        runtime_timeout_s=5.0,
+    )
+    run_local.assert_not_called()
+
+
+def test_validate_remote_rejects_runtime_url() -> None:
+    result = runner.invoke(
+        app,
+        ["validate", "https://example.com", "--remote"],
+    )
+
+    assert result.exit_code == 1
+    assert "--remote requires a local source directory" in result.output
+
+
 def test_validate_command_local_json_output(tmp_path: Path) -> None:
     """CLI can emit JSON report for local validation via --json."""
     env_dir = tmp_path / "test_env"
