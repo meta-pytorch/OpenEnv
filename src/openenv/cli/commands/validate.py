@@ -19,6 +19,11 @@ from openenv.cli._validation import (
     validate_multi_mode_deployment,
     validate_running_environment,
 )
+from openenv.validation import (
+    format_shared_validation_report,
+    run_local_validation,
+    ValidationProfile,
+)
 
 
 def _looks_like_url(value: str) -> bool:
@@ -48,9 +53,23 @@ def validate(
         bool,
         typer.Option(
             "--json",
-            help="Output local validation report as JSON (runtime validation is JSON by default)",
+            help="Output the RFC 008 shared validation report as JSON",
         ),
     ] = False,
+    profile: Annotated[
+        str | None,
+        typer.Option(
+            "--profile",
+            help="Validation profile: static, runtime, or full",
+        ),
+    ] = None,
+    output: Annotated[
+        Path | None,
+        typer.Option(
+            "--output",
+            help="Write the shared JSON validation report to this path",
+        ),
+    ] = None,
     timeout: Annotated[
         float,
         typer.Option(
@@ -74,6 +93,11 @@ def validate(
 
     Runtime validation checks if a live OpenEnv server conforms to the
     versioned runtime API contract and returns a criteria-based JSON report.
+    Explicit static, runtime, and full profiles emit the RFC 008 shared report.
+    Reports identify the served OpenEnv spec and pinned adapter; external task
+    package formats are intentionally outside this command's dispatch surface.
+    Automatic runtime launch is intended for trusted local source; connect to
+    an already isolated server with `--url` for untrusted environments.
 
     Examples:
 
@@ -91,6 +115,9 @@ def validate(
 
         # Validate specific environment
         $ openenv validate envs/echo_env
+
+        # Run every locally available check and record remote-only skips
+        $ openenv validate envs/echo_env --profile full --output report.json
         ```
     """
     runtime_target = url
@@ -113,6 +140,80 @@ def validate(
             )
             raise typer.Exit(1)
         runtime_target = target
+
+    # Machine-readable and explicit-profile invocations use the RFC 008 shared
+    # report. Only the unqualified human rendering stays on the legacy path.
+    if profile is not None or output is not None or json_output:
+        if profile is None:
+            selected_profile = (
+                ValidationProfile.RUNTIME
+                if runtime_target is not None
+                else ValidationProfile.STATIC
+            )
+        else:
+            try:
+                selected_profile = ValidationProfile(profile.lower())
+            except ValueError as exc:
+                typer.echo(
+                    "Error: --profile must be one of: static, runtime, full",
+                    err=True,
+                )
+                raise typer.Exit(1) from exc
+
+        if runtime_target is not None and selected_profile is ValidationProfile.STATIC:
+            typer.echo(
+                "Error: The static profile requires a local source directory",
+                err=True,
+            )
+            raise typer.Exit(1)
+
+        if runtime_target is not None:
+            shared_target: str | Path = runtime_target
+            shared_runtime_url = runtime_target
+        else:
+            shared_target = Path.cwd() if target is None else Path(target)
+            shared_runtime_url = None
+            if not shared_target.exists():
+                typer.echo(f"Error: Path does not exist: {shared_target}", err=True)
+                raise typer.Exit(1)
+            if not shared_target.is_dir():
+                typer.echo(f"Error: Path is not a directory: {shared_target}", err=True)
+                raise typer.Exit(1)
+
+        try:
+            report = run_local_validation(
+                shared_target,
+                profile=selected_profile,
+                runtime_url=shared_runtime_url,
+                timeout_s=timeout,
+            )
+        except ValueError as exc:
+            typer.echo(f"Error: {exc}", err=True)
+            raise typer.Exit(1) from exc
+        payload = report.to_dict()
+        serialized = json.dumps(payload, indent=2)
+
+        if output is not None:
+            try:
+                output.parent.mkdir(parents=True, exist_ok=True)
+                output.write_text(f"{serialized}\n", encoding="utf-8")
+            except OSError as exc:
+                typer.echo(
+                    f"Error: Unable to write validation report: {type(exc).__name__}",
+                    err=True,
+                )
+                raise typer.Exit(1) from exc
+
+        if json_output:
+            typer.echo(serialized)
+        else:
+            typer.echo(format_shared_validation_report(report))
+            if output is not None:
+                typer.echo(f"Report written to {output}")
+
+        if not report.passed:
+            raise typer.Exit(1)
+        return
 
     if runtime_target is not None:
         try:

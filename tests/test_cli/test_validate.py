@@ -41,7 +41,9 @@ def _write_minimal_valid_env(
     (env_dir / "openenv.yaml").write_text(
         "spec_version: 1\nname: test_env\ntype: space\nruntime: fastapi\napp: server.app:app\nport: 8000\n"
     )
-    (env_dir / "uv.lock").write_text("")
+    (env_dir / "uv.lock").write_text(
+        'version = 1\nrevision = 1\nrequires-python = ">=3.10"\n'
+    )
     (env_dir / "pyproject.toml").write_text(
         "[project]\n"
         'name = "test-env"\n'
@@ -54,6 +56,7 @@ def _write_minimal_valid_env(
     (env_dir / "server" / "app.py").write_text(
         f"{main_signature}\n    return None\n\nif __name__ == '__main__':\n    {main_invocation}\n"
     )
+    (env_dir / "server" / "Dockerfile").write_text("FROM python:3.12-slim\n")
 
 
 def test_validate_running_environment_success() -> None:
@@ -194,6 +197,16 @@ def test_validate_command_runtime_target_outputs_json() -> None:
     mock_validate.assert_called_once_with("https://example.com", timeout_s=5.0)
 
 
+def test_validate_shared_profile_reports_invalid_runtime_url() -> None:
+    result = runner.invoke(
+        app,
+        ["validate", "--url", "http://[::1", "--profile", "runtime", "--json"],
+    )
+
+    assert result.exit_code == 1
+    assert "Error: Invalid runtime URL" in result.output
+
+
 def test_validate_command_local_path_still_works(tmp_path: Path) -> None:
     """CLI local validation remains backward compatible."""
     env_dir = tmp_path / "test_env"
@@ -214,11 +227,45 @@ def test_validate_command_local_json_output(tmp_path: Path) -> None:
 
     assert result.exit_code == 0
     payload = json.loads(result.output)
-    assert payload["validation_type"] == "local_environment"
+    assert payload["validation_type"] == "openenv_validation"
+    assert payload["report_schema_version"] == "1.0"
+    assert payload["profile"] == "static"
+    assert payload["spec"]["id"] == "openenv"
+    assert payload["spec"]["adapter"] == {
+        "id": "openenv-yaml",
+        "version": "1",
+    }
+    assert payload["spec"]["execution_model"] == "served"
     assert payload["passed"] is True
-    assert payload["summary"]["passed_count"] == 1
-    assert payload["summary"]["total_count"] == 1
+    assert payload["summary"]["passed_count"] >= 1
+    assert payload["summary"]["total_count"] >= 1
     assert payload["summary"]["failed_criteria"] == []
+
+
+def test_profile_json_can_be_written_to_output_file(tmp_path: Path) -> None:
+    env_dir = tmp_path / "test_env"
+    report_path = tmp_path / "reports" / "validation.json"
+    _write_minimal_valid_env(env_dir)
+
+    result = runner.invoke(
+        app,
+        [
+            "validate",
+            str(env_dir),
+            "--profile",
+            "static",
+            "--json",
+            "--output",
+            str(report_path),
+        ],
+    )
+
+    assert result.exit_code == 0, result.output
+    stdout_payload = json.loads(result.output)
+    file_payload = json.loads(report_path.read_text())
+    assert file_payload == stdout_payload
+    assert file_payload["profile"] == "static"
+    assert file_payload["report_schema_version"] == "1.0"
 
 
 def test_validate_command_rejects_environment_package_as_runtime_dependency(
@@ -259,6 +306,7 @@ def test_validate_command_accepts_dockerfile_managed_openenv_runtime(
         'server = "server.app:main"\n'
     )
     (env_dir / "server" / "Dockerfile").write_text(
+        "FROM python:3.12-slim\n"
         'RUN pip install --no-cache-dir --no-deps "openenv[core]>=0.2.2"\n'
     )
 

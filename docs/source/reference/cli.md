@@ -40,6 +40,28 @@ openenv import path/to/source --name my_env --output-dir ./envs --env-class MyEn
 
 ## `openenv validate`
 
+Use an explicit profile to produce the RFC 008 validation plan and shared
+report schema:
+
+```bash
+openenv validate path/to/env --profile static
+openenv validate path/to/env --profile runtime --json
+openenv validate --url http://127.0.0.1:8000 --profile runtime --json
+openenv validate path/to/env --profile full --output validation.json
+```
+
+`static` checks source and packaging, `runtime` adds a launched or connected
+server, and `full` records every policy criterion while marking unavailable
+remote capabilities as skipped. Local reports never claim official
+certification. Automatic local launch executes the environment checkout as the
+current user and is intended only for trusted development source; use `--url`
+for a server you already isolated.
+
+This command intentionally targets the served OpenEnv spec. Shared reports
+record spec, adapter, and execution-model provenance, but `openenv validate`
+does not auto-dispatch external task-package formats. A separate spec-selected
+task workflow is tracked in [issue #898](https://github.com/huggingface/OpenEnv/issues/898).
+
 [[autodoc]] openenv.cli.commands.validate.validate
 
 ## `openenv push`
