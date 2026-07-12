@@ -58,6 +58,8 @@ src/
 │   │       ├── local_python_executor.py  # Python code execution
 │   │       └── git_server_client.py      # Git operations
 │   │
+│   ├── validation/           # Spec adapters, versioned policy, planning, and reports
+│   │
 │   └── cli/                  # Command-line interface
 │       ├── __main__.py           # Entry point (`python -m openenv.cli`)
 │       ├── commands/             # CLI subcommands
@@ -118,6 +120,7 @@ tests/
 │   └── ...
 │
 ├── test_cli/                 # CLI command tests
+├── test_validation/          # Validation policy and execution tests
 └── scripts/                  # Test utility scripts
 ```
 
