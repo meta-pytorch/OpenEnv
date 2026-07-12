@@ -421,11 +421,25 @@ class ValidationReport:
     duration_s: float
     started_at: str
     finished_at: str
+    spec: ValidationSubject | None = None
+    spec_identity: SpecIdentity | None = None
     repo_sha: str | None = None
     image_digest: str | None = None
     certified: bool = False
     certification_eligible: bool = False
     report_schema_version: str = "1.0"
+
+    def __post_init__(self) -> None:
+        if not _STABLE_IDENTIFIER.fullmatch(self.policy_version):
+            raise ValueError(
+                "ValidationReport policy version must be a stable identifier"
+            )
+        if (
+            self.spec is not None
+            and self.spec_identity is not None
+            and self.spec_identity != self.spec.spec
+        ):
+            raise ValueError("ValidationReport spec identity must match its subject")
 
     @property
     def passed(self) -> bool:
@@ -481,9 +495,18 @@ class ValidationReport:
 
     def to_dict(self) -> dict[str, Any]:
         """Return the versioned JSON report."""
-        return {
+        payload = {
             "report_schema_version": self.report_schema_version,
             "policy_version": self.policy_version,
+            "spec": (
+                self.spec.to_dict()
+                if self.spec is not None
+                else (
+                    self.spec_identity.to_dict()
+                    if self.spec_identity is not None
+                    else None
+                )
+            ),
             "target": self.target,
             "validation_type": "openenv_validation",
             "profile": self.profile.value,
@@ -500,3 +523,29 @@ class ValidationReport:
             "summary": self._summary(),
             "criteria": [result.to_dict() for result in self.results],
         }
+        serialized = json_safe(
+            payload,
+            trusted_string_keys=_TRUSTED_METADATA_STRING_KEYS,
+        )
+        assert isinstance(serialized, dict)
+        if isinstance(payload["spec"], Mapping) and isinstance(
+            serialized.get("spec"), dict
+        ):
+            _restore_structural_spec_identity(serialized["spec"], payload["spec"])
+        serialized_criteria = serialized.get("criteria")
+        if isinstance(serialized_criteria, list):
+            for safe_result, raw_result in zip(
+                serialized_criteria, payload["criteria"], strict=True
+            ):
+                if isinstance(safe_result, dict):
+                    safe_result["description"] = raw_result["description"]
+                    safe_result["requirement"] = raw_result["requirement"]
+        serialized_summary = serialized.get("summary")
+        if isinstance(serialized_summary, dict):
+            serialized_summary["failed_criteria"] = payload["summary"][
+                "failed_criteria"
+            ]
+            serialized_summary["blocking_failed_criteria"] = payload["summary"][
+                "blocking_failed_criteria"
+            ]
+        return serialized

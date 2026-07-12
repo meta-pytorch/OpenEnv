@@ -2,6 +2,7 @@
 
 """Versioned, spec-neutral OpenEnv validation contracts."""
 
+from .executor import execute_validation_plan
 from .models import (
     CheckOutcome,
     RunnerCapabilities,
@@ -40,4 +41,5 @@ __all__ = [
     "ValidationSeverity",
     "ValidationStatus",
     "build_validation_plan",
+    "execute_validation_plan",
 ]
