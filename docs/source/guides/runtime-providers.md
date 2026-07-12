@@ -14,6 +14,7 @@ is a one-line change.
 | `UVProvider` | Local process via `uv` (no container) | core | ✅ |
 | `DaytonaProvider` | Daytona cloud sandboxes | `pip install openenv[daytona]` | ✅ |
 | `ACASandboxProvider` | Azure Container Apps Sandboxes | `pip install openenv[aca]` | ✅ |
+| `HFSandboxProvider` | Hugging Face Sandboxes | `pip install openenv[hf-sandbox]` | ✅ |
 | `ModalProvider` | Modal sandboxes | `pip install openenv[modal]` | ✅ |
 | `KubernetesProvider` | Kubernetes cluster | core | 🚧 planned |
 
@@ -158,6 +159,26 @@ from openenv.core.containers.runtime import DockerSwarmProvider
 
 provider = DockerSwarmProvider()
 ```
+
+### HFSandboxProvider
+
+Runs a registry image in a Hugging Face Sandbox. Pooled mode is the default and
+is appropriate for trusted same-user rollout fan-out. Dedicated mode allocates
+one VM per sandbox and is suited to untrusted or GPU workloads.
+
+```python
+from openenv.core.containers.runtime.hf_sandbox_provider import HFSandboxProvider
+
+provider = HFSandboxProvider(
+    image="hf.co/spaces/openenv/coding_env",
+    mode="dedicated",
+)
+base_url = provider.start_container()
+provider.wait_for_ready(base_url)
+```
+
+Plain `env_vars` are visible as Job environment metadata. Use the dedicated
+mode's `secrets=` argument for encrypted runtime secrets.
 
 ### KubernetesProvider
 

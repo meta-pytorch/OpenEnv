@@ -55,6 +55,9 @@ modal = [
 inspect = [
     "inspect-ai>=0.3.0",
 ]
+hf-sandbox = [
+    "huggingface_hub>=1.22.0",
+]
 
 [project.scripts]
 openenv = "openenv.cli.__main__:main"
