@@ -68,14 +68,14 @@ You can easily deploy your OpenEnv environment to Hugging Face Spaces using the 
 # From the environment directory (where openenv.yaml is located)
 openenv push
 
-# Or specify options
-openenv push --namespace my-org --private
+# Or specify a target Space
+openenv push --repo-id my-org/__ENV_NAME__ --private
 ```
 
 The `openenv push` command will:
-1. Validate that the directory is an OpenEnv environment (checks for `openenv.yaml`)
-2. Prepare a custom build for Hugging Face Docker space (enables web interface)
-3. Upload to Hugging Face (ensuring you're logged in)
+1. Authenticate and prepare the exact Space revision
+2. Run strict publish validation in a dedicated Hugging Face Sandbox
+3. Add `.openenv/validation-report.json` and upload the validated revision
 
 ### Prerequisites
 
@@ -83,7 +83,7 @@ The `openenv push` command will:
 
 ### Options
 
-- `--directory`, `-d`: Directory containing the OpenEnv environment (defaults to current directory)
+- Positional `directory`: Directory containing the OpenEnv environment (defaults to current directory)
 - `--repo-id`, `-r`: Repository ID in format 'username/repo-name' (defaults to 'username/env-name' from openenv.yaml)
 - `--base-image`, `-b`: Base Docker image to use (overrides Dockerfile FROM)
 - `--private`: Deploy the space as private (default: public)

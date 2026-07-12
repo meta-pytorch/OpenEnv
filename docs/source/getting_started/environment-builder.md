@@ -74,7 +74,10 @@ openenv init my_env
 openenv init my_env --output-dir /Users/you/envs
 ```
 
-The command creates a fully-typed template with `openenv.yaml`, `pyproject.toml`, `uv.lock`, Docker assets, and stub implementations. If you're working inside this repo, move the generated folder under `envs/`.
+The command creates a fully-typed template with `openenv.yaml`, a Harbor schema
+1.1 `task.toml` resource envelope, `pyproject.toml`, `uv.lock`, Docker assets,
+and stub implementations. If you're working inside this repo, move the
+generated folder under `envs/`.
 
 Typical layout:
 
@@ -85,6 +88,7 @@ my_env/
 ├── client.py
 ├── models.py
 ├── openenv.yaml
+├── task.toml
 ├── pyproject.toml
 ├── uv.lock
 └── server/
@@ -318,6 +322,7 @@ From the environment directory:
 cd envs/my_env
 openenv build          # Builds Docker image (auto-detects context)
 openenv validate --verbose
+openenv validate --profile publish --remote --output validation.json
 ```
 
 `openenv build` understands both standalone environments and in-repo ones. Useful flags:
@@ -327,7 +332,12 @@ openenv validate --verbose
 - `--dockerfile` / `--context`: custom locations when experimenting
 - `--no-cache`: force fresh dependency installs
 
-`openenv validate` checks for required files, ensures the Dockerfile/server entrypoints function, and lists supported deployment modes. The command exits non-zero if issues are found so you can wire it into CI.
+`openenv validate` always uses the shared validation report. The `static` and
+`runtime` profiles support fast iteration; `publish` is strict and exits
+non-zero when a blocking check fails, errors, or cannot run. `--remote` runs
+the environment in a dedicated HF Sandbox. Human output includes typed fixes,
+while `--json` or `--output` provides the same structured report for agents and
+CI.
 
 ### 8. Push & Share with `openenv push`
 
@@ -361,7 +371,12 @@ Key options:
 - `--env-var/-e KEY=VALUE`: set a public Space variable (repeatable); overrides matching keys from `variables:` in `openenv.yaml`
 - `--secret KEY=VALUE`: set a private Space secret (repeatable); value is never logged
 
-The command validates your `openenv.yaml`, injects Hugging Face frontmatter when needed, and uploads the prepared bundle.
+For Hub pushes, the command prepares the bundle (including Hugging Face
+frontmatter), validates that exact snapshot remotely, and uploads it together
+with `.openenv/validation-report.json`. That versioned report is unofficial
+author evidence. When deployed, the Hub's broader certification suite will
+publish an independent result rather than trusting or overwriting the author
+report.
 Space variables and secrets are only applied on direct Hugging Face Space pushes;
 they are not available for `--registry`, and they cannot be staged through
 `--create-pr`.

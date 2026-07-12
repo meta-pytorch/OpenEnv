@@ -721,9 +721,12 @@ def push(
     Push an OpenEnv environment to Hugging Face Spaces or a custom Docker registry.
 
     This command:
-    1. Validates that the directory is an OpenEnv environment (openenv.yaml present)
-    2. Builds and pushes to Hugging Face Spaces or custom Docker registry
-    3. Optionally enables web interface for deployment
+    1. Prepares the exact Hub upload and validates it in a dedicated HF Sandbox
+    2. Requires every blocking publish criterion to pass
+    3. Uploads a portable, unofficial `.openenv/validation-report.json`
+
+    Custom registry pushes run the same strict publish profile locally before
+    building. The versioned Hub report is author evidence, not certification.
 
     The web interface is enabled by default when pushing to HuggingFace Spaces,
     but disabled by default when pushing to a custom Docker registry.
@@ -736,7 +739,6 @@ def push(
         $ openenv push
 
         # Push to HuggingFace repo and open a Pull Request
-        $ openenv push my-org/my-env --create-pr
         $ openenv push --repo-id my-org/my-env --create-pr
 
         # Push to HuggingFace without web interface

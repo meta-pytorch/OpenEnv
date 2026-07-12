@@ -273,7 +273,8 @@ The OpenEnv CLI provides commands to manage environments:
 - **`openenv serve`** - Serve an environment locally with optional auto-reload
 - **`openenv build`** - Build the Docker image for an environment
 - **`openenv fork <space-id>`** - Fork a Space from HF Hub to your account
-- **`openenv validate`** - Validate an environment configuration
+- **`openenv validate`** - Validate locally or in a dedicated HF Sandbox; use
+  `--profile publish --remote` for the strict author gate
 
 ### Quick Start
 

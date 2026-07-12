@@ -46,11 +46,23 @@ openenv push --private
 openenv push path/to/my_env
 ```
 
-That's it. The CLI validates your environment, stages the files, adds the Hugging Face Space frontmatter, enables the web interface, and uploads everything. Your environment will be live at
+That's it. The CLI authenticates with Hugging Face, prepares the exact Space
+revision, runs the strict `publish` profile on that snapshot in a dedicated HF
+Sandbox, adds an unofficial author report, and uploads the same revision. Your
+environment will be live at
 `https://huggingface.co/spaces/<your-username>/my_env`.
 
 > [!WARNING]
-> If you are getting errors on deployment, it is likely because the environment structure is not valid. Run `openenv validate --verbose` to see the errors. This checks for the required files (`openenv.yaml`, `pyproject.toml`, `server/app.py`) and validates the Dockerfile and entry points.
+> Run `openenv validate --profile publish --remote --verbose` before pushing.
+> Failed and incomplete criteria include configuration locations and suggested
+> fixes. A publish-ready environment also needs a `task.toml` requirements
+> envelope; `openenv init` creates a Harbor schema 1.1 starting point. Existing
+> environments created before this template must add truthful CPU, memory,
+> storage, GPU, and internet requirements rather than copying placeholders.
+
+The uploaded `.openenv/validation-report.json` records author validation; it is
+not certification. A future Hub service will run broader security,
+reproducibility, artifact, and training-value checks independently.
 
 ## 2. Fork Someone Else's Environment
 

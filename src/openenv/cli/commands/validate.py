@@ -104,7 +104,8 @@ def validate(
     versioned runtime API contract and returns a criteria-based JSON report.
     Every profile emits the RFC 008 shared report. The publish profile is a
     strict release gate: blocking skipped checks are incomplete and exit
-    non-zero.
+    non-zero. `--remote` runs the same plan in a fresh dedicated Hugging Face
+    Sandbox and returns the same report schema.
     Reports identify the served OpenEnv spec and pinned adapter; external task
     package formats are intentionally outside this command's dispatch surface.
     Automatic runtime launch is intended for trusted local source; connect to
@@ -129,6 +130,9 @@ def validate(
 
         # Run every locally available check and record remote-only skips
         $ openenv validate envs/echo_env --profile full --output report.json
+
+        # Run the strict author gate remotely and save its structured guidance
+        $ openenv validate envs/echo_env --profile publish --remote --output report.json
         ```
     """
     runtime_target = url
