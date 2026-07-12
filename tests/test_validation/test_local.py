@@ -13,6 +13,7 @@ import pytest
 from openenv.validation.local import (
     _runtime_environment,
     _server_command,
+    _subject_process_kwargs,
     run_local_validation,
 )
 from openenv.validation.models import (
@@ -255,3 +256,19 @@ def test_server_command_honors_manifest_port(tmp_path: Path) -> None:
 def test_static_profile_rejects_url_in_public_api() -> None:
     with pytest.raises(ValueError, match="local source"):
         run_local_validation("https://example.com", profile=ValidationProfile.STATIC)
+
+
+def test_remote_subject_process_drops_to_declared_unprivileged_identity() -> None:
+    with patch.dict(
+        os.environ,
+        {
+            "OPENENV_VALIDATION_SUBJECT_UID": "10001",
+            "OPENENV_VALIDATION_SUBJECT_GID": "10002",
+        },
+        clear=False,
+    ):
+        assert _subject_process_kwargs() == {
+            "user": 10001,
+            "group": 10002,
+            "extra_groups": (),
+        }

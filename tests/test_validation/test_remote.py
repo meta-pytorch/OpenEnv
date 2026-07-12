@@ -187,6 +187,8 @@ def test_remote_validation_uses_dedicated_sandbox_and_returns_report(
     command_text = " ".join(command) if isinstance(command, list) else command
     assert "publish" in command_text
     assert "validation" in command_text
+    assert "setpriv" in command_text
+    assert "/workspace/trusted/validation-report.json" in command_text
     for remote_path in uploads:
         assert remote_path in command_text
     sandbox.files.download.assert_called_once()
@@ -201,6 +203,7 @@ def test_remote_validation_uses_dedicated_sandbox_and_returns_report(
     assert report.certified is False
     assert report.certification_eligible is False
     assert report.results[0].criterion_id == "source.validation_spec"
+    sandbox.kill.assert_called_once_with()
     sandbox.close.assert_called_once_with()
 
 
@@ -233,6 +236,7 @@ def test_remote_validation_command_failure_is_clean_and_closes_sandbox(
     assert "failed" in message
     assert "hf_1234567890abcdef" not in message
     sandbox.files.download.assert_not_called()
+    sandbox.kill.assert_called_once_with()
     sandbox.close.assert_called_once_with()
 
 
@@ -264,4 +268,5 @@ def test_remote_validation_malformed_report_is_clean_and_closes_sandbox(
     assert "report" in message
     assert "invalid" in message or "malformed" in message
     assert "not-json" not in message
+    sandbox.kill.assert_called_once_with()
     sandbox.close.assert_called_once_with()

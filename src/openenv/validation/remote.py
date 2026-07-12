@@ -44,7 +44,7 @@ DEFAULT_SANDBOX_IMAGE = "python:3.12"
 DEFAULT_SANDBOX_FLAVOR = "cpu-basic"
 _REMOTE_REVISION_ARCHIVE = "/tmp/openenv-revision.tar.gz"
 _REMOTE_VALIDATOR_ARCHIVE = "/tmp/openenv-validator.tar.gz"
-_REMOTE_REPORT = "/workspace/validation-report.json"
+_REMOTE_REPORT = "/workspace/trusted/validation-report.json"
 _REVISION_PATTERN = re.compile(r"(?:[0-9a-f]{40}|[0-9a-f]{64})")
 _EXCLUDED_PARTS = frozenset(
     {
@@ -195,13 +195,29 @@ profile="$4"
 runtime_timeout="$5"
 environment_root=/workspace/environment
 validator_root=/workspace/validator
-mkdir -p "$environment_root" "$validator_root" || exit 70
+trusted_root=/workspace/trusted
+subject_root=/workspace/subject
+subject_site="$subject_root/site-packages"
+subject_home="$subject_root/home"
+subject_uid=10001
+subject_gid=10001
+mkdir -p "$environment_root" "$validator_root" "$trusted_root" || exit 70
+chmod 700 "$trusted_root" || exit 70
 tar -xzf "$revision_archive" -C "$environment_root" || exit 70
 tar -xzf "$validator_archive" -C "$validator_root" || exit 70
 python -m pip install --disable-pip-version-check --no-input "$validator_root" || exit 70
-python -m pip install --disable-pip-version-check --no-input "$environment_root" || exit 71
+chown -R 0:0 "$environment_root" "$validator_root" "$trusted_root" || exit 70
+chmod -R a+rX,go-w "$environment_root" "$validator_root" || exit 70
+mkdir -p "$subject_site" "$subject_home" || exit 70
+chown -R "$subject_uid:$subject_gid" "$subject_root" || exit 70
+setpriv --reuid="$subject_uid" --regid="$subject_gid" --clear-groups \
+  env HOME="$subject_home" python -m pip install --disable-pip-version-check \
+  --no-input --target "$subject_site" "$environment_root" || exit 71
 set +e
-PYTHONPATH="$validator_root/src" python -m openenv.cli.__main__ validate \
+OPENENV_VALIDATION_SUBJECT_UID="$subject_uid" \
+OPENENV_VALIDATION_SUBJECT_GID="$subject_gid" \
+PYTHONPATH="$validator_root/src:$subject_site" \
+python -m openenv.cli.__main__ validate \
   "$environment_root" --profile "$profile" --json --output "$report_path" \
   --timeout "$runtime_timeout"
 validation_status=$?
@@ -575,5 +591,7 @@ def run_remote_validation(
             ) from exc
         finally:
             if sandbox is not None:
+                with suppress(Exception):
+                    sandbox.kill()
                 with suppress(Exception):
                     sandbox.close()

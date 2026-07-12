@@ -96,6 +96,24 @@ def _runtime_environment(
     return process_env
 
 
+def _subject_process_kwargs() -> dict[str, Any]:
+    """Return POSIX identity controls supplied by a trusted isolated runner."""
+    raw_uid = os.environ.get("OPENENV_VALIDATION_SUBJECT_UID")
+    raw_gid = os.environ.get("OPENENV_VALIDATION_SUBJECT_GID")
+    if raw_uid is None and raw_gid is None:
+        return {}
+    if os.name != "posix" or raw_uid is None or raw_gid is None:
+        raise RuntimeError("The isolated subject identity is incomplete or unsupported")
+    try:
+        uid = int(raw_uid)
+        gid = int(raw_gid)
+    except ValueError as exc:
+        raise RuntimeError("The isolated subject identity is malformed") from exc
+    if uid <= 0 or gid <= 0:
+        raise RuntimeError("The isolated subject identity must be unprivileged")
+    return {"user": uid, "group": gid, "extra_groups": ()}
+
+
 def _ensure_port_available(port: int) -> None:
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as probe:
         probe.settimeout(0.25)
@@ -283,6 +301,13 @@ def _launch_environment(env_path: Path, timeout_s: float) -> Iterator[str]:
     base_url = f"http://127.0.0.1:{port}"
     _ensure_port_available(port)
     with TemporaryDirectory(prefix="openenv-validation-") as temporary_home:
+        subject_process_kwargs = _subject_process_kwargs()
+        if subject_process_kwargs:
+            os.chown(
+                temporary_home,
+                subject_process_kwargs["user"],
+                subject_process_kwargs["group"],
+            )
         process_env = _runtime_environment(
             env_path, temporary_home=Path(temporary_home)
         )
@@ -293,6 +318,7 @@ def _launch_environment(env_path: Path, timeout_s: float) -> Iterator[str]:
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
             start_new_session=True,
+            **subject_process_kwargs,
         )
         try:
             deadline = time.monotonic() + timeout_s
