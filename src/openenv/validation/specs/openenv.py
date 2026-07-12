@@ -15,6 +15,8 @@ from .base import (
     AdapterIdentity,
     DetectionMode,
     ExecutionModel,
+    RequirementsLoad,
+    RequirementsState,
     SpecIdentity,
     SpecLoad,
     SpecLoadState,
@@ -138,3 +140,15 @@ class OpenEnvSpecAdapter:
             document_digest=f"sha256:{hashlib.sha256(document).hexdigest()}",
         )
         return SpecLoad(state=SpecLoadState.LOADED, subject=subject)
+
+
+def runtime_openenv_spec_load() -> SpecLoad:
+    """Describe an explicitly supplied OpenEnv runtime without source files."""
+    adapter = OpenEnvSpecAdapter()
+    subject = ValidationSubject(
+        spec=adapter._identity(None),
+        signature_path=None,
+        detection_mode=DetectionMode.RUNTIME,
+        requirements=RequirementsLoad(state=RequirementsState.ABSENT),
+    )
+    return SpecLoad(state=SpecLoadState.LOADED, subject=subject)

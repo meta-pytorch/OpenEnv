@@ -59,7 +59,8 @@ def _write_minimal_valid_env(
 def test_validate_running_environment_success() -> None:
     """Runtime validator returns passing criteria for a conforming server."""
 
-    def _fake_get(url: str, timeout: float) -> _MockResponse:
+    def _fake_get(url: str, timeout: float, *, allow_redirects: bool) -> _MockResponse:
+        assert allow_redirects is False
         if url.endswith("/openapi.json"):
             return _MockResponse(
                 200,
@@ -87,7 +88,10 @@ def test_validate_running_environment_success() -> None:
             )
         raise AssertionError(f"Unexpected GET url: {url}")
 
-    def _fake_post(url: str, json: dict, timeout: float) -> _MockResponse:
+    def _fake_post(
+        url: str, json: dict, timeout: float, *, allow_redirects: bool
+    ) -> _MockResponse:
+        assert allow_redirects is False
         if url.endswith("/mcp"):
             return _MockResponse(
                 200,
@@ -115,7 +119,8 @@ def test_validate_running_environment_success() -> None:
 def test_validate_running_environment_failure() -> None:
     """Runtime validator marks report as failed when criteria fail."""
 
-    def _fake_get(url: str, timeout: float) -> _MockResponse:
+    def _fake_get(url: str, timeout: float, *, allow_redirects: bool) -> _MockResponse:
+        assert allow_redirects is False
         if url.endswith("/openapi.json"):
             return _MockResponse(
                 200,
@@ -140,7 +145,10 @@ def test_validate_running_environment_failure() -> None:
             )
         raise AssertionError(f"Unexpected GET url: {url}")
 
-    def _fake_post(url: str, json: dict, timeout: float) -> _MockResponse:
+    def _fake_post(
+        url: str, json: dict, timeout: float, *, allow_redirects: bool
+    ) -> _MockResponse:
+        assert allow_redirects is False
         if url.endswith("/mcp"):
             return _MockResponse(
                 200,

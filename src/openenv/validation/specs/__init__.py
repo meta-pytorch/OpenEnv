@@ -26,7 +26,7 @@ from .base import (
     ValidationSubject,
 )
 from .harbor import find_harbor_verifier_script, load_harbor_requirements
-from .openenv import OpenEnvSpecAdapter
+from .openenv import OpenEnvSpecAdapter, runtime_openenv_spec_load
 
 
 DEFAULT_SPEC_REGISTRY = ValidationSpecRegistry((OpenEnvSpecAdapter(),))
@@ -57,4 +57,5 @@ __all__ = [
     "ValidationSubject",
     "find_harbor_verifier_script",
     "load_harbor_requirements",
+    "runtime_openenv_spec_load",
 ]

@@ -1,8 +1,9 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Versioned, spec-neutral OpenEnv validation contracts."""
+"""Spec-neutral OpenEnv validation planning, execution, and local profiles."""
 
 from .executor import execute_validation_plan
+from .local import format_shared_validation_report, run_local_validation
 from .models import (
     CheckOutcome,
     RunnerCapabilities,
@@ -42,4 +43,6 @@ __all__ = [
     "ValidationStatus",
     "build_validation_plan",
     "execute_validation_plan",
+    "format_shared_validation_report",
+    "run_local_validation",
 ]

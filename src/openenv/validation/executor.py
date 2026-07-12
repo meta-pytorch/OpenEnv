@@ -66,6 +66,17 @@ def _execute_check(
     check = plan.checks[index]
     missing = check.capabilities - plan.capabilities.available
     if missing:
+        declared_reasons = context.discovered.get("capability_unavailable_reasons", {})
+        reasons = (
+            {
+                capability.value: declared_reasons[capability.value]
+                for capability in missing
+                if capability.value in declared_reasons
+                and isinstance(declared_reasons[capability.value], str)
+            }
+            if isinstance(declared_reasons, Mapping)
+            else {}
+        )
         return ValidationResult(
             criterion_id=check.criterion_id,
             requirement=check.requirement,
@@ -80,6 +91,7 @@ def _execute_check(
                 "available": sorted(
                     capability.value for capability in plan.capabilities.available
                 ),
+                "unavailable_reasons": reasons,
             },
             duration_s=0.0,
             timeout_s=check.timeout_s,
