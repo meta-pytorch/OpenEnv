@@ -8,20 +8,19 @@ import importlib
 import io
 import json
 import tarfile
+from dataclasses import replace
 from pathlib import Path
 from types import ModuleType, SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 import pytest
 from huggingface_hub import Sandbox, SandboxPool
+from openenv.validation import build_validation_plan, execute_validation_plan
 from openenv.validation.models import (
     RunnerCapabilities,
     ValidationCapability,
     ValidationProfile,
     ValidationReport,
-    ValidationResult,
-    ValidationSeverity,
-    ValidationStatus,
 )
 
 from ._helpers import write_valid_env
@@ -50,32 +49,23 @@ def _remote_module() -> ModuleType:
 
 
 def _report_payload(target: Path) -> dict[str, object]:
-    result = ValidationResult(
-        criterion_id="source.validation_spec",
-        requirement="Detect the validation spec",
-        status=ValidationStatus.PASS,
-        severity=ValidationSeverity.BLOCKING,
-        evidence={"state": "loaded"},
-        duration_s=0.01,
-        timeout_s=10.0,
-        required_capabilities=frozenset({ValidationCapability.SOURCE}),
-    )
-    report = ValidationReport(
-        target=str(target),
-        profile=ValidationProfile.PUBLISH,
-        policy_version="rfc008-v1",
-        runner=RunnerCapabilities(
-            runner="hf-sandbox",
-            available=frozenset(
-                {ValidationCapability.SOURCE, ValidationCapability.RUNTIME}
-            ),
-            official=False,
-            isolation_mode="dedicated",
+    capabilities = RunnerCapabilities(
+        runner="hf-sandbox",
+        available=frozenset(
+            {ValidationCapability.SOURCE, ValidationCapability.RUNTIME}
         ),
-        results=(result,),
-        duration_s=0.1,
-        started_at="2026-07-12T12:00:00+00:00",
-        finished_at="2026-07-12T12:00:00.100000+00:00",
+        official=False,
+        isolation_mode="dedicated",
+    )
+    plan, context = build_validation_plan(
+        target,
+        profile=ValidationProfile.PUBLISH,
+        capabilities=capabilities,
+    )
+    report = execute_validation_plan(plan, context)
+    report = replace(
+        report,
+        runner=capabilities,
         repo_sha=_REVISION,
         certified=False,
         certification_eligible=False,
@@ -124,6 +114,9 @@ def test_remote_validation_uses_dedicated_sandbox_and_returns_report(
     marker = source / "revision-marker.txt"
     marker.write_text("exact revision contents\n")
     (source / ".env").write_text("HF_TOKEN=hf_do_not_upload\n")
+    (source / ".envrc").write_text("export TOKEN=do-not-upload\n")
+    (source / ".netrc").write_text("password do-not-upload\n")
+    (source / "credentials.json").write_text('{"token": "do-not-upload"}\n')
     (source / ".git").mkdir()
     (source / ".git" / "config").write_text("credential = do-not-upload\n")
     (source / ".openenv").mkdir()
@@ -176,6 +169,9 @@ def test_remote_validation_uses_dedicated_sandbox_and_returns_report(
     assert not any(name.endswith(".env") for name in source_members)
     assert not any(".git" in Path(name).parts for name in source_members)
     assert not any(name.endswith("validation-report.json") for name in source_members)
+    assert not any(name.endswith(".envrc") for name in source_members)
+    assert not any(name.endswith(".netrc") for name in source_members)
+    assert not any(name.endswith("credentials.json") for name in source_members)
     validator_source = Path(__file__).parents[2] / "src" / "openenv" / "validation"
     assert (
         _archive_member(validator_upload, "openenv/validation/models.py")
@@ -203,8 +199,64 @@ def test_remote_validation_uses_dedicated_sandbox_and_returns_report(
     assert report.certified is False
     assert report.certification_eligible is False
     assert report.results[0].criterion_id == "source.validation_spec"
+    assert report.source_digest is not None
+    assert report.source_digest.startswith("sha256:")
     sandbox.kill.assert_called_once_with()
     sandbox.close.assert_called_once_with()
+
+
+def test_remote_validation_preserves_parent_harbor_composition(
+    tmp_path: Path,
+) -> None:
+    remote = _remote_module()
+    task_root = tmp_path / "task"
+    source = task_root / "environment"
+    write_valid_env(source)
+    (task_root / "task.toml").write_text('schema_version = "1.1"\n')
+    (task_root / "tests").mkdir()
+    (task_root / "tests" / "test.sh").write_text("#!/bin/sh\nexit 0\n")
+    sandbox = _sandbox()
+    uploads: dict[str, bytes] = {}
+
+    def capture_upload(local_path: str | Path, remote_path: str, **_: object) -> None:
+        uploads[remote_path] = Path(local_path).read_bytes()
+
+    def write_download(_remote_path: str, local_path: str | Path) -> None:
+        Path(local_path).write_text(json.dumps(_report_payload(source)))
+
+    sandbox.files.upload.side_effect = capture_upload
+    sandbox.files.download.side_effect = write_download
+    with patch.object(Sandbox, "create", return_value=sandbox):
+        report = remote.run_remote_validation(
+            source,
+            profile=ValidationProfile.PUBLISH,
+            repo_sha=_REVISION,
+            sandbox_image=_SANDBOX_IMAGE,
+        )
+
+    revision = next(payload for path, payload in uploads.items() if "revision" in path)
+    members = _archive_names(revision)
+    assert "task.toml" in members
+    assert "tests/test.sh" in members
+    command = sandbox.run.call_args.args[0]
+    assert command[-1] == "environment"
+    assert report.spec is not None
+    assert report.spec.requirements.state.value == "loaded"
+
+
+def test_remote_validation_rejects_source_symlinks(tmp_path: Path) -> None:
+    remote = _remote_module()
+    source = tmp_path / "environment"
+    write_valid_env(source)
+    outside = tmp_path / "outside.txt"
+    outside.write_text("secret\n")
+    (source / "linked-secret.txt").symlink_to(outside)
+
+    with patch.object(Sandbox, "create") as create:
+        with pytest.raises(remote.RemoteValidationError, match="symbolic links"):
+            remote.run_remote_validation(source)
+
+    create.assert_not_called()
 
 
 def test_remote_validation_command_failure_is_clean_and_closes_sandbox(
@@ -268,5 +320,39 @@ def test_remote_validation_malformed_report_is_clean_and_closes_sandbox(
     assert "report" in message
     assert "invalid" in message or "malformed" in message
     assert "not-json" not in message
+    sandbox.kill.assert_called_once_with()
+    sandbox.close.assert_called_once_with()
+
+
+@pytest.mark.parametrize("malformation", ["empty_criteria", "wrong_policy"])
+def test_remote_validation_rejects_structurally_forged_report(
+    tmp_path: Path,
+    malformation: str,
+) -> None:
+    remote = _remote_module()
+    source = tmp_path / "environment"
+    write_valid_env(source)
+    sandbox = _sandbox()
+    payload = _report_payload(source)
+    if malformation == "empty_criteria":
+        payload["criteria"] = []
+        payload["passed"] = True
+        payload["status"] = "pass"
+    else:
+        payload["policy_version"] = "attacker-policy"
+
+    def write_download(_remote_path: str, local_path: str | Path) -> None:
+        Path(local_path).write_text(json.dumps(payload))
+
+    sandbox.files.download.side_effect = write_download
+    with patch.object(Sandbox, "create", return_value=sandbox):
+        with pytest.raises(remote.RemoteValidationError, match="report"):
+            remote.run_remote_validation(
+                source,
+                profile=ValidationProfile.PUBLISH,
+                repo_sha=_REVISION,
+                sandbox_image=_SANDBOX_IMAGE,
+            )
+
     sandbox.kill.assert_called_once_with()
     sandbox.close.assert_called_once_with()

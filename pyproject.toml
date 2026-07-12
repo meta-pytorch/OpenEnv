@@ -23,7 +23,7 @@ dependencies = [
     "typer>=0.9.0",
     "rich>=13.0.0",
     "pyyaml>=6.0",
-    "huggingface_hub>=0.20.0",
+    "huggingface_hub>=1.22.0",
     "openai>=2.7.2",
     "tomli>=2.3.0",
     "tomli-w>=1.2.0",
@@ -55,9 +55,8 @@ modal = [
 inspect = [
     "inspect-ai>=0.3.0",
 ]
-hf-sandbox = [
-    "huggingface_hub>=1.22.0",
-]
+# Kept as a compatibility extra; Sandbox support is required by Hub pushes.
+hf-sandbox = []
 
 [project.scripts]
 openenv = "openenv.cli.__main__:main"

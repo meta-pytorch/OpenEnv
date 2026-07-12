@@ -920,6 +920,7 @@ def get_openenv_checks() -> tuple[ValidationCheck, ...]:
                     }
                 ),
                 profiles=_RUNTIME_PROFILES,
+                severity=ValidationSeverity.ADVISORY,
                 timeout_s=600.0,
                 built_in=False,
                 requirement_binding=ValidationRequirementBinding.VERIFIER,

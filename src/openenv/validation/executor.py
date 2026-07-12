@@ -195,6 +195,10 @@ def _execute_check(
         not diagnostics
         and check.built_in
         and outcome.status is not ValidationStatus.PASS
+        and not (
+            check.severity is ValidationSeverity.ADVISORY
+            and outcome.status is ValidationStatus.SKIP
+        )
     ):
         diagnostics = (
             ValidationDiagnostic(

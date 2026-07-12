@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import subprocess
 from dataclasses import replace
 from pathlib import Path
 
@@ -40,6 +41,38 @@ from openenv.validation.specs import (
 )
 
 from ._helpers import write_harbor_task, write_valid_env
+
+
+def test_plan_only_reports_repo_sha_for_clean_source(tmp_path: Path) -> None:
+    env_dir = tmp_path / "env"
+    write_valid_env(env_dir)
+    subprocess.run(["git", "init", str(tmp_path)], check=True, capture_output=True)
+    subprocess.run(
+        ["git", "-C", str(tmp_path), "add", "."], check=True, capture_output=True
+    )
+    subprocess.run(
+        [
+            "git",
+            "-C",
+            str(tmp_path),
+            "-c",
+            "user.name=OpenEnv Tests",
+            "-c",
+            "user.email=tests@openenv.invalid",
+            "commit",
+            "-m",
+            "fixture",
+        ],
+        check=True,
+        capture_output=True,
+    )
+
+    _, clean_context = build_validation_plan(env_dir)
+    assert clean_context.repo_sha is not None
+
+    (env_dir / "uncommitted.txt").write_text("dirty\n")
+    _, dirty_context = build_validation_plan(env_dir)
+    assert dirty_context.repo_sha is None
 
 
 def test_plan_carries_sanitized_harbor_execution_requirements(tmp_path: Path) -> None:
@@ -94,6 +127,32 @@ def test_plan_carries_sanitized_harbor_execution_requirements(tmp_path: Path) ->
     assert payload["spec"]["requirements"]["document_digest"].startswith("sha256:")
 
 
+@pytest.mark.parametrize(
+    ("spec_versions", "adapters"),
+    [
+        (frozenset({("openenv", "2")}), frozenset({("openenv-yaml", "1")})),
+        (frozenset({("openenv", "1")}), frozenset({("openenv-yaml", "2")})),
+    ],
+)
+def test_policy_binding_rejects_unpinned_spec_or_adapter_versions(
+    tmp_path: Path,
+    spec_versions: frozenset[tuple[str, str]],
+    adapters: frozenset[tuple[str, str]],
+) -> None:
+    env_dir = tmp_path / "env"
+    write_valid_env(env_dir)
+    policy = ValidationPolicy(
+        version="pinned-policy",
+        supported_subjects=frozenset({("openenv", ExecutionModel.SERVED)}),
+        checks=(),
+        supported_spec_versions=spec_versions,
+        supported_adapters=adapters,
+    )
+
+    with pytest.raises(ValueError, match="does not support spec"):
+        build_validation_plan(env_dir, policy=policy)
+
+
 def test_plan_includes_harbor_step_requirements_and_sibling_verifier(
     tmp_path: Path,
 ) -> None:
@@ -114,6 +173,17 @@ def test_plan_includes_harbor_step_requirements_and_sibling_verifier(
     assert requirements["steps"][0]["artifacts"][0]["source"] == (
         "/workspace/result.json"
     )
+
+    publish_plan, _ = build_validation_plan(
+        environment,
+        profile=ValidationProfile.PUBLISH,
+    )
+    verifier = next(
+        check
+        for check in publish_plan.checks
+        if check.criterion_id == "custom.verifier"
+    )
+    assert verifier.severity is ValidationSeverity.ADVISORY
 
 
 class _OneShotAdapter:

@@ -39,12 +39,32 @@ OPENENV_VALIDATION_POLICY = ValidationPolicy(
     version=VALIDATION_POLICY_VERSION,
     supported_subjects=frozenset({("openenv", ExecutionModel.SERVED)}),
     checks=get_openenv_checks(),
+    supported_spec_versions=frozenset({("openenv", "1")}),
+    supported_adapters=frozenset({("openenv-yaml", "1")}),
 )
 _POLICY_ATTESTATION = object()
 
 
 def _repo_sha(path: Path) -> str | None:
     try:
+        status = subprocess.run(
+            [
+                "git",
+                "-C",
+                str(path),
+                "status",
+                "--porcelain",
+                "--untracked-files=all",
+                "--",
+                ".",
+            ],
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=3.0,
+        )
+        if status.returncode != 0 or status.stdout.strip():
+            return None
         completed = subprocess.run(
             ["git", "-C", str(path), "rev-parse", "HEAD"],
             check=False,
@@ -143,7 +163,17 @@ def _policy_for_subject(
 ) -> tuple[ValidationPolicy, bool]:
     selected = policy or OPENENV_VALIDATION_POLICY
     identity = spec_load.spec
-    if identity is not None and not selected.supports_identity(identity):
+    incompatible_subject = bool(
+        identity is not None
+        and (identity.spec_id, identity.execution_model)
+        not in selected.supported_subjects
+    )
+    incompatible_loaded_version = bool(
+        spec_load.subject is not None
+        and identity is not None
+        and not selected.supports_identity(identity)
+    )
+    if identity is not None and (incompatible_subject or incompatible_loaded_version):
         raise ValueError(
             f"Validation policy {selected.version!r} does not support "
             f"spec {identity.spec_id!r} with execution model "

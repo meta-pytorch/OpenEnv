@@ -4,6 +4,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import re
 import tarfile
@@ -27,6 +28,7 @@ from .models import (
     ValidationSeverity,
     ValidationStatus,
 )
+from .planner import build_validation_plan, VALIDATION_POLICY_VERSION
 from .specs import (
     AdapterIdentity,
     DetectionMode,
@@ -67,7 +69,14 @@ _EXCLUDED_NAMES = frozenset(
         ".netrc",
         ".npmrc",
         ".pypirc",
+        "credentials",
         "credentials.json",
+        "id_dsa",
+        "id_ed25519",
+        "id_ecdsa",
+        "id_rsa",
+        "secrets.json",
+        "secrets.toml",
         "validation-report.json",
     }
 )
@@ -78,14 +87,56 @@ class RemoteValidationError(RuntimeError):
 
 
 def _archive_path_allowed(relative: Path) -> bool:
-    if any(part in _EXCLUDED_PARTS for part in relative.parts):
+    if any(part in _EXCLUDED_PARTS or part.startswith(".") for part in relative.parts):
         return False
     name = relative.name
-    if name in _EXCLUDED_NAMES or name == ".env" or name.startswith(".env."):
+    if name in _EXCLUDED_NAMES or relative.suffix.lower() in {
+        ".key",
+        ".p12",
+        ".pem",
+        ".pfx",
+    }:
         return False
     if relative.as_posix() == ".openenv/validation-report.json":
         return False
     return True
+
+
+def _validate_snapshot_tree(root: Path) -> None:
+    for candidate in root.rglob("*"):
+        if candidate.is_symlink():
+            raise RemoteValidationError(
+                "Remote validation source archives cannot contain symbolic links"
+            )
+
+
+def validation_source_digest(root: str | Path) -> str:
+    """Hash the exact regular source files included in a validation snapshot."""
+    root_path = Path(root).resolve()
+    if not root_path.is_dir():
+        raise RemoteValidationError("Validation source digest requires a directory")
+    _validate_snapshot_tree(root_path)
+    digest = hashlib.sha256()
+    for candidate in sorted(root_path.rglob("*")):
+        relative = candidate.relative_to(root_path)
+        if not _archive_path_allowed(relative) or not candidate.is_file():
+            continue
+        encoded_path = relative.as_posix().encode("utf-8")
+        digest.update(len(encoded_path).to_bytes(8, "big"))
+        digest.update(encoded_path)
+        with candidate.open("rb") as source_file:
+            while chunk := source_file.read(1024 * 1024):
+                digest.update(len(chunk).to_bytes(8, "big"))
+                digest.update(chunk)
+        digest.update((0).to_bytes(8, "big"))
+    return f"sha256:{digest.hexdigest()}"
+
+
+def _snapshot_layout(source: Path) -> tuple[Path, str]:
+    parent_manifest = source.parent / "task.toml"
+    if source.name == "environment" and parent_manifest.is_file():
+        return source.parent, "environment"
+    return source, "."
 
 
 def _add_tree(archive: tarfile.TarFile, root: Path, *, prefix: Path) -> None:
@@ -114,6 +165,7 @@ def _add_tree(archive: tarfile.TarFile, root: Path, *, prefix: Path) -> None:
 
 
 def _create_revision_archive(source: Path, destination: Path) -> None:
+    _validate_snapshot_tree(source)
     with tarfile.open(destination, mode="w:gz", format=tarfile.PAX_FORMAT) as archive:
         _add_tree(archive, source, prefix=Path("."))
 
@@ -184,7 +236,10 @@ def _create_validator_archive(destination: Path) -> None:
 
 
 def _remote_command(
-    *, profile: ValidationProfile, runtime_timeout_s: float
+    *,
+    profile: ValidationProfile,
+    runtime_timeout_s: float,
+    target_relative: str,
 ) -> list[str]:
     script = r"""
 set -eu
@@ -193,7 +248,9 @@ validator_archive="$2"
 report_path="$3"
 profile="$4"
 runtime_timeout="$5"
-environment_root=/workspace/environment
+target_relative="$6"
+environment_root=/workspace/source
+validation_target="$environment_root/$target_relative"
 validator_root=/workspace/validator
 trusted_root=/workspace/trusted
 subject_root=/workspace/subject
@@ -212,13 +269,13 @@ mkdir -p "$subject_site" "$subject_home" || exit 70
 chown -R "$subject_uid:$subject_gid" "$subject_root" || exit 70
 setpriv --reuid="$subject_uid" --regid="$subject_gid" --clear-groups \
   env HOME="$subject_home" python -m pip install --disable-pip-version-check \
-  --no-input --target "$subject_site" "$environment_root" || exit 71
+  --no-input --target "$subject_site" "$validation_target" || exit 71
 set +e
 OPENENV_VALIDATION_SUBJECT_UID="$subject_uid" \
 OPENENV_VALIDATION_SUBJECT_GID="$subject_gid" \
 PYTHONPATH="$validator_root/src:$subject_site" \
 python -m openenv.cli.__main__ validate \
-  "$environment_root" --profile "$profile" --json --output "$report_path" \
+  "$validation_target" --profile "$profile" --json --output "$report_path" \
   --timeout "$runtime_timeout"
 validation_status=$?
 set -e
@@ -235,6 +292,7 @@ exit "$validation_status"
         _REMOTE_REPORT,
         profile.value,
         f"{runtime_timeout_s:g}",
+        target_relative,
     ]
 
 
@@ -475,6 +533,7 @@ def _parse_report(
         spec=subject,
         spec_identity=identity,
         repo_sha=document.get("repo_sha"),
+        source_digest=document.get("source_digest"),
         image_digest=document.get("image_digest"),
         certified=document.get("certified") is True,
         certification_eligible=document.get("certification_eligible") is True,
@@ -483,6 +542,43 @@ def _parse_report(
     if document.get("passed") is not report.passed:
         raise ValueError("report pass state is inconsistent with its criteria")
     return report
+
+
+def _validate_report_contract(
+    report: ValidationReport,
+    *,
+    source: Path,
+    expected_profile: ValidationProfile,
+) -> None:
+    capabilities = RunnerCapabilities(
+        runner="hf-sandbox",
+        available=frozenset(
+            {ValidationCapability.SOURCE, ValidationCapability.RUNTIME}
+        ),
+        official=False,
+        isolation_mode="dedicated",
+    )
+    expected_plan, _ = build_validation_plan(
+        source,
+        profile=expected_profile,
+        capabilities=capabilities,
+    )
+    if report.policy_version != VALIDATION_POLICY_VERSION:
+        raise ValueError("report policy version is not the initiating policy")
+    if report.spec_identity != expected_plan.spec_identity:
+        raise ValueError("report spec identity does not match the source snapshot")
+    if len(report.results) != len(expected_plan.checks):
+        raise ValueError("report criteria do not match the initiating plan")
+    for result, check in zip(report.results, expected_plan.checks, strict=True):
+        if (
+            result.criterion_id != check.criterion_id
+            or result.requirement != check.requirement
+            or result.severity is not check.severity
+            or result.required_capabilities != check.capabilities
+            or result.built_in is not check.built_in
+            or result.timeout_s != check.timeout_s
+        ):
+            raise ValueError("report criterion metadata does not match the policy")
 
 
 def run_remote_validation(
@@ -512,6 +608,8 @@ def run_remote_validation(
         raise RemoteValidationError("Remote validation timeouts must be positive")
     if not isinstance(flavor, str) or not flavor.strip():
         raise RemoteValidationError("Remote validation hardware flavor is invalid")
+    snapshot_root, target_relative = _snapshot_layout(source_path)
+    source_digest = validation_source_digest(snapshot_root)
 
     try:
         from huggingface_hub import Sandbox
@@ -526,7 +624,7 @@ def run_remote_validation(
         revision_archive = temporary_path / "revision.tar.gz"
         validator_archive = temporary_path / "validator.tar.gz"
         downloaded_report = temporary_path / "validation-report.json"
-        _create_revision_archive(source_path, revision_archive)
+        _create_revision_archive(snapshot_root, revision_archive)
         _create_validator_archive(validator_archive)
 
         try:
@@ -543,6 +641,7 @@ def run_remote_validation(
                 _remote_command(
                     profile=selected_profile,
                     runtime_timeout_s=runtime_timeout_s,
+                    target_relative=target_relative,
                 ),
                 shell=False,
                 timeout=sandbox_timeout_s,
@@ -556,6 +655,11 @@ def run_remote_validation(
             try:
                 payload = json.loads(downloaded_report.read_text(encoding="utf-8"))
                 report = _parse_report(payload, expected_profile=selected_profile)
+                _validate_report_contract(
+                    report,
+                    source=source_path,
+                    expected_profile=selected_profile,
+                )
             except (OSError, ValueError, TypeError, json.JSONDecodeError) as exc:
                 raise RemoteValidationError(
                     "Remote validation report is invalid or malformed"
@@ -580,6 +684,7 @@ def run_remote_validation(
                     isolation_mode="dedicated",
                 ),
                 repo_sha=repo_sha or report.repo_sha,
+                source_digest=source_digest,
                 certified=False,
                 certification_eligible=False,
             )

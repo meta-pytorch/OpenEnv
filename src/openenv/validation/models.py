@@ -16,6 +16,7 @@ from .specs.base import ExecutionModel, SpecIdentity, SpecLoad, ValidationSubjec
 
 
 _STABLE_IDENTIFIER = re.compile(r"^[a-z0-9][a-z0-9._-]{0,127}$")
+_SHA256_DIGEST = re.compile(r"^sha256:[0-9a-f]{64}$")
 _TRUSTED_METADATA_STRING_KEYS = frozenset(
     {
         "id",
@@ -385,6 +386,8 @@ class ValidationPolicy:
     version: str
     supported_subjects: frozenset[tuple[str, ExecutionModel]]
     checks: tuple[ValidationCheck, ...]
+    supported_spec_versions: frozenset[tuple[str, str]] = frozenset()
+    supported_adapters: frozenset[tuple[str, str]] = frozenset()
 
     def __post_init__(self) -> None:
         if not _STABLE_IDENTIFIER.fullmatch(self.version):
@@ -395,6 +398,20 @@ class ValidationPolicy:
             for spec_id, model in self.supported_subjects
         ):
             raise ValueError("ValidationPolicy must declare supported subject pairs")
+        if any(
+            not _STABLE_IDENTIFIER.fullmatch(spec_id)
+            or not version.strip()
+            or len(version) > 128
+            for spec_id, version in self.supported_spec_versions
+        ):
+            raise ValueError("ValidationPolicy contains invalid spec-version bindings")
+        if any(
+            not _STABLE_IDENTIFIER.fullmatch(adapter_id)
+            or not version.strip()
+            or len(version) > 128
+            for adapter_id, version in self.supported_adapters
+        ):
+            raise ValueError("ValidationPolicy contains invalid adapter bindings")
         criterion_ids = [check.criterion_id for check in self.checks]
         if len(criterion_ids) != len(set(criterion_ids)):
             raise ValueError("ValidationPolicy contains duplicate criterion IDs")
@@ -405,9 +422,27 @@ class ValidationPolicy:
 
     def supports_identity(self, identity: SpecIdentity) -> bool:
         """Return whether this policy applies to a detected spec identity."""
-        return bool(
-            (identity.spec_id, identity.execution_model) in self.supported_subjects
+        subject_supported = (
+            identity.spec_id,
+            identity.execution_model,
+        ) in self.supported_subjects
+        version_supported = (
+            not self.supported_spec_versions
+            or (
+                identity.spec_id,
+                identity.spec_version,
+            )
+            in self.supported_spec_versions
         )
+        adapter_supported = (
+            not self.supported_adapters
+            or (
+                identity.adapter.adapter_id,
+                identity.adapter.adapter_version,
+            )
+            in self.supported_adapters
+        )
+        return bool(subject_supported and version_supported and adapter_supported)
 
 
 @dataclass
@@ -573,6 +608,7 @@ class ValidationReport:
     spec: ValidationSubject | None = None
     spec_identity: SpecIdentity | None = None
     repo_sha: str | None = None
+    source_digest: str | None = None
     image_digest: str | None = None
     certified: bool = False
     certification_eligible: bool = False
@@ -589,6 +625,10 @@ class ValidationReport:
             and self.spec_identity != self.spec.spec
         ):
             raise ValueError("ValidationReport spec identity must match its subject")
+        if self.source_digest is not None and not _SHA256_DIGEST.fullmatch(
+            self.source_digest
+        ):
+            raise ValueError("ValidationReport source digest must be lowercase SHA-256")
 
     @property
     def passed(self) -> bool:
@@ -678,6 +718,7 @@ class ValidationReport:
             "certified": self.certified,
             "certification_eligible": self.certification_eligible,
             "repo_sha": self.repo_sha,
+            "source_digest": self.source_digest,
             "image_digest": self.image_digest,
             "started_at": self.started_at,
             "finished_at": self.finished_at,

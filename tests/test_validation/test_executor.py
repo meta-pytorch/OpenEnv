@@ -118,6 +118,31 @@ def test_existing_profiles_keep_blocking_skips_nonfatal(tmp_path: Path) -> None:
         assert report.passed is True
 
 
+def test_advisory_skip_does_not_suggest_environment_remediation(
+    tmp_path: Path,
+) -> None:
+    check = ValidationCheck(
+        criterion_id="test.optional",
+        requirement="An optional declaration",
+        capabilities=frozenset(),
+        severity=ValidationSeverity.ADVISORY,
+        timeout_s=1.0,
+        evaluator=lambda _context: CheckOutcome.skip(message="Not declared"),
+    )
+    plan = ValidationPlan(
+        target=str(tmp_path),
+        profile=ValidationProfile.STATIC,
+        policy_version="test-policy",
+        capabilities=RunnerCapabilities(runner="local"),
+        checks=(check,),
+    )
+    context = ValidationContext(target=tmp_path, spec_load=_absent_spec())
+
+    report = execute_validation_plan(plan, context)
+
+    assert report.results[0].diagnostics == ()
+
+
 def test_echo_env_local_and_remote_executors_share_criterion_results() -> None:
     env_dir = Path(__file__).resolve().parents[2] / "envs" / "echo_env"
     local_plan, local_context = build_validation_plan(

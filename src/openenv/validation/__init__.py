@@ -27,7 +27,11 @@ from .planner import (
     OPENENV_VALIDATION_POLICY,
     VALIDATION_POLICY_VERSION,
 )
-from .remote import RemoteValidationError, run_remote_validation
+from .remote import (
+    RemoteValidationError,
+    run_remote_validation,
+    validation_source_digest,
+)
 from .security import ensure_official_hf_sandbox
 
 __all__ = [
@@ -56,4 +60,5 @@ __all__ = [
     "format_shared_validation_report",
     "run_local_validation",
     "run_remote_validation",
+    "validation_source_digest",
 ]
