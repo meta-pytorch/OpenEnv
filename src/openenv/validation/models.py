@@ -4,12 +4,40 @@
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
 from typing import Any, Callable, Mapping
 
-from .specs.base import SpecLoad
+from .serialization import json_safe, redact_string
+from .specs.base import ExecutionModel, SpecIdentity, SpecLoad, ValidationSubject
+
+
+_STABLE_IDENTIFIER = re.compile(r"^[a-z0-9][a-z0-9._-]{0,127}$")
+_TRUSTED_METADATA_STRING_KEYS = frozenset(
+    {
+        "id",
+        "isolation_mode",
+        "kind",
+        "policy_version",
+    }
+)
+
+
+def _restore_structural_spec_identity(
+    serialized: dict[str, Any], raw: Mapping[str, Any]
+) -> None:
+    """Restore adapter-owned identity fields after free-text redaction."""
+    for key in ("id", "adapter", "execution_model"):
+        if key in raw:
+            serialized[key] = raw[key]
+    raw_requirements = raw.get("requirements")
+    safe_requirements = serialized.get("requirements")
+    if isinstance(raw_requirements, Mapping) and isinstance(safe_requirements, dict):
+        for key in ("id", "adapter"):
+            if key in raw_requirements:
+                safe_requirements[key] = raw_requirements[key]
 
 
 class ValidationStatus(str, Enum):
@@ -50,6 +78,13 @@ class ValidationCapability(str, Enum):
     SIGNATURE_VERIFICATION = "signature_verification"
 
 
+class ValidationRequirementBinding(str, Enum):
+    """Normalized requirement that can adapt a policy criterion."""
+
+    VERIFIER = "verifier"
+    NETWORK = "network"
+
+
 @dataclass(frozen=True)
 class RunnerCapabilities:
     """Capabilities and trust properties exposed by a validation runner."""
@@ -58,6 +93,14 @@ class RunnerCapabilities:
     available: frozenset[ValidationCapability] = frozenset()
     official: bool = False
     isolation_mode: str | None = None
+
+    def __post_init__(self) -> None:
+        if not _STABLE_IDENTIFIER.fullmatch(self.runner):
+            raise ValueError("runner kind must be a stable lowercase identifier")
+        if self.isolation_mode is not None and not _STABLE_IDENTIFIER.fullmatch(
+            self.isolation_mode
+        ):
+            raise ValueError("isolation mode must be a stable lowercase identifier")
 
     def supports(self, required: frozenset[ValidationCapability]) -> bool:
         """Return whether all requested capabilities are available."""
@@ -164,10 +207,11 @@ class ValidationCheck:
         default_factory=lambda: frozenset(ValidationProfile)
     )
     built_in: bool = True
+    requirement_binding: ValidationRequirementBinding | None = None
 
     def __post_init__(self) -> None:
-        if not self.criterion_id.strip():
-            raise ValueError("ValidationCheck criterion_id cannot be empty")
+        if not _STABLE_IDENTIFIER.fullmatch(self.criterion_id):
+            raise ValueError("ValidationCheck criterion_id must be a stable identifier")
         if not self.requirement.strip():
             raise ValueError("ValidationCheck requirement cannot be empty")
         if self.timeout_s <= 0:
@@ -187,6 +231,38 @@ class ValidationCheck:
     def default_severity(self) -> ValidationSeverity:
         """Compatibility alias for the policy default severity."""
         return self.severity
+
+
+@dataclass(frozen=True)
+class ValidationPolicy:
+    """Versioned check catalog applicable to explicit specs and lifecycles."""
+
+    version: str
+    supported_subjects: frozenset[tuple[str, ExecutionModel]]
+    checks: tuple[ValidationCheck, ...]
+
+    def __post_init__(self) -> None:
+        if not _STABLE_IDENTIFIER.fullmatch(self.version):
+            raise ValueError("ValidationPolicy version must be a stable identifier")
+        if not self.supported_subjects or any(
+            not _STABLE_IDENTIFIER.fullmatch(spec_id)
+            or not isinstance(model, ExecutionModel)
+            for spec_id, model in self.supported_subjects
+        ):
+            raise ValueError("ValidationPolicy must declare supported subject pairs")
+        criterion_ids = [check.criterion_id for check in self.checks]
+        if len(criterion_ids) != len(set(criterion_ids)):
+            raise ValueError("ValidationPolicy contains duplicate criterion IDs")
+
+    def supports(self, subject: ValidationSubject) -> bool:
+        """Return whether this policy applies to a loaded subject."""
+        return self.supports_identity(subject.spec)
+
+    def supports_identity(self, identity: SpecIdentity) -> bool:
+        """Return whether this policy applies to a detected spec identity."""
+        return bool(
+            (identity.spec_id, identity.execution_model) in self.supported_subjects
+        )
 
 
 @dataclass
@@ -210,20 +286,42 @@ class ValidationPlan:
     policy_version: str
     capabilities: RunnerCapabilities
     checks: tuple[ValidationCheck, ...]
+    spec: ValidationSubject | None = None
+    spec_identity: SpecIdentity | None = None
     requirements: Mapping[str, Any] = field(default_factory=dict)
     _policy_attestation: object | None = field(default=None, repr=False, compare=False)
+    _policy_fingerprint: str | None = field(default=None, repr=False, compare=False)
 
     def __post_init__(self) -> None:
+        if not _STABLE_IDENTIFIER.fullmatch(self.policy_version):
+            raise ValueError(
+                "ValidationPlan policy version must be a stable identifier"
+            )
         criterion_ids = [check.criterion_id for check in self.checks]
         if len(criterion_ids) != len(set(criterion_ids)):
             raise ValueError("ValidationPlan contains duplicate criterion IDs")
+        if (
+            self.spec is not None
+            and self.spec_identity is not None
+            and self.spec_identity != self.spec.spec
+        ):
+            raise ValueError("ValidationPlan spec identity must match its subject")
 
     def to_dict(self) -> dict[str, Any]:
         """Return the safe, execution-independent plan representation."""
-        return {
+        payload = {
             "target": self.target,
             "profile": self.profile.value,
             "policy_version": self.policy_version,
+            "spec": (
+                self.spec.to_dict()
+                if self.spec is not None
+                else (
+                    self.spec_identity.to_dict()
+                    if self.spec_identity is not None
+                    else None
+                )
+            ),
             "runner": self.capabilities.to_dict(),
             "requirements": dict(self.requirements),
             "checks": [
@@ -236,10 +334,32 @@ class ValidationPlan:
                     "severity": check.severity.value,
                     "timeout_s": check.timeout_s,
                     "built_in": check.built_in,
+                    "requirement_binding": (
+                        check.requirement_binding.value
+                        if check.requirement_binding is not None
+                        else None
+                    ),
                 }
                 for check in self.checks
             ],
         }
+        serialized = json_safe(
+            payload,
+            trusted_string_keys=_TRUSTED_METADATA_STRING_KEYS,
+        )
+        assert isinstance(serialized, dict)
+        if isinstance(payload["spec"], Mapping) and isinstance(
+            serialized.get("spec"), dict
+        ):
+            _restore_structural_spec_identity(serialized["spec"], payload["spec"])
+        serialized_checks = serialized.get("checks")
+        if isinstance(serialized_checks, list):
+            for safe_check, raw_check in zip(
+                serialized_checks, payload["checks"], strict=True
+            ):
+                if isinstance(safe_check, dict):
+                    safe_check["requirement"] = raw_check["requirement"]
+        return serialized
 
 
 @dataclass(frozen=True)
@@ -276,13 +396,13 @@ class ValidationResult:
             "required_capabilities": sorted(
                 capability.value for capability in self.required_capabilities
             ),
-            "evidence": dict(self.evidence),
+            "evidence": json_safe(self.evidence),
             "duration_s": round(self.duration_s, 6),
             "duration_ms": round(self.duration_s * 1000, 3),
             "timeout_s": self.timeout_s,
         }
         if self.message is not None:
-            payload["details"] = self.message
+            payload["details"] = redact_string(self.message)
         for compatibility_key in ("expected", "actual"):
             if compatibility_key in self.evidence:
                 payload[compatibility_key] = self.evidence[compatibility_key]
