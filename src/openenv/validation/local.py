@@ -5,7 +5,9 @@
 from __future__ import annotations
 
 import errno
+import json
 import os
+import shlex
 import shutil
 import signal
 import socket
@@ -503,7 +505,9 @@ def run_local_validation(
         )
 
 
-def format_shared_validation_report(report: ValidationReport) -> str:
+def format_shared_validation_report(
+    report: ValidationReport, *, verbose: bool = False
+) -> str:
     """Render a concise human-readable shared report."""
     marker = "OK" if report.passed else "FAIL"
     lines = [
@@ -524,8 +528,45 @@ def format_shared_validation_report(report: ValidationReport) -> str:
         )
         if result.message:
             lines.append(f"    {result.message}")
-        issues = result.evidence.get("issues")
-        if isinstance(issues, list):
-            lines.extend(f"    {issue}" for issue in issues if isinstance(issue, str))
-    lines.append("Certification: not claimed by local validation")
+        for diagnostic in result.diagnostics:
+            safe_diagnostic = diagnostic.to_dict()
+            location = ""
+            if diagnostic.location is not None:
+                location = diagnostic.location.path
+                if diagnostic.location.pointer is not None:
+                    location += diagnostic.location.pointer
+                if diagnostic.location.line is not None:
+                    location += f":{diagnostic.location.line}"
+                location = f" ({location})"
+            lines.append(
+                f"    Diagnostic [{diagnostic.code}]{location}: "
+                f"{safe_diagnostic['message']}"
+            )
+        for remediation in result.remediation:
+            safe_remediation = remediation.to_dict()
+            lines.append(f"    Fix: {safe_remediation['message']}")
+            if remediation.argv:
+                lines.append(f"      $ {shlex.join(remediation.argv)}")
+            elif remediation.path is not None:
+                destination = remediation.path
+                if remediation.pointer is not None:
+                    destination += remediation.pointer
+                lines.append(f"      Edit: {destination}")
+            elif remediation.url is not None:
+                lines.append(f"      Docs: {remediation.url}")
+        if verbose and result.evidence:
+            rendered_evidence = json.dumps(
+                result.evidence, indent=2, sort_keys=True, default=str
+            )
+            lines.append("    Evidence:")
+            lines.extend(f"      {line}" for line in rendered_evidence.splitlines())
+    if report.profile is ValidationProfile.PUBLISH and not report.passed:
+        blockers = report.to_dict()["summary"]
+        blocking_ids = [
+            *blockers["blocking_failed_criteria"],
+            *blockers["blocking_skipped_criteria"],
+        ]
+        if blocking_ids:
+            lines.append(f"Publish blockers: {', '.join(blocking_ids)}")
+    lines.append("Certification: not claimed by author validation")
     return "\n".join(lines)

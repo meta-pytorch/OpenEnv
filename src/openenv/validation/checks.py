@@ -14,10 +14,13 @@ import yaml
 
 from .models import (
     CheckOutcome,
+    DiagnosticLocation,
     ValidationCapability,
     ValidationCheck,
     ValidationContext,
+    ValidationDiagnostic,
     ValidationProfile,
+    ValidationRemediation,
     ValidationRequirementBinding,
     ValidationSeverity,
     ValidationStatus,
@@ -80,6 +83,20 @@ def _validation_spec(context: ValidationContext) -> CheckOutcome:
         return CheckOutcome.fail(
             loaded.to_dict(),
             message="No supported validation spec was detected",
+            diagnostics=(
+                ValidationDiagnostic(
+                    code="validation_spec_missing",
+                    message="Add a supported environment manifest",
+                    location=DiagnosticLocation(path="openenv.yaml"),
+                ),
+            ),
+            remediation=(
+                ValidationRemediation(
+                    kind="edit",
+                    message="Create openenv.yaml with the environment identity and runtime settings",
+                    path="openenv.yaml",
+                ),
+            ),
         )
     if loaded.state in {
         SpecLoadState.INVALID,
@@ -89,6 +106,20 @@ def _validation_spec(context: ValidationContext) -> CheckOutcome:
         return CheckOutcome.fail(
             loaded.to_dict(),
             message="The validation spec could not be loaded",
+            diagnostics=(
+                ValidationDiagnostic(
+                    code="validation_spec_invalid",
+                    message="Fix the OpenEnv manifest before validation can continue",
+                    location=DiagnosticLocation(path="openenv.yaml"),
+                ),
+            ),
+            remediation=(
+                ValidationRemediation(
+                    kind="edit",
+                    message="Correct the invalid fields or syntax in openenv.yaml",
+                    path="openenv.yaml",
+                ),
+            ),
         )
     if loaded.subject is None:
         return CheckOutcome.error(
@@ -103,6 +134,13 @@ def _validation_requirements(context: ValidationContext) -> CheckOutcome:
         return CheckOutcome.skip(
             {"requirements_present": False, "reason": "spec_unavailable"},
             message="Requirements cannot be loaded until the source spec is valid",
+            diagnostics=(
+                ValidationDiagnostic(
+                    code="requirements_blocked_by_spec",
+                    message="Requirements cannot be inspected until the environment manifest is valid",
+                    location=DiagnosticLocation(path="openenv.yaml"),
+                ),
+            ),
         )
     loaded = subject.requirements
     if loaded.state is RequirementsState.ABSENT:
@@ -112,11 +150,41 @@ def _validation_requirements(context: ValidationContext) -> CheckOutcome:
                 "migration": "Missing requirements are locally non-failing in rfc008-v1",
             },
             message="No requirements envelope found; policy defaults apply during migration",
+            diagnostics=(
+                ValidationDiagnostic(
+                    code="requirements_missing",
+                    message="A publish-ready environment must declare its execution requirements",
+                    location=DiagnosticLocation(path="task.toml"),
+                ),
+            ),
+            remediation=(
+                ValidationRemediation(
+                    kind="edit",
+                    message='Add a Harbor schema 1.1 requirements envelope; start with schema_version = "1.1"',
+                    path="task.toml",
+                    pointer="/schema_version",
+                ),
+            ),
         )
     if loaded.state in {RequirementsState.INVALID, RequirementsState.UNSUPPORTED}:
         return CheckOutcome.fail(
             loaded.to_evidence(),
             message="The requirements envelope could not be loaded",
+            diagnostics=(
+                ValidationDiagnostic(
+                    code="requirements_invalid",
+                    message="Fix unsupported fields or invalid TOML in the requirements envelope",
+                    location=DiagnosticLocation(path="task.toml"),
+                ),
+            ),
+            remediation=(
+                ValidationRemediation(
+                    kind="edit",
+                    message='Use the supported Harbor schema_version "1.1" configuration',
+                    path="task.toml",
+                    pointer="/schema_version",
+                ),
+            ),
         )
     if loaded.requirements is None:
         return CheckOutcome.error(
@@ -132,6 +200,20 @@ def _openenv_manifest(context: ValidationContext) -> CheckOutcome:
         return CheckOutcome.fail(
             {"path": str(path), "missing_or_unsafe": True},
             message="Missing or unsafe openenv.yaml",
+            diagnostics=(
+                ValidationDiagnostic(
+                    code="manifest_missing",
+                    message="The environment root must contain a regular openenv.yaml file",
+                    location=DiagnosticLocation(path="openenv.yaml"),
+                ),
+            ),
+            remediation=(
+                ValidationRemediation(
+                    kind="edit",
+                    message="Create a regular openenv.yaml manifest in the environment root",
+                    path="openenv.yaml",
+                ),
+            ),
         )
     try:
         manifest = yaml.safe_load(path.read_text(encoding="utf-8"))
@@ -139,6 +221,20 @@ def _openenv_manifest(context: ValidationContext) -> CheckOutcome:
         return CheckOutcome.fail(
             {"path": str(path), "error_type": type(exc).__name__},
             message="Unable to parse openenv.yaml",
+            diagnostics=(
+                ValidationDiagnostic(
+                    code="manifest_syntax_invalid",
+                    message="openenv.yaml contains invalid YAML syntax",
+                    location=DiagnosticLocation(path="openenv.yaml"),
+                ),
+            ),
+            remediation=(
+                ValidationRemediation(
+                    kind="edit",
+                    message="Correct the YAML syntax in openenv.yaml",
+                    path="openenv.yaml",
+                ),
+            ),
         )
     if not isinstance(manifest, dict):
         return CheckOutcome.fail(
@@ -151,6 +247,25 @@ def _openenv_manifest(context: ValidationContext) -> CheckOutcome:
         return CheckOutcome.fail(
             {"path": str(path), "missing_fields": missing},
             message="openenv.yaml is missing required fields",
+            diagnostics=tuple(
+                ValidationDiagnostic(
+                    code="manifest_field_missing",
+                    message=f"Add the required `{field}` setting",
+                    location=DiagnosticLocation(
+                        path="openenv.yaml", pointer=f"/{field}"
+                    ),
+                )
+                for field in missing
+            ),
+            remediation=tuple(
+                ValidationRemediation(
+                    kind="edit",
+                    message=f"Configure `{field}` in openenv.yaml",
+                    path="openenv.yaml",
+                    pointer=f"/{field}",
+                )
+                for field in missing
+            ),
         )
     invalid_fields: dict[str, Any] = {}
     spec_version = manifest.get("spec_version")
@@ -170,6 +285,25 @@ def _openenv_manifest(context: ValidationContext) -> CheckOutcome:
         return CheckOutcome.fail(
             {"path": str(path), "invalid_fields": invalid_fields},
             message="openenv.yaml contains unsupported or invalid field values",
+            diagnostics=tuple(
+                ValidationDiagnostic(
+                    code="manifest_field_invalid",
+                    message=f"Configure a supported value for `{field}`",
+                    location=DiagnosticLocation(
+                        path="openenv.yaml", pointer=f"/{field}"
+                    ),
+                )
+                for field in invalid_fields
+            ),
+            remediation=tuple(
+                ValidationRemediation(
+                    kind="edit",
+                    message=f"Correct `{field}` in openenv.yaml",
+                    path="openenv.yaml",
+                    pointer=f"/{field}",
+                )
+                for field in invalid_fields
+            ),
         )
     return CheckOutcome.pass_(
         {
@@ -222,7 +356,25 @@ def _project_layout(context: ValidationContext) -> CheckOutcome:
         "issues": issues,
     }
     if issues:
-        return CheckOutcome.fail(evidence, message=f"{len(issues)} layout issue(s)")
+        return CheckOutcome.fail(
+            evidence,
+            message=f"{len(issues)} layout issue(s)",
+            diagnostics=tuple(
+                ValidationDiagnostic(
+                    code="project_layout_issue",
+                    message=issue,
+                    location=DiagnosticLocation(path="."),
+                )
+                for issue in issues
+            ),
+            remediation=(
+                ValidationRemediation(
+                    kind="edit",
+                    message="Add the missing project files or correct the server entry point",
+                    path="pyproject.toml",
+                ),
+            ),
+        )
     return CheckOutcome.pass_(evidence)
 
 
@@ -254,6 +406,23 @@ def _dependencies(context: ValidationContext) -> CheckOutcome:
                 "dockerfile_installs_openenv": False,
             },
             message="Missing required dependency: openenv>=0.2.0",
+            diagnostics=(
+                ValidationDiagnostic(
+                    code="openenv_dependency_missing",
+                    message="The project must install the OpenEnv runtime dependency",
+                    location=DiagnosticLocation(
+                        path="pyproject.toml", pointer="/project/dependencies"
+                    ),
+                ),
+            ),
+            remediation=(
+                ValidationRemediation(
+                    kind="command",
+                    message="Add the OpenEnv runtime dependency and refresh the lockfile",
+                    argv=("uv", "add", "openenv>=0.2.0"),
+                    cwd=".",
+                ),
+            ),
         )
     return CheckOutcome.pass_(
         {
@@ -270,6 +439,21 @@ def _lockfile(context: ValidationContext) -> CheckOutcome:
         return CheckOutcome.fail(
             {"path": str(lockfile), "missing_or_unsafe": True},
             message="Missing or unsafe uv.lock - run 'uv lock' to generate it",
+            diagnostics=(
+                ValidationDiagnostic(
+                    code="lockfile_missing",
+                    message="A publish-ready environment must include a regular uv.lock file",
+                    location=DiagnosticLocation(path="uv.lock"),
+                ),
+            ),
+            remediation=(
+                ValidationRemediation(
+                    kind="command",
+                    message="Generate the dependency lockfile",
+                    argv=("uv", "lock"),
+                    cwd=".",
+                ),
+            ),
         )
     try:
         with lockfile.open("rb") as lockfile_handle:
@@ -321,6 +505,23 @@ def _schema_sources(context: ValidationContext) -> CheckOutcome:
         return CheckOutcome.fail(
             {"checked": checked, "errors": errors},
             message="Python schema/application sources do not compile",
+            diagnostics=tuple(
+                ValidationDiagnostic(
+                    code="python_source_invalid",
+                    message="Correct the Python syntax error in this source file",
+                    location=DiagnosticLocation(
+                        path=str(error["path"]), line=error.get("line")
+                    ),
+                )
+                for error in errors
+            ),
+            remediation=(
+                ValidationRemediation(
+                    kind="edit",
+                    message="Fix each reported Python syntax or file-safety error",
+                    path=str(errors[0]["path"]),
+                ),
+            ),
         )
     return CheckOutcome.pass_({"checked": checked})
 
@@ -368,6 +569,20 @@ def _dockerfile(context: ValidationContext) -> CheckOutcome:
     return CheckOutcome.fail(
         {"searched": ["server/Dockerfile", "Dockerfile"]},
         message="Missing Dockerfile and normalized container-image declaration",
+        diagnostics=(
+            ValidationDiagnostic(
+                code="container_declaration_missing",
+                message="Declare a container image or add a Dockerfile",
+                location=DiagnosticLocation(path="server/Dockerfile"),
+            ),
+        ),
+        remediation=(
+            ValidationRemediation(
+                kind="edit",
+                message="Add server/Dockerfile with a supported FROM instruction",
+                path="server/Dockerfile",
+            ),
+        ),
     )
 
 

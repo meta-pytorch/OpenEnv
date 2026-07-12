@@ -203,7 +203,7 @@ def validate(
     if json_output or (runtime_target is not None and profile is None):
         typer.echo(serialized)
     else:
-        typer.echo(format_shared_validation_report(report))
+        typer.echo(format_shared_validation_report(report, verbose=verbose))
         if output is not None:
             typer.echo(f"Report written to {output}")
 

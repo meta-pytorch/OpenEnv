@@ -9,6 +9,7 @@ from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
 from typing import Any, Callable, Mapping
+from urllib.parse import urlsplit
 
 from .serialization import json_safe, redact_string
 from .specs.base import ExecutionModel, SpecIdentity, SpecLoad, ValidationSubject
@@ -86,6 +87,131 @@ class ValidationRequirementBinding(str, Enum):
     NETWORK = "network"
 
 
+def _validate_relative_path(value: str, *, field_name: str) -> None:
+    path = Path(value)
+    if (
+        not value
+        or len(value) > 4096
+        or "\x00" in value
+        or path.is_absolute()
+        or ".." in path.parts
+    ):
+        raise ValueError(f"{field_name} must be a bounded relative path")
+
+
+@dataclass(frozen=True)
+class DiagnosticLocation:
+    """Repository-relative location for an author-facing diagnostic."""
+
+    path: str
+    pointer: str | None = None
+    line: int | None = None
+    column: int | None = None
+
+    def __post_init__(self) -> None:
+        _validate_relative_path(self.path, field_name="diagnostic path")
+        if self.pointer is not None and (
+            not self.pointer.startswith("/")
+            or len(self.pointer) > 4096
+            or "\x00" in self.pointer
+        ):
+            raise ValueError("diagnostic pointer must be a bounded document pointer")
+        for name, value in (("line", self.line), ("column", self.column)):
+            if value is not None and (not isinstance(value, int) or value < 1):
+                raise ValueError(f"diagnostic {name} must be a positive integer")
+
+    def to_dict(self) -> dict[str, Any]:
+        """Return a JSON-safe source location."""
+        return {
+            "path": self.path,
+            "pointer": self.pointer,
+            "line": self.line,
+            "column": self.column,
+        }
+
+
+@dataclass(frozen=True)
+class ValidationDiagnostic:
+    """Trusted, typed explanation of a validation problem."""
+
+    code: str
+    message: str
+    location: DiagnosticLocation | None = None
+
+    def __post_init__(self) -> None:
+        if not _STABLE_IDENTIFIER.fullmatch(self.code):
+            raise ValueError("diagnostic code must be a stable lowercase identifier")
+        if not self.message.strip() or len(self.message) > 4096:
+            raise ValueError("diagnostic message must be non-empty and bounded")
+
+    def to_dict(self) -> dict[str, Any]:
+        """Return the report representation with free text redacted."""
+        return {
+            "code": self.code,
+            "message": redact_string(self.message),
+            "location": self.location.to_dict() if self.location is not None else None,
+        }
+
+
+@dataclass(frozen=True)
+class ValidationRemediation:
+    """Display-only, policy-authored guidance for resolving a diagnostic."""
+
+    kind: str
+    message: str
+    argv: tuple[str, ...] = ()
+    cwd: str | None = None
+    path: str | None = None
+    pointer: str | None = None
+    url: str | None = None
+
+    def __post_init__(self) -> None:
+        if self.kind not in {"command", "documentation", "edit", "retry"}:
+            raise ValueError("unsupported remediation kind")
+        if not self.message.strip() or len(self.message) > 4096:
+            raise ValueError("remediation message must be non-empty and bounded")
+        if any(
+            not isinstance(argument, str)
+            or not argument
+            or len(argument) > 4096
+            or "\x00" in argument
+            for argument in self.argv
+        ):
+            raise ValueError("remediation argv must contain bounded strings")
+        if self.kind == "command" and not self.argv:
+            raise ValueError("command remediation requires argv")
+        if self.kind != "command" and self.argv:
+            raise ValueError("only command remediation may declare argv")
+        if self.cwd is not None:
+            _validate_relative_path(self.cwd, field_name="remediation cwd")
+        if self.path is not None:
+            _validate_relative_path(self.path, field_name="remediation path")
+        if self.pointer is not None and (
+            not self.pointer.startswith("/")
+            or len(self.pointer) > 4096
+            or "\x00" in self.pointer
+        ):
+            raise ValueError("remediation pointer must be a bounded document pointer")
+        if self.url is not None:
+            parsed = urlsplit(self.url)
+            if parsed.scheme != "https" or not parsed.hostname or parsed.username:
+                raise ValueError(
+                    "remediation URL must be an HTTPS URL without credentials"
+                )
+
+    def to_dict(self) -> dict[str, Any]:
+        """Return structured guidance; argv is never interpreted as a shell string."""
+        return {
+            "kind": self.kind,
+            "message": redact_string(self.message),
+            "argv": [redact_string(argument) for argument in self.argv],
+            "cwd": self.cwd,
+            "path": self.path,
+            "pointer": self.pointer,
+            "url": redact_string(self.url) if self.url is not None else None,
+        }
+
+
 @dataclass(frozen=True)
 class RunnerCapabilities:
     """Capabilities and trust properties exposed by a validation runner."""
@@ -125,6 +251,8 @@ class CheckOutcome:
     evidence: Mapping[str, Any] = field(default_factory=dict)
     message: str | None = None
     severity: ValidationSeverity | None = None
+    diagnostics: tuple[ValidationDiagnostic, ...] = ()
+    remediation: tuple[ValidationRemediation, ...] = ()
 
     @classmethod
     def pass_(
@@ -133,6 +261,8 @@ class CheckOutcome:
         *,
         message: str | None = None,
         severity: ValidationSeverity | None = None,
+        diagnostics: tuple[ValidationDiagnostic, ...] = (),
+        remediation: tuple[ValidationRemediation, ...] = (),
     ) -> "CheckOutcome":
         """Build a passing outcome."""
         return cls(
@@ -140,6 +270,8 @@ class CheckOutcome:
             evidence or {},
             message=message,
             severity=severity,
+            diagnostics=diagnostics,
+            remediation=remediation,
         )
 
     @classmethod
@@ -149,6 +281,8 @@ class CheckOutcome:
         *,
         message: str | None = None,
         severity: ValidationSeverity | None = None,
+        diagnostics: tuple[ValidationDiagnostic, ...] = (),
+        remediation: tuple[ValidationRemediation, ...] = (),
     ) -> "CheckOutcome":
         """Build a failing outcome."""
         return cls(
@@ -156,6 +290,8 @@ class CheckOutcome:
             evidence or {},
             message=message,
             severity=severity,
+            diagnostics=diagnostics,
+            remediation=remediation,
         )
 
     @classmethod
@@ -165,6 +301,8 @@ class CheckOutcome:
         *,
         message: str | None = None,
         severity: ValidationSeverity | None = None,
+        diagnostics: tuple[ValidationDiagnostic, ...] = (),
+        remediation: tuple[ValidationRemediation, ...] = (),
     ) -> "CheckOutcome":
         """Build a skipped outcome."""
         return cls(
@@ -172,6 +310,8 @@ class CheckOutcome:
             evidence or {},
             message=message,
             severity=severity,
+            diagnostics=diagnostics,
+            remediation=remediation,
         )
 
     @classmethod
@@ -181,6 +321,8 @@ class CheckOutcome:
         *,
         message: str | None = None,
         severity: ValidationSeverity | None = None,
+        diagnostics: tuple[ValidationDiagnostic, ...] = (),
+        remediation: tuple[ValidationRemediation, ...] = (),
     ) -> "CheckOutcome":
         """Build an infrastructure-error outcome."""
         return cls(
@@ -188,6 +330,8 @@ class CheckOutcome:
             evidence or {},
             message=message,
             severity=severity,
+            diagnostics=diagnostics,
+            remediation=remediation,
         )
 
 
@@ -377,6 +521,8 @@ class ValidationResult:
     required_capabilities: frozenset[ValidationCapability]
     built_in: bool = True
     message: str | None = None
+    diagnostics: tuple[ValidationDiagnostic, ...] = ()
+    remediation: tuple[ValidationRemediation, ...] = ()
 
     @property
     def passed(self) -> bool:
@@ -401,6 +547,8 @@ class ValidationResult:
             "duration_s": round(self.duration_s, 6),
             "duration_ms": round(self.duration_s * 1000, 3),
             "timeout_s": self.timeout_s,
+            "diagnostics": [item.to_dict() for item in self.diagnostics],
+            "remediation": [item.to_dict() for item in self.remediation],
         }
         if self.message is not None:
             payload["details"] = redact_string(self.message)

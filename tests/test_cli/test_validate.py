@@ -60,6 +60,61 @@ def _write_minimal_valid_env(
     (env_dir / "server" / "Dockerfile").write_text("FROM python:3.12-slim\n")
 
 
+def _diagnostic_failure_report(target: Path):
+    from openenv.validation.models import (
+        DiagnosticLocation,
+        RunnerCapabilities,
+        ValidationCapability,
+        ValidationDiagnostic,
+        ValidationProfile,
+        ValidationRemediation,
+        ValidationReport,
+        ValidationResult,
+        ValidationSeverity,
+        ValidationStatus,
+    )
+
+    diagnostic = ValidationDiagnostic(
+        code="missing_dependency",
+        message="Missing OpenEnv runtime dependency",
+        location=DiagnosticLocation(path="pyproject.toml"),
+    )
+    remediation = ValidationRemediation(
+        kind="command",
+        message="Add the OpenEnv runtime dependency",
+        argv=("uv", "add", "openenv>=0.2.0"),
+        cwd=".",
+    )
+    result = ValidationResult(
+        criterion_id="source.dependencies",
+        requirement="The environment declares the OpenEnv runtime dependency",
+        status=ValidationStatus.FAIL,
+        severity=ValidationSeverity.BLOCKING,
+        evidence={
+            "project_dependency_count": 0,
+            "dockerfile_installs_openenv": False,
+        },
+        duration_s=0.01,
+        timeout_s=10.0,
+        required_capabilities=frozenset({ValidationCapability.SOURCE}),
+        diagnostics=(diagnostic,),
+        remediation=(remediation,),
+    )
+    return ValidationReport(
+        target=str(target),
+        profile=ValidationProfile.STATIC,
+        policy_version="test-policy",
+        runner=RunnerCapabilities(
+            runner="local",
+            available=frozenset({ValidationCapability.SOURCE}),
+        ),
+        results=(result,),
+        duration_s=0.01,
+        started_at="2026-01-01T00:00:00+00:00",
+        finished_at="2026-01-01T00:00:00.010000+00:00",
+    )
+
+
 def test_validate_running_environment_success() -> None:
     """Runtime validator returns passing criteria for a conforming server."""
 
@@ -241,6 +296,47 @@ def test_unqualified_local_validate_uses_shared_static_semantics(
     assert "static validation" in result.output
     assert "source.validation_spec" in result.output
     assert "The validation spec could not be loaded" in result.output
+
+
+def test_shared_human_report_surfaces_typed_remediation(tmp_path: Path) -> None:
+    env_dir = tmp_path / "test_env"
+    _write_minimal_valid_env(env_dir)
+    report = _diagnostic_failure_report(env_dir)
+
+    with patch(
+        "openenv.cli.commands.validate.run_local_validation",
+        return_value=report,
+    ):
+        result = runner.invoke(
+            app,
+            ["validate", str(env_dir), "--profile", "static"],
+        )
+
+    assert result.exit_code == 1
+    assert "Missing OpenEnv runtime dependency" in result.output
+    assert "pyproject.toml" in result.output
+    assert "Add the OpenEnv runtime dependency" in result.output
+    assert "uv add 'openenv>=0.2.0'" in result.output
+    assert "project_dependency_count" not in result.output
+
+
+def test_shared_verbose_report_includes_structured_evidence(tmp_path: Path) -> None:
+    env_dir = tmp_path / "test_env"
+    _write_minimal_valid_env(env_dir)
+    report = _diagnostic_failure_report(env_dir)
+
+    with patch(
+        "openenv.cli.commands.validate.run_local_validation",
+        return_value=report,
+    ):
+        result = runner.invoke(
+            app,
+            ["validate", str(env_dir), "--profile", "static", "--verbose"],
+        )
+
+    assert result.exit_code == 1
+    assert "project_dependency_count" in result.output
+    assert "dockerfile_installs_openenv" in result.output
 
 
 def test_validate_command_local_json_output(tmp_path: Path) -> None:

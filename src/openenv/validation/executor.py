@@ -15,8 +15,10 @@ from typing import Any, Iterator, Mapping
 from .models import (
     CheckOutcome,
     ValidationContext,
+    ValidationDiagnostic,
     ValidationPlan,
     ValidationProfile,
+    ValidationRemediation,
     ValidationReport,
     ValidationResult,
     ValidationSeverity,
@@ -98,6 +100,15 @@ def _execute_check(
             required_capabilities=check.capabilities,
             built_in=check.built_in,
             message="Runner does not provide the capabilities required by this check",
+            diagnostics=(
+                ValidationDiagnostic(
+                    code="runner_capability_unavailable",
+                    message=(
+                        "This blocking check could not run with the selected "
+                        "validation runner"
+                    ),
+                ),
+            ),
         )
 
     started = time.perf_counter()
@@ -127,6 +138,14 @@ def _execute_check(
             not isinstance(outcome.status, ValidationStatus)
             or not isinstance(outcome.evidence, Mapping)
             or (outcome.message is not None and not isinstance(outcome.message, str))
+            or not isinstance(outcome.diagnostics, tuple)
+            or not all(
+                isinstance(item, ValidationDiagnostic) for item in outcome.diagnostics
+            )
+            or not isinstance(outcome.remediation, tuple)
+            or not all(
+                isinstance(item, ValidationRemediation) for item in outcome.remediation
+            )
         ):
             outcome = CheckOutcome.error(
                 {"reason": "invalid_outcome_shape"},
@@ -171,6 +190,22 @@ def _execute_check(
         )
         evidence = json_safe(outcome.evidence)
 
+    diagnostics = outcome.diagnostics
+    if (
+        not diagnostics
+        and check.built_in
+        and outcome.status is not ValidationStatus.PASS
+    ):
+        diagnostics = (
+            ValidationDiagnostic(
+                code=f"criterion_{outcome.status.value}",
+                message=(
+                    "Review this criterion's safe evidence and correct the environment "
+                    "configuration before retrying"
+                ),
+            ),
+        )
+
     return ValidationResult(
         criterion_id=check.criterion_id,
         requirement=check.requirement,
@@ -186,6 +221,8 @@ def _execute_check(
         message=(
             redact_string(outcome.message) if outcome.message is not None else None
         ),
+        diagnostics=diagnostics,
+        remediation=outcome.remediation,
     )
 
 
