@@ -257,6 +257,20 @@ class EnvClient(ABC, Generic[ActT, ObsT, StateT]):
         if base_url is not None:
             self._set_base_url(base_url)
 
+    @property
+    def base_url(self) -> Optional[str]:
+        """Public read-only URL of the environment server this client targets.
+
+        Returns the normalized `http(s)`/`ws(s)` base URL (no trailing slash),
+        or `None` when the client was created with a provider but has not yet
+        started its container (the URL is assigned lazily on `connect()`).
+
+        This is the public counterpart to the private `self._base_url`; the
+        previously-public `base_url` attribute was dropped in the `core`
+        refactor, leaving sync consumers with no way to read the URL back.
+        """
+        return self._base_url
+
     def _set_base_url(self, base_url: str) -> None:
         self._base_url = base_url.rstrip("/")
         ws_url = convert_to_ws_url(base_url)
@@ -503,6 +517,31 @@ class EnvClient(ABC, Generic[ActT, ObsT, StateT]):
         return response
 
     @classmethod
+    def _bootstrap_container(
+        cls: Type[EnvClientT],
+        image: str,
+        provider: Optional["ContainerProvider"] = None,
+        **kwargs: Any,
+    ) -> EnvClientT:
+        """Start a Docker container and build an *unconnected* client for it.
+
+        Shared by the async `from_docker_image` and the sync
+        `from_docker_image_sync`: the container start / readiness wait is plain
+        blocking code, so the only thing that differs between the two entry
+        points is how the WebSocket is connected (awaited vs. run sync).
+        """
+        if provider is None:
+            provider = LocalDockerProvider()
+
+        # Start container
+        base_url = provider.start_container(image, **kwargs)
+
+        # Wait for server to be ready
+        provider.wait_for_ready(base_url)
+
+        return cls(base_url=base_url, provider=provider)
+
+    @classmethod
     async def from_docker_image(
         cls: Type[EnvClientT],
         image: str,
@@ -511,6 +550,10 @@ class EnvClient(ABC, Generic[ActT, ObsT, StateT]):
     ) -> EnvClientT:
         """
         Create an environment client by spinning up a Docker container.
+
+        This is the async entry point. Synchronous callers (e.g. a TRL GRPO
+        rollout loop) that cannot `await` should use
+        [`~openenv.core.EnvClient.from_docker_image_sync`].
 
         Args:
             image (`str`):
@@ -523,20 +566,114 @@ class EnvClient(ABC, Generic[ActT, ObsT, StateT]):
         Returns:
             Connected client instance
         """
-        if provider is None:
-            provider = LocalDockerProvider()
-
-        # Start container
-        base_url = provider.start_container(image, **kwargs)
-
-        # Wait for server to be ready
-        provider.wait_for_ready(base_url)
-
-        # Create and connect client
-        client = cls(base_url=base_url, provider=provider)
+        client = cls._bootstrap_container(image, provider, **kwargs)
         await client.connect()
 
         return client
+
+    @classmethod
+    def from_docker_image_sync(
+        cls: Type[EnvClientT],
+        image: str,
+        provider: Optional["ContainerProvider"] = None,
+        **kwargs: Any,
+    ) -> EnvClientT:
+        """
+        Synchronous counterpart of
+        [`~openenv.core.EnvClient.from_docker_image`].
+
+        Bootstraps the container and returns an already-connected client
+        without requiring an `await`, so synchronous consumers no longer have
+        to hand-roll `provider.start_container()` / `wait_for_ready()` and
+        duplicate this bootstrap sequence. The connection is driven on the same
+        dedicated background loop the sync API uses everywhere else, so the
+        returned client is safe to use from synchronous code immediately.
+
+        Examples:
+
+        ```python
+        env = MyEnv.from_docker_image_sync("coding-env:latest")
+        result = env.reset()
+        ```
+
+        Args and return value match [`~openenv.core.EnvClient.from_docker_image`].
+        """
+        client = cls._bootstrap_container(image, provider, **kwargs)
+        client._run_sync(client._connect_async)
+
+        return client
+
+    @classmethod
+    def _bootstrap_env(
+        cls: Type[EnvClientT],
+        repo_id: str,
+        *,
+        use_docker: bool = True,
+        provider: Optional["ContainerProvider | RuntimeProvider"] = None,
+        **provider_kwargs: Any,
+    ) -> EnvClientT:
+        """Start a HF Space (docker or uv) and build an *unconnected* client.
+
+        Shared bootstrap for the async `from_env` and the sync `from_env_sync`;
+        see `_bootstrap_container` for the same split rationale. On a startup
+        failure the spawned process (and, for a git+ `project_path`, the temp
+        clone directory) is released before re-raising; a later *connection*
+        failure is cleaned up by `_connect_async` via `close()`.
+        """
+        # Extract start args that apply to both providers
+        start_args = {}
+        for key in ("port", "env_vars", "workers"):
+            if key in provider_kwargs:
+                start_args[key] = provider_kwargs.pop(key)
+
+        if use_docker:
+            # Docker mode: pull from HF registry
+            docker_provider = provider or LocalDockerProvider()
+            tag = provider_kwargs.pop("tag", "latest")
+            image = f"registry.hf.space/{repo_id.replace('/', '-')}:{tag}"
+            base_url = docker_provider.start_container(
+                image, **start_args, **provider_kwargs
+            )
+            docker_provider.wait_for_ready(base_url)
+
+            return cls(base_url=base_url, provider=docker_provider)
+        else:
+            # UV mode: clone and run with uv
+            if provider is None:
+                uv_kwargs = dict(provider_kwargs)
+                project_path = uv_kwargs.pop("project_path", None)
+                if project_path is None:
+                    project_path = f"git+https://huggingface.co/spaces/{repo_id}"
+
+                provider = UVProvider(project_path=project_path, **uv_kwargs)
+            else:
+                if provider_kwargs:
+                    raise ValueError(
+                        "provider_kwargs cannot be used when supplying a provider instance"
+                    )
+
+            try:
+                context_timeout_s = getattr(provider, "context_timeout_s", None)
+                deadline = (
+                    time.monotonic() + context_timeout_s
+                    if context_timeout_s is not None
+                    else None
+                )
+                base_url = provider.start(**start_args)
+                if deadline is None:
+                    provider.wait_for_ready()
+                else:
+                    provider.wait_for_ready(
+                        timeout_s=max(0.0, deadline - time.monotonic())
+                    )
+            except Exception:
+                # No EnvClient exists yet for the caller to close(), so this is
+                # the only chance to release the spawned process and (for a
+                # git+ project_path) the temp clone directory.
+                provider.stop()
+                raise
+
+            return cls(base_url=base_url, provider=provider)
 
     @classmethod
     async def from_env(
@@ -549,6 +686,9 @@ class EnvClient(ABC, Generic[ActT, ObsT, StateT]):
     ) -> EnvClientT:
         """
         Create a client from a Hugging Face Space.
+
+        This is the async entry point. Synchronous callers that cannot `await`
+        should use [`~openenv.core.EnvClient.from_env_sync`].
 
         Args:
             repo_id (`str`):
@@ -585,64 +725,43 @@ class EnvClient(ABC, Generic[ActT, ObsT, StateT]):
             )
             ```
         """
-        # Extract start args that apply to both providers
-        start_args = {}
-        for key in ("port", "env_vars", "workers"):
-            if key in provider_kwargs:
-                start_args[key] = provider_kwargs.pop(key)
+        client = cls._bootstrap_env(
+            repo_id,
+            use_docker=use_docker,
+            provider=provider,
+            **provider_kwargs,
+        )
+        await client.connect()
 
-        if use_docker:
-            # Docker mode: pull from HF registry
-            docker_provider = provider or LocalDockerProvider()
-            tag = provider_kwargs.pop("tag", "latest")
-            image = f"registry.hf.space/{repo_id.replace('/', '-')}:{tag}"
-            base_url = docker_provider.start_container(
-                image, **start_args, **provider_kwargs
-            )
-            docker_provider.wait_for_ready(base_url)
+        return client
 
-            client = cls(base_url=base_url, provider=docker_provider)
-            await client.connect()
-            return client
-        else:
-            # UV mode: clone and run with uv
-            if provider is None:
-                uv_kwargs = dict(provider_kwargs)
-                project_path = uv_kwargs.pop("project_path", None)
-                if project_path is None:
-                    project_path = f"git+https://huggingface.co/spaces/{repo_id}"
+    @classmethod
+    def from_env_sync(
+        cls: Type[EnvClientT],
+        repo_id: str,
+        *,
+        use_docker: bool = True,
+        provider: Optional["ContainerProvider | RuntimeProvider"] = None,
+        **provider_kwargs: Any,
+    ) -> EnvClientT:
+        """
+        Synchronous counterpart of [`~openenv.core.EnvClient.from_env`].
 
-                provider = UVProvider(project_path=project_path, **uv_kwargs)
-            else:
-                if provider_kwargs:
-                    raise ValueError(
-                        "provider_kwargs cannot be used when supplying a provider instance"
-                    )
+        Bootstraps the Space and returns an already-connected client without
+        requiring an `await`. See
+        [`~openenv.core.EnvClient.from_docker_image_sync`] for the rationale.
 
-            try:
-                context_timeout_s = getattr(provider, "context_timeout_s", None)
-                deadline = (
-                    time.monotonic() + context_timeout_s
-                    if context_timeout_s is not None
-                    else None
-                )
-                base_url = provider.start(**start_args)
-                if deadline is None:
-                    provider.wait_for_ready()
-                else:
-                    provider.wait_for_ready(
-                        timeout_s=max(0.0, deadline - time.monotonic())
-                    )
+        Args and return value match [`~openenv.core.EnvClient.from_env`].
+        """
+        client = cls._bootstrap_env(
+            repo_id,
+            use_docker=use_docker,
+            provider=provider,
+            **provider_kwargs,
+        )
+        client._run_sync(client._connect_async)
 
-                client = cls(base_url=base_url, provider=provider)
-                await client.connect()
-            except Exception:
-                # No EnvClient may exist yet for the caller to close(), so
-                # this is the only chance to release the spawned process and
-                # (for a git+ project_path) the temp clone directory.
-                provider.stop()
-                raise
-            return client
+        return client
 
     @abstractmethod
     def _step_payload(self, action: ActT) -> Dict[str, Any]:

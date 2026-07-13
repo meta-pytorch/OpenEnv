@@ -368,6 +368,118 @@ class TestGenericEnvClientFromEnv:
         provider.wait_for_ready.assert_called_once_with(timeout_s=6.5)
 
 
+class TestSyncBootstrapConstructors:
+    """Test the synchronous from_docker_image_sync / from_env_sync entry points.
+
+    These let a synchronous consumer (e.g. a TRL GRPO rollout loop) bootstrap a
+    container without an event loop and without hand-rolling
+    provider.start_container()/wait_for_ready(). See issue #935.
+    """
+
+    @staticmethod
+    def _fake_ws_connect():
+        """A ws_connect stand-in that records every socket it opens."""
+        sockets = []
+
+        async def _connect(*args, **kwargs):
+            ws = AsyncMock()
+            sockets.append(ws)
+            return ws
+
+        return _connect, sockets
+
+    def test_from_docker_image_sync_returns_connected_client(self, mock_provider):
+        """from_docker_image_sync returns a concrete, connected client (no await)."""
+        fake_connect, sockets = self._fake_ws_connect()
+
+        with patch("openenv.core.env_client.ws_connect", side_effect=fake_connect):
+            client = GenericEnvClient.from_docker_image_sync(
+                image="coding-env:latest",
+                provider=mock_provider,
+            )
+
+            # A concrete client, not a coroutine that a sync caller can't await.
+            assert isinstance(client, GenericEnvClient)
+            assert not asyncio.iscoroutine(client)
+            mock_provider.start_container.assert_called_once_with("coding-env:latest")
+            mock_provider.wait_for_ready.assert_called_once()
+            # Connection was actually established on the sync background loop.
+            assert len(sockets) == 1
+            assert client.base_url == "http://localhost:8000"
+
+            client.close()
+
+        mock_provider.stop_container.assert_called_once_with()
+
+    def test_from_docker_image_sync_forwards_start_kwargs(self, mock_provider):
+        """Extra kwargs reach provider.start_container()."""
+        fake_connect, _ = self._fake_ws_connect()
+
+        with patch("openenv.core.env_client.ws_connect", side_effect=fake_connect):
+            client = GenericEnvClient.from_docker_image_sync(
+                image="coding-env:latest",
+                provider=mock_provider,
+                env_vars={"DEBUG": "1"},
+            )
+            mock_provider.start_container.assert_called_once_with(
+                "coding-env:latest", env_vars={"DEBUG": "1"}
+            )
+            client.close()
+
+    def test_from_env_sync_with_docker(self, mock_provider):
+        """from_env_sync(use_docker=True) pulls from the HF registry, connects, no await."""
+        fake_connect, sockets = self._fake_ws_connect()
+
+        with patch("openenv.core.env_client.ws_connect", side_effect=fake_connect):
+            client = GenericEnvClient.from_env_sync(
+                "user/my-env",
+                use_docker=True,
+                provider=mock_provider,
+            )
+
+            assert isinstance(client, GenericEnvClient)
+            call_args = mock_provider.start_container.call_args
+            assert "registry.hf.space/user-my-env" in call_args[0][0]
+            assert len(sockets) == 1
+
+            client.close()
+
+    def test_from_env_sync_uv_stops_provider_on_start_failure(self):
+        """A UV start() failure releases the provider before re-raising (sync path)."""
+        provider = Mock()
+        provider.context_timeout_s = None
+        provider.start.side_effect = RuntimeError("boom")
+
+        with pytest.raises(RuntimeError, match="boom"):
+            GenericEnvClient.from_env_sync(
+                "user/my-env",
+                use_docker=False,
+                provider=provider,
+            )
+
+        provider.stop.assert_called_once_with()
+
+
+class TestBaseUrlProperty:
+    """Test the public read-only base_url property (issue #935)."""
+
+    def test_base_url_returns_normalized_url(self):
+        """base_url exposes the normalized URL with any trailing slash stripped."""
+        client = GenericEnvClient(base_url="http://localhost:8000/")
+        assert client.base_url == "http://localhost:8000"
+
+    def test_base_url_is_none_before_provider_start(self, mock_provider):
+        """A provider-only client has no URL until it connects/starts its container."""
+        client = GenericEnvClient(provider=mock_provider)
+        assert client.base_url is None
+
+    def test_base_url_is_read_only(self):
+        """base_url is a read-only property; callers must not reassign it."""
+        client = GenericEnvClient(base_url="http://localhost:8000")
+        with pytest.raises(AttributeError):
+            client.base_url = "http://evil:9999"  # type: ignore[misc]
+
+
 # ============================================================================
 # AutoEnv skip_install Integration Tests
 # ============================================================================
