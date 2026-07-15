@@ -83,13 +83,14 @@ and the rollout filters exist.
 | [`rollout.py`](./rollout.py) | Oracle + policy rollouts → role-tagged trajectories. |
 | [`train_echo.py`](./train_echo.py) | The CPU demo above. |
 | [`test_echo.py`](./test_echo.py) | Unit tests for the loss + masks (`python -m pytest test_echo.py`). |
-| [`backends/`](./backends/) | The same config for the real GPU run: [SkyRL](./backends/skyrl.md) (open reference), [TRL](./backends/trl.md) (OpenEnv's recommended framework, with a runnable CPU [`trl_echo_demo.py`](./backends/trl_echo_demo.py)), [Tinker](./backends/tinker.md), [Foundry Fine-Tuning](./backends/foundry-finetuning.md), with rollouts isolated in [ACA Sandboxes](./backends/aca-sandboxes.md). |
+| [`backends/`](./backends/) | Backend integrations: [SkyRL](./backends/skyrl.md) (open reference), [TRL](./backends/trl.md) (OpenEnv's recommended framework, with a runnable CPU [`trl_echo_demo.py`](./backends/trl_echo_demo.py)), [Tinker](./backends/tinker.md) (runnable remote LoRA [`tinker_echo_demo.py`](./backends/tinker_echo_demo.py)), [Foundry Fine-Tuning](./backends/foundry-finetuning.md), with rollouts isolated in [ACA Sandboxes](./backends/aca-sandboxes.md). |
 
 ## The full hybrid (GRPO + ECHO) and the real numbers
 
 This CPU demo isolates the **env-token loss** (the part that needs no GPU to be
 convincing). The full `L_GRPO(actions) + λ·L_env(obs)` loop — and the
 ~2.3×/pass@1-doubling results — needs a GPU; `echo_loss.py` is the exact
-objective, and [`backends/`](./backends/) shows the one-line config on SkyRL /
-Tinker / Foundry Fine-Tuning. To show ECHO end-to-end you set up a small model and fine-tune it
-with this loss; start with [SkyRL](./backends/skyrl.md).
+objective, and [`backends/`](./backends/) shows how it maps to SkyRL / Tinker /
+Foundry Fine-Tuning. The runnable [Tinker example](./backends/tinker.md) sends the
+verifier-free env-token objective to a remote LoRA trainer; use
+[SkyRL](./backends/skyrl.md) for the open full-hybrid reference.
