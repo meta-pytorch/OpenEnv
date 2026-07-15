@@ -1,10 +1,9 @@
 # ECHO on Tinker
 
 [Tinker](https://tinker-docs.thinkingmachines.ai/tinker/) exposes the training
-primitives while its service owns the GPUs. The runnable example here is the
-Tinker equivalent of [`train_echo.py`](../train_echo.py): verifier-free
-world-model training on the same OpenEnv-shaped terminal rollouts and the same
-held-out env-token cross-entropy metric.
+primitives while its service owns the GPUs. This runnable example sends the
+existing terminal rollouts to a remote LoRA trainer and measures held-out
+environment-token cross-entropy before and after training.
 
 ## Run it
 
@@ -15,15 +14,13 @@ export TINKER_API_KEY="..."
 uv run backends/tinker_echo_demo.py --steps 15
 ```
 
-The script's inline dependencies pin `tinker==0.22.7`; `uv run` installs them.
-Tinker executes remote training and requires an account, API key, and available
-credits. The default model is `Qwen/Qwen3.5-4B` with a rank-16 LoRA. Override it
-with `--model`, `--rank`, and `--learning-rate`. Add
-`--checkpoint-name echo-world-model` to persist weights and optimizer state.
+The inline dependency pins `tinker==0.22.7`. Tinker requires an account, API
+key, and available credits. The default is a rank-16 LoRA on
+`Qwen/Qwen3.5-4B`; use `--model` to select another supported public model.
 
 ## How the role masks map to Tinker
 
-For each rollout from [`trajectory.py`](../trajectory.py), the example creates a
+For each role-tagged rollout, the script tokenizes every segment and creates a
 causal-language-model `Datum`:
 
 ```python
@@ -42,7 +39,7 @@ weight; action, context, and warning tokens remain zero-weight conditioning
 context. Batch-wide normalization makes Tinker's sum-reduced cross-entropy equal
 the mean env-token CE used by the local demo.
 
-The training step follows Tinker's documented SFT path:
+Each step follows Tinker's documented training path:
 
 ```python
 fwdbwd = training_client.forward_backward(data, "cross_entropy")
@@ -51,16 +48,12 @@ result = fwdbwd.result()
 optim.result()
 ```
 
-`TrainingClient.forward(..., "cross_entropy")` evaluates the train and held-out
-data without accumulating gradients, so the printed metric is comparable to the
-local example.
+`TrainingClient.forward(..., "cross_entropy")` evaluates held-out data before
+and after the loop without accumulating gradients.
 
 ## Scope
 
-This script intentionally matches the existing **verifier-free** demo
-(`use_rl=False`): it proves that environment responses alone train a world
-model. It does not claim to implement the full `L_GRPO + lambda * L_env`
-objective. A full Tinker RL adapter must keep importance ratios/clipping on
-action tokens only, keep plain CE on env tokens, and normalize the two
-contributions independently—use a single custom loss if preserving ECHO's
-one-forward-pass property.
+This is the existing **verifier-free** ECHO objective (`use_rl=False`), not the
+full `L_GRPO + lambda * L_env` hybrid. It isolates the OpenEnv integration seam:
+preserving token roles and putting cross-entropy weight only on environment
+outputs.
