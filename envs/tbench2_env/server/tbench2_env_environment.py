@@ -10,6 +10,9 @@ from __future__ import annotations
 
 import logging
 import os
+import re
+import shlex
+import threading
 import sys
 import urllib.request
 import zipfile
@@ -82,6 +85,38 @@ def _read_instruction(task_dir: Path) -> str:
     return ""
 
 
+def _task_image_workdir(task_dir: Path) -> str:
+    """WORKDIR pinned by the task's own image (environment/Dockerfile).
+
+    Empty string when the task ships no Dockerfile or no WORKDIR; multi-stage
+    Dockerfiles resolve to the last WORKDIR (the final stage's).
+    """
+    dockerfile = task_dir / "environment" / "Dockerfile"
+    workdir = ""
+    if dockerfile.is_file():
+        for line in dockerfile.read_text(encoding="utf-8").splitlines():
+            m = re.match(r"^\s*WORKDIR\s+(\S+)", line, re.IGNORECASE)
+            if m:
+                workdir = m.group(1)
+    return workdir
+
+
+def _workdir_is_server_tree(workdir: str) -> bool:
+    """True when *workdir* contains this server's own code.
+
+    A Dockerfile-parsed WORKDIR is only meaningful when the server runs
+    inside the task image (per-task sandboxes, where the server layer lives
+    elsewhere, e.g. /opt/envserver). The standard env-server image also
+    installs to /app — the most common task WORKDIR — so the path merely
+    existing is not enough: if the server's own code sits under it, it is
+    the server tree, not the task tree.
+    """
+    try:
+        return Path(__file__).resolve().is_relative_to(Path(workdir).resolve())
+    except OSError:
+        return True  # unresolvable path: fail toward the task-dir fallback
+
+
 def _read_timeout(task_dir: Path, fallback: float) -> float:
     task_toml = task_dir / "task.toml"
     if not task_toml.exists():
@@ -103,7 +138,7 @@ class Tbench2Environment(Environment[Tbench2Action, Tbench2Observation, Tbench2S
         self,
         tasks_dir: str | None = None,
         output_dir: str | None = None,
-        command_timeout_s: float = 20.0,
+        command_timeout_s: float | None = None,
         safe_mode: bool = False,
         default_task_id: str | None = None,
     ) -> None:
@@ -112,6 +147,11 @@ class Tbench2Environment(Environment[Tbench2Action, Tbench2Observation, Tbench2S
         self.output_dir = Path(
             output_dir or os.getenv("TB2_OUTPUT_DIR", "/tmp/tbench2_env_runs")
         )
+        # Overridable via TB2_COMMAND_TIMEOUT_S: create_app instantiates the
+        # environment with no arguments, and real TB2 agent commands / the
+        # canonical tests/test.sh routinely exceed the old 20s default.
+        if command_timeout_s is None:
+            command_timeout_s = float(os.getenv("TB2_COMMAND_TIMEOUT_S", "20.0"))
         self.command_timeout_s = command_timeout_s
         self.safe_mode = safe_mode
         self.default_task_id = default_task_id or os.getenv(
@@ -122,6 +162,7 @@ class Tbench2Environment(Environment[Tbench2Action, Tbench2Observation, Tbench2S
         self._task_dir: Path | None = None
         self._terminal_toolkit = None
         self._instruction = ""
+        self._workdir = ""
 
     def reset(
         self,
@@ -150,13 +191,30 @@ class Tbench2Environment(Environment[Tbench2Action, Tbench2Observation, Tbench2S
         )
         session_logs_dir.mkdir(parents=True, exist_ok=True)
 
+        # Commands run in the task image's real WORKDIR — where agents and
+        # the canonical harness expect to operate, and not always /app
+        # (fix-git: /app/personal-site, prove-plus-comm: /workspace).
+        # TB2_TASK_WORKDIR overrides; otherwise the task's own Dockerfile is
+        # parsed, trusted only when the path isn't the server's own install
+        # tree (see _workdir_is_server_tree); plain local mode falls back to
+        # the task source dir.
+        workdir = os.getenv("TB2_TASK_WORKDIR", "").strip()
+        if not workdir:
+            workdir = _task_image_workdir(task_dir)
+            if workdir and _workdir_is_server_tree(workdir):
+                workdir = ""
+        if not (workdir and Path(workdir).is_dir()):
+            workdir = str(task_dir)
+        self._workdir = workdir
+        # No install_dependencies: evaluation runs the task's canonical
+        # tests/test.sh, which pins its own pytest toolchain via uvx (see
+        # _evaluate_canonical), so the toolkit venv does not need pytest.
         self._terminal_toolkit = TerminalToolkit(
             timeout=self.command_timeout_s,
-            working_directory=str(task_dir),
+            working_directory=workdir,
             use_docker_backend=False,
             session_logs_dir=session_logs_dir,
             safe_mode=self.safe_mode,
-            install_dependencies=["pytest"],
         )
 
         self._state = Tbench2State(
@@ -209,10 +267,14 @@ class Tbench2Environment(Environment[Tbench2Action, Tbench2Observation, Tbench2S
 
         try:
             if action.action_type == "exec":
+                # Pass the timeout explicitly: camel's shell_exec has its own
+                # per-call default (20s) and ignores the constructor timeout,
+                # which silently truncates any longer-running agent command.
                 output = self._terminal_toolkit.shell_exec(
                     command=action.command,
                     block=action.block,
                     id=session_id,
+                    timeout=self.command_timeout_s,
                 )
             elif action.action_type == "write":
                 self._ensure_session_id(action.session_id, action.action_type)
@@ -312,13 +374,32 @@ class Tbench2Environment(Environment[Tbench2Action, Tbench2Observation, Tbench2S
         if self._terminal_toolkit is None:
             raise RuntimeError("Terminal toolkit not initialized.")
 
-        _read_timeout(self._task_dir, fallback=900.0)  # Validate timeout config
+        # The task's own verifier budget (task.toml [verifier].timeout_sec) —
+        # heavy tests legitimately run minutes (circuit-fibsqrt declares 3600s).
+        verifier_timeout_s = _read_timeout(self._task_dir, fallback=900.0)
         tests_dir = self._task_dir / "tests"
-        cmd = f"cd {self._task_dir} && python -m pytest -q {tests_dir} -rA; echo __TB2_EXIT_CODE__:$?"
+        if (tests_dir / "test.sh").is_file():
+            return self._evaluate_canonical(tests_dir, verifier_timeout_s)
+
+        # Fallback for tasks without the canonical harness (none of the 89
+        # official TB2 tasks — they all ship test.sh — but custom task dirs
+        # may only have bare pytest tests). Prefer uvx so pytest comes with
+        # its own toolchain like the canonical harness does; fall back to a
+        # preinstalled pytest for environments without uv.
+        # Verify from the same directory the agent worked in.
+        fallback_cwd = self._workdir or str(self._task_dir)
+        cmd = (
+            f"cd {shlex.quote(fallback_cwd)} && "
+            "if command -v uvx >/dev/null 2>&1; "
+            f"then uvx --with pytest==8.4.1 pytest -q {shlex.quote(str(tests_dir))} -rA; "
+            f"else python -m pytest -q {shlex.quote(str(tests_dir))} -rA; fi; "
+            "echo __TB2_EXIT_CODE__:$?"
+        )
         output = self._terminal_toolkit.shell_exec(
             id="tb2-tests",
             command=cmd,
             block=True,
+            timeout=verifier_timeout_s,
         )
 
         exit_code = 1
@@ -333,6 +414,62 @@ class Tbench2Environment(Environment[Tbench2Action, Tbench2Observation, Tbench2S
 
         reward = 1.0 if exit_code == 0 else 0.0
         info = {"tests_passed": exit_code == 0, "exit_code": exit_code}
+        return output, reward, info
+
+    # The canonical harness uses the official fixed paths (/tests,
+    # /logs/verifier/reward.txt), which are per-container, not per-session.
+    # Serialize evaluations so concurrent sessions on one server cannot
+    # overwrite each other's staged tests or read another session's reward.
+    _CANONICAL_EVAL_LOCK = threading.Lock()
+
+    def _evaluate_canonical(
+        self, tests_dir: Path, timeout_s: float
+    ) -> tuple[str, float, dict[str, Any]]:
+        """Score via the task's OFFICIAL harness, exactly as the TB2 verifier does.
+
+        tests/test.sh pins its own pytest toolchain (uvx: Python 3.13 +
+        pytest 8.4.1 + ctrf), runs tests/test_outputs.py from /tests against
+        the task workdir, and writes the binary result to
+        /logs/verifier/reward.txt. Bare ``pytest tests/`` (the fallback above)
+        skips that toolchain pinning and mis-scores any task whose tests need
+        it, so the canonical harness is preferred whenever the task ships it.
+        """
+        # Same working dir the agent operated in (resolved during reset).
+        workdir = self._workdir or str(self._task_dir)
+        marker = "__TB2_REWARD__:"
+        cmd = (
+            # /tests is recreated from scratch — a prior task's files on the
+            # same server must not leak into pytest collection — and the
+            # reward file removed so a stale one can never be read back if
+            # test.sh fails to run.
+            "rm -rf /tests && mkdir -p /tests /logs/verifier && "
+            "rm -f /logs/verifier/reward.txt && "
+            f"cp -a {shlex.quote(str(tests_dir))}/. /tests/ && "
+            f"cd {shlex.quote(workdir)} && bash /tests/test.sh > /tmp/tb2_testsh.log 2>&1; "
+            # Surface the harness log tail so callers keep the pytest
+            # diagnostics; the reward marker line stays last for parsing.
+            "tail -c 20000 /tmp/tb2_testsh.log 2>/dev/null; "
+            f"echo {marker}$(cat /logs/verifier/reward.txt 2>/dev/null)"
+        )
+        with self._CANONICAL_EVAL_LOCK:
+            output = self._terminal_toolkit.shell_exec(
+                id="tb2-tests",
+                command=cmd,
+                block=True,
+                timeout=timeout_s,
+            )
+
+        reward = 0.0
+        for line in output.splitlines()[::-1]:
+            if marker in line:
+                raw = line.split(marker, 1)[1].strip()
+                try:
+                    reward = float(raw) if raw else 0.0
+                except ValueError:
+                    reward = 0.0
+                break
+
+        info = {"tests_passed": reward == 1.0, "harness": "tests/test.sh"}
         return output, reward, info
 
 
