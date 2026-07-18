@@ -369,11 +369,13 @@ class TestGenericEnvClientFromEnv:
 
 
 class TestSyncBootstrapConstructors:
-    """Test the synchronous from_docker_image_sync / from_env_sync entry points.
+    """Test the synchronous `.sync()` bootstrap chain on the client factories.
 
-    These let a synchronous consumer (e.g. a TRL GRPO rollout loop) bootstrap a
-    container without an event loop and without hand-rolling
-    provider.start_container()/wait_for_ready(). See issue #935.
+    `from_docker_image(...).sync()` / `from_env(...).sync()` let a synchronous
+    consumer (e.g. a TRL GRPO rollout loop) bootstrap a container without an
+    event loop and without hand-rolling provider.start_container() /
+    wait_for_ready(), while `await from_docker_image(...)` keeps the async path.
+    See issue #935.
     """
 
     @staticmethod
@@ -388,23 +390,103 @@ class TestSyncBootstrapConstructors:
 
         return _connect, sockets
 
-    def test_from_docker_image_sync_returns_connected_client(self, mock_provider):
-        """from_docker_image_sync returns a concrete, connected client (no await)."""
-        fake_connect, sockets = self._fake_ws_connect()
+    def test_from_docker_image_is_lazy_until_resolved(self, mock_provider):
+        """The factory returns a handle and starts nothing until driven/.sync()'d."""
+        handle = GenericEnvClient.from_docker_image(
+            image="coding-env:latest",
+            provider=mock_provider,
+        )
+        # Nothing is started at call time — the container starts only on resolve.
+        mock_provider.start_container.assert_not_called()
+        # Clean up the undriven coroutine to avoid a "never awaited" warning.
+        handle.close()
+
+    def test_bootstrap_handle_is_single_use(self, mock_provider):
+        """Resolving a handle twice raises instead of silently double-starting."""
+        fake_connect, _ = self._fake_ws_connect()
 
         with patch("openenv.core.env_client.ws_connect", side_effect=fake_connect):
-            client = GenericEnvClient.from_docker_image_sync(
+            handle = GenericEnvClient.from_docker_image(
                 image="coding-env:latest",
                 provider=mock_provider,
             )
+            client = handle.sync()
+            with pytest.raises(RuntimeError, match="already been resolved"):
+                handle.sync()
+            client.close()
 
-            # A concrete client, not a coroutine that a sync caller can't await.
+        # Only one container was ever started.
+        mock_provider.start_container.assert_called_once()
+
+    def test_sync_bootstrap_stops_provider_if_loop_setup_fails(self, mock_provider):
+        """If sync setup fails after the container starts, the provider is released.
+
+        Exercises the failure window in `.sync()` before `_connect_async` (and its
+        own cleanup) runs — here `_run_sync` itself raises.
+        """
+        with patch.object(
+            GenericEnvClient, "_run_sync", side_effect=RuntimeError("loop boom")
+        ):
+            with pytest.raises(RuntimeError, match="loop boom"):
+                GenericEnvClient.from_docker_image(
+                    image="coding-env:latest",
+                    provider=mock_provider,
+                ).sync()
+
+        mock_provider.start_container.assert_called_once()
+        mock_provider.stop_container.assert_called_once_with()
+
+    def test_factory_handle_is_coroutine_compatible(self, mock_provider):
+        """The handle is a real coroutine, so asyncio.run / run_async_safely accept it.
+
+        The previous async factories returned a coroutine; the handle must remain a
+        drop-in so `asyncio.run(from_docker_image(...))` and
+        `run_async_safely(from_docker_image(...))` keep working (regression guard).
+        """
+        import asyncio as _asyncio
+
+        from openenv.core.utils import run_async_safely
+
+        fake_connect, _ = self._fake_ws_connect()
+
+        # asyncio.run(...) strictly requires a coroutine; a bare awaitable is rejected.
+        with patch("openenv.core.env_client.ws_connect", side_effect=fake_connect):
+            handle = GenericEnvClient.from_docker_image(
+                image="coding-env:latest",
+                provider=mock_provider,
+            )
+            assert _asyncio.iscoroutine(handle)
+            client = _asyncio.run(handle)
             assert isinstance(client, GenericEnvClient)
-            assert not asyncio.iscoroutine(client)
+
+        # run_async_safely (asyncio.run under the hood) must accept it too.
+        fake_connect, _ = self._fake_ws_connect()
+        with patch("openenv.core.env_client.ws_connect", side_effect=fake_connect):
+            client2 = run_async_safely(
+                GenericEnvClient.from_docker_image(
+                    image="coding-env:latest",
+                    provider=mock_provider,
+                )
+            )
+            assert isinstance(client2, GenericEnvClient)
+
+    def test_from_docker_image_sync_returns_connected_client(self, mock_provider):
+        """from_docker_image(...).sync() returns a connected SyncEnvClient (no await)."""
+        fake_connect, sockets = self._fake_ws_connect()
+
+        with patch("openenv.core.env_client.ws_connect", side_effect=fake_connect):
+            client = GenericEnvClient.from_docker_image(
+                image="coding-env:latest",
+                provider=mock_provider,
+            ).sync()
+
+            # A concrete sync wrapper, consistent with the instance .sync().
+            assert isinstance(client, SyncEnvClient)
             mock_provider.start_container.assert_called_once_with("coding-env:latest")
             mock_provider.wait_for_ready.assert_called_once()
             # Connection was actually established on the sync background loop.
             assert len(sockets) == 1
+            # base_url proxies through to the wrapped async client.
             assert client.base_url == "http://localhost:8000"
 
             client.close()
@@ -416,28 +498,28 @@ class TestSyncBootstrapConstructors:
         fake_connect, _ = self._fake_ws_connect()
 
         with patch("openenv.core.env_client.ws_connect", side_effect=fake_connect):
-            client = GenericEnvClient.from_docker_image_sync(
+            client = GenericEnvClient.from_docker_image(
                 image="coding-env:latest",
                 provider=mock_provider,
                 env_vars={"DEBUG": "1"},
-            )
+            ).sync()
             mock_provider.start_container.assert_called_once_with(
                 "coding-env:latest", env_vars={"DEBUG": "1"}
             )
             client.close()
 
     def test_from_env_sync_with_docker(self, mock_provider):
-        """from_env_sync(use_docker=True) pulls from the HF registry, connects, no await."""
+        """from_env(...).sync() with use_docker=True pulls from the HF registry, no await."""
         fake_connect, sockets = self._fake_ws_connect()
 
         with patch("openenv.core.env_client.ws_connect", side_effect=fake_connect):
-            client = GenericEnvClient.from_env_sync(
+            client = GenericEnvClient.from_env(
                 "user/my-env",
                 use_docker=True,
                 provider=mock_provider,
-            )
+            ).sync()
 
-            assert isinstance(client, GenericEnvClient)
+            assert isinstance(client, SyncEnvClient)
             call_args = mock_provider.start_container.call_args
             assert "registry.hf.space/user-my-env" in call_args[0][0]
             assert len(sockets) == 1
@@ -451,13 +533,63 @@ class TestSyncBootstrapConstructors:
         provider.start.side_effect = RuntimeError("boom")
 
         with pytest.raises(RuntimeError, match="boom"):
-            GenericEnvClient.from_env_sync(
+            GenericEnvClient.from_env(
                 "user/my-env",
                 use_docker=False,
                 provider=provider,
-            )
+            ).sync()
 
         provider.stop.assert_called_once_with()
+
+    def test_from_env_uv_stops_provider_on_construction_failure(self, monkeypatch):
+        """A client-construction failure after a successful start() releases the UV provider.
+
+        The provider start()/wait succeed, but `EnvClient.__init__` rejects an
+        invalid OPENENV_CLIENT_MODE — the spawned process must still be stopped.
+        """
+        monkeypatch.setenv("OPENENV_CLIENT_MODE", "not-a-valid-mode")
+        provider = Mock()
+        provider.context_timeout_s = None
+        provider.start.return_value = "http://localhost:8000"
+        provider.wait_for_ready.return_value = None
+
+        with pytest.raises(ValueError, match="Invalid mode"):
+            GenericEnvClient.from_env(
+                "user/my-env",
+                use_docker=False,
+                provider=provider,
+            ).sync()
+
+        provider.stop.assert_called_once_with()
+
+    def test_from_env_docker_stops_container_on_construction_failure(
+        self, mock_provider, monkeypatch
+    ):
+        """A client-construction failure after start_container releases the container."""
+        monkeypatch.setenv("OPENENV_CLIENT_MODE", "not-a-valid-mode")
+
+        with pytest.raises(ValueError, match="Invalid mode"):
+            GenericEnvClient.from_env(
+                "user/my-env",
+                use_docker=True,
+                provider=mock_provider,
+            ).sync()
+
+        mock_provider.stop_container.assert_called_once_with()
+
+    def test_from_docker_image_stops_container_on_construction_failure(
+        self, mock_provider, monkeypatch
+    ):
+        """from_docker_image releases the container if client construction fails."""
+        monkeypatch.setenv("OPENENV_CLIENT_MODE", "not-a-valid-mode")
+
+        with pytest.raises(ValueError, match="Invalid mode"):
+            GenericEnvClient.from_docker_image(
+                image="coding-env:latest",
+                provider=mock_provider,
+            ).sync()
+
+        mock_provider.stop_container.assert_called_once_with()
 
 
 class TestBaseUrlProperty:
@@ -538,7 +670,8 @@ class TestAutoEnvSkipInstall:
         """Test skip_install=True with HF Space not running uses Docker."""
         from openenv.auto.auto_env import AutoEnv
 
-        # Create an async mock for from_env (since GenericEnvClient.from_env is now async)
+        # AutoEnv resolves the from_env bootstrap handle via run_async_safely, so
+        # an awaitable stand-in returning a connected client is a valid double.
         async def mock_from_env_async(*args, **kwargs):
             return GenericEnvClient(base_url="http://localhost:8000")
 
