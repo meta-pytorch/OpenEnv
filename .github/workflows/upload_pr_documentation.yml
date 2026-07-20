@@ -8,7 +8,7 @@ on:
 
 jobs:
   build:
-    uses: huggingface/doc-builder/.github/workflows/upload_pr_documentation.yml@7e6bd45ee271b96e75484eeafea1b3e6139cd0c7  # main
+    uses: huggingface/doc-builder/.github/workflows/upload_pr_documentation.yml@6108e850ae1cf2f71bb0815a600bcd50c39abfa7  # main
     with:
       package_name: openenv
     secrets:
