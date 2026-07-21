@@ -61,8 +61,7 @@ from .sandbox.base import BgJob, SandboxBackend, SandboxHandle
 from .task import OpenCodeTask
 
 
-# Mode B proxy port. In-sandbox paths derive from config.sandbox_home (opencode_runtime)
-# so root-based backends (HF, Docker) work, not just E2B's /home/user.
+# Mode B proxy port. In-sandbox paths derive from config.sandbox_home (opencode_runtime).
 _PROXY_PORT = 7000
 
 # Local proxy source, uploaded to proxy_source_path(config) unless already baked in.
