@@ -49,21 +49,26 @@ from .opencode_runtime import (
     build_opencode_json,
     build_run_cmd,
     instruction_path,
+    opencode_bin_path,
     opencode_config_path,
+    proxy_dir,
+    proxy_log_path,
+    proxy_source_path,
+    proxy_trace_path,
     system_prompt_path,
 )
 from .sandbox.base import BgJob, SandboxBackend, SandboxHandle
 from .task import OpenCodeTask
 
 
-# Inside-sandbox proxy paths (Mode B).
+# Inside-sandbox proxy port (Mode B). The in-sandbox paths are derived from
+# `config.sandbox_home` (see opencode_runtime) so root-based backends (HF, Docker)
+# work, not just E2B's `/home/user`.
 _PROXY_PORT = 7000
-_PROXY_TRACE_PATH = "/home/user/logs/agent/proxy_trace.jsonl"
-_PROXY_LOG_PATH = "/home/user/logs/agent/proxy.log"
 
-# Where the proxy source lives on disk (in this repo). Uploaded into the
-# sandbox at /home/user/proxy/interception.py before each rollout, unless
-# the sandbox was created from a template that already has it baked in.
+# Where the proxy source lives on disk (in this repo). Uploaded into the sandbox at
+# `proxy_source_path(config)` before each rollout, unless the sandbox was created
+# from a template that already has it baked in.
 _PROXY_SOURCE_PATH = Path(__file__).parent / "sandbox" / "interception.py"
 
 
@@ -369,7 +374,7 @@ class OpenCodeSessionFactory(ResourceSessionFactory):
         """
         try:
             r = sandbox.exec(
-                "/home/user/.opencode/bin/opencode --version",
+                f"{opencode_bin_path(self._config)} --version",
                 timeout=10,
             )
             return r.exit_code == 0
@@ -440,9 +445,7 @@ class OpenCodeSessionFactory(ResourceSessionFactory):
         Skips the pip install + source-upload steps when the prebaked
         template already has them in place.
         """
-        proxy_already_present = sandbox.exists(
-            "/home/user/proxy/interception.py"
-        )
+        proxy_already_present = sandbox.exists(proxy_source_path(self._config))
 
         if not proxy_already_present:
             # Install proxy deps (idempotent on retries).
@@ -457,10 +460,10 @@ class OpenCodeSessionFactory(ResourceSessionFactory):
             )
             # Upload the proxy module into the sandbox.
             sandbox.write_text(
-                "/home/user/proxy/interception.py",
+                proxy_source_path(self._config),
                 _PROXY_SOURCE_PATH.read_text(),
             )
-            sandbox.write_text("/home/user/proxy/__init__.py", "")
+            sandbox.write_text(f"{proxy_dir(self._config)}/__init__.py", "")
 
         proxy_args = [
             "python",
@@ -468,7 +471,7 @@ class OpenCodeSessionFactory(ResourceSessionFactory):
             "--upstream-url",
             self._config.base_url,
             "--trace",
-            _PROXY_TRACE_PATH,
+            proxy_trace_path(self._config),
             "--port",
             str(_PROXY_PORT),
             "--top-logprobs",
@@ -487,9 +490,9 @@ class OpenCodeSessionFactory(ResourceSessionFactory):
 
         quoted_proxy_args = " ".join(shlex.quote(arg) for arg in proxy_args)
         proxy_cmd = (
-            "cd /home/user/proxy && "
+            f"cd {shlex.quote(proxy_dir(self._config))} && "
             f"{quoted_proxy_args} "
-            f"> {shlex.quote(_PROXY_LOG_PATH)} 2>&1"
+            f"> {shlex.quote(proxy_log_path(self._config))} 2>&1"
         )
         proxy_env = {"OPENCODE_UPSTREAM_API_KEY": self._config.api_key}
         proxy_job = sandbox.start_bg(proxy_cmd, envs=proxy_env)
@@ -511,7 +514,7 @@ class OpenCodeSessionFactory(ResourceSessionFactory):
         else:
             log = ""
             try:
-                log = sandbox.read_text(_PROXY_LOG_PATH)
+                log = sandbox.read_text(proxy_log_path(self._config))
             except Exception:
                 pass
             proxy_job.kill()
@@ -521,7 +524,7 @@ class OpenCodeSessionFactory(ResourceSessionFactory):
             )
 
         base_url_override = f"http://127.0.0.1:{_PROXY_PORT}/v1"
-        return proxy_job, base_url_override, _PROXY_TRACE_PATH
+        return proxy_job, base_url_override, proxy_trace_path(self._config)
 
 
 __all__ = [
