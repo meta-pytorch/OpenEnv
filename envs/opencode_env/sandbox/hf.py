@@ -4,16 +4,7 @@
 # This source code is licensed under the BSD-style license found in the
 # LICENSE file in the root directory of this source tree.
 
-"""Hugging Face implementation of :class:`SandboxBackend`.
-
-Runs the OpenCode agent inside a Hugging Face sandbox (``huggingface_hub.Sandbox``,
-the official SDK — the standalone ``hf_sandbox`` package was an intermediate step now
-folded into ``huggingface_hub``, available since ``huggingface_hub>=1.22``).
-
-The agent image must ship the ``opencode`` CLI, node, and the in-sandbox proxy
-(the E2B path bakes these via ``build_template.py``; the HF path needs an equivalent
-image passed as ``image=``).
-"""
+"""Hugging Face implementation of :class:`SandboxBackend` (``huggingface_hub.Sandbox``, >=1.22)."""
 
 from __future__ import annotations
 
@@ -22,19 +13,14 @@ from pathlib import PurePosixPath
 
 from huggingface_hub import Sandbox
 
-from .base import BgJob, ExecResult, SandboxBackend, SandboxHandle
+from .base import BgJob, ExecResult, SandboxHandle
 
 
 _WAIT_POLL_INTERVAL_S = 0.5
 
 
 class HFBgJob:
-    """Wraps a ``huggingface_hub`` ``SandboxProcess`` to satisfy :class:`BgJob`.
-
-    The SDK's ``SandboxProcess`` is a snapshot with no blocking ``wait()``, so we
-    poll ``Sandbox.processes`` for our pid and raise ``TimeoutError`` if the process
-    does not exit within the caller-supplied budget. Sandbox lifetime still bounds it.
-    """
+    """Satisfies :class:`BgJob`. The SDK has no blocking wait(), so poll ``processes()``."""
 
     def __init__(self, sandbox: Sandbox, process) -> None:
         self._sandbox = sandbox
@@ -48,8 +34,7 @@ class HFBgJob:
         deadline = None if timeout is None else time.monotonic() + timeout
         while True:
             proc = next((p for p in self._sandbox.processes() if p.pid == self.pid), None)
-            # Completed processes stay listed with running=False; a missing pid means
-            # it exited and was reaped, so treat both as "done".
+            # missing pid (reaped) or running=False both mean done
             if proc is None:
                 return 0
             if not proc.running:
@@ -88,9 +73,7 @@ class HFSandboxHandle:
         cwd: str | None = None,
         timeout: float | None = 60,
     ) -> ExecResult:
-        # check=False: non-zero exits are expected in many contexts (e.g. polling
-        # healthz before the server is up), so return them as an ExecResult instead
-        # of raising. Run through a shell so `cmd` is a single command string.
+        # check=False: surface non-zero exits as a result instead of raising
         result = self._sbx.run(
             ["bash", "-lc", cmd],
             env=envs,
@@ -111,8 +94,6 @@ class HFSandboxHandle:
         envs: dict[str, str] | None = None,
         cwd: str | None = None,
     ) -> BgJob:
-        # Detached: the streaming/timeout/check options do not apply in background
-        # mode. Sandbox lifetime bounds the process.
         process = self._sbx.run(
             ["bash", "-lc", cmd],
             env=envs,
@@ -134,17 +115,14 @@ class HFSandboxHandle:
         return self._sbx.files.exists(path)
 
     def kill(self) -> None:
-        # `kill()` terminates the sandbox (and its backing job); `close()` would only
-        # release the local HTTP client and leave the sandbox idling until its timeout.
+        # kill() tears the sandbox down; close() would only drop the client (it keeps idling)
         self._sbx.kill()
 
 
 class HFSandboxBackend:
     """Creates Hugging Face sandboxes for OpenCode rollouts.
 
-    ``image`` must contain the ``opencode`` CLI, node, and the in-sandbox proxy.
-    Extra ``huggingface_hub.Sandbox.create`` options can be forwarded via
-    ``sandbox_kwargs``.
+    ``image`` must ship the ``opencode`` CLI, node, and the in-sandbox proxy.
     """
 
     def __init__(
@@ -167,8 +145,7 @@ class HFSandboxBackend:
         envs: dict[str, str] | None = None,
         metadata: dict[str, str] | None = None,
     ) -> SandboxHandle:
-        # NOTE: huggingface_hub.Sandbox.create has no `metadata` parameter (unlike
-        # E2B), so `metadata` is accepted for protocol parity but not forwarded.
+        # metadata: accepted for protocol parity; Sandbox.create has no such param
         sbx = Sandbox.create(
             image=self._image,
             flavor=self._flavor,

@@ -61,14 +61,11 @@ from .sandbox.base import BgJob, SandboxBackend, SandboxHandle
 from .task import OpenCodeTask
 
 
-# Inside-sandbox proxy port (Mode B). The in-sandbox paths are derived from
-# `config.sandbox_home` (see opencode_runtime) so root-based backends (HF, Docker)
-# work, not just E2B's `/home/user`.
+# Mode B proxy port. In-sandbox paths derive from config.sandbox_home (opencode_runtime)
+# so root-based backends (HF, Docker) work, not just E2B's /home/user.
 _PROXY_PORT = 7000
 
-# Where the proxy source lives on disk (in this repo). Uploaded into the sandbox at
-# `proxy_source_path(config)` before each rollout, unless the sandbox was created
-# from a template that already has it baked in.
+# Local proxy source, uploaded to proxy_source_path(config) unless already baked in.
 _PROXY_SOURCE_PATH = Path(__file__).parent / "sandbox" / "interception.py"
 
 
@@ -245,53 +242,54 @@ class OpenCodeSessionFactory(ResourceSessionFactory):
             or getattr(getattr(sandbox, "raw", None), "sandbox_id", "?")
         )
         _log.info("factory.create: sandbox=%s — bootstrapping…", sid)
+        # Any failure past here (bootstrap/proxy/agent) must tear the sandbox down.
         try:
             self._bootstrap_sandbox(sandbox, oc_task)
+
+            base_url_override: str | None = None
+            proxy_trace_path: str | None = None
+            proxy_bg_job: BgJob | None = None
+            if self._mode == "transparent_proxy":
+                _log.info(
+                    "factory.create: starting interception proxy on :%d → %s",
+                    _PROXY_PORT, self._config.base_url,
+                )
+                proxy_bg_job, base_url_override, proxy_trace_path = self._start_proxy(
+                    sandbox
+                )
+                _log.info("factory.create: proxy up at %s", base_url_override)
+                # Rewrite opencode.json so opencode points at the proxy. Force
+                # ``openai_compatible`` so opencode hits ``/v1/chat/completions``
+                # (which the proxy serves) rather than provider-specific paths.
+                from .config import OpenCodeConfig as _OCC
+
+                proxy_cfg = _OCC(
+                    **{
+                        **self._config.model_dump(),
+                        "provider": "openai_compatible",
+                        "base_url": base_url_override,
+                    }
+                )
+                sandbox.write_text(
+                    opencode_config_path(self._config),
+                    build_opencode_json(proxy_cfg),
+                )
+
+            session = OpenCodeSession(
+                sandbox=sandbox,
+                config=self._config,
+                task=oc_task,
+                verifier=self._verifier,
+                base_url_override=base_url_override,
+                proxy_trace_path=proxy_trace_path,
+                proxy_bg_job=proxy_bg_job,
+            )
+            session.start_agent()
+            return session
         except Exception as exc:
-            _log.error("factory.create: bootstrap failed: %r", exc)
+            _log.error("factory.create: setup failed, killing sandbox: %r", exc)
             sandbox.kill()
             raise
-
-        base_url_override: str | None = None
-        proxy_trace_path: str | None = None
-        proxy_bg_job: BgJob | None = None
-        if self._mode == "transparent_proxy":
-            _log.info(
-                "factory.create: starting interception proxy on :%d → %s",
-                _PROXY_PORT, self._config.base_url,
-            )
-            proxy_bg_job, base_url_override, proxy_trace_path = self._start_proxy(
-                sandbox
-            )
-            _log.info("factory.create: proxy up at %s", base_url_override)
-            # Rewrite opencode.json so opencode points at the proxy. Force
-            # ``openai_compatible`` so opencode hits ``/v1/chat/completions``
-            # (which the proxy serves) rather than provider-specific paths.
-            from .config import OpenCodeConfig as _OCC
-
-            proxy_cfg = _OCC(
-                **{
-                    **self._config.model_dump(),
-                    "provider": "openai_compatible",
-                    "base_url": base_url_override,
-                }
-            )
-            sandbox.write_text(
-                opencode_config_path(self._config),
-                build_opencode_json(proxy_cfg),
-            )
-
-        session = OpenCodeSession(
-            sandbox=sandbox,
-            config=self._config,
-            task=oc_task,
-            verifier=self._verifier,
-            base_url_override=base_url_override,
-            proxy_trace_path=proxy_trace_path,
-            proxy_bg_job=proxy_bg_job,
-        )
-        session.start_agent()
-        return session
 
     # ------------------------------------------------------------------
     def _wait_for_sandbox_ready(

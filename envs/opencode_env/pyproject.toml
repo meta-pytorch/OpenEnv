@@ -32,6 +32,10 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+# Alternative sandbox backend: run the agent in a Hugging Face sandbox instead of E2B.
+hf = [
+    "huggingface_hub>=1.22",
+]
 dev = [
     "pytest>=8.0.0",
     "pytest-asyncio>=0.23.0",
