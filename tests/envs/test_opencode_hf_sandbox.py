@@ -32,7 +32,9 @@ from opencode_env.sandbox.hf import HFBgJob  # noqa: E402
 
 
 class _FakeProcess:
-    def __init__(self, pid: int, running: bool = True, exit_code: int | None = None) -> None:
+    def __init__(
+        self, pid: int, running: bool = True, exit_code: int | None = None
+    ) -> None:
         self.pid = pid
         self.running = running
         self.exit_code = exit_code
