@@ -143,8 +143,7 @@ session.close()
 #### Sandbox backends
 
 `E2BSandboxBackend` is the default. To run the agent in a **Hugging Face sandbox**
-instead, install the extra (`pip install 'openenv-opencode-env[hf]'`, needs
-`huggingface_hub>=1.22`) and swap the backend:
+instead, swap the backend (`huggingface_hub>=1.22` ships with the package):
 
 ```python
 from opencode_env.sandbox import HFSandboxBackend
