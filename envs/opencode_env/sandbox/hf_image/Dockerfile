@@ -20,6 +20,6 @@ RUN mkdir -p /root/.config/opencode \
              /root/task \
              /root/workdir \
              /root/proxy
-COPY interception.py /root/proxy/interception.py
+COPY sandbox/interception.py /root/proxy/interception.py
 
 WORKDIR /root/workdir
