@@ -8,10 +8,13 @@
 
 from __future__ import annotations
 
+import io
 import logging
 import os
 import re
 import shlex
+import shutil
+import tarfile
 import threading
 import sys
 import urllib.request
@@ -38,6 +41,39 @@ except ImportError:
     from models import Tbench2Action, Tbench2Observation, Tbench2State
 
 _CAMEL_IMPORT_ERROR: Exception | None = None
+
+# Official TB2 fixed paths: tests/test.sh assumes it runs from /tests and
+# writes /logs/verifier/reward.txt. Module-level only so unit tests can
+# redirect them off the real root filesystem.
+_VERIFY_TESTS_DIR = "/tests"
+_VERIFIER_LOG_DIR = "/logs/verifier"
+
+
+def _hard_remove(path: str) -> None:
+    """Remove whatever is at *path* — file, symlink, or directory tree.
+
+    shutil.rmtree refuses to remove a symlink and, with ignore_errors=True,
+    no-ops on one. That leaves an escape hatch: a root agent that symlinks a
+    fixed path (/tests, /logs/verifier) at a directory it controls would keep
+    that target alive across the "wipe", so a pre-planted conftest.py survives
+    into scoring. Unlink the symlink itself before falling back to rmtree.
+    """
+    p = Path(path)
+    if p.is_symlink() or p.is_file():
+        p.unlink(missing_ok=True)
+    else:
+        shutil.rmtree(path, ignore_errors=True)
+
+
+def _extractall(tar: tarfile.TarFile, dest: str) -> None:
+    """extractall with the 3.12 data filter when available. The tarball is one
+    this server wrote from a trusted tests/ dir, so the filter is defence in
+    depth; on <3.12 (the ``filter`` kwarg predates it) fall back cleanly rather
+    than raising TypeError mid-verify (the package targets Python >=3.10)."""
+    try:
+        tar.extractall(dest, filter="data")
+    except TypeError:
+        tar.extractall(dest)
 
 
 def _require_terminal_toolkit() -> Any:
@@ -141,9 +177,17 @@ class Tbench2Environment(Environment[Tbench2Action, Tbench2Observation, Tbench2S
         command_timeout_s: float | None = None,
         safe_mode: bool = False,
         default_task_id: str | None = None,
+        withhold_tests: bool | None = None,
     ) -> None:
         super().__init__()
         self.tasks_dir = tasks_dir or os.getenv("TB2_TASKS_DIR", "")
+        # RL hygiene: the env server and the agent share one container
+        # filesystem, so tests/ and solution/ in the task dir are readable
+        # (and writable) by the agent. When enabled, reset() moves them out
+        # of reach — see _withhold_verifier_assets.
+        if withhold_tests is None:
+            withhold_tests = os.getenv("TB2_WITHHOLD_TESTS", "0") == "1"
+        self.withhold_tests = withhold_tests
         self.output_dir = Path(
             output_dir or os.getenv("TB2_OUTPUT_DIR", "/tmp/tbench2_env_runs")
         )
@@ -184,6 +228,8 @@ class Tbench2Environment(Environment[Tbench2Action, Tbench2Observation, Tbench2S
 
         self._instruction = _read_instruction(task_dir)
         self._task_dir = task_dir
+        if self.withhold_tests:
+            self._withhold_verifier_assets(task_dir)
 
         trial_name = f"{resolved_task_id}.{episode_id or uuid4().hex}"
         session_logs_dir = (
@@ -368,6 +414,75 @@ class Tbench2Environment(Environment[Tbench2Action, Tbench2Observation, Tbench2S
         if not session_id:
             raise ValueError(f"session_id is required for action_type='{action_type}'")
 
+    # tests/ tarballs withheld out of agent reach at reset(), keyed by task
+    # dir. Class-level: the server may construct one environment instance per
+    # session, and a later reset of the same task must still find the copy
+    # after the on-disk source is gone. In-process only — withhold mode
+    # therefore assumes a single server process owns the task filesystem for
+    # its lifetime (the intended per-task-sandbox deployment: one uvicorn
+    # worker, one ephemeral sandbox per episode). It is not safe with
+    # ``uvicorn --workers N`` sharing one on-disk checkout, where a sibling
+    # worker would see tests/ already deleted with no cache to restore from.
+    _WITHHELD_TESTS: dict[str, bytes] = {}
+    _WITHHOLD_LOCK = threading.Lock()
+
+    def _withhold_verifier_assets(self, task_dir: Path) -> None:
+        """Move verifier assets out of the agent's reach before it can act.
+
+        The task directory is agent-readable (same filesystem, root agent):
+        tests/test_outputs.py spells out the expected outputs and solution/ is
+        the literal answer — for RL training both are reward-hacking bait.
+        tests/ is read into server memory (the staging source for
+        _stage_tests_for_verify) and removed from disk; solution/ is simply
+        removed (nothing in this env reads it — it exists only for oracle
+        runs). Gated behind TB2_WITHHOLD_TESTS=1 because in plain local mode
+        task_dir may be a developer's working checkout, where deleting from
+        it would be hostile.
+        """
+        key = str(task_dir)
+        with self._WITHHOLD_LOCK:
+            tests_dir = task_dir / "tests"
+            if tests_dir.is_dir():
+                if key not in self._WITHHELD_TESTS:
+                    # realpath so a symlinked tests/ caches the target's files,
+                    # not just a link member that would restore empty (tar.add
+                    # does not follow a top-level symlink).
+                    tests_real = os.path.realpath(tests_dir)
+                    buf = io.BytesIO()
+                    with tarfile.open(fileobj=buf, mode="w") as tar:
+                        tar.add(tests_real, arcname=".")
+                    self._WITHHELD_TESTS[key] = buf.getvalue()
+            _hard_remove(str(tests_dir))
+            _hard_remove(str(task_dir / "solution"))
+
+    def _stage_tests_for_verify(self) -> bool:
+        """Stage a pristine tests/ copy at the official fixed path for exactly
+        the verify window. Caller must hold _CANONICAL_EVAL_LOCK.
+
+        Both fixed paths are recreated from scratch (symlink included — see
+        _hard_remove) so nothing an agent may have pre-planted survives into
+        scoring: a /tests/conftest.py pytest would auto-load, or a symlinked
+        /tests or /logs/verifier redirecting the stage at a dir the agent
+        controls. When the source dir was withheld at reset, the staged copy
+        comes from server memory: a copy the agent never had filesystem
+        access to.
+        """
+        _hard_remove(_VERIFY_TESTS_DIR)
+        _hard_remove(_VERIFIER_LOG_DIR)
+        Path(_VERIFIER_LOG_DIR).mkdir(parents=True, exist_ok=True)
+
+        blob = self._WITHHELD_TESTS.get(str(self._task_dir))
+        if blob is not None:
+            Path(_VERIFY_TESTS_DIR).mkdir(parents=True, exist_ok=True)
+            with tarfile.open(fileobj=io.BytesIO(blob)) as tar:
+                _extractall(tar, _VERIFY_TESTS_DIR)
+            return True
+        tests_dir = Path(self._task_dir) / "tests"
+        if not tests_dir.is_dir():
+            return False
+        shutil.copytree(tests_dir, _VERIFY_TESTS_DIR, symlinks=True)
+        return True
+
     def _evaluate_task(self) -> tuple[str, float, dict[str, Any]]:
         if self._task_dir is None:
             raise RuntimeError("TB2 environment not initialized. Call reset() first.")
@@ -377,29 +492,109 @@ class Tbench2Environment(Environment[Tbench2Action, Tbench2Observation, Tbench2S
         # The task's own verifier budget (task.toml [verifier].timeout_sec) —
         # heavy tests legitimately run minutes (circuit-fibsqrt declares 3600s).
         verifier_timeout_s = _read_timeout(self._task_dir, fallback=900.0)
-        tests_dir = self._task_dir / "tests"
-        if (tests_dir / "test.sh").is_file():
-            return self._evaluate_canonical(tests_dir, verifier_timeout_s)
 
-        # Fallback for tasks without the canonical harness (none of the 89
-        # official TB2 tasks — they all ship test.sh — but custom task dirs
-        # may only have bare pytest tests). Prefer uvx so pytest comes with
-        # its own toolchain like the canonical harness does; fall back to a
-        # preinstalled pytest for environments without uv.
-        # Verify from the same directory the agent worked in.
+        with self._CANONICAL_EVAL_LOCK:
+            try:
+                # Staging happens inside the try: a stage that errors partway
+                # (I/O failure mid-extract) must be wiped like a completed
+                # one — step() reports scoring errors without ending the
+                # episode, so the still-live session must not find a partial
+                # tests/ copy left behind.
+                if not self._stage_tests_for_verify():
+                    return (
+                        f"no tests/ found for task {self._state.task_id}",
+                        0.0,
+                        {"tests_passed": False, "error": "missing tests"},
+                    )
+                if (Path(_VERIFY_TESTS_DIR) / "test.sh").is_file():
+                    return self._evaluate_canonical(verifier_timeout_s)
+                return self._evaluate_fallback(verifier_timeout_s)
+            finally:
+                # Verifier artifacts live on disk only for the verify window:
+                # don't leave them readable to a later episode / concurrent
+                # session sharing this filesystem — or to the agent itself if
+                # scoring times out / errors (done stays false, so it keeps
+                # its session). /logs/verifier holds reward.txt and the
+                # test.sh log, whose pytest -rA output can reveal expected
+                # values.
+                _hard_remove(_VERIFY_TESTS_DIR)
+                _hard_remove(_VERIFIER_LOG_DIR)
+
+    # The canonical harness uses the official fixed paths (/tests,
+    # /logs/verifier/reward.txt), which are per-container, not per-session.
+    # Serialize staging + evaluation so concurrent sessions on one server
+    # cannot overwrite each other's staged tests or read another session's
+    # reward.
+    _CANONICAL_EVAL_LOCK = threading.Lock()
+
+    def _evaluate_canonical(
+        self, timeout_s: float
+    ) -> tuple[str, float, dict[str, Any]]:
+        """Score via the task's OFFICIAL harness, exactly as the TB2 verifier does.
+
+        /tests/test.sh (staged by _stage_tests_for_verify) pins its own pytest
+        toolchain (uvx: Python 3.13 + pytest 8.4.1 + ctrf), runs
+        tests/test_outputs.py from /tests against the task workdir, and writes
+        the binary result to /logs/verifier/reward.txt. Bare ``pytest tests/``
+        (the fallback below) skips that toolchain pinning and mis-scores any
+        task whose tests need it, so the canonical harness is preferred
+        whenever the task ships it.
+        """
+        # Same working dir the agent operated in (resolved during reset).
+        workdir = self._workdir or str(self._task_dir)
+        marker = "__TB2_REWARD__:"
+        # test.sh stdout goes under /logs/verifier (wiped with the verify
+        # window in _evaluate_task) rather than a fixed /tmp path that would
+        # outlive scoring: its pytest -rA output can spell out expected values.
+        # Its tail is read back into the returned output — the episode is over
+        # by then, and callers need the pytest diagnostics on failure; the
+        # reward marker line stays last for parsing.
+        cmd = (
+            f"cd {shlex.quote(workdir)} && "
+            f"bash {_VERIFY_TESTS_DIR}/test.sh > {_VERIFIER_LOG_DIR}/testsh.log 2>&1; "
+            f"tail -c 20000 {_VERIFIER_LOG_DIR}/testsh.log 2>/dev/null; "
+            f"echo {marker}$(cat {_VERIFIER_LOG_DIR}/reward.txt 2>/dev/null)"
+        )
+        output = self._terminal_toolkit.shell_exec(
+            id="tb2-tests",
+            command=cmd,
+            block=True,
+            timeout=timeout_s,
+        )
+
+        reward = 0.0
+        for line in output.splitlines()[::-1]:
+            if marker in line:
+                raw = line.split(marker, 1)[1].strip()
+                try:
+                    reward = float(raw) if raw else 0.0
+                except ValueError:
+                    reward = 0.0
+                break
+
+        info = {"tests_passed": reward == 1.0, "harness": "tests/test.sh"}
+        return output, reward, info
+
+    def _evaluate_fallback(self, timeout_s: float) -> tuple[str, float, dict[str, Any]]:
+        """For task dirs without the canonical harness (none of the 89 official
+        TB2 tasks — they all ship test.sh — but custom task dirs may only have
+        bare pytest tests). Runs pytest against the staged /tests copy; prefer
+        uvx so pytest comes with its own toolchain like the canonical harness
+        does. Verify from the same directory the agent worked in.
+        """
         fallback_cwd = self._workdir or str(self._task_dir)
         cmd = (
             f"cd {shlex.quote(fallback_cwd)} && "
             "if command -v uvx >/dev/null 2>&1; "
-            f"then uvx --with pytest==8.4.1 pytest -q {shlex.quote(str(tests_dir))} -rA; "
-            f"else python -m pytest -q {shlex.quote(str(tests_dir))} -rA; fi; "
+            f"then uvx --with pytest==8.4.1 pytest -q {_VERIFY_TESTS_DIR} -rA; "
+            f"else python -m pytest -q {_VERIFY_TESTS_DIR} -rA; fi; "
             "echo __TB2_EXIT_CODE__:$?"
         )
         output = self._terminal_toolkit.shell_exec(
             id="tb2-tests",
             command=cmd,
             block=True,
-            timeout=verifier_timeout_s,
+            timeout=timeout_s,
         )
 
         exit_code = 1
@@ -414,62 +609,6 @@ class Tbench2Environment(Environment[Tbench2Action, Tbench2Observation, Tbench2S
 
         reward = 1.0 if exit_code == 0 else 0.0
         info = {"tests_passed": exit_code == 0, "exit_code": exit_code}
-        return output, reward, info
-
-    # The canonical harness uses the official fixed paths (/tests,
-    # /logs/verifier/reward.txt), which are per-container, not per-session.
-    # Serialize evaluations so concurrent sessions on one server cannot
-    # overwrite each other's staged tests or read another session's reward.
-    _CANONICAL_EVAL_LOCK = threading.Lock()
-
-    def _evaluate_canonical(
-        self, tests_dir: Path, timeout_s: float
-    ) -> tuple[str, float, dict[str, Any]]:
-        """Score via the task's OFFICIAL harness, exactly as the TB2 verifier does.
-
-        tests/test.sh pins its own pytest toolchain (uvx: Python 3.13 +
-        pytest 8.4.1 + ctrf), runs tests/test_outputs.py from /tests against
-        the task workdir, and writes the binary result to
-        /logs/verifier/reward.txt. Bare ``pytest tests/`` (the fallback above)
-        skips that toolchain pinning and mis-scores any task whose tests need
-        it, so the canonical harness is preferred whenever the task ships it.
-        """
-        # Same working dir the agent operated in (resolved during reset).
-        workdir = self._workdir or str(self._task_dir)
-        marker = "__TB2_REWARD__:"
-        cmd = (
-            # /tests is recreated from scratch — a prior task's files on the
-            # same server must not leak into pytest collection — and the
-            # reward file removed so a stale one can never be read back if
-            # test.sh fails to run.
-            "rm -rf /tests && mkdir -p /tests /logs/verifier && "
-            "rm -f /logs/verifier/reward.txt && "
-            f"cp -a {shlex.quote(str(tests_dir))}/. /tests/ && "
-            f"cd {shlex.quote(workdir)} && bash /tests/test.sh > /tmp/tb2_testsh.log 2>&1; "
-            # Surface the harness log tail so callers keep the pytest
-            # diagnostics; the reward marker line stays last for parsing.
-            "tail -c 20000 /tmp/tb2_testsh.log 2>/dev/null; "
-            f"echo {marker}$(cat /logs/verifier/reward.txt 2>/dev/null)"
-        )
-        with self._CANONICAL_EVAL_LOCK:
-            output = self._terminal_toolkit.shell_exec(
-                id="tb2-tests",
-                command=cmd,
-                block=True,
-                timeout=timeout_s,
-            )
-
-        reward = 0.0
-        for line in output.splitlines()[::-1]:
-            if marker in line:
-                raw = line.split(marker, 1)[1].strip()
-                try:
-                    reward = float(raw) if raw else 0.0
-                except ValueError:
-                    reward = 0.0
-                break
-
-        info = {"tests_passed": reward == 1.0, "harness": "tests/test.sh"}
         return output, reward, info
 
 
@@ -621,8 +760,14 @@ class Tbench2DockerEnvironment(
 
             # Copy task files into container using tar archive
             # This works in Docker-in-Docker because we read files from our
-            # filesystem and stream them to the container via the Docker API
-            self._copy_dir_to_container(task_dir, "/task")
+            # filesystem and stream them to the container via the Docker API.
+            # Verifier assets stay out: the agent works in /task and must not
+            # be able to read solution/ (the literal answer) or tests/ (the
+            # expected outputs) — tests are staged only at verify time by
+            # _evaluate_docker, like the official TB2 harness does.
+            self._copy_dir_to_container(
+                task_dir, "/task", exclude_top=("solution", "tests")
+            )
 
             self._state = Tbench2State(
                 episode_id=str(uuid4()),
@@ -635,24 +780,28 @@ class Tbench2DockerEnvironment(
         except Exception as exc:
             raise RuntimeError(f"Failed to start container: {exc}") from exc
 
-    def _copy_dir_to_container(self, src_dir: Path, dest_path: str) -> None:
+    def _copy_dir_to_container(
+        self, src_dir: Path, dest_path: str, exclude_top: tuple[str, ...] = ()
+    ) -> None:
         """Copy a directory into the container using tar archive.
 
         This method streams files via the Docker API, avoiding bind mount
-        issues in Docker-in-Docker scenarios.
+        issues in Docker-in-Docker scenarios. Top-level entries named in
+        *exclude_top* are skipped entirely.
         """
-        import io
-        import tarfile
-
         if self._container is None:
             raise RuntimeError("Container not started")
 
-        # Create tar archive in memory
+        # Create tar archive in memory (recursive=False: rglob already yields
+        # every descendant, so per-entry recursion would duplicate members —
+        # and would re-add excluded subtrees through their parents).
         tar_stream = io.BytesIO()
         with tarfile.open(fileobj=tar_stream, mode="w") as tar:
             for item in src_dir.rglob("*"):
-                arcname = str(item.relative_to(src_dir))
-                tar.add(str(item), arcname=arcname)
+                rel = item.relative_to(src_dir)
+                if rel.parts and rel.parts[0] in exclude_top:
+                    continue
+                tar.add(str(item), arcname=str(rel), recursive=False)
 
         tar_stream.seek(0)
 
@@ -776,28 +925,71 @@ class Tbench2DockerEnvironment(
             raise RuntimeError("Container not started.")
         assert self._task_dir is not None, "Task directory not set"
 
-        # Run pytest in the container's /task directory
-        # Use exit code marker for consistency with local mode
-        cmd = "cd /task && python -m pytest -q tests/ -rA; echo __TB2_EXIT_CODE__:$?"
-
-        exit_code, output = self._container.exec_run(
-            cmd=f"bash -c '{cmd}'",
-            workdir="/task",
-            stdout=True,
-            stderr=True,
+        # Stage-at-verify, like the official TB2 harness: the initial /task
+        # copy excludes tests/, and this server sits OUTSIDE the container, so
+        # the copy staged here is one the agent never saw. rm -rf first so
+        # nothing an agent pre-planted at /task/tests (e.g. a conftest.py
+        # pytest would auto-load) survives into scoring.
+        tests_src = self._task_dir / "tests"
+        if not tests_src.is_dir():
+            return (
+                f"no tests/ found for task {self._state.task_id}",
+                0.0,
+                {"tests_passed": False, "error": "missing tests"},
+            )
+        wipe_ec, wipe_out = self._exec_in_container(
+            "rm -rf /task/tests && mkdir -p /task/tests"
         )
-        output_str = output.decode("utf-8", errors="replace")
+        if wipe_ec != 0:
+            # Fail closed: put_archive into a dir that survived the wipe would
+            # merge the staged tests into whatever the agent planted there.
+            raise RuntimeError(
+                f"could not reset /task/tests before verify: {wipe_out.strip()}"
+            )
+        try:
+            self._copy_dir_to_container(tests_src, "/task/tests")
 
-        # Parse exit code from marker (same logic as local mode)
-        ec = 1
-        marker = "__TB2_EXIT_CODE__"
-        for line in output_str.splitlines()[::-1]:
-            if marker in line:
-                try:
-                    ec = int(line.split(":", 1)[1].strip())
-                except Exception:
-                    ec = 1
-                break
+            # Run pytest in the container's /task directory
+            # Use exit code marker for consistency with local mode
+            cmd = (
+                "cd /task && python -m pytest -q tests/ -rA; echo __TB2_EXIT_CODE__:$?"
+            )
+
+            exit_code, output = self._container.exec_run(
+                cmd=f"bash -c '{cmd}'",
+                workdir="/task",
+                stdout=True,
+                stderr=True,
+            )
+            output_str = output.decode("utf-8", errors="replace")
+
+            # Parse exit code from marker (same logic as local mode)
+            ec = 1
+            marker = "__TB2_EXIT_CODE__"
+            for line in output_str.splitlines()[::-1]:
+                if marker in line:
+                    try:
+                        ec = int(line.split(":", 1)[1].strip())
+                    except Exception:
+                        ec = 1
+                    break
+        finally:
+            # Tests live in the container only for the verify window, matching
+            # the local-mode staging: don't leave /task/tests readable
+            # afterward — the agent keeps its session if scoring errored
+            # (step() reports the failure without ending the episode).
+            try:
+                rm_ec, rm_out = self._exec_in_container("rm -rf /task/tests")
+                if rm_ec != 0:
+                    logging.warning(
+                        "failed to remove staged /task/tests after verify: %s",
+                        rm_out.strip(),
+                    )
+            except Exception:
+                logging.warning(
+                    "failed to remove staged /task/tests after verify",
+                    exc_info=True,
+                )
 
         reward = 1.0 if ec == 0 else 0.0
         info = {"tests_passed": ec == 0, "exit_code": ec}

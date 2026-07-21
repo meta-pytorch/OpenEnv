@@ -150,6 +150,7 @@ env.step(Tbench2Action(action_type="view", session_id="sess1"))
 | `TB2_OUTPUT_DIR` | `/tmp/tbench2_env_runs` | Directory for session logs and cache |
 | `TB2_CACHE_DIR` | `$TB2_OUTPUT_DIR/repo_cache` | Where to extract TB2 repo |
 | `TB2_REPO_URL` | (GitHub main.zip) | Repo zip URL for auto-download |
+| `TB2_WITHHOLD_TESTS` | `0` | `1`: `reset()` deletes the task's `tests/` and `solution/` from disk (tests kept in server memory, staged at `/tests` only while scoring). Set for RL training so the agent cannot read the expected outputs or the answer; leave off when `TB2_TASKS_DIR` is a working checkout you don't want modified |
 
 ## Reward
 
