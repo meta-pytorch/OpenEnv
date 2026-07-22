@@ -280,15 +280,17 @@ class PiEnvironment(MCPEnvironment):
         t0 = time.time()
 
         # Late credential check — keeps the server importable in dev /
-        # docs-only contexts.
-        if not (os.environ.get("HF_TOKEN") or os.environ.get("HUGGING_FACE_HUB_TOKEN")):
+        # docs-only contexts. get_token() covers HF_TOKEN, the legacy env var,
+        # and a cached ``hf auth login`` token.
+        from huggingface_hub import get_token
+
+        if not get_token():
             result.error = (
-                "HF_TOKEN is not set on the server. Configure it in the "
-                "Space's secrets / your .env / your shell before calling "
-                "run_rollout."
+                "No Hugging Face token found. Set HF_TOKEN (Space secret / .env "
+                "/ shell) or run `hf auth login` before calling run_rollout."
             )
             result.wall_s = round(time.time() - t0, 3)
-            _emit("error: HF_TOKEN missing on server")
+            _emit("error: HF token missing on server")
             return result.model_dump_json()
 
         _emit(f"resolving config (model={model}, mode={mode})")

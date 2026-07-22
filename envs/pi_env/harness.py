@@ -439,10 +439,13 @@ class PiSessionFactory(ResourceSessionFactory):
         the pip install + source-upload steps when the prebaked template already
         has them in place.
         """
-        proxy_already_present = sandbox.exists(proxy_source_path(self._config))
-
-        if not proxy_already_present:
-            # Install proxy deps (idempotent on retries).
+        # Deps and source are gated separately: the pre-baked image bakes the
+        # deps but not the proxy source (it lives in opencode_env, outside the
+        # pi image build context), so each skip triggers independently.
+        deps_present = (
+            sandbox.exec("python -c 'import fastapi, uvicorn, httpx'", timeout=15).exit_code == 0
+        )
+        if not deps_present:
             self._exec_with_retry(
                 sandbox,
                 "set -o pipefail && pip install --quiet 'fastapi>=0.104' "
@@ -452,7 +455,8 @@ class PiSessionFactory(ResourceSessionFactory):
                 backoff_s=2.0,
                 label="proxy deps install",
             )
-            # Upload the proxy module into the sandbox.
+
+        if not sandbox.exists(proxy_source_path(self._config)):
             sandbox.write_text(
                 proxy_source_path(self._config),
                 _PROXY_SOURCE_PATH.read_text(),
