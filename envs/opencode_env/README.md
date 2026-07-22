@@ -155,6 +155,14 @@ factory = OpenCodeSessionFactory(
 )
 ```
 
+`image="python:3.12"` cold-installs opencode + the proxy deps on every rollout. For faster
+rollouts use the pre-baked image (opencode + proxy deps already installed), built by CI from
+`sandbox/hf_image/Dockerfile`:
+
+```python
+sandbox_backend=HFSandboxBackend(image="ghcr.io/huggingface/openenv-opencode-sandbox:latest")
+```
+
 Any backend satisfying the `SandboxBackend` / `SandboxHandle` / `BgJob` protocols in
 `opencode_env.sandbox.base` can be plugged in the same way.
 
