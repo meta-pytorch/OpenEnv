@@ -18,6 +18,8 @@ Usage:
     python -m server.app
 """
 
+import os
+
 try:
     from openenv.core.env_server import create_app
 
@@ -36,6 +38,7 @@ app = create_app(
     LatexOCRAction,
     LatexOCRObservation,
     env_name="latex_ocr_env",
+    max_concurrent_envs=int(os.environ.get("LATEX_OCR_MAX_SESSIONS", "16")),
     gradio_builder=latex_ocr_ui_builder,
     custom_tab_name="Try it",
     custom_tab_primary=True,
