@@ -12,6 +12,8 @@ dataset) and the agent must return the LaTeX source that produced it. Reward
 is computed server-side against the hidden ground-truth LaTeX.
 """
 
+from typing import Dict
+
 from openenv.core.env_server.types import Action, Observation
 from pydantic import Field
 
@@ -84,4 +86,9 @@ class LatexOCRObservation(Observation):
     char_error_rate: float = Field(
         default=1.0,
         description="Normalized Levenshtein distance between prediction and target.",
+    )
+    reward_components: Dict[str, float] = Field(
+        default_factory=dict,
+        description="Per-component reward scores (edit_similarity, exact_match, "
+        "structural_validity, length_format).",
     )

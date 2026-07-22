@@ -2088,6 +2088,7 @@ dependencies = [
     { name = "datasets" },
     { name = "openenv" },
     { name = "pillow" },
+    { name = "pylatexenc" },
     { name = "requests" },
 ]
 
@@ -2103,6 +2104,7 @@ requires-dist = [
     { name = "openai", marker = "extra == 'dev'", specifier = ">=1.40.0" },
     { name = "openenv", specifier = ">=0.4.1" },
     { name = "pillow", specifier = ">=10.0.0" },
+    { name = "pylatexenc", specifier = ">=2.10" },
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.0.0" },
     { name = "requests", specifier = ">=2.31.0" },
 ]
@@ -2867,6 +2869,12 @@ wheels = [
 crypto = [
     { name = "cryptography" },
 ]
+
+[[package]]
+name = "pylatexenc"
+version = "2.10"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/5d/ab/34ec41718af73c00119d0351b7a2531d2ebddb51833a36448fc7b862be60/pylatexenc-2.10.tar.gz", hash = "sha256:3dd8fd84eb46dc30bee1e23eaab8d8fb5a7f507347b23e5f38ad9675c84f40d3", size = 162597, upload-time = "2021-04-06T07:56:07.854Z" }
 
 [[package]]
 name = "pyperclip"

@@ -19,13 +19,18 @@ environment:
   image_column: image                  # LATEX_OCR_IMAGE_COLUMN
   text_column: text                    # LATEX_OCR_TEXT_COLUMN
   splits: "train,test"                 # LATEX_OCR_SPLITS
-  exact_weight: 0.2
 
-# Reward definition
+# Reward definition: weighted sum of named components, each in [0, 1].
+# Weights are renormalized so the reward is always in [0, 1].
 rubric:
   name: LatexOCRRubric
-  formula: "(1 - exact_weight) * (1 - CER) + exact_weight * exact_match"
-  cer: "normalized Levenshtein distance over whitespace-collapsed LaTeX"
+  formula: "sum(weight_i * component_i)"
+  components:
+    edit_similarity: "1 - CER (normalized char edit distance)"      # LATEX_OCR_W_EDIT (0.6)
+    exact_match: "1.0 iff canonical strings match exactly"          # LATEX_OCR_W_EXACT (0.2)
+    structural_validity: "balanced delimiters + parseable LaTeX"    # LATEX_OCR_W_STRUCT (0.1)
+    length_format: "length agreement + no code fences"             # LATEX_OCR_W_LENFMT (0.1)
+  notes: "empty prediction vs non-empty target scores 0 (no floor credit)"
 
 # Task API (dataset discovery) — auto-exposed by the OpenEnv server
 task_api:

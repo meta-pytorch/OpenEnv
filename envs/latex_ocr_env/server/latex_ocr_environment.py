@@ -112,13 +112,13 @@ class LatexOCREnvironment(Environment):
     def __init__(
         self,
         dataset_name: str = DEFAULT_DATASET,
-        exact_weight: float = 0.2,
         mode: str = DEFAULT_MODE,
     ) -> None:
         super().__init__()
         self.dataset_name = dataset_name
         self.mode = mode
-        self._rubric = LatexOCRRubric(exact_weight=exact_weight)
+        # Component weights are read from env vars by the rubric (see rubric.py).
+        self._rubric = LatexOCRRubric()
         self._state = State(episode_id=str(uuid4()), step_count=0)
         self._target: Optional[str] = None
         self._current_split: str = ""
@@ -294,6 +294,7 @@ class LatexOCREnvironment(Environment):
             target_latex=self._target,
             exact_match=result.exact_match,
             char_error_rate=result.char_error_rate,
+            reward_components=result.components,
             total=total,
             remaining=(total - self._cursor)
             if (self.mode == "stream" and total > 0)
@@ -304,6 +305,8 @@ class LatexOCREnvironment(Environment):
             metadata={
                 "exact_match": result.exact_match,
                 "char_error_rate": result.char_error_rate,
+                "reward_components": result.components,
+                "reward_weights": result.weights,
                 "mode": self.mode,
             },
         )

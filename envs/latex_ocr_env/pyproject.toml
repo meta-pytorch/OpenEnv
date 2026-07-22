@@ -20,6 +20,8 @@ dependencies = [
     "datasets>=4.0.0",
     "pillow>=10.0.0",
     "requests>=2.31.0",
+    # Optional structural-validity check in the rubric (graceful fallback if absent).
+    "pylatexenc>=2.10",
 ]
 
 [project.optional-dependencies]

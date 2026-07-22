@@ -18,11 +18,20 @@ transcription, served through OpenEnv.
 - **Dataset**: tasks are served from a Hugging Face dataset (default
   [`unsloth/LaTeX_OCR`](https://huggingface.co/datasets/unsloth/LaTeX_OCR):
   `image` + `text` columns, `train`/`test` splits) via the OpenEnv **Task API**.
-- **Reward**: `(1 - exact_weight) * (1 - CER) + exact_weight * exact_match`,
-  where `CER` is the normalized character edit distance over whitespace-collapsed
-  LaTeX. Partial answers score in `[0, 0.8]`; only an exact match reaches `1.0`.
-  Computed **server-side** against the hidden ground truth — the agent never
-  sees the target on `reset`.
+- **Reward**: a **weighted sum of named components** (each in `[0, 1]`, weights
+  renormalized so the reward is in `[0, 1]`), computed **server-side** against
+  the hidden ground truth (the agent never sees the target on `reset`):
+
+  | Component | Default weight | Env var | Meaning |
+  |---|---|---|---|
+  | `edit_similarity` | 0.6 | `LATEX_OCR_W_EDIT` | `1 − CER` (normalized char edit distance) |
+  | `exact_match` | 0.2 | `LATEX_OCR_W_EXACT` | `1.0` iff canonical strings match |
+  | `structural_validity` | 0.1 | `LATEX_OCR_W_STRUCT` | balanced delimiters + parseable LaTeX (`pylatexenc`) |
+  | `length_format` | 0.1 | `LATEX_OCR_W_LENFMT` | length agreement + no code fences |
+
+  All sub-scores are returned in `observation.reward_components` (and
+  `metadata`) for logging. An empty prediction against a non-empty target
+  scores `0` (no floor credit).
 
 ## Episode
 
