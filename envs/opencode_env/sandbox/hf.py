@@ -34,9 +34,10 @@ class HFBgJob:
         deadline = None if timeout is None else time.monotonic() + timeout
         while True:
             proc = next((p for p in self._sandbox.processes() if p.pid == self.pid), None)
-            # missing pid (reaped) or running=False both mean done
+            # Finished processes stay listed (running=False); a vanished pid means
+            # the sandbox was torn down mid-run, not a clean exit.
             if proc is None:
-                return 0
+                raise RuntimeError(f"process {self.pid} vanished (sandbox torn down?)")
             if not proc.running:
                 return int(proc.exit_code) if proc.exit_code is not None else 0
             if deadline is not None and time.monotonic() >= deadline:
@@ -81,6 +82,14 @@ class HFSandboxHandle:
             timeout=timeout,
             check=False,
         )
+        # A timed-out command is killed with exit_code unset; surface it as a
+        # non-zero exit instead of a false success.
+        if result.timed_out:
+            return ExecResult(
+                exit_code=124,
+                stdout=result.stdout,
+                stderr=(result.stderr or "") + f"\n[timed out after {timeout}s]",
+            )
         return ExecResult(
             exit_code=int(result.exit_code) if result.exit_code is not None else 0,
             stdout=result.stdout,
