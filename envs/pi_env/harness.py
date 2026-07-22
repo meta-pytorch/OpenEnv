@@ -226,7 +226,10 @@ class PiSessionFactory(ResourceSessionFactory):
         _log = logging.getLogger(__name__)
 
         pi_task = PiTask.coerce(task)
-        sandbox_timeout = int(self._config.agent_timeout_s) + 300
+        # Budget must cover the cold bootstrap (Node + npm + proxy deps) plus the agent.
+        sandbox_timeout = (
+            self._install_timeout_s + self._setup_timeout_s + int(self._config.agent_timeout_s) + 120
+        )
 
         _log.info(
             "factory.create: creating sandbox timeout=%ds mode=%s",

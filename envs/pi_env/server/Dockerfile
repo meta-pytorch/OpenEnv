@@ -47,12 +47,10 @@ RUN --mount=type=cache,target=/root/.cache/uv \
         uv sync --no-editable; \
     fi
 
-# The shared sandbox backend + interception proxy live in opencode_env (kept a
-# peer dep in pyproject, not a hard dep, so local dev / training installs stay
-# lean). Install it explicitly into the venv so the server can import
-# ``opencode_env.sandbox``. TEMPORARY: repoint to the branch carrying
-# HFSandboxBackend until it lands in main; removed once the shared sandbox
-# consolidates into openenv.core.
+# The shared sandbox backend + interception proxy live in opencode_env. Install
+# it explicitly so the server can import ``opencode_env.sandbox``. Resolves once
+# opencode_env (#998) is in main; removed when the shared sandbox moves to
+# openenv.core.
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv pip install --python .venv/bin/python \
     "openenv-opencode-env @ git+https://github.com/huggingface/OpenEnv.git#subdirectory=envs/opencode_env"

@@ -40,10 +40,10 @@ except ImportError:  # pragma: no cover
     from server.catalog import ENDPOINT_KINDS, resolve_endpoint  # type: ignore
 
 
-# One rollout (sandbox cold start + pi install + pi run + verifier) typically
-# takes 30-180s; can spike to ~600s under load. Override OpenEnv's 30s
-# MCP-tool default so the server doesn't cut us off.
-_RUN_ROLLOUT_TIMEOUT_S = 900.0
+# One rollout (sandbox cold start + Node/Pi install + pi run + verifier) can
+# reach ~20min worst case on a cold image. Override OpenEnv's 30s MCP-tool
+# default so the server doesn't cut us off.
+_RUN_ROLLOUT_TIMEOUT_S = 1500.0
 
 # Default Hugging Face sandbox image (cold-installs Node + Pi per rollout).
 _DEFAULT_IMAGE = "python:3.12"

@@ -27,7 +27,12 @@ a float to `/root/logs/verifier/reward.txt` (override).
 ## In-process primitive (no HTTP)
 
 For trainers that drive a sandbox directly without an HTTP boundary — this is
-what loop-owning GRPO training uses:
+what loop-owning GRPO training uses. The primitive reuses the sandbox backend +
+proxy from `opencode_env`, so install it alongside `pi_env`:
+
+```bash
+pip install "openenv-opencode-env @ git+https://github.com/huggingface/OpenEnv.git#subdirectory=envs/opencode_env"
+```
 
 ```python
 import os

@@ -24,7 +24,6 @@ class PiConfig(BaseModel):
     base_url: str
     api_key: str = "intercepted"
     model: str = "intercepted-model"
-    request_timeout_ms: int = 600_000
 
     # --- Pi CLI ---------------------------------------------------------------
     pi_version: str = "latest"

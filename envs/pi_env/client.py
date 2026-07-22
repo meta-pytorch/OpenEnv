@@ -72,6 +72,9 @@ class PiEnv(MCPToolClient):
         """Run one Pi rollout and return the typed result.
 
         Args:
+            endpoint: Shorthand selector (``"vllm"`` / ``"openai"`` /
+                ``"hf_router"``) resolving base_url/api_key/model from the
+                server's env + catalog. Explicit fields below override it.
             base_url: OpenAI-compatible LLM endpoint (with trailing /v1).
             api_key: Bearer token for the LLM. Use ``"intercepted"`` for vLLM
                 if it doesn't enforce auth.
