@@ -82,12 +82,13 @@ class OpenCodeEnvironment(MCPEnvironment):
         try:
             from ..config import OpenCodeConfig
             from ..harness import OpenCodeSessionFactory
+            from ..sandbox import E2BSandboxBackend
             from ..task import OpenCodeTask
         except ImportError:  # pragma: no cover
             from config import OpenCodeConfig  # type: ignore
             from harness import OpenCodeSessionFactory  # type: ignore
+            from sandbox import E2BSandboxBackend  # type: ignore
             from task import OpenCodeTask  # type: ignore
-        from opencode_env.sandbox import E2BSandboxBackend
 
         self._CommandResult = CommandResult
         self._RolloutResult = RolloutResult
