@@ -15,11 +15,11 @@ short_description: Pi coding agent in a Hugging Face sandbox with logprob captur
 # Pi Environment for OpenEnv
 
 `pi_env` runs the [Pi](https://github.com/badlogic/pi-mono) coding agent
-inside an isolated [Hugging Face sandbox](https://huggingface.co/docs/huggingface_hub/guides/sandboxes)
+inside an isolated [Hugging Face sandbox](https://huggingface.co/docs/huggingface_hub/package_reference/sandbox)
 against any OpenAI-compatible LLM endpoint, optionally capturing per-token
 logprobs for GRPO training.
 
-It mirrors [`opencode_env`](../opencode_env): same two-layer design (an
+It mirrors `opencode_env`: same two-layer design (an
 in-process harness primitive + a deployable HTTP env), same transparent-proxy
 logprob capture, same uniform `(instruction, setup, verify)` Task shape. The
 agent is Pi instead of OpenCode, and the default sandbox backend is Hugging
@@ -213,11 +213,4 @@ pi_env/
 ```
 
 The sandbox backend + interception proxy are imported from
-[`opencode_env.sandbox`](../opencode_env/sandbox); `pi_env` ships no `sandbox/`
-of its own.
-
-## References
-
-- [OpenEnv docs](https://huggingface.co/docs/openenv)
-- [Pi coding agent](https://github.com/badlogic/pi-mono)
-- [Hugging Face sandboxes](https://huggingface.co/docs/huggingface_hub/guides/sandboxes)
+`opencode_env.sandbox`; `pi_env` ships no `sandbox/` of its own.

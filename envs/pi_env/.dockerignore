@@ -8,7 +8,7 @@ __pycache__
 .mypy_cache
 .ruff_cache
 
-# NEVER ship secrets into the image. The container reads E2B_API_KEY etc.
+# NEVER ship secrets into the image. The container reads HF_TOKEN etc.
 # from runtime env vars (HF Space secrets, ``docker run -e``).
 .env
 .env.*

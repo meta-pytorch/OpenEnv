@@ -80,11 +80,6 @@ def proxy_log_path(config: PiConfig) -> str:
     return f"{config.sandbox_home}/logs/agent/proxy.log"
 
 
-def model_id(config: PiConfig) -> str:
-    """Model id Pi sends upstream. The proxy overrides it with the real model."""
-    return config.model.split("/", 1)[-1]
-
-
 def build_models_json(config: PiConfig) -> str:
     """Return the serialized ``models.json`` registering one OpenAI-compatible provider."""
     doc = {
@@ -95,7 +90,7 @@ def build_models_json(config: PiConfig) -> str:
                 "apiKey": config.api_key,
                 "models": [
                     {
-                        "id": model_id(config),
+                        "id": config.model,
                         "name": "Intercepted Model",
                         "reasoning": False,
                         "input": ["text"],
@@ -121,7 +116,8 @@ def build_install_cmd(config: PiConfig) -> str:
         f"mkdir -p {home}/.pi/agent {home}/logs/agent {home}/logs/verifier {home}/task {home}/workdir && "
         # Bootstrap Node 22 when the image ships none new enough (pi needs >=22.19).
         'if ! command -v node >/dev/null 2>&1 || '
-        '! node -e "process.exit(+process.versions.node.split(\'.\')[0]>=22?0:1)"; then '
+        '! node -e "const v=process.versions.node.split(\'.\').map(Number); '
+        'process.exit(v[0]>22||(v[0]===22&&v[1]>=19)?0:1)"; then '
         "A=$(uname -m); case $A in x86_64) A=x64;; aarch64|arm64) A=arm64;; esac && "
         f"curl -fsSL https://nodejs.org/dist/v{_NODE_VERSION}/node-v{_NODE_VERSION}-linux-$A.tar.xz "
         f"| tar -xJ -C {home} && ln -sfn {home}/node-v{_NODE_VERSION}-linux-$A {node_dir(config)}; fi && "
@@ -139,12 +135,14 @@ def build_run_cmd(config: PiConfig) -> str:
         if config.system_prompt
         else ""
     )
+    # Select by --provider only (a "/" in --model is parsed as provider/id).
     return (
+        "set -o pipefail && "
         f'export PATH="{node_dir(config)}/bin:$PATH" && '
         f"cd {workdir_path(config)} && "
         f"{pi_bin_path(config)} -p --no-session --mode json "
         "--no-context-files --no-extensions --no-skills --no-prompt-templates "
-        f"--provider {config.provider_name} --model {model_id(config)} "
+        f"--provider {config.provider_name} "
         f"{tools_flag}{system_flag}"
         f'"$(cat {instruction_path(config)})" '
         f"2>&1 | tee {agent_log_path(config)}"

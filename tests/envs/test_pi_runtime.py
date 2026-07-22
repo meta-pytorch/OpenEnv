@@ -25,12 +25,7 @@ def _cfg(**kw) -> PiConfig:
     return PiConfig(**base)
 
 
-def test_model_id_strips_provider_prefix():
-    assert rt.model_id(_cfg()) == "Qwen3-4B-Instruct-2507"
-    assert rt.model_id(_cfg(model="bare")) == "bare"
-
-
-def test_models_json_registers_openai_compatible_provider():
+def test_models_json_uses_full_model_id():
     cfg = _cfg(
         provider_name="intercepted", api_key="k", context_window=4096, max_tokens=512
     )
@@ -40,7 +35,7 @@ def test_models_json_registers_openai_compatible_provider():
     assert provider["baseUrl"] == "http://127.0.0.1:7000/v1"
     assert provider["apiKey"] == "k"
     model = provider["models"][0]
-    assert model["id"] == "Qwen3-4B-Instruct-2507"
+    assert model["id"] == "Qwen/Qwen3-4B-Instruct-2507"
     assert model["contextWindow"] == 4096
     assert model["maxTokens"] == 512
     # Pi requires a cost block on custom models.
@@ -65,7 +60,9 @@ def test_run_cmd_is_headless_json_and_points_at_provider():
     cmd = rt.build_run_cmd(cfg)
     for flag in ("-p", "--no-session", "--mode json", "--no-context-files"):
         assert flag in cmd
-    assert "--provider intercepted --model Qwen3-4B-Instruct-2507" in cmd
+    assert "--provider intercepted" in cmd
+    assert "--model" not in cmd
+    assert "set -o pipefail" in cmd
     assert "--tools read,bash" in cmd
     assert '"$(cat /root/task/instruction.md)"' in cmd
     assert "tee /root/logs/agent/pi.jsonl" in cmd
