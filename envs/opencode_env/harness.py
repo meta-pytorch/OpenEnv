@@ -451,8 +451,8 @@ class OpenCodeSessionFactory(ResourceSessionFactory):
             # Install proxy deps (idempotent on retries).
             self._exec_with_retry(
                 sandbox,
-                "pip install --quiet 'fastapi>=0.104' 'uvicorn[standard]>=0.24' "
-                "'httpx>=0.27' 2>&1 | tail -20",
+                "set -o pipefail && pip install --quiet 'fastapi>=0.104' "
+                "'uvicorn[standard]>=0.24' 'httpx>=0.27' 2>&1 | tail -20",
                 timeout=180,
                 attempts=3,
                 backoff_s=2.0,

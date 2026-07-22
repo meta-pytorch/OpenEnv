@@ -40,9 +40,13 @@ class HFBgJob:
                 raise RuntimeError(f"process {self.pid} vanished (sandbox torn down?)")
             if not proc.running:
                 return int(proc.exit_code) if proc.exit_code is not None else 0
-            if deadline is not None and time.monotonic() >= deadline:
-                raise TimeoutError(f"Background command did not exit within {timeout}s")
-            time.sleep(_WAIT_POLL_INTERVAL_S)
+            if deadline is not None:
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    raise TimeoutError(f"Background command did not exit within {timeout}s")
+                time.sleep(min(_WAIT_POLL_INTERVAL_S, remaining))
+            else:
+                time.sleep(_WAIT_POLL_INTERVAL_S)
 
     def kill(self) -> None:
         try:

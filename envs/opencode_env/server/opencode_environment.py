@@ -158,7 +158,7 @@ class OpenCodeEnvironment(MCPEnvironment):
             if not (base_url and api_key and model):
                 raise ValueError(
                     "must provide either ``endpoint`` (one of "
-                    f"{ENDPOINT_KINDS}) or all of base_url + api_key + model"
+                    f"{', '.join(ENDPOINT_KINDS)}) or all of base_url + api_key + model"
                 )
             if not instruction:
                 raise ValueError("instruction is required")
@@ -372,23 +372,23 @@ class OpenCodeEnvironment(MCPEnvironment):
                     result.error = f"agent timeout: {exc}"
                     _emit(f"agent TIMEOUT: {exc}")
 
-            # Run verify commands one at a time, capture each.
-            verify_passed = 0
-            for i, cmd in enumerate(verify, 1):
-                _emit(f"verify [{i}/{len(verify)}]: {cmd[:80]}")
-                cr = self._exec_command(session.sandbox, cmd)
-                result.verify_results.append(cr)
-                if cr.exit_code == 0:
-                    verify_passed += 1
+            # Verify + reward only when the run is clean; a failed setup or
+            # agent leaves a half-prepared sandbox, so reward stays None.
+            if result.error is None:
+                verify_passed = 0
+                for i, cmd in enumerate(verify, 1):
+                    _emit(f"verify [{i}/{len(verify)}]: {cmd[:80]}")
+                    cr = self._exec_command(session.sandbox, cmd)
+                    result.verify_results.append(cr)
+                    if cr.exit_code == 0:
+                        verify_passed += 1
 
-            # Reward: explicit reward.txt wins; else passed/total of verify.
-            override = self._read_reward(session.sandbox)
-            if override is not None:
-                result.reward = override
-            elif verify:
-                result.reward = verify_passed / len(verify)
-            else:
-                result.reward = None
+                # Explicit reward.txt wins; else passed/total of verify.
+                override = self._read_reward(session.sandbox)
+                if override is not None:
+                    result.reward = override
+                elif verify:
+                    result.reward = verify_passed / len(verify)
 
             # Collect filesystem + proxy trace.
             _emit("collecting workdir files + proxy trace + logs")
