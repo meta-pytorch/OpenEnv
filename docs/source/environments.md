@@ -259,6 +259,13 @@ The OpenEnv community has built a catalog of ready-to-run environments that cove
       </div>
     </div>
     <div class="border dark:border-gray-700 p-5 rounded-lg shadow">
+      <div class="font-bold mb-2">Pi</div>
+      <p class="text-sm"><code>pi_env</code> runs the Pi coding agent inside an isolated Hugging Face sandbox against any OpenAI-compatible LLM endpoint, optionally capturing per-token logprobs.</p>
+      <div class="flex gap-2 mt-3">
+        <a href="environments/pi" class="!no-underline border dark:border-gray-700 px-3 py-1 rounded text-sm hover:shadow">📄 Docs</a>
+      </div>
+    </div>
+    <div class="border dark:border-gray-700 p-5 rounded-lg shadow">
       <div class="font-bold mb-2">Sophistry Bench Sprint</div>
       <p class="text-sm"><code>sophistry_bench_sprint_env</code> is a single-turn advocacy reward-hacking environment on QuALITY passages: the policy defends an assigned answer and the reward proxy peaks at 8 <code>&lt;claim&gt;</code> tags, with four weight-0 canaries that detect format hacking.</p>
       <div class="flex gap-2 mt-3">
