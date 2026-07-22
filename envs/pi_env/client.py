@@ -79,8 +79,8 @@ class PiEnv(MCPToolClient):
                 (e.g. ``"gpt-4o-mini"``, ``"Qwen/Qwen3.5-4B"``,
                 ``"Qwen/Qwen3-4B-Instruct-2507:nscale"``).
             instruction: Prompt passed to ``pi``.
-            setup: Bash commands run sequentially **before** the agent starts.
-                Each command runs in the sandbox; non-zero exit aborts setup.
+            setup: Bash commands run sequentially in the sandbox at rollout
+                start. Each runs in the sandbox; non-zero exit aborts setup.
             verify: Bash commands run sequentially **after** the agent exits.
                 Reward = ``passed_count / total`` unless any command writes a
                 float to ``/root/logs/verifier/reward.txt`` (override).

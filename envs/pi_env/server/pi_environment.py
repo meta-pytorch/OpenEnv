@@ -9,8 +9,8 @@
 Single MCP tool ``run_rollout`` that takes a uniform Task shape:
 
   - ``instruction``  — prompt for the agent
-  - ``setup``        — bash commands run BEFORE the agent (in the sandbox)
-  - ``verify``       — bash commands run AFTER the agent
+  - ``setup``        — bash commands run in the sandbox at rollout start
+  - ``verify``       — bash commands run after the agent finishes
 
 Reward = ``passed_verify_commands / total`` unless a verify command writes
 a float to ``/root/logs/verifier/reward.txt`` (override).
@@ -80,12 +80,17 @@ class PiEnvironment(MCPEnvironment):
                 RolloutTurn,
             )
 
-        from pi_env import (
-            HFSandboxBackend,
-            PiConfig,
-            PiSessionFactory,
-            PiTask,
-        )
+        # Import the primitive from its defining modules (not the top-level
+        # package, which re-exports the client) to keep server/client separate.
+        try:
+            from ..config import PiConfig
+            from ..harness import PiSessionFactory
+            from ..task import PiTask
+        except ImportError:  # pragma: no cover
+            from config import PiConfig  # type: ignore
+            from harness import PiSessionFactory  # type: ignore
+            from task import PiTask  # type: ignore
+        from opencode_env.sandbox import HFSandboxBackend
 
         self._CommandResult = CommandResult
         self._RolloutResult = RolloutResult

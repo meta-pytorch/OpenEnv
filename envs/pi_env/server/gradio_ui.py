@@ -457,7 +457,7 @@ def pi_gradio_builder(
 
         with gr.Row():
             setup_text = gr.Textbox(
-                label="Setup (one bash command per line — runs BEFORE the agent)",
+                label="Setup (one bash command per line — runs at rollout start)",
                 lines=5,
                 value=PRESETS["binary_search"]["setup"],
             )
