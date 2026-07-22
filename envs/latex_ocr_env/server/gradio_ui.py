@@ -124,15 +124,10 @@ def latex_ocr_ui_builder(
                 reward = o.get("reward")
             reward = reward if reward is not None else 0.0
             mark = "🎯 **exact match**" if o.get("exact_match") else "≈ partial"
-            comps = o.get("reward_components") or {}
-            comp_lines = "\n".join(
-                f"  - `{name}`: `{score:.4f}`" for name, score in comps.items()
-            )
             md = (
                 f"### Reward: `{reward:.4f}`  {mark}\n"
                 f"- character error rate: `{o.get('char_error_rate', 1.0):.4f}`\n"
-                f"- exact match: `{o.get('exact_match', False)}`\n"
-                + (f"- components:\n{comp_lines}" if comp_lines else "")
+                f"- exact match: `{o.get('exact_match', False)}`"
             )
             return md, o.get("target_latex", "")
 
