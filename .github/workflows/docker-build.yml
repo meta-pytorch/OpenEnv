@@ -115,6 +115,9 @@ jobs:
           - name: pi-env
             dockerfile: envs/pi_env/server/Dockerfile
             context: envs/pi_env
+          - name: pi-sandbox
+            dockerfile: envs/pi_env/hf_image/Dockerfile
+            context: envs/pi_env
           - name: openapp-env
             dockerfile: envs/openapp_env/server/Dockerfile
             context: envs/openapp_env

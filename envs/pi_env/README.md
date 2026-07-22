@@ -79,9 +79,16 @@ turn's `(messages, completion_token_ids, per_token_logps)` to
 `HFSandboxBackend` (from `opencode_env.sandbox`, shared with `opencode_env`)
 runs the agent in a Hugging Face sandbox. `image="python:3.12"` cold-installs
 Node 22 (bootstrapped) + the Pi CLI (`npm install -g @mariozechner/pi-coding-agent`)
-+ the proxy's Python deps on every rollout. Any backend satisfying the
-`SandboxBackend` / `SandboxHandle` / `BgJob` protocols in
-`opencode_env.sandbox.base` can be plugged in the same way.
++ the proxy's Python deps on every rollout. For faster rollouts use the
+pre-baked image (Node + Pi + proxy deps already installed), built by CI from
+`hf_image/Dockerfile`:
+
+```python
+sandbox_backend=HFSandboxBackend(image="ghcr.io/huggingface/openenv-pi-sandbox:latest")
+```
+
+Any backend satisfying the `SandboxBackend` / `SandboxHandle` / `BgJob`
+protocols in `opencode_env.sandbox.base` can be plugged in the same way.
 
 > The sandbox backend and interception proxy live in `opencode_env` for now;
 > the plan is to consolidate both into `openenv.core` so `pi_env` and
