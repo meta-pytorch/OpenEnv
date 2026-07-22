@@ -122,7 +122,9 @@ class HFSandboxHandle:
 class HFSandboxBackend:
     """Creates Hugging Face sandboxes for OpenCode rollouts.
 
-    ``image`` must ship the ``opencode`` CLI, node, and the in-sandbox proxy.
+    ``image`` may be a plain base (e.g. ``python:3.12``), in which case opencode
+    and the proxy deps are cold-installed per rollout, or a pre-baked image that
+    already ships them.
     """
 
     def __init__(
