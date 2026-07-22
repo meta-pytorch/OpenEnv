@@ -13,12 +13,14 @@ for _p in (_REPO_ROOT, os.path.join(_REPO_ROOT, "envs")):
     if _p not in sys.path:
         sys.path.insert(0, _p)
 
-from pi_env.config import PiConfig  # noqa: E402
 from pi_env import pi_runtime as rt  # noqa: E402
+from pi_env.config import PiConfig  # noqa: E402
 
 
 def _cfg(**kw) -> PiConfig:
-    base = dict(base_url="http://127.0.0.1:7000/v1", model="Qwen/Qwen3-4B-Instruct-2507")
+    base = dict(
+        base_url="http://127.0.0.1:7000/v1", model="Qwen/Qwen3-4B-Instruct-2507"
+    )
     base.update(kw)
     return PiConfig(**base)
 
@@ -29,7 +31,9 @@ def test_model_id_strips_provider_prefix():
 
 
 def test_models_json_registers_openai_compatible_provider():
-    cfg = _cfg(provider_name="intercepted", api_key="k", context_window=4096, max_tokens=512)
+    cfg = _cfg(
+        provider_name="intercepted", api_key="k", context_window=4096, max_tokens=512
+    )
     doc = json.loads(rt.build_models_json(cfg))
     provider = doc["providers"]["intercepted"]
     assert provider["api"] == "openai-completions"
