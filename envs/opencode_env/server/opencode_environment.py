@@ -77,12 +77,17 @@ class OpenCodeEnvironment(MCPEnvironment):
                 RolloutTurn,
             )
 
-        from opencode_env import (
-            E2BSandboxBackend,
-            OpenCodeConfig,
-            OpenCodeSessionFactory,
-            OpenCodeTask,
-        )
+        # Import the primitive from its defining modules (not the top-level
+        # package, which re-exports the client) to keep server/client separate.
+        try:
+            from ..config import OpenCodeConfig
+            from ..harness import OpenCodeSessionFactory
+            from ..task import OpenCodeTask
+        except ImportError:  # pragma: no cover
+            from config import OpenCodeConfig  # type: ignore
+            from harness import OpenCodeSessionFactory  # type: ignore
+            from task import OpenCodeTask  # type: ignore
+        from opencode_env.sandbox import E2BSandboxBackend
 
         self._CommandResult = CommandResult
         self._RolloutResult = RolloutResult
