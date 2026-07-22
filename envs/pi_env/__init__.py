@@ -6,12 +6,19 @@
 
 """Pi environment for OpenEnv.
 
-Harness primitive that drives one rollout of the ``pi`` coding-agent CLI inside
-a sandbox. :class:`PiSessionFactory` / :class:`PiSession` / :class:`PiConfig`
-mirror the OpenCode primitive; the sandbox backend and interception proxy are
-shared with ``opencode_env`` (to be consolidated into ``openenv.core``).
+Two layers in this package:
 
-See ``harness.py``.
+1. **Harness primitive** — :class:`PiSessionFactory` / :class:`PiSession` /
+   :class:`PiConfig` / :class:`PiTask`. Used in-process to drive one rollout
+   inside a sandbox. See ``harness.py``.
+
+2. **Deployable env** — :class:`PiEnv` (MCP client) talks to the FastAPI
+   server at ``server/app.py`` over HTTP. Use this when the sandbox + agent
+   live behind an HTTP boundary (e.g. an HF Space). See ``client.py`` and
+   ``server/``.
+
+The sandbox backend and interception proxy are shared with ``opencode_env``
+(to be consolidated into ``openenv.core``).
 """
 
 from opencode_env.sandbox import (
@@ -20,11 +27,25 @@ from opencode_env.sandbox import (
     SandboxHandle,
 )
 
+from .client import PiEnv
 from .config import PiConfig
 from .harness import PiSession, PiSessionFactory
+from .models import (
+    CommandResult,
+    PiState,
+    RolloutResult,
+    RolloutTurn,
+)
 from .task import PiTask
 
 __all__ = [
+    # Deployed-env client
+    "PiEnv",
+    # HTTP API models
+    "CommandResult",
+    "PiState",
+    "RolloutResult",
+    "RolloutTurn",
     # Harness primitive
     "PiConfig",
     "PiSession",

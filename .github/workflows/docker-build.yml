@@ -112,6 +112,9 @@ jobs:
           - name: opencode-sandbox
             dockerfile: envs/opencode_env/sandbox/hf_image/Dockerfile
             context: envs/opencode_env
+          - name: pi-env
+            dockerfile: envs/pi_env/server/Dockerfile
+            context: envs/pi_env
           - name: openapp-env
             dockerfile: envs/openapp_env/server/Dockerfile
             context: envs/openapp_env

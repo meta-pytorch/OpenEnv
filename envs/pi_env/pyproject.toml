@@ -16,12 +16,23 @@ requires-python = ">=3.10"
 dependencies = [
     # Core OpenEnv (server + MCP + harness runtime).
     "openenv>=0.3.0",
+    "fastapi>=0.115.0",
+    "uvicorn[standard]>=0.24.0",
     "pydantic>=2.0.0",
+    "fastmcp>=2.0.0",
+    "requests>=2.31.0",
+
+    # Web UI — pin to current major (6.x) to match local dev and avoid
+    # behavior drift on Space rebuilds.
+    "gradio>=6.0.0",
+
+    # Pi harness primitive — sandbox + proxy + agent driver
     "httpx>=0.27.0",
     # >=1.22 ships huggingface_hub.Sandbox (HFSandboxBackend); core only floors 0.20.
     "huggingface_hub>=1.22",
     # Shared sandbox backend + interception proxy live in opencode_env for now
-    # (plan: consolidate into openenv.core). Install it from the same repo:
+    # (plan: consolidate into openenv.core). Kept a peer dep — install from the
+    # same repo (the server Dockerfile installs it explicitly):
     #   pip install "openenv-opencode-env @ git+https://github.com/huggingface/OpenEnv.git#subdirectory=envs/opencode_env"
 ]
 
@@ -32,10 +43,17 @@ dev = [
     "pytest-cov>=4.0.0",
 ]
 
+[project.scripts]
+# Server entrypoint — enables ``uv run --project . server``.
+server = "pi_env.server.app:main"
+
 [tool.setuptools]
 include-package-data = true
-packages = ["pi_env"]
-package-dir = { "pi_env" = "." }
+packages = [
+    "pi_env",
+    "pi_env.server",
+]
+package-dir = { "pi_env" = ".", "pi_env.server" = "server" }
 
 [tool.setuptools.package-data]
 pi_env = ["**/*.md"]
