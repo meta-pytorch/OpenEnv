@@ -14,7 +14,7 @@ Two operating modes:
 
   - ``mode="black_box"`` — opencode talks directly to ``config.base_url``.
     No proxy, no logprob capture. Use for smoke tests / SFT / eval.
-  - ``mode="transparent_proxy"`` (default) — an in-sandbox FastAPI proxy
+  - ``mode="transparent_proxy"`` — an in-sandbox FastAPI proxy
     sits between opencode and the upstream LLM. It injects ``logprobs=true``
     on every request and writes per-turn ``(messages, completion_tokens,
     per_token_logps)`` to ``proxy_trace.jsonl`` for GRPO consumption.
