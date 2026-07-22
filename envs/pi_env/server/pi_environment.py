@@ -56,6 +56,8 @@ REWARD_FILE = f"{HOME}/logs/verifier/reward.txt"
 PROXY_LOG = f"{HOME}/logs/agent/proxy.log"
 AGENT_LOG = f"{HOME}/logs/agent/pi.jsonl"
 VERIFY_TIMEOUT_S = 120
+# Setup can pip-install / download, which easily exceeds the verify budget.
+SETUP_TIMEOUT_S = 300
 
 
 class PiEnvironment(MCPEnvironment):
@@ -344,7 +346,7 @@ class PiEnvironment(MCPEnvironment):
             # because pi itself takes >=20s to make its first model call.
             for i, cmd in enumerate(setup, 1):
                 _emit(f"setup [{i}/{len(setup)}]: {cmd[:80]}")
-                cr = self._exec_command(session.sandbox, cmd)
+                cr = self._exec_command(session.sandbox, cmd, timeout=SETUP_TIMEOUT_S)
                 result.setup_results.append(cr)
                 if cr.exit_code != 0:
                     result.error = (
@@ -424,10 +426,10 @@ class PiEnvironment(MCPEnvironment):
 
     # ── Helpers ────────────────────────────────────────────────────────────
 
-    def _exec_command(self, sandbox: Any, cmd: str) -> Any:
+    def _exec_command(self, sandbox: Any, cmd: str, timeout: int = VERIFY_TIMEOUT_S) -> Any:
         t = time.time()
         try:
-            r = sandbox.exec(cmd, timeout=VERIFY_TIMEOUT_S)
+            r = sandbox.exec(cmd, timeout=timeout)
             return self._CommandResult(
                 cmd=cmd,
                 exit_code=int(r.exit_code),
