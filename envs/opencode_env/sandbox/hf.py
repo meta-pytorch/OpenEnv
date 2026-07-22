@@ -87,17 +87,18 @@ class HFSandboxHandle:
             check=False,
         )
         # A timed-out command is killed with exit_code unset; surface it as a
-        # non-zero exit instead of a false success.
+        # non-zero exit instead of a false success. The SDK may return None for
+        # stdout/stderr, so coerce to str (ExecResult / downstream expect str).
         if result.timed_out:
             return ExecResult(
                 exit_code=124,
-                stdout=result.stdout,
+                stdout=result.stdout or "",
                 stderr=(result.stderr or "") + f"\n[timed out after {timeout}s]",
             )
         return ExecResult(
             exit_code=int(result.exit_code) if result.exit_code is not None else 0,
-            stdout=result.stdout,
-            stderr=result.stderr,
+            stdout=result.stdout or "",
+            stderr=result.stderr or "",
         )
 
     def start_bg(
