@@ -287,7 +287,10 @@ class OpenCodeSessionFactory(ResourceSessionFactory):
             return session
         except Exception as exc:
             _log.error("factory.create: setup failed, killing sandbox: %r", exc)
-            sandbox.kill()
+            try:
+                sandbox.kill()  # best-effort: don't let a cleanup failure mask the root cause
+            except Exception:
+                _log.exception("factory.create: sandbox.kill() during cleanup also failed")
             raise
 
     # ------------------------------------------------------------------

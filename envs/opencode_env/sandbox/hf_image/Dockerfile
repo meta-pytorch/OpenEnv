@@ -7,6 +7,11 @@
 
 FROM python:3.12
 
+# opencode's installer is fetched with curl; the base image doesn't guarantee it.
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends curl ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
 # Proxy deps that interception.py imports.
 RUN pip install --no-cache-dir "fastapi>=0.104" "uvicorn[standard]>=0.24" "httpx>=0.27"
 

@@ -104,7 +104,7 @@ class HFSandboxHandle:
 
     def write_text(self, path: str, content: str) -> None:
         parent = str(PurePosixPath(path).parent)
-        if parent not in ("", "/"):
+        if parent not in ("", "/", "."):  # "." == relative path with no parent dir to create
             self._sbx.files.mkdir(parent)
         self._sbx.files.write(path, content)
 
