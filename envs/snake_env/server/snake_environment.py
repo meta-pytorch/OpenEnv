@@ -22,20 +22,20 @@ import numpy as np
 
 # Support both in-repo and standalone imports
 try:
-    # In-repo imports (when running from OpenEnv repository)
-    from core.env_server.interfaces import Environment
-    from core.env_server.types import State
+    # Package import path used by installed envs and PYTHONPATH=src:envs.
+    from openenv.core.env_server.interfaces import Environment
+    from openenv.core.env_server.types import State
 
     from ..models import SnakeAction, SnakeObservation
 except ImportError:
+    # Direct execution from envs/snake_env.
     from models import SnakeAction, SnakeObservation
 
     try:
-        # Standalone imports with the current openenv package namespace
         from openenv.core.env_server.interfaces import Environment
         from openenv.core.env_server.types import State
     except ImportError:
-        # Backward-compatible standalone imports with the legacy namespace
+        # Backward-compatible standalone imports with the legacy namespace.
         from openenv_core.env_server.interfaces import Environment
         from openenv_core.env_server.types import State
 

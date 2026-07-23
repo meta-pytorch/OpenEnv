@@ -31,8 +31,8 @@ class __ENV_CLASS_NAME__Env(
         ...     print(result.observation.echoed_message)
 
     Example with Docker:
-        >>> # Automatically start container and connect
-        >>> client = __ENV_CLASS_NAME__Env.from_docker_image("__ENV_NAME__-env:latest")
+        >>> # Automatically start container and connect (.sync() for sync use)
+        >>> client = __ENV_CLASS_NAME__Env.from_docker_image("__ENV_NAME__-env:latest").sync()
         >>> try:
         ...     result = client.reset()
         ...     result = client.step(__ENV_CLASS_NAME__Action(message="Test"))

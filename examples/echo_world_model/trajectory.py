@@ -15,8 +15,10 @@ ready for `echo_loss`.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
 
-import torch
+if TYPE_CHECKING:
+    import torch
 
 # token roles
 CONTEXT = "context"  # system prompt / task — given, not a loss target
@@ -59,6 +61,8 @@ def tokenize_trajectory(
     Returns dict of 1-D tensors: ``input_ids``, ``action_mask``, ``obs_mask``,
     ``warning_mask`` (the last three boolean, aligned to ``input_ids``).
     """
+    import torch
+
     ids: list[int] = []
     roles: list[str] = []
     for seg in traj.segments:
