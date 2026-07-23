@@ -47,6 +47,7 @@ def parse_dockerfile_cmd(dockerfile_content: str) -> str | None:
             if isinstance(parts, list) and all(isinstance(p, str) for p in parts):
                 return " ".join(parts)
         except (json.JSONDecodeError, TypeError):
+            # Invalid exec-form JSON falls back to the raw CMD below.
             pass
 
     return last_cmd if last_cmd else None
