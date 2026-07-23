@@ -14,7 +14,7 @@ Two operating modes:
 
   - ``mode="black_box"`` — opencode talks directly to ``config.base_url``.
     No proxy, no logprob capture. Use for smoke tests / SFT / eval.
-  - ``mode="transparent_proxy"`` (default) — an in-sandbox FastAPI proxy
+  - ``mode="transparent_proxy"`` — an in-sandbox FastAPI proxy
     sits between opencode and the upstream LLM. It injects ``logprobs=true``
     on every request and writes per-turn ``(messages, completion_tokens,
     per_token_logps)`` to ``proxy_trace.jsonl`` for GRPO consumption.
@@ -451,8 +451,8 @@ class OpenCodeSessionFactory(ResourceSessionFactory):
             # Install proxy deps (idempotent on retries).
             self._exec_with_retry(
                 sandbox,
-                "pip install --quiet 'fastapi>=0.104' 'uvicorn[standard]>=0.24' "
-                "'httpx>=0.27' 2>&1 | tail -20",
+                "set -o pipefail && pip install --quiet 'fastapi>=0.104' "
+                "'uvicorn[standard]>=0.24' 'httpx>=0.27' 2>&1 | tail -20",
                 timeout=180,
                 attempts=3,
                 backoff_s=2.0,
