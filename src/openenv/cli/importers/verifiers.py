@@ -8,13 +8,11 @@ from pathlib import Path
 from .base import (
     append_dependency_files,
     collect_source_dependencies,
-    copy_source_tree,
     DetectedEnvironment,
-    ensure_vendor_package,
     iter_python_files,
     module_path,
+    prepare_import_package,
     render_importer_template,
-    safe_vendor_dir_name,
     write_text,
 )
 
@@ -110,38 +108,19 @@ class VerifiersImporter:
         env_name: str,
         detected: DetectedEnvironment,
     ) -> None:
-        from openenv.cli.commands.init import (
-            _copy_template_directory,
-            _create_template_replacements,
-        )
-
-        replacements = _create_template_replacements(env_name)
-        _copy_template_directory(
-            "openenv.cli.templates.openenv_env",
-            "",
-            destination,
-            replacements,
-            env_name,
-        )
-
-        vendor_dir = safe_vendor_dir_name(source)
-        vendor_path = destination / "vendor" / vendor_dir
-        copy_source_tree(source, vendor_path)
-        ensure_vendor_package(vendor_path)
-
-        prefix = replacements["__ENV_CLASS_NAME__"]
+        package = prepare_import_package(source, destination, env_name)
         write_text(
             destination / "server" / f"{env_name}_environment.py",
             _wrapper_source(
                 env_name=env_name,
-                class_name_prefix=prefix,
+                class_name_prefix=package.class_name_prefix,
                 source_module=detected.module_path,
-                vendor_dir=vendor_dir,
+                vendor_dir=package.vendor_dir,
             ),
         )
         write_text(
             destination / "server" / "app.py",
-            _app_source(env_name=env_name, class_name_prefix=prefix),
+            _app_source(env_name=env_name, class_name_prefix=package.class_name_prefix),
         )
         dependencies = collect_source_dependencies(source)
         if "verifiers>=0.1.14" not in dependencies:
