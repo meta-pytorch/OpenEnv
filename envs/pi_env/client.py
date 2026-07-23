@@ -48,6 +48,11 @@ class PiEnv(MCPToolClient):
     / context-manager semantics from :class:`MCPToolClient`.
     """
 
+    def __init__(self, base_url: str, *, message_timeout_s: float = 1800.0, **kwargs):
+        # One rollout runs for minutes (the server caps a run at 1500s); the base
+        # 60s default would time out client-side mid-rollout.
+        super().__init__(base_url, message_timeout_s=message_timeout_s, **kwargs)
+
     def run_rollout(
         self,
         *,
