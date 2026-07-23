@@ -14,7 +14,7 @@ Two operating modes:
 
   - ``mode="black_box"`` — opencode talks directly to ``config.base_url``.
     No proxy, no logprob capture. Use for smoke tests / SFT / eval.
-  - ``mode="transparent_proxy"`` (default) — an in-sandbox FastAPI proxy
+  - ``mode="transparent_proxy"`` — an in-sandbox FastAPI proxy
     sits between opencode and the upstream LLM. It injects ``logprobs=true``
     on every request and writes per-turn ``(messages, completion_tokens,
     per_token_logps)`` to ``proxy_trace.jsonl`` for GRPO consumption.
@@ -49,21 +49,22 @@ from .opencode_runtime import (
     build_opencode_json,
     build_run_cmd,
     instruction_path,
+    opencode_bin_path,
     opencode_config_path,
+    proxy_dir,
+    proxy_log_path,
+    proxy_source_path,
+    proxy_trace_path,
     system_prompt_path,
 )
 from .sandbox.base import BgJob, SandboxBackend, SandboxHandle
 from .task import OpenCodeTask
 
 
-# Inside-sandbox proxy paths (Mode B).
+# Mode B proxy port. In-sandbox paths derive from config.sandbox_home (opencode_runtime).
 _PROXY_PORT = 7000
-_PROXY_TRACE_PATH = "/home/user/logs/agent/proxy_trace.jsonl"
-_PROXY_LOG_PATH = "/home/user/logs/agent/proxy.log"
 
-# Where the proxy source lives on disk (in this repo). Uploaded into the
-# sandbox at /home/user/proxy/interception.py before each rollout, unless
-# the sandbox was created from a template that already has it baked in.
+# Local proxy source, uploaded to proxy_source_path(config) unless already baked in.
 _PROXY_SOURCE_PATH = Path(__file__).parent / "sandbox" / "interception.py"
 
 
@@ -240,53 +241,57 @@ class OpenCodeSessionFactory(ResourceSessionFactory):
             or getattr(getattr(sandbox, "raw", None), "sandbox_id", "?")
         )
         _log.info("factory.create: sandbox=%s — bootstrapping…", sid)
+        # Any failure past here (bootstrap/proxy/agent) must tear the sandbox down.
         try:
             self._bootstrap_sandbox(sandbox, oc_task)
+
+            base_url_override: str | None = None
+            proxy_trace_path: str | None = None
+            proxy_bg_job: BgJob | None = None
+            if self._mode == "transparent_proxy":
+                _log.info(
+                    "factory.create: starting interception proxy on :%d → %s",
+                    _PROXY_PORT, self._config.base_url,
+                )
+                proxy_bg_job, base_url_override, proxy_trace_path = self._start_proxy(
+                    sandbox
+                )
+                _log.info("factory.create: proxy up at %s", base_url_override)
+                # Rewrite opencode.json so opencode points at the proxy. Force
+                # ``openai_compatible`` so opencode hits ``/v1/chat/completions``
+                # (which the proxy serves) rather than provider-specific paths.
+                from .config import OpenCodeConfig as _OCC
+
+                proxy_cfg = _OCC(
+                    **{
+                        **self._config.model_dump(),
+                        "provider": "openai_compatible",
+                        "base_url": base_url_override,
+                    }
+                )
+                sandbox.write_text(
+                    opencode_config_path(self._config),
+                    build_opencode_json(proxy_cfg),
+                )
+
+            session = OpenCodeSession(
+                sandbox=sandbox,
+                config=self._config,
+                task=oc_task,
+                verifier=self._verifier,
+                base_url_override=base_url_override,
+                proxy_trace_path=proxy_trace_path,
+                proxy_bg_job=proxy_bg_job,
+            )
+            session.start_agent()
+            return session
         except Exception as exc:
-            _log.error("factory.create: bootstrap failed: %r", exc)
-            sandbox.kill()
+            _log.error("factory.create: setup failed, killing sandbox: %r", exc)
+            try:
+                sandbox.kill()  # best-effort: don't let a cleanup failure mask the root cause
+            except Exception:
+                _log.exception("factory.create: sandbox.kill() during cleanup also failed")
             raise
-
-        base_url_override: str | None = None
-        proxy_trace_path: str | None = None
-        proxy_bg_job: BgJob | None = None
-        if self._mode == "transparent_proxy":
-            _log.info(
-                "factory.create: starting interception proxy on :%d → %s",
-                _PROXY_PORT, self._config.base_url,
-            )
-            proxy_bg_job, base_url_override, proxy_trace_path = self._start_proxy(
-                sandbox
-            )
-            _log.info("factory.create: proxy up at %s", base_url_override)
-            # Rewrite opencode.json so opencode points at the proxy. Force
-            # ``openai_compatible`` so opencode hits ``/v1/chat/completions``
-            # (which the proxy serves) rather than provider-specific paths.
-            from .config import OpenCodeConfig as _OCC
-
-            proxy_cfg = _OCC(
-                **{
-                    **self._config.model_dump(),
-                    "provider": "openai_compatible",
-                    "base_url": base_url_override,
-                }
-            )
-            sandbox.write_text(
-                opencode_config_path(self._config),
-                build_opencode_json(proxy_cfg),
-            )
-
-        session = OpenCodeSession(
-            sandbox=sandbox,
-            config=self._config,
-            task=oc_task,
-            verifier=self._verifier,
-            base_url_override=base_url_override,
-            proxy_trace_path=proxy_trace_path,
-            proxy_bg_job=proxy_bg_job,
-        )
-        session.start_agent()
-        return session
 
     # ------------------------------------------------------------------
     def _wait_for_sandbox_ready(
@@ -369,7 +374,7 @@ class OpenCodeSessionFactory(ResourceSessionFactory):
         """
         try:
             r = sandbox.exec(
-                "/home/user/.opencode/bin/opencode --version",
+                f"{opencode_bin_path(self._config)} --version",
                 timeout=10,
             )
             return r.exit_code == 0
@@ -440,16 +445,14 @@ class OpenCodeSessionFactory(ResourceSessionFactory):
         Skips the pip install + source-upload steps when the prebaked
         template already has them in place.
         """
-        proxy_already_present = sandbox.exists(
-            "/home/user/proxy/interception.py"
-        )
+        proxy_already_present = sandbox.exists(proxy_source_path(self._config))
 
         if not proxy_already_present:
             # Install proxy deps (idempotent on retries).
             self._exec_with_retry(
                 sandbox,
-                "pip install --quiet 'fastapi>=0.104' 'uvicorn[standard]>=0.24' "
-                "'httpx>=0.27' 2>&1 | tail -20",
+                "set -o pipefail && pip install --quiet 'fastapi>=0.104' "
+                "'uvicorn[standard]>=0.24' 'httpx>=0.27' 2>&1 | tail -20",
                 timeout=180,
                 attempts=3,
                 backoff_s=2.0,
@@ -457,10 +460,10 @@ class OpenCodeSessionFactory(ResourceSessionFactory):
             )
             # Upload the proxy module into the sandbox.
             sandbox.write_text(
-                "/home/user/proxy/interception.py",
+                proxy_source_path(self._config),
                 _PROXY_SOURCE_PATH.read_text(),
             )
-            sandbox.write_text("/home/user/proxy/__init__.py", "")
+            sandbox.write_text(f"{proxy_dir(self._config)}/__init__.py", "")
 
         proxy_args = [
             "python",
@@ -468,7 +471,7 @@ class OpenCodeSessionFactory(ResourceSessionFactory):
             "--upstream-url",
             self._config.base_url,
             "--trace",
-            _PROXY_TRACE_PATH,
+            proxy_trace_path(self._config),
             "--port",
             str(_PROXY_PORT),
             "--top-logprobs",
@@ -487,9 +490,9 @@ class OpenCodeSessionFactory(ResourceSessionFactory):
 
         quoted_proxy_args = " ".join(shlex.quote(arg) for arg in proxy_args)
         proxy_cmd = (
-            "cd /home/user/proxy && "
+            f"cd {shlex.quote(proxy_dir(self._config))} && "
             f"{quoted_proxy_args} "
-            f"> {shlex.quote(_PROXY_LOG_PATH)} 2>&1"
+            f"> {shlex.quote(proxy_log_path(self._config))} 2>&1"
         )
         proxy_env = {"OPENCODE_UPSTREAM_API_KEY": self._config.api_key}
         proxy_job = sandbox.start_bg(proxy_cmd, envs=proxy_env)
@@ -511,7 +514,7 @@ class OpenCodeSessionFactory(ResourceSessionFactory):
         else:
             log = ""
             try:
-                log = sandbox.read_text(_PROXY_LOG_PATH)
+                log = sandbox.read_text(proxy_log_path(self._config))
             except Exception:
                 pass
             proxy_job.kill()
@@ -521,7 +524,7 @@ class OpenCodeSessionFactory(ResourceSessionFactory):
             )
 
         base_url_override = f"http://127.0.0.1:{_PROXY_PORT}/v1"
-        return proxy_job, base_url_override, _PROXY_TRACE_PATH
+        return proxy_job, base_url_override, proxy_trace_path(self._config)
 
 
 __all__ = [
