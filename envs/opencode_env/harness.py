@@ -189,7 +189,7 @@ class OpenCodeSession(ResourceSession):
         return records
 
 
-class OpenCodeSessionFactory(ResourceSessionFactory):
+class OpenCodeSessionFactory(ResourceSessionFactory[OpenCodeSession]):
     """Produce isolated per-rollout :class:`OpenCodeSession` instances.
 
     The factory owns sandbox provisioning, opencode install, config injection,
