@@ -16,9 +16,6 @@ from openenv.core.env_server.types import Action, Observation
 from pydantic import Field
 
 
-RewardValue = bool | int | float | None
-
-
 class LatexOCRAction(Action):
     """Agent's transcription attempt for the current image.
 

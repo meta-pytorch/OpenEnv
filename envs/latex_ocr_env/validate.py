@@ -91,9 +91,19 @@ def main() -> None:
 
         rewards = []
         seen_targets = []
-        for i in range(min(args.num, n)):
-            # In stream mode `index` is ignored — reset() pulls the next sample.
-            result = env.reset(split=args.split, index=i)
+        # n <= 0 means unknown count (stream metadata); fall back to --num.
+        count = args.num if n <= 0 else min(args.num, n)
+        stream_mode = False
+        for i in range(count):
+            if stream_mode:
+                result = env.reset(split=args.split)
+            else:
+                try:
+                    result = env.reset(split=args.split, index=i)
+                except Exception:
+                    # stream-mode server rejects random index -> pull sequentially
+                    stream_mode = True
+                    result = env.reset(split=args.split)
             obs = result.observation
             prog = ""
             if obs.total and obs.total > 0:

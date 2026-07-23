@@ -21,7 +21,7 @@ Two access modes (env var ``LATEX_OCR_MODE``):
   ``reset()`` pulls the *next* sample; every observation carries progress
   (``index``, ``total``, ``remaining``, ``pct_done``). No-repeat within a pass;
   ``reset(index=i)`` random access is unsupported by design. Best for very large
-  / TB-scale datasets. See STREAMING.md.
+  / TB-scale datasets.
 
 The dataset (materialize) and the split row-count (stream) are cached at module
 scope because the server instantiates a fresh env per Task API call.
@@ -105,7 +105,9 @@ def _split_total(dataset_name: str, split: str) -> int:
         dataset_name, name=CONFIG, token=os.environ.get("HF_TOKEN")
     )
     info = builder.info.splits.get(split)
-    return int(info.num_examples) if info and info.num_examples else -1
+    if info is None or info.num_examples is None:
+        return -1
+    return int(info.num_examples)
 
 
 def _encode_image(image: Any) -> str:
@@ -137,6 +139,7 @@ class LatexOCREnvironment(Environment):
         self._target: Optional[str] = None
         self._current_split: str = ""
         self._current_index: int = -1
+        self._current_task_id: str = ""
         self._done = False
         # streaming cursor state (per session/instance)
         self._stream = None
@@ -212,7 +215,9 @@ class LatexOCREnvironment(Environment):
         **kwargs: Any,
     ) -> LatexOCRObservation:
         if split not in self.list_splits():
-            split = self.list_splits()[0]
+            raise ValueError(
+                f"unknown split {split!r}; configured splits: {self.list_splits()}"
+            )
         self._done = False
         self._state = State(episode_id=episode_id or str(uuid4()), step_count=0)
         if self.mode == "stream":
@@ -240,6 +245,7 @@ class LatexOCREnvironment(Environment):
         row = ds[int(index)]
         self._target = str(row[TEXT_COLUMN])
         self._current_split, self._current_index = split, int(index)
+        self._current_task_id = f"{split}-{index}"
         return LatexOCRObservation(
             done=False,
             image_base64=_encode_image(row[IMAGE_COLUMN]),
@@ -251,7 +257,11 @@ class LatexOCREnvironment(Environment):
         )
 
     def _ensure_stream(self, split: str) -> None:
-        if self._stream is not None and self._stream_split == split:
+        if (
+            self._stream is not None
+            and self._stream_split == split
+            and not self._exhausted
+        ):
             return
         from datasets import load_dataset
 
@@ -299,6 +309,7 @@ class LatexOCREnvironment(Environment):
         self._cursor += 1
         self._target = str(row[TEXT_COLUMN])
         self._current_split, self._current_index = split, self._cursor
+        self._current_task_id = f"{split}-stream-{self._cursor}"
         remaining = (total - self._cursor) if total > 0 else -1
         return LatexOCRObservation(
             done=False,
@@ -334,7 +345,7 @@ class LatexOCREnvironment(Environment):
             reward=result.reward,
             split=self._current_split,
             index=self._current_index,
-            task_id=f"{self._current_split}-{self._current_index}",
+            task_id=self._current_task_id,
             predicted_latex=prediction,
             target_latex=self._target,
             exact_match=result.exact_match,
