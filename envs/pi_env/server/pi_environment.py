@@ -22,7 +22,6 @@ logprobs (Mode B) + setup/verify command results + file outputs.
 from __future__ import annotations
 
 import json
-import os
 import time
 from typing import Any, Optional
 from uuid import uuid4
