@@ -20,12 +20,15 @@ environment:
   text_column: text                    # LATEX_OCR_TEXT_COLUMN
   splits: "train,test"                 # LATEX_OCR_SPLITS
   exact_weight: 0.4                    # LATEX_OCR_EXACT_WEIGHT (edit 0.6 / exact 0.4)
+  overlong_ratio: 4.0                  # LATEX_OCR_OVERLONG_RATIO (length guard; 0 disables)
+  overlong_floor: 80                   # LATEX_OCR_OVERLONG_FLOOR (min allowed raw chars)
 
 # Reward definition
 rubric:
   name: LatexOCRRubric
-  formula: "(1 - exact_weight) * (1 - CER) + exact_weight * exact_match"
+  formula: "[(1 - exact_weight) * (1 - CER) + exact_weight * exact_match] * length_factor"
   cer: "normalized Levenshtein distance over whitespace-stripped LaTeX"
+  length_factor: "decays reward when the raw prediction exceeds overlong_ratio x target length (anti whitespace-padding hack)"
 
 # Task API (dataset discovery) — auto-exposed by the OpenEnv server
 task_api:

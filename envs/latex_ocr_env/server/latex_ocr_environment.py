@@ -137,7 +137,14 @@ class LatexOCREnvironment(Environment):
         # Exact-match share of the reward; env-var tunable (default 0.4 -> 0.6/0.4).
         if exact_weight is None:
             exact_weight = float(os.environ.get("LATEX_OCR_EXACT_WEIGHT", "0.4"))
-        self._rubric = LatexOCRRubric(exact_weight=exact_weight)
+        # Length guard against whitespace-padding reward hacks; env-var tunable.
+        overlong_ratio = float(os.environ.get("LATEX_OCR_OVERLONG_RATIO", "4.0"))
+        overlong_floor = int(os.environ.get("LATEX_OCR_OVERLONG_FLOOR", "80"))
+        self._rubric = LatexOCRRubric(
+            exact_weight=exact_weight,
+            overlong_ratio=overlong_ratio,
+            overlong_floor=overlong_floor,
+        )
         self._state = State(episode_id=str(uuid4()), step_count=0)
         self._target: Optional[str] = None
         self._current_split: str = ""

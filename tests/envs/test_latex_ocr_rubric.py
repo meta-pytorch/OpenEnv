@@ -90,3 +90,46 @@ def test_default_exact_weight_is_point_four():
 def test_exact_weight_bounds_validated():
     with pytest.raises(ValueError):
         rubric.LatexOCRRubric(exact_weight=1.5)
+
+
+def test_clean_latex_strips_fences_and_delimiters():
+    # The rubric cleans raw completions itself; cleaning is idempotent.
+    assert rubric.clean_latex("```latex\nx^2 + 1\n```") == "x^2 + 1"
+    assert rubric.clean_latex("$x^2 + 1$") == "x^2 + 1"
+    assert rubric.clean_latex("x^2 + 1") == "x^2 + 1"  # already clean -> unchanged
+
+
+def test_raw_fenced_completion_scored_correctly():
+    # A raw completion wrapped in a code fence still scores as an exact match.
+    g = rubric.LatexOCRRubric().grade("```latex\nx^2 + 1\n```", "x^2 + 1")
+    assert g.exact_match is True
+    assert g.reward == pytest.approx(1.0)
+
+
+def test_whitespace_padding_reward_hack_is_penalized():
+    # The core hack: correct answer + a wall of trailing whitespace. Whitespace-insensitive
+    # scoring alone would give this 1.0; the length guard must drive the reward down.
+    target = r"\frac{x^2}{2} + c"
+    r = rubric.LatexOCRRubric()
+    clean = r.grade(target, target)
+    padded = r.grade(target + "\n" * 500, target)
+    assert clean.reward == pytest.approx(1.0)  # clean answer unaffected
+    assert clean.length_factor == pytest.approx(1.0)
+    assert padded.exact_match is True  # content is still exact...
+    assert padded.reward < 0.1  # ...but the padding is punished
+    assert padded.length_factor < 0.1
+
+
+def test_normal_spacing_within_allowance_is_free():
+    # Ordinary LaTeX spacing must not trip the guard.
+    target = r"\frac{x^2}{2} + c"
+    g = rubric.LatexOCRRubric().grade(r"\frac{x^2}{2}  +  c", target)
+    assert g.length_factor == pytest.approx(1.0)
+    assert g.reward == pytest.approx(1.0)
+
+
+def test_length_guard_can_be_disabled():
+    target = r"\frac{x^2}{2} + c"
+    g = rubric.LatexOCRRubric(overlong_ratio=0).grade(target + "\n" * 500, target)
+    assert g.length_factor == pytest.approx(1.0)  # guard off -> old (hackable) behavior
+    assert g.reward == pytest.approx(1.0)
