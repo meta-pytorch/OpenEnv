@@ -293,19 +293,36 @@ def _build_docker_image(
         build_args["BUILD_MODE"] = build_mode
         build_args["ENV_NAME"] = env_path.name.replace("_env", "")
 
-        # Build Docker command
-        cmd = ["docker", "build", "-t", tag, "-f", str(dockerfile)]
-
-        if no_cache:
-            cmd.append("--no-cache")
-
-        for key, value in build_args.items():
-            cmd.extend(["--build-arg", f"{key}={value}"])
-
-        cmd.append(str(build_dir))
+        cmd = _docker_build_command(
+            tag=tag,
+            dockerfile=dockerfile,
+            build_dir=build_dir,
+            build_args=build_args,
+            no_cache=no_cache,
+        )
 
         result = _run_command(cmd, check=False)
         return result.returncode == 0
+
+
+def _docker_build_command(
+    tag: str,
+    dockerfile: Path,
+    build_dir: Path,
+    build_args: dict[str, str],
+    no_cache: bool,
+) -> list[str]:
+    """Build the docker build command for an OpenEnv environment."""
+    cmd = ["docker", "build", "-t", tag, "-f", str(dockerfile)]
+
+    if no_cache:
+        cmd.append("--no-cache")
+
+    for key, value in build_args.items():
+        cmd.extend(["--build-arg", f"{key}={value}"])
+
+    cmd.append(str(build_dir))
+    return cmd
 
 
 def _push_docker_image(tag: str, registry: str | None = None) -> bool:

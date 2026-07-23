@@ -139,6 +139,35 @@ def test_custom_tab_primary_controls_tab_order_and_title(monkeypatch) -> None:
     assert captured["blocks"].title == "Tabbed Layout"
 
 
+def test_custom_builder_defaults_to_playground_first(monkeypatch) -> None:
+    captured = _capture_mounted_blocks(monkeypatch)
+
+    def fake_tabbed_interface(blocks, tab_names, title):
+        captured["tab_blocks"] = blocks
+        captured["tab_names"] = tab_names
+        captured["tab_title"] = title
+        return gr.Blocks(title=title)
+
+    monkeypatch.setattr(web_interface.gr, "TabbedInterface", fake_tabbed_interface)
+
+    def builder(web_manager, action_fields, metadata, is_chat_env, title, quick_start):
+        return gr.Blocks(title=title)
+
+    create_web_interface_app(
+        LayoutEnvironment,
+        LayoutAction,
+        LayoutObservation,
+        env_name="layout_env",
+        gradio_builder=builder,
+        custom_tab_name="Custom View",
+        title_override="Tabbed Layout",
+    )
+
+    assert captured["tab_names"] == ["Playground", "Custom View"]
+    assert captured["tab_title"] == "Tabbed Layout"
+    assert len(captured["tab_blocks"]) == 2
+
+
 def test_title_override_applies_without_custom_builder(monkeypatch) -> None:
     captured = _capture_mounted_blocks(monkeypatch)
 
