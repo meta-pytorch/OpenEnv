@@ -43,6 +43,26 @@ def workdir_path(config: OpenCodeConfig) -> str:
     return f"{config.sandbox_home}/workdir"
 
 
+def opencode_bin_path(config: OpenCodeConfig) -> str:
+    return f"{config.sandbox_home}/.opencode/bin/opencode"
+
+
+def proxy_dir(config: OpenCodeConfig) -> str:
+    return f"{config.sandbox_home}/proxy"
+
+
+def proxy_source_path(config: OpenCodeConfig) -> str:
+    return f"{proxy_dir(config)}/interception.py"
+
+
+def proxy_trace_path(config: OpenCodeConfig) -> str:
+    return f"{config.sandbox_home}/logs/agent/proxy_trace.jsonl"
+
+
+def proxy_log_path(config: OpenCodeConfig) -> str:
+    return f"{config.sandbox_home}/logs/agent/proxy.log"
+
+
 def build_opencode_json(config: OpenCodeConfig) -> str:
     """Return the serialized ``opencode.json`` the sandbox should install.
 

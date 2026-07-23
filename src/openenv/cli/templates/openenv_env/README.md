@@ -23,8 +23,8 @@ The simplest way to use the __ENV_TITLE_NAME__ environment is through the `__ENV
 from __ENV_NAME__ import __ENV_CLASS_NAME__Action, __ENV_CLASS_NAME__Env
 
 try:
-    # Create environment from Docker image
-    __ENV_NAME__env = __ENV_CLASS_NAME__Env.from_docker_image("__ENV_NAME__-env:latest")
+    # Create environment from Docker image (.sync() for synchronous use)
+    __ENV_NAME__env = __ENV_CLASS_NAME__Env.from_docker_image("__ENV_NAME__-env:latest").sync()
 
     # Reset
     result = __ENV_NAME__env.reset()
