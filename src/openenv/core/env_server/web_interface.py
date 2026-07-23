@@ -39,8 +39,8 @@ Connect from Python using `__ENV_CLASS_NAME__Env`:
 ```python
 from __ENV_NAME__ import __ENV_CLASS_NAME__Action, __ENV_CLASS_NAME__Env
 
-with __ENV_CLASS_NAME__Env.from_env("<SPACE_ID>") as env:
-    result = await env.step(__ENV_CLASS_NAME__Action(message="..."))
+with __ENV_CLASS_NAME__Env.from_env("<SPACE_ID>").sync() as env:
+    result = env.step(__ENV_CLASS_NAME__Action(message="..."))
 ```
 
 Or connect directly to a running server:
