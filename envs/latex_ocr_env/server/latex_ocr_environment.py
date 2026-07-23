@@ -128,12 +128,15 @@ class LatexOCREnvironment(Environment):
     def __init__(
         self,
         dataset_name: str = DEFAULT_DATASET,
-        exact_weight: float = 0.2,
+        exact_weight: float | None = None,
         mode: str = DEFAULT_MODE,
     ) -> None:
         super().__init__()
         self.dataset_name = dataset_name
         self.mode = mode
+        # Exact-match share of the reward; env-var tunable (default 0.4 -> 0.6/0.4).
+        if exact_weight is None:
+            exact_weight = float(os.environ.get("LATEX_OCR_EXACT_WEIGHT", "0.4"))
         self._rubric = LatexOCRRubric(exact_weight=exact_weight)
         self._state = State(episode_id=str(uuid4()), step_count=0)
         self._target: Optional[str] = None

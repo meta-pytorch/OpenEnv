@@ -73,11 +73,11 @@ class LatexOCRRubric:
 
     Args:
         exact_weight: fraction of the reward reserved for an exact match. With
-            the default 0.2, partial answers score in ``[0, 0.8]`` and only an
+            the default 0.4, partial answers score in ``[0, 0.6]`` and only an
             exact (whitespace-insensitive) match reaches ``1.0``.
     """
 
-    def __init__(self, exact_weight: float = 0.2) -> None:
+    def __init__(self, exact_weight: float = 0.4) -> None:
         if not 0.0 <= exact_weight <= 1.0:
             raise ValueError("exact_weight must be in [0, 1]")
         self.exact_weight = exact_weight

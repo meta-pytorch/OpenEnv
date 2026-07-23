@@ -19,7 +19,7 @@ environment:
   image_column: image                  # LATEX_OCR_IMAGE_COLUMN
   text_column: text                    # LATEX_OCR_TEXT_COLUMN
   splits: "train,test"                 # LATEX_OCR_SPLITS
-  exact_weight: 0.2
+  exact_weight: 0.4                    # LATEX_OCR_EXACT_WEIGHT (edit 0.6 / exact 0.4)
 
 # Reward definition
 rubric:

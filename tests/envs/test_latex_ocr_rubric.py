@@ -78,6 +78,15 @@ def test_empty_target_only_empty_prediction_correct():
     assert r.grade("x", "").exact_match is False
 
 
+def test_default_exact_weight_is_point_four():
+    # Default 0.4 -> edit 0.6 / exact 0.4; partial answers cap at 0.6.
+    r = rubric.LatexOCRRubric()
+    assert r.exact_weight == pytest.approx(0.4)
+    g = r.grade("x^2 + 2", "x^2 + 1")  # one char off, not exact
+    assert g.exact_match is False
+    assert 0.0 < g.reward <= 0.6
+
+
 def test_exact_weight_bounds_validated():
     with pytest.raises(ValueError):
         rubric.LatexOCRRubric(exact_weight=1.5)

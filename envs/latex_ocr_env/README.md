@@ -20,7 +20,8 @@ transcription, served through OpenEnv.
   `image` + `text` columns, `train`/`test` splits) via the OpenEnv **Task API**.
 - **Reward**: `(1 - exact_weight) * (1 - CER) + exact_weight * exact_match`,
   where `CER` is the normalized character edit distance over whitespace-stripped
-  LaTeX. Partial answers score in `[0, 0.8]`; only an exact match reaches `1.0`.
+  LaTeX. With the default `exact_weight=0.4` (tunable via `LATEX_OCR_EXACT_WEIGHT`),
+  partial answers score in `[0, 0.6]`; only an exact match reaches `1.0`.
   Computed **server-side** against the hidden ground truth — the agent never
   sees the target on `reset`. Dense and smooth, for stable RL training.
 
