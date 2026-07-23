@@ -176,6 +176,15 @@ def test_wait_reraises_after_persistent_transient_errors():
     assert sbx.poll_count == hf_mod._MAX_TRANSIENT_POLL_ERRORS + 1
 
 
+def test_wait_transient_retries_still_honor_deadline():
+    # A finite timeout must win even while retrying transient errors: raise
+    # TimeoutError (what wait_for_completion relies on), not TransportError.
+    proc = _FakeProcess(pid=7, running=True)
+    sbx = _AlwaysTransientSandbox()
+    with pytest.raises(TimeoutError):
+        HFBgJob(sbx, proc).wait(timeout=0.0)
+
+
 def test_kill_calls_through():
     proc = _FakeProcess(pid=7)
     HFBgJob(_FakeSandbox([proc]), proc).kill()

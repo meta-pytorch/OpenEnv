@@ -40,22 +40,22 @@ class HFBgJob:
         while True:
             try:
                 procs = self._sandbox.processes()
+                transient_errors = 0
             except httpx.TransportError:
                 # Transient sandbox-API disconnect (RemoteProtocolError, read
-                # timeout, ...): retry on the next poll tick.
+                # timeout, ...): retry on the next poll tick, still honoring the deadline.
                 transient_errors += 1
                 if transient_errors > _MAX_TRANSIENT_POLL_ERRORS:
                     raise
-                time.sleep(_WAIT_POLL_INTERVAL_S)
-                continue
-            transient_errors = 0
-            proc = next((p for p in procs if p.pid == self.pid), None)
-            # Finished processes stay listed (running=False); a vanished pid means
-            # the sandbox was torn down mid-run, not a clean exit.
-            if proc is None:
-                raise RuntimeError(f"process {self.pid} vanished (sandbox torn down?)")
-            if not proc.running:
-                return int(proc.exit_code) if proc.exit_code is not None else 0
+                procs = None
+            if procs is not None:
+                proc = next((p for p in procs if p.pid == self.pid), None)
+                # Finished processes stay listed (running=False); a vanished pid means
+                # the sandbox was torn down mid-run, not a clean exit.
+                if proc is None:
+                    raise RuntimeError(f"process {self.pid} vanished (sandbox torn down?)")
+                if not proc.running:
+                    return int(proc.exit_code) if proc.exit_code is not None else 0
             if deadline is not None:
                 remaining = deadline - time.monotonic()
                 if remaining <= 0:
