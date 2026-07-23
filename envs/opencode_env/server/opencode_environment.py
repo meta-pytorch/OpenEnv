@@ -53,6 +53,8 @@ REWARD_FILE = f"{HOME}/logs/verifier/reward.txt"
 PROXY_LOG = f"{HOME}/logs/agent/proxy.log"
 AGENT_LOG = f"{HOME}/logs/agent/opencode.jsonl"
 VERIFY_TIMEOUT_S = 120
+# Setup can pip-install / download, which easily exceeds the verify budget.
+SETUP_TIMEOUT_S = 300
 
 
 class OpenCodeEnvironment(MCPEnvironment):
@@ -77,12 +79,18 @@ class OpenCodeEnvironment(MCPEnvironment):
                 RolloutTurn,
             )
 
-        from opencode_env import (
-            E2BSandboxBackend,
-            OpenCodeConfig,
-            OpenCodeSessionFactory,
-            OpenCodeTask,
-        )
+        # Import the primitive from its defining modules (not the top-level
+        # package, which re-exports the client) to keep server/client separate.
+        try:
+            from ..config import OpenCodeConfig
+            from ..harness import OpenCodeSessionFactory
+            from ..sandbox import E2BSandboxBackend
+            from ..task import OpenCodeTask
+        except ImportError:  # pragma: no cover
+            from config import OpenCodeConfig  # type: ignore
+            from harness import OpenCodeSessionFactory  # type: ignore
+            from sandbox import E2BSandboxBackend  # type: ignore
+            from task import OpenCodeTask  # type: ignore
 
         self._CommandResult = CommandResult
         self._RolloutResult = RolloutResult
@@ -152,7 +160,7 @@ class OpenCodeEnvironment(MCPEnvironment):
             if not (base_url and api_key and model):
                 raise ValueError(
                     "must provide either ``endpoint`` (one of "
-                    f"{ENDPOINT_KINDS}) or all of base_url + api_key + model"
+                    f"{', '.join(ENDPOINT_KINDS)}) or all of base_url + api_key + model"
                 )
             if not instruction:
                 raise ValueError("instruction is required")
@@ -342,7 +350,7 @@ class OpenCodeEnvironment(MCPEnvironment):
             # call.
             for i, cmd in enumerate(setup, 1):
                 _emit(f"setup [{i}/{len(setup)}]: {cmd[:80]}")
-                cr = self._exec_command(session.sandbox, cmd)
+                cr = self._exec_command(session.sandbox, cmd, timeout=SETUP_TIMEOUT_S)
                 result.setup_results.append(cr)
                 if cr.exit_code != 0:
                     result.error = (
@@ -366,23 +374,23 @@ class OpenCodeEnvironment(MCPEnvironment):
                     result.error = f"agent timeout: {exc}"
                     _emit(f"agent TIMEOUT: {exc}")
 
-            # Run verify commands one at a time, capture each.
-            verify_passed = 0
-            for i, cmd in enumerate(verify, 1):
-                _emit(f"verify [{i}/{len(verify)}]: {cmd[:80]}")
-                cr = self._exec_command(session.sandbox, cmd)
-                result.verify_results.append(cr)
-                if cr.exit_code == 0:
-                    verify_passed += 1
+            # Verify + reward only when the run is clean; a failed setup or
+            # agent leaves a half-prepared sandbox, so reward stays None.
+            if result.error is None:
+                verify_passed = 0
+                for i, cmd in enumerate(verify, 1):
+                    _emit(f"verify [{i}/{len(verify)}]: {cmd[:80]}")
+                    cr = self._exec_command(session.sandbox, cmd)
+                    result.verify_results.append(cr)
+                    if cr.exit_code == 0:
+                        verify_passed += 1
 
-            # Reward: explicit reward.txt wins; else passed/total of verify.
-            override = self._read_reward(session.sandbox)
-            if override is not None:
-                result.reward = override
-            elif verify:
-                result.reward = verify_passed / len(verify)
-            else:
-                result.reward = None
+                # Explicit reward.txt wins; else passed/total of verify.
+                override = self._read_reward(session.sandbox)
+                if override is not None:
+                    result.reward = override
+                elif verify:
+                    result.reward = verify_passed / len(verify)
 
             # Collect filesystem + proxy trace.
             _emit("collecting workdir files + proxy trace + logs")
@@ -422,10 +430,10 @@ class OpenCodeEnvironment(MCPEnvironment):
 
     # ── Helpers ────────────────────────────────────────────────────────────
 
-    def _exec_command(self, sandbox: Any, cmd: str) -> Any:
+    def _exec_command(self, sandbox: Any, cmd: str, timeout: int = VERIFY_TIMEOUT_S) -> Any:
         t = time.time()
         try:
-            r = sandbox.exec(cmd, timeout=VERIFY_TIMEOUT_S)
+            r = sandbox.exec(cmd, timeout=timeout)
             return self._CommandResult(
                 cmd=cmd,
                 exit_code=int(r.exit_code),
