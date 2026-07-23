@@ -66,13 +66,16 @@ class LatexOCREnv(EnvClient[LatexOCRAction, LatexOCRObservation, State]):
         return action.model_dump()
 
     def _parse_result(self, data: dict[str, Any]) -> StepResult[LatexOCRObservation]:
-        obs_data = data.get("observation", data)
+        obs_data = dict(data.get("observation", data))
+        # Core serialization lifts reward/done to the top level and strips them from
+        # the observation payload; merge them back so observation.reward/.done match
+        # StepResult (consistent with other env clients).
+        reward = data.get("reward", obs_data.get("reward"))
+        done = data.get("done", obs_data.get("done"))
+        obs_data["reward"] = reward
+        obs_data["done"] = done
         obs = LatexOCRObservation(**obs_data)
-        base = dict(
-            observation=obs,
-            reward=data.get("reward", obs.reward),
-            done=data.get("done", obs.done),
-        )
+        base = dict(observation=obs, reward=reward, done=done)
         # Newer core's StepResult carries `info`; older core does not.
         try:
             return StepResult(**base, info=data.get("info", {}))

@@ -40,6 +40,7 @@ from uuid import uuid4
 
 from openenv.core.env_server.interfaces import Environment
 from openenv.core.env_server.types import State
+from PIL import Image
 
 try:
     from ..models import LatexOCRAction, LatexOCRObservation
@@ -67,6 +68,17 @@ DEFAULT_PROMPT = os.environ.get(
 def _configured_splits() -> list[str]:
     raw = os.environ.get("LATEX_OCR_SPLITS", "train,test")
     return [s.strip() for s in raw.split(",") if s.strip()]
+
+
+def _max_rows() -> int | None:
+    """Per-split row cap (LATEX_OCR_MAX_ROWS), honored in both modes. None = no cap."""
+    v = os.environ.get("LATEX_OCR_MAX_ROWS")
+    return int(v) if v else None
+
+
+# Safety cap on get_task_range() stub generation in stream mode: the metadata
+# row-count can be enormous, so an unbounded range must not build a giant list.
+_STREAM_RANGE_CAP = int(os.environ.get("LATEX_OCR_STREAM_RANGE_CAP", "100000"))
 
 
 @lru_cache(maxsize=None)
@@ -97,8 +109,10 @@ def _split_total(dataset_name: str, split: str) -> int:
 
 
 def _encode_image(image: Any) -> str:
+    # Normalize to PNG so the hard-coded image_format="png" is always correct,
+    # even when a swapped-in dataset stores raw (e.g. JPEG) bytes in its image column.
     if isinstance(image, (bytes, bytearray)):
-        return base64.b64encode(bytes(image)).decode("ascii")
+        image = Image.open(io.BytesIO(bytes(image)))
     buffer = io.BytesIO()
     image.convert("RGB").save(buffer, format="PNG")
     return base64.b64encode(buffer.getvalue()).decode("ascii")
@@ -139,7 +153,9 @@ class LatexOCREnvironment(Environment):
     def num_tasks(self, split: str) -> int:
         # Honest denominator in both modes; stream reads metadata only.
         if self.mode == "stream":
-            return _split_total(self.dataset_name, split)
+            total = _split_total(self.dataset_name, split)
+            cap = _max_rows()
+            return min(total, cap) if (cap is not None and total > 0) else total
         return len(_load_split(self.dataset_name, split))
 
     def list_tasks(self, split: str) -> list[dict[str, Any]]:
@@ -169,6 +185,16 @@ class LatexOCREnvironment(Environment):
         n = self.num_tasks(split)
         start = 0 if start is None else start
         stop = n if stop is None else (min(stop, n) if n > 0 else stop)
+        # In stream mode `n` comes from metadata and can be enormous; cap the number
+        # of generated stubs so an unbounded range can't OOM the process.
+        if self.mode == "stream" and stop - start > _STREAM_RANGE_CAP:
+            logger.warning(
+                "get_task_range: capping stream range %d..%d to %d stubs",
+                start,
+                stop,
+                _STREAM_RANGE_CAP,
+            )
+            stop = start + _STREAM_RANGE_CAP
         return [
             {"id": f"{split}-{i}", "index": i, "split": split}
             for i in range(start, stop)
@@ -190,6 +216,11 @@ class LatexOCREnvironment(Environment):
         self._done = False
         self._state = State(episode_id=episode_id or str(uuid4()), step_count=0)
         if self.mode == "stream":
+            if index is not None:
+                raise ValueError(
+                    "Random-access reset(index=...) is not supported in stream mode; "
+                    "use materialize mode (LATEX_OCR_MODE=materialize) for indexed access."
+                )
             return self._reset_stream(split)
         return self._reset_materialize(split, index, seed)
 
@@ -198,6 +229,10 @@ class LatexOCREnvironment(Environment):
     ) -> LatexOCRObservation:
         ds = _load_split(self.dataset_name, split)
         n = len(ds)
+        if n == 0:
+            raise IndexError(
+                f"split {split!r} is empty (n=0); check the dataset or LATEX_OCR_MAX_ROWS"
+            )
         if index is None:
             index = random.Random(seed).randrange(n)
         if index < 0 or index >= n:
@@ -234,23 +269,33 @@ class LatexOCREnvironment(Environment):
         self._cursor = 0
         self._exhausted = False
 
+    def _stream_exhausted(self, split: str, total: int) -> LatexOCRObservation:
+        # Mark the episode finished and clear the target so a following step() fails
+        # fast instead of grading against the previous (stale) task.
+        self._exhausted = True
+        self._done = True
+        self._target = None
+        return LatexOCRObservation(
+            done=True,
+            split=split,
+            index=self._cursor,
+            total=total,
+            remaining=0,
+            pct_done=1.0,
+            exhausted=True,
+            task_id=f"{split}-stream-end",
+        )
+
     def _reset_stream(self, split: str) -> LatexOCRObservation:
         self._ensure_stream(split)
-        total = _split_total(self.dataset_name, split)
+        total = self.num_tasks(split)  # honors LATEX_OCR_MAX_ROWS
+        cap = _max_rows()
+        if cap is not None and self._cursor >= cap:
+            return self._stream_exhausted(split, total)
         try:
             row = next(self._stream)
         except StopIteration:
-            self._exhausted = True
-            return LatexOCRObservation(
-                done=True,
-                split=split,
-                index=self._cursor,
-                total=total,
-                remaining=0,
-                pct_done=1.0,
-                exhausted=True,
-                task_id=f"{split}-stream-end",
-            )
+            return self._stream_exhausted(split, total)
         self._cursor += 1
         self._target = str(row[TEXT_COLUMN])
         self._current_split, self._current_index = split, self._cursor
