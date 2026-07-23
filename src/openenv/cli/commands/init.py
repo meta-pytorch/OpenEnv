@@ -298,16 +298,8 @@ def _copy_and_template_file(
         ) from e
 
 
-def _copy_template_directory(
-    template_pkg: str,
-    template_dir: str,
-    dest_dir: Path,
-    replacements: Dict[str, str],
-    env_name: str,
-) -> List[Path]:
-    """Recursively copy template directory and apply replacements."""
-    created_files: List[Path] = []
-
+def _resolve_template_path(template_pkg: str, template_dir: str) -> Path:
+    """Resolve the template package directory used by `openenv init`."""
     # Get the package path using importlib.resources but avoid importing the template package
     # We'll use the package's __file__ to get the directory path
     import importlib
@@ -340,6 +332,20 @@ def _copy_template_directory(
         raise FileNotFoundError(
             f"Template directory not found: {template_pkg}.{template_dir}"
         )
+
+    return template_path
+
+
+def _copy_template_directory(
+    template_pkg: str,
+    template_dir: str,
+    dest_dir: Path,
+    replacements: Dict[str, str],
+    env_name: str,
+) -> List[Path]:
+    """Recursively copy template directory and apply replacements."""
+    created_files: List[Path] = []
+    template_path = _resolve_template_path(template_pkg, template_dir)
 
     # Walk through all files in template directory using Path
     for item in template_path.rglob("*"):
