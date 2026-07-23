@@ -14,6 +14,7 @@ from __future__ import annotations
 import os
 import sys
 
+import httpx
 import pytest
 
 # Make ``envs/`` importable when running from the repository root.
@@ -71,6 +72,38 @@ class _FlippingSandbox:
         return [self._proc]
 
 
+class _TransientThenExitsSandbox:
+    """Raises a transient sandbox-API error on the first ``fail_times`` polls, then reports exited."""
+
+    def __init__(self, proc: _FakeProcess, *, fail_times: int) -> None:
+        self._proc = proc
+        self._fail_times = fail_times
+        self.poll_count = 0
+
+    def processes(self) -> list:
+        self.poll_count += 1
+        if self.poll_count <= self._fail_times:
+            raise httpx.RemoteProtocolError(
+                "Server disconnected without sending a response."
+            )
+        self._proc.running = False
+        self._proc.exit_code = 0
+        return [self._proc]
+
+
+class _AlwaysTransientSandbox:
+    """Every poll raises a transient sandbox-API error."""
+
+    def __init__(self) -> None:
+        self.poll_count = 0
+
+    def processes(self) -> list:
+        self.poll_count += 1
+        raise httpx.RemoteProtocolError(
+            "Server disconnected without sending a response."
+        )
+
+
 @pytest.fixture(autouse=True)
 def _instant_poll(monkeypatch):
     # Keep the polling loop instant so timeout tests stay sub-second.
@@ -124,6 +157,23 @@ def test_wait_none_timeout_polls_without_deadline(monkeypatch):
     proc = _FakeProcess(pid=7, running=True)
     sbx = _FlippingSandbox(proc, flip_after=2, exit_code=0)
     assert HFBgJob(sbx, proc).wait(timeout=None) == 0
+
+
+def test_wait_retries_transient_processes_error():
+    # A few transient sandbox-API disconnects must not fail the wait.
+    proc = _FakeProcess(pid=7, running=True)
+    sbx = _TransientThenExitsSandbox(proc, fail_times=3)
+    assert HFBgJob(sbx, proc).wait(timeout=1.0) == 0
+    assert sbx.poll_count == 4  # 3 transient failures + 1 successful poll
+
+
+def test_wait_reraises_after_persistent_transient_errors():
+    # A persistent outage eventually gives up instead of looping forever.
+    proc = _FakeProcess(pid=7, running=True)
+    sbx = _AlwaysTransientSandbox()
+    with pytest.raises(httpx.RemoteProtocolError):
+        HFBgJob(sbx, proc).wait(timeout=1.0)
+    assert sbx.poll_count == hf_mod._MAX_TRANSIENT_POLL_ERRORS + 1
 
 
 def test_kill_calls_through():
