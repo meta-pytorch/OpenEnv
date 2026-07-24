@@ -35,16 +35,17 @@ class _FakeBackend:
         return self._sandbox
 
 
-def _factory(sandbox):
+def _factory(sandbox, **overrides):
     return PiSessionFactory(
         config=PiConfig(base_url="http://localhost:8000/v1"),
         sandbox_backend=_FakeBackend(sandbox),
+        **overrides,
     )
 
 
 def test_create_kills_sandbox_when_bootstrap_fails(monkeypatch):
     sandbox = _FakeSandbox()
-    factory = _factory(sandbox)
+    factory = _factory(sandbox, create_attempts=1)
     monkeypatch.setattr(
         factory,
         "_bootstrap_sandbox",
@@ -61,7 +62,7 @@ def test_create_preserves_root_cause_if_kill_also_fails(monkeypatch):
             raise RuntimeError("kill failed")
 
     sandbox = _KillRaises()
-    factory = _factory(sandbox)
+    factory = _factory(sandbox, create_attempts=1)
     monkeypatch.setattr(
         factory,
         "_bootstrap_sandbox",
@@ -70,3 +71,37 @@ def test_create_preserves_root_cause_if_kill_also_fails(monkeypatch):
     # The original bootstrap failure must surface, not the cleanup error.
     with pytest.raises(RuntimeError, match="boom"):
         factory.create("write a function")
+
+
+def test_create_retries_then_succeeds(monkeypatch):
+    # create() retries a flaky _create_once and returns once it succeeds.
+    sandbox = _FakeSandbox()
+    factory = _factory(sandbox, create_attempts=3, create_backoff_s=0)
+    calls = {"n": 0}
+    session = object()
+
+    def _flaky(task, seed=None, episode_id=None):
+        calls["n"] += 1
+        if calls["n"] < 3:
+            raise RuntimeError("transient create failure")
+        return session
+
+    monkeypatch.setattr(factory, "_create_once", _flaky)
+    assert factory.create("write a function") is session
+    assert calls["n"] == 3
+
+
+def test_create_raises_after_exhausting_attempts(monkeypatch):
+    # A persistent failure is re-raised after create_attempts tries.
+    sandbox = _FakeSandbox()
+    factory = _factory(sandbox, create_attempts=3, create_backoff_s=0)
+    calls = {"n": 0}
+
+    def _always_fails(task, seed=None, episode_id=None):
+        calls["n"] += 1
+        raise RuntimeError("persistent create failure")
+
+    monkeypatch.setattr(factory, "_create_once", _always_fails)
+    with pytest.raises(RuntimeError, match="persistent create failure"):
+        factory.create("write a function")
+    assert calls["n"] == 3
