@@ -37,3 +37,23 @@ checkout is needed. By default it connects to the **hosted** environment Space
 See [`envs/latex_ocr_env`](../../envs/latex_ocr_env) for the full environment: a dataset-backed,
 single-step (bandit) RL task with a weighted, server-side reward (edit similarity, exact match,
 structural validity, length/format). It ships `train` and `test` splits.
+
+## 📈 Results
+
+We ran this GRPO setup against the environment on four open vision-language models (colocated vLLM,
+8 generations per prompt, held-out `test` reward scored every 500 steps — the same reward used in
+training). All four **improve monotonically and stay stable**:
+
+![Training curves](assets/training_curves.png)
+
+| Model | Base eval | Best eval | Δ (absolute) | Δ (relative) |
+|---|---|---|---|---|
+| **GLM-OCR** | 0.449 | 0.665 | **+0.215** | **+48%** |
+| **Gemma-4-E2B** | 0.392 | 0.570 | +0.178 | +45% |
+| **Qwen3-VL-2B** | 0.615 | **0.723** | +0.108 | +18% |
+| **Qwen3.5-2B** | 0.688 | 0.711 | +0.022 | +3% |
+
+*Reward is the environment's own score (0–1). The models with the most headroom (GLM-OCR, Gemma) see
+the largest gains; Qwen3.5-2B already starts near the ceiling. Qwen3-VL-2B reaches the highest final
+score with the cleanest curve. Numbers are for the hosted [`AdithyaSK/latex-ocr-env`](https://huggingface.co/spaces/AdithyaSK/latex-ocr-env)
+environment; your exact deltas will vary with model, generations, and step budget.*
