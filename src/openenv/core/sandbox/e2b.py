@@ -15,7 +15,7 @@ from pathlib import PurePosixPath
 from e2b import Sandbox
 from e2b.sandbox_sync.commands.command_handle import CommandHandle
 
-from .base import BgJob, ExecResult, SandboxBackend, SandboxHandle
+from .base import BgJob, ExecResult, SandboxHandle
 
 
 class E2BBgJob:
