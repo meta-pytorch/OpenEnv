@@ -2,7 +2,7 @@
 # time so rollouts skip the cold install. Use with OpenCodeConfig(sandbox_home="/root").
 #
 # Build context = envs/opencode_env:
-#   docker build -f sandbox/hf_image/Dockerfile -t <user>/opencode-rl:latest .
+#   docker build -f hf_image/Dockerfile -t <user>/opencode-rl:latest .
 #   docker push <user>/opencode-rl:latest
 
 FROM python:3.12
@@ -18,13 +18,14 @@ RUN pip install --no-cache-dir "fastapi>=0.104" "uvicorn[standard]>=0.24" "httpx
 RUN curl -fsSL https://opencode.ai/install | bash \
     && /root/.opencode/bin/opencode --version
 
-# Directory layout the harness expects, plus the pre-copied proxy source.
+# Directory layout the harness expects. The proxy source (interception.py) lives in
+# openenv.core.sandbox and is uploaded by the harness at rollout start, so it is not
+# baked here (matches the pi-sandbox image).
 RUN mkdir -p /root/.config/opencode \
              /root/logs/agent \
              /root/logs/verifier \
              /root/task \
              /root/workdir \
              /root/proxy
-COPY sandbox/interception.py /root/proxy/interception.py
 
 WORKDIR /root/workdir

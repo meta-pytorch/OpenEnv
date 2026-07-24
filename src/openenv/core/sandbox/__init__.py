@@ -4,11 +4,11 @@
 # This source code is licensed under the BSD-style license found in the
 # LICENSE file in the root directory of this source tree.
 
-"""Sandbox backends for the OpenCode harness.
+"""Sandbox backends for OpenEnv harnesses.
 
-The primitive ships with :class:`E2BSandboxBackend` as the default; any backend
-that satisfies the :class:`SandboxBackend` / :class:`SandboxHandle` protocols
-can be swapped in.
+Shared sandbox layer (protocols + E2B / Hugging Face backends + the interception
+proxy) used by loop-owning harness environments. Any backend that satisfies the
+:class:`SandboxBackend` / :class:`SandboxHandle` protocols can be swapped in.
 
 The ``e2b`` import is wrapped in ``try/except`` so this package can be loaded
 in environments where ``e2b`` isn't installed (CI smoke tests, lint runs).

@@ -47,14 +47,6 @@ RUN --mount=type=cache,target=/root/.cache/uv \
         uv sync --no-editable; \
     fi
 
-# The shared sandbox backend + interception proxy live in opencode_env. Install
-# it explicitly so the server can import ``opencode_env.sandbox``. Resolves once
-# opencode_env (#998) is in main; removed when the shared sandbox moves to
-# openenv.core.
-RUN --mount=type=cache,target=/root/.cache/uv \
-    uv pip install --python .venv/bin/python \
-    "openenv-opencode-env @ git+https://github.com/huggingface/OpenEnv.git#subdirectory=envs/opencode_env"
-
 # ── runtime stage ────────────────────────────────────────────────────────────
 FROM ${BASE_IMAGE}
 

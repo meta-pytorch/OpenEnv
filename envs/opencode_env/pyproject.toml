@@ -48,10 +48,9 @@ server = "opencode_env.server.app:main"
 include-package-data = true
 packages = [
     "opencode_env",
-    "opencode_env.sandbox",
     "opencode_env.server",
 ]
-package-dir = { "opencode_env" = ".", "opencode_env.sandbox" = "sandbox", "opencode_env.server" = "server" }
+package-dir = { "opencode_env" = ".", "opencode_env.server" = "server" }
 
 [tool.setuptools.package-data]
 opencode_env = ["**/*.md"]

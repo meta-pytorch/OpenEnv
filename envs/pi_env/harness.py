@@ -20,9 +20,8 @@ Two operating modes:
     to ``proxy_trace.jsonl`` for GRPO consumption.
 
 Pi is started as a background subprocess via ``pi --print --mode json ...`` and
-we poll its exit code. The sandbox backend + interception proxy are shared with
-the OpenCode primitive (imported from ``opencode_env.sandbox``); the plan is to
-consolidate both into ``openenv.core`` in a follow-up.
+we poll its exit code. The sandbox backend + interception proxy are shared and
+live in ``openenv.core.sandbox``.
 """
 
 from __future__ import annotations
@@ -32,7 +31,7 @@ import shlex
 from pathlib import Path
 from typing import Any, Callable, Literal
 
-import opencode_env
+from openenv.core import sandbox as _core_sandbox
 from openenv.core.env_server.mcp_types import Tool
 from openenv.core.harness import (
     Message,
@@ -41,7 +40,7 @@ from openenv.core.harness import (
     ToolResult,
     VerifyResult,
 )
-from opencode_env.sandbox.base import BgJob, SandboxBackend, SandboxHandle
+from openenv.core.sandbox import BgJob, SandboxBackend, SandboxHandle
 
 from .config import PiConfig
 from .pi_runtime import (
@@ -66,8 +65,9 @@ from .task import PiTask
 # Mode B proxy port. In-sandbox paths derive from config.sandbox_home (pi_runtime).
 _PROXY_PORT = 7000
 
-# Shared proxy source, uploaded to proxy_source_path(config) unless already baked in.
-_PROXY_SOURCE_PATH = Path(opencode_env.__file__).parent / "sandbox" / "interception.py"
+# Shared proxy source (in openenv.core.sandbox), uploaded to proxy_source_path(config)
+# unless already baked into the image.
+_PROXY_SOURCE_PATH = Path(_core_sandbox.__file__).parent / "interception.py"
 
 
 Verifier = Callable[[SandboxHandle, PiTask], VerifyResult]

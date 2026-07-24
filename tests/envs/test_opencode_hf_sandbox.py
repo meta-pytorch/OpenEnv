@@ -27,8 +27,8 @@ import huggingface_hub  # noqa: E402
 if not hasattr(huggingface_hub, "Sandbox"):  # pragma: no cover - only on old hub
     huggingface_hub.Sandbox = type("Sandbox", (), {})  # type: ignore[attr-defined]
 
-import opencode_env.sandbox.hf as hf_mod  # noqa: E402
-from opencode_env.sandbox.hf import HFBgJob  # noqa: E402
+import openenv.core.sandbox.hf as hf_mod  # noqa: E402
+from openenv.core.sandbox.hf import HFBgJob  # noqa: E402
 
 
 class _FakeProcess:
@@ -145,7 +145,7 @@ def test_kill_swallows_errors():
 # HFSandboxHandle / HFSandboxBackend
 # --------------------------------------------------------------------------
 
-from opencode_env.sandbox.hf import HFSandboxBackend, HFSandboxHandle  # noqa: E402
+from openenv.core.sandbox.hf import HFSandboxBackend, HFSandboxHandle  # noqa: E402
 
 
 class _FakeCmdResult:

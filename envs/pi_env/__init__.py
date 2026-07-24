@@ -17,11 +17,11 @@ Two layers in this package:
    live behind an HTTP boundary (e.g. an HF Space). See ``client.py`` and
    ``server/``.
 
-The sandbox backend and interception proxy are shared with ``opencode_env``
-(to be consolidated into ``openenv.core``).
+The sandbox backend and interception proxy are shared and live in
+``openenv.core.sandbox``.
 """
 
-from opencode_env.sandbox import (
+from openenv.core.sandbox import (
     HFSandboxBackend,
     SandboxBackend,
     SandboxHandle,

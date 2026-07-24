@@ -30,7 +30,7 @@ from .models import (
     RolloutResult,
     RolloutTurn,
 )
-from .sandbox import E2BSandboxBackend, SandboxBackend, SandboxHandle
+from openenv.core.sandbox import E2BSandboxBackend, SandboxBackend, SandboxHandle
 from .task import OpenCodeTask
 
 __all__ = [

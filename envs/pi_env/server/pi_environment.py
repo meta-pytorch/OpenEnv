@@ -91,7 +91,7 @@ class PiEnvironment(MCPEnvironment):
             from config import PiConfig  # type: ignore
             from harness import PiSessionFactory  # type: ignore
             from task import PiTask  # type: ignore
-        from opencode_env.sandbox import HFSandboxBackend
+        from openenv.core.sandbox import HFSandboxBackend
 
         self._CommandResult = CommandResult
         self._RolloutResult = RolloutResult
