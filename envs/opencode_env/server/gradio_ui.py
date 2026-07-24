@@ -144,7 +144,7 @@ def _command_rows(items: list[dict[str, Any]]) -> list[list[str]]:
                 cmd if len(cmd) <= 80 else cmd[:77] + "...",
                 str(it.get("exit_code", "")),
                 f"{it.get('duration_s', 0):.2f}s",
-                (it.get("stderr") or "").splitlines()[-1][:80] if it.get("exit_code") else "",
+                next(reversed((it.get("stderr") or "").splitlines()), "")[:80] if it.get("exit_code") else "",
             ]
         )
     return rows
