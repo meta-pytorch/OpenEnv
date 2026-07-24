@@ -165,6 +165,79 @@ def _read_timeout(task_dir: Path, fallback: float) -> float:
     return float(verifier.get("timeout_sec", fallback))
 
 
+# The scoring exec echoes its verdict on a marker line so the caller can parse
+# it out of mixed stdout. Shared by both execution modes (local terminal
+# toolkit and Docker container exec).
+_REWARD_MARKER = "__TB2_REWARD__:"
+_EXIT_CODE_MARKER = "__TB2_EXIT_CODE__:"
+
+
+def _canonical_eval_cmd(workdir: str, timeout_s: float | None = None) -> str:
+    """The official-harness scoring command, run from the agent's workdir.
+
+    /tests/test.sh (staged by the caller) pins its own pytest toolchain (uvx:
+    Python 3.13 + pytest 8.4.1 + ctrf), runs tests/test_outputs.py from
+    _VERIFY_TESTS_DIR against the task workdir, and writes the binary result
+    to /logs/verifier/reward.txt. test.sh stdout goes under _VERIFIER_LOG_DIR
+    (wiped with the verify window) rather than a fixed /tmp path that would
+    outlive scoring: its pytest -rA output can spell out expected values. Its
+    tail is echoed back into the returned output — the episode is over by
+    then, and callers need the pytest diagnostics on failure; the reward
+    marker line stays last for parsing.
+
+    ``timeout_s`` bounds test.sh with coreutils ``timeout`` when present in
+    the image. The local mode passes None: its terminal toolkit enforces the
+    budget itself. Docker exec has no server-side timeout, so the task's own
+    verifier budget is enforced in-shell.
+    """
+    run = f"bash {_VERIFY_TESTS_DIR}/test.sh"
+    if timeout_s is not None:
+        run = f"if command -v timeout >/dev/null 2>&1; then timeout {int(timeout_s)} {run}; else {run}; fi"
+    return (
+        f"cd {shlex.quote(workdir)} && "
+        f"{run} > {_VERIFIER_LOG_DIR}/testsh.log 2>&1; "
+        f"tail -c 20000 {_VERIFIER_LOG_DIR}/testsh.log 2>/dev/null; "
+        f"echo {_REWARD_MARKER}$(cat {_VERIFIER_LOG_DIR}/reward.txt 2>/dev/null)"
+    )
+
+
+def _parse_canonical_reward(output: str) -> float:
+    for line in output.splitlines()[::-1]:
+        if _REWARD_MARKER in line:
+            raw = line.split(_REWARD_MARKER, 1)[1].strip()
+            try:
+                return float(raw) if raw else 0.0
+            except ValueError:
+                return 0.0
+    return 0.0
+
+
+def _fallback_eval_cmd(workdir: str) -> str:
+    """pytest against the staged tests copy, for task dirs without the
+    canonical harness (none of the 89 official TB2 tasks — they all ship
+    test.sh — but custom task dirs may only have bare pytest tests). Prefer
+    uvx so pytest comes with its own toolchain like the canonical harness
+    does. Verify from the same directory the agent worked in.
+    """
+    return (
+        f"cd {shlex.quote(workdir)} && "
+        "if command -v uvx >/dev/null 2>&1; "
+        f"then uvx --with pytest==8.4.1 pytest -q {_VERIFY_TESTS_DIR} -rA; "
+        f"else python -m pytest -q {_VERIFY_TESTS_DIR} -rA; fi; "
+        f"echo {_EXIT_CODE_MARKER}$?"
+    )
+
+
+def _parse_exit_code_marker(output: str) -> int:
+    for line in output.splitlines()[::-1]:
+        if _EXIT_CODE_MARKER in line:
+            try:
+                return int(line.split(_EXIT_CODE_MARKER, 1)[1].strip())
+            except Exception:
+                return 1
+    return 1
+
+
 class Tbench2Environment(Environment[Tbench2Action, Tbench2Observation, Tbench2State]):
     """OpenEnv wrapper around Terminal-Bench 2 tasks (local execution)."""
 
@@ -541,72 +614,32 @@ class Tbench2Environment(Environment[Tbench2Action, Tbench2Observation, Tbench2S
         whenever the task ships it.
         """
         # Same working dir the agent operated in (resolved during reset).
+        # The toolkit enforces the verifier budget itself, so the command
+        # carries no in-shell timeout (see _canonical_eval_cmd).
         workdir = self._workdir or str(self._task_dir)
-        marker = "__TB2_REWARD__:"
-        # test.sh stdout goes under /logs/verifier (wiped with the verify
-        # window in _evaluate_task) rather than a fixed /tmp path that would
-        # outlive scoring: its pytest -rA output can spell out expected values.
-        # Its tail is read back into the returned output — the episode is over
-        # by then, and callers need the pytest diagnostics on failure; the
-        # reward marker line stays last for parsing.
-        cmd = (
-            f"cd {shlex.quote(workdir)} && "
-            f"bash {_VERIFY_TESTS_DIR}/test.sh > {_VERIFIER_LOG_DIR}/testsh.log 2>&1; "
-            f"tail -c 20000 {_VERIFIER_LOG_DIR}/testsh.log 2>/dev/null; "
-            f"echo {marker}$(cat {_VERIFIER_LOG_DIR}/reward.txt 2>/dev/null)"
-        )
         output = self._terminal_toolkit.shell_exec(
             id="tb2-tests",
-            command=cmd,
+            command=_canonical_eval_cmd(workdir),
             block=True,
             timeout=timeout_s,
         )
 
-        reward = 0.0
-        for line in output.splitlines()[::-1]:
-            if marker in line:
-                raw = line.split(marker, 1)[1].strip()
-                try:
-                    reward = float(raw) if raw else 0.0
-                except ValueError:
-                    reward = 0.0
-                break
-
+        reward = _parse_canonical_reward(output)
         info = {"tests_passed": reward == 1.0, "harness": "tests/test.sh"}
         return output, reward, info
 
     def _evaluate_fallback(self, timeout_s: float) -> tuple[str, float, dict[str, Any]]:
-        """For task dirs without the canonical harness (none of the 89 official
-        TB2 tasks — they all ship test.sh — but custom task dirs may only have
-        bare pytest tests). Runs pytest against the staged /tests copy; prefer
-        uvx so pytest comes with its own toolchain like the canonical harness
-        does. Verify from the same directory the agent worked in.
-        """
+        """Scoring for task dirs without the canonical harness (see
+        _fallback_eval_cmd)."""
         fallback_cwd = self._workdir or str(self._task_dir)
-        cmd = (
-            f"cd {shlex.quote(fallback_cwd)} && "
-            "if command -v uvx >/dev/null 2>&1; "
-            f"then uvx --with pytest==8.4.1 pytest -q {_VERIFY_TESTS_DIR} -rA; "
-            f"else python -m pytest -q {_VERIFY_TESTS_DIR} -rA; fi; "
-            "echo __TB2_EXIT_CODE__:$?"
-        )
         output = self._terminal_toolkit.shell_exec(
             id="tb2-tests",
-            command=cmd,
+            command=_fallback_eval_cmd(fallback_cwd),
             block=True,
             timeout=timeout_s,
         )
 
-        exit_code = 1
-        marker = "__TB2_EXIT_CODE__"
-        for line in output.splitlines()[::-1]:
-            if marker in line:
-                try:
-                    exit_code = int(line.split(":", 1)[1].strip())
-                except Exception:
-                    exit_code = 1
-                break
-
+        exit_code = _parse_exit_code_marker(output)
         reward = 1.0 if exit_code == 0 else 0.0
         info = {"tests_passed": exit_code == 0, "exit_code": exit_code}
         return output, reward, info
@@ -617,8 +650,14 @@ class Tbench2DockerEnvironment(
 ):
     """OpenEnv wrapper around Terminal-Bench 2 tasks with Docker isolation.
 
-    This environment runs each task in its own Docker container, reading
-    the image specification from task.toml's [environment] section.
+    This environment runs each task in its own Docker container built from
+    the task's official image (task.toml's [environment] docker_image — tasks
+    without one are rejected at reset; there is no host-execution fallback).
+    Agent commands run in the image's own WORKDIR, and ``evaluate`` scores
+    with the task's canonical tests/test.sh staged at the official fixed
+    paths for exactly the verify window — the same scoring contract as the
+    local mode, just delivered over container exec instead of the in-process
+    terminal toolkit.
 
     Requires:
     - Docker socket mounted (/var/run/docker.sock)
@@ -653,6 +692,7 @@ class Tbench2DockerEnvironment(
         self._instruction = ""
         self._task_image = ""
         self._task_config: dict[str, Any] = {}
+        self._workdir = ""
 
     def _get_docker_client(self) -> Any:
         """Lazy initialization of Docker client."""
@@ -699,23 +739,25 @@ class Tbench2DockerEnvironment(
         self._instruction = _read_instruction(task_dir)
         self._task_dir = task_dir
 
+        # No host-execution fallback: silently running agent commands on the
+        # env-server host would be a containment hole (arbitrary agent shell
+        # outside any container) and a scoring-fidelity hole (no official
+        # image, no canonical harness) at once. Every official TB2 task
+        # declares its image; a task dir that doesn't is a bug to surface.
+        if not self._task_image:
+            raise RuntimeError(
+                f"task {resolved_task_id} declares no [environment] docker_image "
+                "in task.toml; Docker mode runs every episode in the task's "
+                "official container and does not fall back to executing on the "
+                "server host. Fix the task, or use TB2_MODE=local."
+            )
+
         # Create trial directory for logs
         trial_name = f"{resolved_task_id}.{episode_id or uuid4().hex}"
         trial_dir = self.output_dir / trial_name
         trial_dir.mkdir(parents=True, exist_ok=True)
 
-        # Start Docker container if image is specified
-        if self._task_image:
-            self._start_container(task_dir, trial_dir)
-        else:
-            # Fallback to local mode if no image specified
-            self._state = Tbench2State(
-                episode_id=episode_id or str(uuid4()),
-                step_count=0,
-                task_id=resolved_task_id,
-                task_path=str(task_dir),
-                terminal_ready=not self._task_image,  # Ready if no container needed
-            )
+        self._start_container(task_dir, trial_dir)
 
         return Tbench2Observation(
             instruction=self._instruction,
@@ -726,7 +768,7 @@ class Tbench2DockerEnvironment(
             task_path=str(task_dir),
             session_id=None,
             action_type="reset",
-            info={"docker_image": self._task_image} if self._task_image else {},
+            info={"docker_image": self._task_image},
             reward=0.0,
             done=False,
         )
@@ -743,12 +785,18 @@ class Tbench2DockerEnvironment(
         try:
             # Pull image if needed
             try:
-                docker.images.get(self._task_image)
+                image = docker.images.get(self._task_image)
             except Exception:
                 logging.info(f"Pulling image {self._task_image}...")
-                docker.images.pull(self._task_image)
+                image = docker.images.pull(self._task_image)
+                if isinstance(image, list):  # pull without a tag returns a list
+                    image = image[0]
 
-            # Start container WITHOUT bind mounts (for DinD compatibility)
+            self._workdir = self._resolve_workdir(image, task_dir)
+
+            # Start container WITHOUT bind mounts (for DinD compatibility).
+            # working_dir=/task only guarantees the task-source copy target
+            # exists; every exec cd's into the resolved image WORKDIR.
             self._container = docker.containers.run(
                 image=self._task_image,
                 command="sleep infinity",
@@ -808,16 +856,37 @@ class Tbench2DockerEnvironment(
         # Copy to container
         self._container.put_archive(dest_path, tar_stream.getvalue())
 
+    def _resolve_workdir(self, image: Any, task_dir: Path) -> str:
+        """The dir agent commands and scoring run in: the task image's own
+        WORKDIR — the real TB2 task state, not the /task source copy.
+
+        Image metadata is authoritative (it sees a WORKDIR inherited from a
+        base image, which Dockerfile parsing misses); fall back to parsing
+        the task's Dockerfile, then to /task. The local mode's server-tree
+        guard does not apply here: this server sits outside the container,
+        so the image's /app is always the task tree.
+        """
+        try:
+            workdir = (image.attrs.get("Config") or {}).get("WorkingDir") or ""
+        except Exception:
+            workdir = ""
+        return workdir or _task_image_workdir(task_dir) or "/task"
+
     def _exec_in_container(
-        self, command: str, workdir: str = "/task"
+        self, command: str, workdir: str | None = None
     ) -> tuple[int, str]:
-        """Execute a command inside the container."""
+        """Execute a command inside the container, from the task workdir.
+
+        The command rides as an argv element (bash -c <command>), not spliced
+        into a quoted shell string — an agent command containing a single
+        quote must arrive in the container byte-identical.
+        """
         if self._container is None:
             raise RuntimeError("Container not started. Call reset() first.")
 
+        cwd = workdir or self._workdir or "/task"
         exit_code, output = self._container.exec_run(
-            cmd=f"bash -c 'cd {workdir} && {command}'",
-            workdir="/task",
+            cmd=["bash", "-c", f"cd {shlex.quote(cwd)} && {command}"],
             stdout=True,
             stderr=True,
         )
@@ -851,41 +920,18 @@ class Tbench2DockerEnvironment(
 
         try:
             if action.action_type == "exec":
-                if self._container:
-                    exit_code, output = self._exec_in_container(action.command)
-                    success = exit_code == 0
-                else:
-                    # Fallback to local execution
-                    import subprocess
-
-                    result = subprocess.run(
-                        action.command,
-                        shell=True,
-                        capture_output=True,
-                        text=True,
-                        timeout=self.command_timeout_s,
-                    )
-                    output = result.stdout + result.stderr
-                    success = result.returncode == 0
+                exit_code, output = self._exec_in_container(action.command)
+                success = exit_code == 0
 
             elif action.action_type == "write_file":
-                if self._container:
-                    # Write to container
-                    exit_code, _ = self._exec_in_container(
-                        f"cat > {action.file_path} << 'EOF'\n{action.content}\nEOF"
-                    )
-                    success = exit_code == 0
-                    output = f"Wrote to {action.file_path}"
-                else:
-                    # Local write
-                    Path(action.file_path).write_text(action.content)
-                    output = f"Wrote to {action.file_path}"
+                exit_code, _ = self._exec_in_container(
+                    f"cat > {action.file_path} << 'EOF'\n{action.content}\nEOF"
+                )
+                success = exit_code == 0
+                output = f"Wrote to {action.file_path}"
 
             elif action.action_type == "evaluate":
-                if self._container:
-                    output, reward, info = self._evaluate_docker()
-                else:
-                    output, reward, info = self._evaluate_local()
+                output, reward, info = self._evaluate_docker()
                 done = True
 
             elif action.action_type == "close":
@@ -920,7 +966,17 @@ class Tbench2DockerEnvironment(
         )
 
     def _evaluate_docker(self) -> tuple[str, float, dict[str, Any]]:
-        """Evaluate task inside Docker container."""
+        """Score with the canonical harness inside the task container.
+
+        Same scoring contract as the local mode's _evaluate_task: stage a
+        pristine tests/ copy at the official fixed path for exactly the
+        verify window, run the task's tests/test.sh from the dir the agent
+        worked in (the image WORKDIR), read the binary verdict from
+        /logs/verifier/reward.txt; task dirs without test.sh fall back to
+        pytest. No cross-session lock is needed here, unlike local mode:
+        every session drives its OWN container, so the fixed paths are
+        session-private.
+        """
         if self._container is None:
             raise RuntimeError("Container not started.")
         assert self._task_dir is not None, "Task directory not set"
@@ -928,8 +984,10 @@ class Tbench2DockerEnvironment(
         # Stage-at-verify, like the official TB2 harness: the initial /task
         # copy excludes tests/, and this server sits OUTSIDE the container, so
         # the copy staged here is one the agent never saw. rm -rf first so
-        # nothing an agent pre-planted at /task/tests (e.g. a conftest.py
-        # pytest would auto-load) survives into scoring.
+        # nothing an agent pre-planted at the fixed paths survives into
+        # scoring — a /tests/conftest.py pytest would auto-load, a symlink
+        # redirecting the stage at a dir the agent controls, or a stale
+        # /logs/verifier/reward.txt read back as a verdict.
         tests_src = self._task_dir / "tests"
         if not tests_src.is_dir():
             return (
@@ -937,86 +995,60 @@ class Tbench2DockerEnvironment(
                 0.0,
                 {"tests_passed": False, "error": "missing tests"},
             )
+
+        # The task's own verifier budget (task.toml [verifier].timeout_sec) —
+        # heavy tests legitimately run minutes (circuit-fibsqrt declares 3600s).
+        verifier_timeout_s = _read_timeout(self._task_dir, fallback=900.0)
+        workdir = self._workdir or "/task"
+
         wipe_ec, wipe_out = self._exec_in_container(
-            "rm -rf /task/tests && mkdir -p /task/tests"
+            f"rm -rf {_VERIFY_TESTS_DIR} {_VERIFIER_LOG_DIR} && "
+            f"mkdir -p {_VERIFY_TESTS_DIR} {_VERIFIER_LOG_DIR}"
         )
         if wipe_ec != 0:
             # Fail closed: put_archive into a dir that survived the wipe would
             # merge the staged tests into whatever the agent planted there.
             raise RuntimeError(
-                f"could not reset /task/tests before verify: {wipe_out.strip()}"
+                f"could not reset {_VERIFY_TESTS_DIR} before verify: {wipe_out.strip()}"
             )
         try:
-            self._copy_dir_to_container(tests_src, "/task/tests")
+            self._copy_dir_to_container(tests_src, _VERIFY_TESTS_DIR)
 
-            # Run pytest in the container's /task directory
-            # Use exit code marker for consistency with local mode
-            cmd = (
-                "cd /task && python -m pytest -q tests/ -rA; echo __TB2_EXIT_CODE__:$?"
-            )
-
-            exit_code, output = self._container.exec_run(
-                cmd=f"bash -c '{cmd}'",
-                workdir="/task",
-                stdout=True,
-                stderr=True,
-            )
-            output_str = output.decode("utf-8", errors="replace")
-
-            # Parse exit code from marker (same logic as local mode)
-            ec = 1
-            marker = "__TB2_EXIT_CODE__"
-            for line in output_str.splitlines()[::-1]:
-                if marker in line:
-                    try:
-                        ec = int(line.split(":", 1)[1].strip())
-                    except Exception:
-                        ec = 1
-                    break
+            if (tests_src / "test.sh").is_file():
+                _, output = self._exec_in_container(
+                    _canonical_eval_cmd(workdir, timeout_s=verifier_timeout_s)
+                )
+                reward = _parse_canonical_reward(output)
+                info = {"tests_passed": reward == 1.0, "harness": "tests/test.sh"}
+            else:
+                _, output = self._exec_in_container(_fallback_eval_cmd(workdir))
+                exit_code = _parse_exit_code_marker(output)
+                reward = 1.0 if exit_code == 0 else 0.0
+                info = {"tests_passed": exit_code == 0, "exit_code": exit_code}
         finally:
-            # Tests live in the container only for the verify window, matching
-            # the local-mode staging: don't leave /task/tests readable
-            # afterward — the agent keeps its session if scoring errored
-            # (step() reports the failure without ending the episode).
+            # Verifier artifacts live in the container only for the verify
+            # window, matching the local-mode staging: neither the staged
+            # tests (expected values) nor /logs/verifier (reward + pytest -rA
+            # log) may stay readable afterward — the agent keeps its session
+            # if scoring errored (step() reports the failure without ending
+            # the episode).
             try:
-                rm_ec, rm_out = self._exec_in_container("rm -rf /task/tests")
+                rm_ec, rm_out = self._exec_in_container(
+                    f"rm -rf {_VERIFY_TESTS_DIR} {_VERIFIER_LOG_DIR}"
+                )
                 if rm_ec != 0:
                     logging.warning(
-                        "failed to remove staged /task/tests after verify: %s",
+                        "failed to remove staged %s after verify: %s",
+                        _VERIFY_TESTS_DIR,
                         rm_out.strip(),
                     )
             except Exception:
                 logging.warning(
-                    "failed to remove staged /task/tests after verify",
+                    "failed to remove staged %s after verify",
+                    _VERIFY_TESTS_DIR,
                     exc_info=True,
                 )
 
-        reward = 1.0 if ec == 0 else 0.0
-        info = {"tests_passed": ec == 0, "exit_code": ec}
-        return output_str, reward, info
-
-    def _evaluate_local(self) -> tuple[str, float, dict[str, Any]]:
-        """Evaluate task locally (fallback)."""
-        if self._task_dir is None:
-            raise RuntimeError("Task not initialized.")
-
-        tests_dir = self._task_dir / "tests"
-        cmd = f"cd {self._task_dir} && python -m pytest -q {tests_dir} -rA; echo __TB2_EXIT_CODE__:$?"
-
-        import subprocess
-
-        result = subprocess.run(
-            cmd,
-            shell=True,
-            capture_output=True,
-            text=True,
-            timeout=900.0,
-        )
-        output = result.stdout + result.stderr
-        exit_code = result.returncode
-
-        reward = 1.0 if exit_code == 0 else 0.0
-        info = {"tests_passed": exit_code == 0, "exit_code": exit_code}
         return output, reward, info
 
     @property
@@ -1033,6 +1065,7 @@ class Tbench2DockerEnvironment(
             self._container = None
         self._task_dir = None
         self._instruction = ""
+        self._workdir = ""
 
     def _resolve_task_path(self, task_id: str | None, task_path: str | None) -> Path:
         if task_path:
