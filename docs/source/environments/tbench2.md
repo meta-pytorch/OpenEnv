@@ -96,7 +96,7 @@ TB2_MODE=local python -m tbench2_env.server.app
 
 ### Docker Mode
 
-Each task runs in its own Docker container, using the image specified in the task's `task.toml`:
+Each task runs in its own Docker container, using the image specified in the task's `task.toml` (tasks that declare no `docker_image` are rejected at reset — there is no host-execution fallback). Agent commands run in the image's own `WORKDIR`, and `evaluate` scores with the task's canonical `tests/test.sh`, staged for exactly the verify window — the same scoring contract as local mode:
 
 ```bash
 # Enable Docker mode
