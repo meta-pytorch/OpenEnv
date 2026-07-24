@@ -33,7 +33,9 @@ class HFBgJob:
     def wait(self, timeout: float | None = None) -> int:
         deadline = None if timeout is None else time.monotonic() + timeout
         while True:
-            proc = next((p for p in self._sandbox.processes() if p.pid == self.pid), None)
+            proc = next(
+                (p for p in self._sandbox.processes() if p.pid == self.pid), None
+            )
             # Finished processes stay listed (running=False); a vanished pid means
             # the sandbox was torn down mid-run, not a clean exit.
             if proc is None:
@@ -43,7 +45,9 @@ class HFBgJob:
             if deadline is not None:
                 remaining = deadline - time.monotonic()
                 if remaining <= 0:
-                    raise TimeoutError(f"Background command did not exit within {timeout}s")
+                    raise TimeoutError(
+                        f"Background command did not exit within {timeout}s"
+                    )
                 time.sleep(min(_WAIT_POLL_INTERVAL_S, remaining))
             else:
                 time.sleep(_WAIT_POLL_INTERVAL_S)
@@ -118,7 +122,11 @@ class HFSandboxHandle:
 
     def write_text(self, path: str, content: str) -> None:
         parent = str(PurePosixPath(path).parent)
-        if parent not in ("", "/", "."):  # "." == relative path with no parent dir to create
+        if parent not in (
+            "",
+            "/",
+            ".",
+        ):  # "." == relative path with no parent dir to create
             self._sbx.files.mkdir(parent)
         self._sbx.files.write(path, content)
 
