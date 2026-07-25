@@ -41,14 +41,37 @@ _TIMING_RUNS = 3
 _MIN_MEASURABLE_MS = 0.1
 _TOTAL_TIME_RE = re.compile(r"Total Time:\s*([0-9]*\.?[0-9]+)\s*s")
 
+# Opening the connection read-only stops the agent from changing the *database*,
+# but on its own it leaves DuckDB's filesystem escape hatches open: `COPY ... TO`
+# writes arbitrary files, `read_csv`/`read_text`/`glob` read them, `ATTACH`
+# mounts other databases and `INSTALL`/`LOAD` pull in extensions. Since the query
+# under measurement is agent-authored, external access is disabled outright, and
+# the configuration is locked so a rewrite cannot `SET` its way back out (DuckDB
+# also refuses to re-enable external access on a running database).
+_DUCKDB_CONFIG = {
+    "threads": "2",
+    "enable_external_access": "false",
+    "lock_configuration": "true",
+}
+
 
 def _strip_terminators(query: str) -> str:
     """Trim surrounding whitespace and any trailing semicolons.
 
     Trailing ``;`` breaks queries that are wrapped in a subquery
-    (``SELECT COUNT(*) FROM ({query}) t``) for correctness checksums.
+    (``SELECT COUNT(*) FROM (<query>) t``) for correctness checksums.
     """
     return query.strip().rstrip(";").strip()
+
+
+def _as_subquery(query: str, select: str) -> str:
+    """Build ``SELECT <select> FROM (<query>) t``.
+
+    The query goes on its own line: a rewrite ending in a ``--`` comment would
+    otherwise swallow the closing parenthesis and turn a valid query into a
+    parse error, which used to cost the checksum its result.
+    """
+    return f"SELECT {select} FROM (\n{query}\n) t"
 
 
 class QueryExecutor:
@@ -63,16 +86,17 @@ class QueryExecutor:
         # reopen the database read-only. Every query — trusted task SQL and
         # agent rewrites alike — runs against the read-only connection, so the
         # DuckDB engine itself rejects any write (no keyword heuristics, and DML
-        # inside a CTE cannot slip through on any DuckDB version). A lock
+        # inside a CTE cannot slip through on any DuckDB version) and, per
+        # `_DUCKDB_CONFIG`, cannot reach the filesystem either. A lock
         # serializes access because a single DuckDB connection is not safe for
         # concurrent use by the server's worker pool.
         self._dir = tempfile.mkdtemp(prefix="sql_optim_")
         self._path = os.path.join(self._dir, "sql_optim.duckdb")
-        builder = duckdb.connect(self._path, config={"threads": "2"})
+        builder = duckdb.connect(self._path, config=_DUCKDB_CONFIG)
         self._build_tables(builder)
         builder.close()
 
-        self.conn = duckdb.connect(self._path, read_only=True, config={"threads": "2"})
+        self.conn = duckdb.connect(self._path, read_only=True, config=_DUCKDB_CONFIG)
         # Reentrant so `_run` can hold the lock across a whole measurement while
         # the helpers it calls still take it individually.
         self._exec_lock = threading.RLock()
@@ -191,9 +215,7 @@ class QueryExecutor:
         try:
             with self._exec_lock:
                 return (
-                    self.conn.execute(f"SELECT COUNT(*) FROM ({query}) t").fetchone()[
-                        0
-                    ],
+                    self.conn.execute(_as_subquery(query, "COUNT(*)")).fetchone()[0],
                     None,
                 )
         except Exception:
@@ -307,33 +329,25 @@ class QueryExecutor:
         Falls back to count-only if the DuckDB version doesn't support the function.
         """
         # Try BIT_XOR of a numeric hash (portable across DuckDB versions)
-        for sql_template in [
+        for select in [
             # Option 1: BIT_XOR of md5 prefix cast to integer
             (
-                "SELECT COUNT(*) AS cnt, "
-                "BIT_XOR(CAST(('0x' || LEFT(md5(CAST(t AS VARCHAR)), 15)) AS UBIGINT)) AS chk "
-                "FROM ({query}) t"
+                "COUNT(*) AS cnt, "
+                "BIT_XOR(CAST(('0x' || LEFT(md5(CAST(t AS VARCHAR)), 15)) AS UBIGINT)) AS chk"
             ),
             # Option 2: sum of hash (order-independent since sum is commutative)
-            (
-                "SELECT COUNT(*) AS cnt, "
-                "SUM(hash(CAST(t AS VARCHAR)) % 9999999999) AS chk "
-                "FROM ({query}) t"
-            ),
+            "COUNT(*) AS cnt, SUM(hash(CAST(t AS VARCHAR)) % 9999999999) AS chk",
         ]:
             try:
-                wrapped = sql_template.format(query=query)
                 with self._exec_lock:
-                    result = self.conn.execute(wrapped).fetchone()
+                    result = self.conn.execute(_as_subquery(query, select)).fetchone()
                 return result[0], result[1], None
             except Exception:
                 continue
         # Final fallback: count only
         try:
             with self._exec_lock:
-                cnt = self.conn.execute(f"SELECT COUNT(*) FROM ({query}) t").fetchone()[
-                    0
-                ]
+                cnt = self.conn.execute(_as_subquery(query, "COUNT(*)")).fetchone()[0]
             return cnt, None, None
         except Exception as exc:
             return None, None, str(exc)
@@ -388,13 +402,19 @@ class QueryExecutor:
                     o_cnt, o_chk, o_err2 = self._checksum(original)
                     p_cnt, p_chk, p_err2 = self._checksum(optimized)
                     if o_err2 or p_err2 or o_chk is None or p_chk is None:
-                        # No usable checksum: the equal row counts established
-                        # above are the only signal left, as before.
-                        results_match = True
+                        # No usable checksum. Equal row counts alone are NOT
+                        # evidence of equal data on a result set this large, and
+                        # treating them as a match handed out full correctness
+                        # credit (and with it the speedup slice) for a rewrite
+                        # that returned different rows. Withhold the credit
+                        # instead of guessing.
+                        results_match = False
                     else:
                         results_match = (o_cnt == p_cnt) and (o_chk == p_chk)
             except Exception:
-                results_match = orig_count == opt_count
+                # Same reasoning as the missing-checksum case: an unverifiable
+                # comparison earns no correctness credit.
+                results_match = False
 
         # ── Speedup ratio ─────────────────────────────────────────────
         speedup = 1.0

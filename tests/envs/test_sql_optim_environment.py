@@ -386,6 +386,102 @@ class TestExecutionSafetyAndCorrectness:
         assert not errors
 
 
+class TestSandboxAndCorrectnessCredit:
+    """The agent-authored query cannot reach the filesystem or fake a match."""
+
+    def test_agent_sql_cannot_touch_the_filesystem(self, executor, tmp_path):
+        """`read_only` alone left DuckDB's file/extension escape hatches open."""
+        written = tmp_path / "exfil.csv"
+        escapes = [
+            # Writes
+            f"COPY (SELECT * FROM users) TO '{written}'",
+            f"COPY (SELECT 1) TO '{written}' (FORMAT CSV)",
+            f"EXPORT DATABASE '{tmp_path / 'dump'}'",
+            # Reads
+            "SELECT * FROM read_csv('/etc/passwd', header=false, "
+            "columns={'line': 'VARCHAR'})",
+            "SELECT * FROM read_parquet('/etc/passwd')",
+            "SELECT * FROM read_text('/etc/hostname')",
+            "SELECT * FROM read_blob('/etc/hostname')",
+            "SELECT * FROM glob('/*')",
+            "COPY users FROM '/etc/passwd'",
+            # Mounting and extensions
+            f"ATTACH '{tmp_path / 'side.db'}' AS side",
+            "INSTALL httpfs",
+            "LOAD '/tmp/evil.duckdb_extension'",
+        ]
+        for escape in escapes:
+            res = executor.compare("SELECT COUNT(*) FROM users", escape)
+            assert res["optimized_error"], f"not blocked: {escape}"
+            assert res["results_match"] is False
+        assert not written.exists()  # nothing was exfiltrated
+        assert not (tmp_path / "dump").exists()
+
+    def test_sandbox_also_holds_on_the_timing_path(self, executor, tmp_path):
+        """`_engine_ms` re-runs the query under `EXPLAIN ANALYZE` — still sandboxed."""
+        written = tmp_path / "profiled.csv"
+        for escape in (
+            f"COPY (SELECT 1) TO '{written}'",
+            "SELECT * FROM read_text('/etc/hostname')",
+        ):
+            with pytest.raises(Exception):
+                executor.conn.execute(f"EXPLAIN ANALYZE {escape}").fetchall()
+        assert not written.exists()
+
+    def test_agent_sql_cannot_re_enable_external_access(self, executor):
+        """A rewrite cannot `SET`/`PRAGMA` its way back out of the sandbox."""
+        for escape in (
+            "SET enable_external_access=true",
+            "SET GLOBAL enable_external_access=true",
+            "SET extension_directory='/tmp/pwn'",
+            "PRAGMA enable_external_access=true",
+            "PRAGMA lock_configuration=false",
+        ):
+            res = executor.compare("SELECT 1", escape)
+            assert res["optimized_error"], f"not blocked: {escape}"
+            assert res["results_match"] is False
+        # Still sandboxed afterwards.
+        assert executor.compare("SELECT 1", "SELECT * FROM read_text('/etc/hostname')")[
+            "optimized_error"
+        ]
+
+    def test_trailing_comment_does_not_break_the_large_result_checksum(self, executor):
+        """A rewrite ending in `--` still gets a real correctness verdict.
+
+        The checksum wraps the query in a subquery; on one line, a trailing
+        comment swallowed the closing paren, the checksum failed, and equal row
+        counts were then reported as a match — full correctness credit for a
+        rewrite returning different rows on every one of a million of them.
+        """
+        differing = executor.compare(
+            "SELECT id FROM events -- keep",
+            "SELECT id + 1 AS id FROM events -- keep",
+        )
+        assert differing["original_rows"] == differing["optimized_rows"] == 1_000_000
+        assert differing["results_match"] is False  # was True
+
+        identical = executor.compare(
+            "SELECT id FROM events -- keep", "SELECT id FROM events -- keep"
+        )
+        assert identical["results_match"] is True
+
+    def test_unverifiable_large_result_earns_no_correctness_credit(
+        self, executor, monkeypatch
+    ):
+        """With no usable checksum, equal row counts are not treated as a match."""
+        monkeypatch.setattr(
+            executor, "_checksum", lambda query: (None, None, "checksum unavailable")
+        )
+        res = executor.compare(
+            "SELECT id FROM events", "SELECT id + 1 AS id FROM events"
+        )
+        assert res["original_rows"] == res["optimized_rows"] == 1_000_000
+        assert res["results_match"] is False
+
+        monkeypatch.undo()  # the executor fixture is module-scoped: restore it
+        assert executor._checksum("SELECT id FROM events")[1] is not None
+
+
 class TestLargeResultMeasurement:
     """Large result sets are measured without being pulled into Python.
 
