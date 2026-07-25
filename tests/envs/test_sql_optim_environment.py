@@ -15,6 +15,8 @@ tests; here we unit-test the pure parsing methods without a live server.
 
 import os
 import sys
+import time
+import tracemalloc
 
 import pytest
 
@@ -382,3 +384,95 @@ class TestExecutionSafetyAndCorrectness:
         for t in threads:
             t.join()
         assert not errors
+
+
+class TestLargeResultMeasurement:
+    """Large result sets are measured without being pulled into Python.
+
+    Timing comes from DuckDB's profiler and correctness from the in-engine
+    checksum, so a million-row query neither buys a million Python tuples nor
+    reports the cost of building them as its execution time.
+    """
+
+    def test_large_result_is_not_materialized(self, executor):
+        """A 1M-row query yields an exact count and no materialized rows."""
+        ms, count, rows, err = executor._run("SELECT * FROM events")
+        assert err is None
+        assert rows is None  # never held in Python
+        assert count == 1_000_000  # still exact, computed inside DuckDB
+        assert ms < 90_000  # a real measurement, not the error sentinel
+
+    def test_small_result_is_still_compared_row_by_row(self, executor):
+        """Below the cap, rows are materialized and compared precisely."""
+        ms, count, rows, err = executor._run("SELECT * FROM products")
+        assert err is None
+        assert count == 1_000
+        assert rows is not None and len(rows) == 1_000
+
+        # Precise comparison, not count-only: same rows in a different order
+        # match, while an equal-sized result with different values does not.
+        reordered = executor.compare(
+            "SELECT id, price FROM products ORDER BY id",
+            "SELECT id, price FROM products ORDER BY id DESC",
+        )
+        assert reordered["results_match"] is True
+        altered = executor.compare(
+            "SELECT id, price FROM products",
+            "SELECT id, price + 1 AS price FROM products",
+        )
+        assert altered["results_match"] is False
+        assert altered["original_rows"] == altered["optimized_rows"] == 1_000
+
+    def test_timing_excludes_python_materialization(self, executor):
+        """The reported time tracks DuckDB execution, not tuple construction."""
+        query = "SELECT * FROM events"
+        start = time.perf_counter()
+        with executor._exec_lock:
+            fetched = executor.conn.execute(query).fetchall()
+        fetchall_ms = (time.perf_counter() - start) * 1000.0
+        assert len(fetched) == 1_000_000
+        del fetched
+
+        reported_ms = executor._run(query)[0]
+        # Scanning the table costs a few percent of what turning it into a
+        # million Python tuples does, so this bound has an order of magnitude of
+        # headroom for a slow CI machine while still failing outright if
+        # `fetchall()` timing comes back.
+        assert reported_ms < fetchall_ms * 0.25
+
+    def test_peak_memory_is_bounded_for_large_results(self, executor):
+        """Comparing a 500k-row query does not buffer the whole result set."""
+        tracemalloc.start()
+        try:
+            result = executor.compare("SELECT * FROM orders", "SELECT * FROM orders")
+            _, peak = tracemalloc.get_traced_memory()
+        finally:
+            tracemalloc.stop()
+
+        assert result["results_match"] is True
+        assert result["original_rows"] == 500_000
+        # Materializing 500k rows twice cost ~430 MB before; the cap keeps this
+        # to a couple of batches regardless of result size.
+        assert peak < 100 * 1024 * 1024
+
+    def test_timing_is_floored_at_the_profiler_resolution(self, executor):
+        """A query faster than the profiler can express still gets a usable time.
+
+        `EXPLAIN ANALYZE` prints seconds to four decimals, so it reports 0.0000s
+        for a query answered from table metadata. Guards the invariant rather
+        than reproducing a past failure: every reported time stays at or above
+        the floor, so the speedup ratio can never divide by zero.
+        """
+        from envs.sql_optim_env.server.executor import _MIN_MEASURABLE_MS
+
+        for query in (
+            "SELECT COUNT(*) FROM events",  # answered from metadata
+            "SELECT 1",
+            "SELECT * FROM products WHERE id = -1",  # empty result
+        ):
+            reported_ms = executor._run(query)[0]
+            assert reported_ms >= _MIN_MEASURABLE_MS, query
+            result = executor.compare(query, query)
+            assert result["optimized_ms"] >= _MIN_MEASURABLE_MS
+            assert result["speedup"] > 0
+            assert result["results_match"] is True

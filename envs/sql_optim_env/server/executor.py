@@ -14,6 +14,7 @@ Tables populated:
 
 import atexit
 import os
+import re
 import shutil
 import tempfile
 import threading
@@ -24,6 +25,21 @@ import duckdb
 
 _instance: Optional["QueryExecutor"] = None
 _lock = threading.Lock()
+
+# Result sets larger than this are never pulled into Python: the row count and
+# the correctness check are computed inside DuckDB instead. `SELECT * FROM
+# events` is a million rows, and materializing that (three times, for the
+# timing median) both dominated the measurement and held the whole result in
+# memory. The cap matches the threshold `compare()` already used to pick the
+# precise row-by-row comparison, so behaviour for small results is unchanged.
+_MAX_MATERIALIZED_ROWS = 50_000
+_FETCH_BATCH = 10_000
+_TIMING_RUNS = 3
+# `EXPLAIN ANALYZE` prints seconds with four decimals, so 0.1 ms is the smallest
+# value it can express. Used as a floor so a sub-resolution query can never make
+# the speedup ratio divide by zero.
+_MIN_MEASURABLE_MS = 0.1
+_TOTAL_TIME_RE = re.compile(r"Total Time:\s*([0-9]*\.?[0-9]+)\s*s")
 
 
 def _strip_terminators(query: str) -> str:
@@ -57,7 +73,9 @@ class QueryExecutor:
         builder.close()
 
         self.conn = duckdb.connect(self._path, read_only=True, config={"threads": "2"})
-        self._exec_lock = threading.Lock()
+        # Reentrant so `_run` can hold the lock across a whole measurement while
+        # the helpers it calls still take it individually.
+        self._exec_lock = threading.RLock()
         atexit.register(self._cleanup)
 
     def _cleanup(self) -> None:
@@ -138,28 +156,145 @@ class QueryExecutor:
 
     # ── Execution helpers ─────────────────────────────────────────────────
 
-    def _run(
-        self, query: str, runs: int = 3
-    ) -> Tuple[float, Optional[List], Optional[str]]:
+    def _probe(self, query: str) -> Tuple[Optional[List], Optional[str]]:
         """
-        Execute *query* up to *runs* times on the read-only connection.
-        Returns (median_ms, rows, error_or_None). A write raises and is returned
-        as the error string.
+        Fetch at most ``_MAX_MATERIALIZED_ROWS`` rows of *query*.
+
+        Returns (rows, error). ``rows`` is None when the result set is larger
+        than the cap — the caller then works from the in-engine row count and
+        checksum instead of holding the full result in Python.
+
+        This is also the authoritative error check: the query runs unwrapped on
+        the read-only connection, so a write (DDL/DML, inside a CTE, or after a
+        ``;``) still surfaces as a DuckDB error exactly as before.
+        """
+        try:
+            with self._exec_lock:
+                # `execute()` returns the connection itself, so the leftover rows
+                # of an over-cap result cannot be released with a `close()`
+                # (that would close the shared read-only connection). The next
+                # statement on the connection supersedes the pending result,
+                # and every caller issues one straight after.
+                head = self.conn.execute(query).fetchmany(_MAX_MATERIALIZED_ROWS + 1)
+        except Exception as exc:
+            return None, str(exc)
+        if len(head) > _MAX_MATERIALIZED_ROWS:
+            return None, None
+        return head, None
+
+    def _row_count(self, query: str) -> Tuple[Optional[int], Optional[str]]:
+        """
+        Exact row count for *query*, computed inside DuckDB — no rows cross into
+        Python. Falls back to a streaming drain (bounded to one batch of memory)
+        for the rare query that cannot be wrapped in a subquery.
+        """
+        try:
+            with self._exec_lock:
+                return (
+                    self.conn.execute(f"SELECT COUNT(*) FROM ({query}) t").fetchone()[
+                        0
+                    ],
+                    None,
+                )
+        except Exception:
+            pass
+
+        try:
+            count = 0
+            with self._exec_lock:
+                cursor = self.conn.execute(query)
+                while True:
+                    batch = cursor.fetchmany(_FETCH_BATCH)
+                    if not batch:
+                        break
+                    count += len(batch)
+            return count, None
+        except Exception as exc:
+            return None, str(exc)
+
+    def _engine_ms(self, query: str, runs: int) -> Optional[float]:
+        """
+        Median DuckDB-side execution time in ms, or None if unavailable.
+
+        ``EXPLAIN ANALYZE`` really executes the query and discards the result
+        inside the engine, so this measures execution alone: no rows are
+        converted to Python objects and nothing is buffered client-side. Returns
+        None when the profile footer cannot be parsed (a DuckDB version whose
+        output differs), which makes the caller fall back to wall-clock timing.
         """
         timings: List[float] = []
-        rows: Optional[List] = None
-
-        with self._exec_lock:
-            for _ in range(runs):
-                try:
-                    t0 = time.perf_counter()
-                    rows = self.conn.execute(query).fetchall()
-                    timings.append((time.perf_counter() - t0) * 1000.0)
-                except Exception as exc:
-                    return 99_999.0, None, str(exc)
+        for _ in range(runs):
+            try:
+                with self._exec_lock:
+                    rows = self.conn.execute(f"EXPLAIN ANALYZE {query}").fetchall()
+            except Exception:
+                return None
+            match = _TOTAL_TIME_RE.search("\n".join(str(r[-1]) for r in rows))
+            if match is None:
+                return None
+            timings.append(float(match.group(1)) * 1000.0)
 
         timings.sort()
-        return round(timings[len(timings) // 2], 3), rows, None
+        return round(max(timings[len(timings) // 2], _MIN_MEASURABLE_MS), 3)
+
+    def _wall_ms(self, query: str, runs: int) -> Tuple[float, Optional[str]]:
+        """
+        Wall-clock fallback timing: time a streaming drain that discards rows.
+
+        Includes client-side conversion cost, so it is less faithful than
+        ``_engine_ms``, but memory stays bounded to a single batch instead of
+        the whole result set.
+        """
+        timings: List[float] = []
+        for _ in range(runs):
+            try:
+                with self._exec_lock:
+                    t0 = time.perf_counter()
+                    cursor = self.conn.execute(query)
+                    while cursor.fetchmany(_FETCH_BATCH):
+                        pass
+                    timings.append((time.perf_counter() - t0) * 1000.0)
+            except Exception as exc:
+                return 99_999.0, str(exc)
+
+        timings.sort()
+        return round(max(timings[len(timings) // 2], _MIN_MEASURABLE_MS), 3), None
+
+    def _run(
+        self, query: str, runs: int = _TIMING_RUNS
+    ) -> Tuple[float, Optional[int], Optional[List], Optional[str]]:
+        """
+        Execute *query* on the read-only connection and measure it.
+
+        Returns (median_ms, row_count, rows, error_or_None). ``row_count`` is
+        exact whenever there is no error; ``rows`` is None for result sets above
+        ``_MAX_MATERIALIZED_ROWS``. A write raises and is returned as the error
+        string.
+
+        The timing comes from DuckDB's own profiler rather than from wrapping a
+        ``fetchall()``, so it reflects query execution instead of the cost of
+        building Python tuples — for a 1M-row scan the latter was roughly 30x
+        the former and swamped the signal the reward function is built on.
+        """
+        with self._exec_lock:
+            rows, error = self._probe(query)
+            if error is not None:
+                return 99_999.0, None, None, error
+
+            if rows is not None:
+                row_count: Optional[int] = len(rows)
+            else:
+                row_count, error = self._row_count(query)
+                if error is not None:
+                    return 99_999.0, None, None, error
+
+            median_ms = self._engine_ms(query, runs)
+            if median_ms is None:
+                median_ms, error = self._wall_ms(query, runs)
+                if error is not None:
+                    return 99_999.0, None, None, error
+
+        return median_ms, row_count, rows, None
 
     def _checksum(
         self, query: str
@@ -219,28 +354,31 @@ class QueryExecutor:
         original = _strip_terminators(original)
         optimized = _strip_terminators(optimized)
 
-        orig_ms, orig_rows, orig_err = self._run(original)
+        orig_ms, orig_count, orig_rows, orig_err = self._run(original)
 
         # The optimized query is agent-authored, but the read-only connection is
         # the guarantee: any write (DDL/DML, in a CTE, or after a `;`) is rejected
         # by the DuckDB engine and surfaces as `optimized_error`. No structural
         # pre-check is needed, which also avoids false rejections of valid
         # rewrites (leading comments, a `;` inside a string literal, etc.).
-        opt_ms, opt_rows, opt_err = self._run(optimized)
+        opt_ms, opt_count, opt_rows, opt_err = self._run(optimized)
 
         # ── Correctness: do both queries return the same data? ────────
         # Use a DuckDB-level checksum (order-independent) to avoid
         # false negatives from non-deterministic row ordering in parallel
         # window function queries on large tables.
         results_match = False
-        if orig_rows is not None and opt_rows is not None:
+        if orig_err is None and opt_err is None:
             try:
-                if len(orig_rows) != len(opt_rows):
+                if orig_count != opt_count:
                     results_match = False
-                elif len(orig_rows) == 0:
+                elif orig_count == 0:
                     results_match = True
-                elif len(orig_rows) <= 50_000:
-                    # Small/medium: full sorted comparison (precise)
+                elif orig_rows is not None and opt_rows is not None:
+                    # Small/medium: full sorted comparison (precise). Equal row
+                    # counts mean both sides are on the same side of the
+                    # materialization cap, so either both rows are present or
+                    # neither is.
                     orig_s = sorted(str(r) for r in orig_rows)
                     opt_s = sorted(str(r) for r in opt_rows)
                     results_match = orig_s == opt_s
@@ -249,13 +387,14 @@ class QueryExecutor:
                     # (deterministic regardless of row ordering / thread count)
                     o_cnt, o_chk, o_err2 = self._checksum(original)
                     p_cnt, p_chk, p_err2 = self._checksum(optimized)
-                    if o_err2 or p_err2:
-                        # Checksum failed — fall back to row count
-                        results_match = len(orig_rows) == len(opt_rows)
+                    if o_err2 or p_err2 or o_chk is None or p_chk is None:
+                        # No usable checksum: the equal row counts established
+                        # above are the only signal left, as before.
+                        results_match = True
                     else:
                         results_match = (o_cnt == p_cnt) and (o_chk == p_chk)
             except Exception:
-                results_match = len(orig_rows) == len(opt_rows)
+                results_match = orig_count == opt_count
 
         # ── Speedup ratio ─────────────────────────────────────────────
         speedup = 1.0
@@ -283,8 +422,8 @@ class QueryExecutor:
             "optimized_ms": opt_ms,
             "speedup": speedup,
             "results_match": results_match,
-            "original_rows": len(orig_rows) if orig_rows is not None else 0,
-            "optimized_rows": len(opt_rows) if opt_rows is not None else 0,
+            "original_rows": orig_count if orig_count is not None else 0,
+            "optimized_rows": opt_count if opt_count is not None else 0,
             "original_error": orig_err,
             "optimized_error": opt_err,
             "verdict": verdict,
