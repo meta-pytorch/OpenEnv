@@ -13,13 +13,14 @@ Tables populated:
 """
 
 import atexit
+import contextlib
 import os
 import re
 import shutil
 import tempfile
 import threading
 import time
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, Iterator, List, Optional, Tuple
 
 import duckdb
 
@@ -48,11 +49,26 @@ _TOTAL_TIME_RE = re.compile(r"Total Time:\s*([0-9]*\.?[0-9]+)\s*s")
 # under measurement is agent-authored, external access is disabled outright, and
 # the configuration is locked so a rewrite cannot `SET` its way back out (DuckDB
 # also refuses to re-enable external access on a running database).
+#
+# The same reasoning applies to resources. The agent chooses the SQL, so a
+# rewrite like `FROM events a, events b` is a trillion-row cross join: without
+# a ceiling it can exhaust memory, fill the spill directory, and hold the
+# execution lock for hours while every other session waits behind it. DuckDB has
+# no statement-timeout option, so the limits below bound memory and spill space
+# and `_deadline()` bounds time.
 _DUCKDB_CONFIG = {
     "threads": "2",
     "enable_external_access": "false",
     "lock_configuration": "true",
+    "memory_limit": "1GB",
+    "max_temp_directory_size": "1GB",
 }
+# Generous next to the real tasks (the slowest is ~0.6s) and short enough that a
+# runaway rewrite cannot wedge the server.
+_QUERY_TIMEOUT_S = 15.0
+_TIMEOUT_ERROR = (
+    f"Query cancelled: exceeded the {_QUERY_TIMEOUT_S:.0f}s execution limit"
+)
 
 
 def _strip_terminators(query: str) -> str:
@@ -180,6 +196,38 @@ class QueryExecutor:
 
     # ── Execution helpers ─────────────────────────────────────────────────
 
+    @contextlib.contextmanager
+    def _deadline(self) -> Iterator[None]:
+        """Cancel whatever is running on the connection after the time limit.
+
+        DuckDB has no statement timeout, but ``interrupt()`` cancels the running
+        query from another thread and leaves the connection usable, raising
+        ``duckdb.InterruptException`` in the thread that issued it.
+
+        Armed by every helper that executes agent SQL *and* around the whole of
+        ``_run``, so a helper is bounded whoever calls it while the measurement
+        as a whole is bounded too. Nesting is harmless: each level cancels its
+        own timer, and the earliest one to fire wins.
+
+        Must be entered while already holding ``_exec_lock`` — every call site
+        does, as ``with self._exec_lock, self._deadline():``. That ordering is
+        what makes the unavoidable cancel race benign: the timer can fire in the
+        window between the statement finishing and ``cancel()`` landing, but
+        because the lock is only released *after* this context exits, no other
+        session can have a query in flight, so the stray ``interrupt()`` lands on
+        an idle connection and does nothing.
+
+        Callers must not treat the interrupt as a reason to try a different
+        strategy: the timer has already fired, so a retry would run unbounded.
+        """
+        timer = threading.Timer(_QUERY_TIMEOUT_S, self.conn.interrupt)
+        timer.daemon = True
+        timer.start()
+        try:
+            yield
+        finally:
+            timer.cancel()
+
     def _probe(self, query: str) -> Tuple[Optional[List], Optional[str]]:
         """
         Fetch at most ``_MAX_MATERIALIZED_ROWS`` rows of *query*.
@@ -193,13 +241,15 @@ class QueryExecutor:
         ``;``) still surfaces as a DuckDB error exactly as before.
         """
         try:
-            with self._exec_lock:
+            with self._exec_lock, self._deadline():
                 # `execute()` returns the connection itself, so the leftover rows
                 # of an over-cap result cannot be released with a `close()`
                 # (that would close the shared read-only connection). The next
                 # statement on the connection supersedes the pending result,
                 # and every caller issues one straight after.
                 head = self.conn.execute(query).fetchmany(_MAX_MATERIALIZED_ROWS + 1)
+        except duckdb.InterruptException:
+            return None, _TIMEOUT_ERROR
         except Exception as exc:
             return None, str(exc)
         if len(head) > _MAX_MATERIALIZED_ROWS:
@@ -210,20 +260,24 @@ class QueryExecutor:
         """
         Exact row count for *query*, computed inside DuckDB — no rows cross into
         Python. Falls back to a streaming drain (bounded to one batch of memory)
-        for the rare query that cannot be wrapped in a subquery.
+        for the rare query that cannot be wrapped in a subquery, but never after
+        a timeout: the drain would be at least as expensive as the query that
+        just ran out of time.
         """
         try:
-            with self._exec_lock:
+            with self._exec_lock, self._deadline():
                 return (
                     self.conn.execute(_as_subquery(query, "COUNT(*)")).fetchone()[0],
                     None,
                 )
+        except duckdb.InterruptException:
+            return None, _TIMEOUT_ERROR
         except Exception:
             pass
 
         try:
             count = 0
-            with self._exec_lock:
+            with self._exec_lock, self._deadline():
                 cursor = self.conn.execute(query)
                 while True:
                     batch = cursor.fetchmany(_FETCH_BATCH)
@@ -231,6 +285,8 @@ class QueryExecutor:
                         break
                     count += len(batch)
             return count, None
+        except duckdb.InterruptException:
+            return None, _TIMEOUT_ERROR
         except Exception as exc:
             return None, str(exc)
 
@@ -243,12 +299,16 @@ class QueryExecutor:
         converted to Python objects and nothing is buffered client-side. Returns
         None when the profile footer cannot be parsed (a DuckDB version whose
         output differs), which makes the caller fall back to wall-clock timing.
+        A timeout propagates instead, so the caller does not answer it by
+        running the query yet again.
         """
         timings: List[float] = []
         for _ in range(runs):
             try:
-                with self._exec_lock:
+                with self._exec_lock, self._deadline():
                     rows = self.conn.execute(f"EXPLAIN ANALYZE {query}").fetchall()
+            except duckdb.InterruptException:
+                raise
             except Exception:
                 return None
             match = _TOTAL_TIME_RE.search("\n".join(str(r[-1]) for r in rows))
@@ -270,12 +330,14 @@ class QueryExecutor:
         timings: List[float] = []
         for _ in range(runs):
             try:
-                with self._exec_lock:
+                with self._exec_lock, self._deadline():
                     t0 = time.perf_counter()
                     cursor = self.conn.execute(query)
                     while cursor.fetchmany(_FETCH_BATCH):
                         pass
                     timings.append((time.perf_counter() - t0) * 1000.0)
+            except duckdb.InterruptException:
+                raise
             except Exception as exc:
                 return 99_999.0, str(exc)
 
@@ -297,24 +359,31 @@ class QueryExecutor:
         ``fetchall()``, so it reflects query execution instead of the cost of
         building Python tuples — for a 1M-row scan the latter was roughly 30x
         the former and swamped the signal the reward function is built on.
+
+        The whole measurement shares one deadline, so an agent-authored query
+        cannot hold the execution lock — and with it every other session — for
+        longer than ``_QUERY_TIMEOUT_S``.
         """
-        with self._exec_lock:
-            rows, error = self._probe(query)
-            if error is not None:
-                return 99_999.0, None, None, error
-
-            if rows is not None:
-                row_count: Optional[int] = len(rows)
-            else:
-                row_count, error = self._row_count(query)
+        with self._exec_lock, self._deadline():
+            try:
+                rows, error = self._probe(query)
                 if error is not None:
                     return 99_999.0, None, None, error
 
-            median_ms = self._engine_ms(query, runs)
-            if median_ms is None:
-                median_ms, error = self._wall_ms(query, runs)
-                if error is not None:
-                    return 99_999.0, None, None, error
+                if rows is not None:
+                    row_count: Optional[int] = len(rows)
+                else:
+                    row_count, error = self._row_count(query)
+                    if error is not None:
+                        return 99_999.0, None, None, error
+
+                median_ms = self._engine_ms(query, runs)
+                if median_ms is None:
+                    median_ms, error = self._wall_ms(query, runs)
+                    if error is not None:
+                        return 99_999.0, None, None, error
+            except duckdb.InterruptException:
+                return 99_999.0, None, None, _TIMEOUT_ERROR
 
         return median_ms, row_count, rows, None
 
@@ -326,31 +395,33 @@ class QueryExecutor:
         Returns (row_count, checksum, error).
 
         BIT_XOR is commutative+associative — order-independent fingerprint.
-        Falls back to count-only if the DuckDB version doesn't support the function.
+        Falls back to count-only if the DuckDB version doesn't support the
+        function, but not past the shared deadline: once a strategy has timed
+        out, the cheaper ones would time out too.
         """
-        # Try BIT_XOR of a numeric hash (portable across DuckDB versions)
-        for select in [
-            # Option 1: BIT_XOR of md5 prefix cast to integer
-            (
-                "COUNT(*) AS cnt, "
-                "BIT_XOR(CAST(('0x' || LEFT(md5(CAST(t AS VARCHAR)), 15)) AS UBIGINT)) AS chk"
-            ),
-            # Option 2: sum of hash (order-independent since sum is commutative)
-            "COUNT(*) AS cnt, SUM(hash(CAST(t AS VARCHAR)) % 9999999999) AS chk",
-        ]:
-            try:
-                with self._exec_lock:
+        with self._exec_lock, self._deadline():
+            # Try BIT_XOR of a numeric hash (portable across DuckDB versions)
+            selects = [
+                # Option 1: BIT_XOR of md5 prefix cast to integer
+                (
+                    "COUNT(*) AS cnt, BIT_XOR(CAST(('0x' || "
+                    "LEFT(md5(CAST(t AS VARCHAR)), 15)) AS UBIGINT)) AS chk"
+                ),
+                # Option 2: sum of hash (order-independent since sum is commutative)
+                "COUNT(*) AS cnt, SUM(hash(CAST(t AS VARCHAR)) % 9999999999) AS chk",
+                # Final fallback: count only
+                "COUNT(*) AS cnt, NULL AS chk",
+            ]
+            error: Optional[str] = None
+            for select in selects:
+                try:
                     result = self.conn.execute(_as_subquery(query, select)).fetchone()
-                return result[0], result[1], None
-            except Exception:
-                continue
-        # Final fallback: count only
-        try:
-            with self._exec_lock:
-                cnt = self.conn.execute(_as_subquery(query, "COUNT(*)")).fetchone()[0]
-            return cnt, None, None
-        except Exception as exc:
-            return None, None, str(exc)
+                    return result[0], result[1], None
+                except duckdb.InterruptException:
+                    return None, None, _TIMEOUT_ERROR
+                except Exception as exc:
+                    error = str(exc)
+            return None, None, error
 
     # ── Public API ────────────────────────────────────────────────────────
 
@@ -450,19 +521,27 @@ class QueryExecutor:
         }
 
     def explain(self, query: str) -> str:
-        """Return EXPLAIN output for a query."""
+        """Return EXPLAIN output for a query.
+
+        Plain ``EXPLAIN`` only plans the query, but it is still agent-authored,
+        so it runs under the same deadline as everything else.
+        """
         try:
-            with self._exec_lock:
+            with self._exec_lock, self._deadline():
                 rows = self.conn.execute(
                     f"EXPLAIN {_strip_terminators(query)}"
                 ).fetchall()
             return "\n".join(str(r[1]) for r in rows)
+        except duckdb.InterruptException:
+            return f"EXPLAIN error: {_TIMEOUT_ERROR}"
         except Exception as exc:
             return f"EXPLAIN error: {exc}"
 
     @property
     def table_stats(self) -> Dict[str, int]:
         tables = ["users", "orders", "products", "events"]
+        # No deadline: these are fixed, trusted queries, so arming one would only
+        # add a window in which a stray interrupt could cancel them.
         with self._exec_lock:
             return {
                 t: self.conn.execute(f"SELECT COUNT(*) FROM {t}").fetchone()[0]

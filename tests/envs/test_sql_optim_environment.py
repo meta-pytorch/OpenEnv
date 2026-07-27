@@ -482,6 +482,119 @@ class TestSandboxAndCorrectnessCredit:
         assert executor._checksum("SELECT id FROM events")[1] is not None
 
 
+class TestResourceLimits:
+    """A runaway rewrite cannot wedge the shared connection or the server.
+
+    The agent chooses the SQL, and `FROM events a, events b` is a trillion-row
+    cross join. DuckDB has no statement timeout, so the executor arms its own
+    deadline and caps memory and spill space.
+    """
+
+    RUNAWAY = "SELECT COUNT(*) FROM events a, events b"
+
+    @pytest.fixture
+    def short_deadline(self, monkeypatch):
+        """Shrink the deadline so these tests take a second, not fifteen."""
+        from envs.sql_optim_env.server import executor as ex_mod
+
+        monkeypatch.setattr(ex_mod, "_QUERY_TIMEOUT_S", 1.0, raising=False)
+
+    def test_runaway_query_is_cancelled_and_reported(self, executor, short_deadline):
+        """It comes back as an error instead of running for hours."""
+        start = time.perf_counter()
+        res = executor.compare("SELECT COUNT(*) FROM orders", self.RUNAWAY)
+        elapsed = time.perf_counter() - start
+
+        assert elapsed < 30  # generous; unbounded before, ~1s after
+        assert "Query cancelled" in (res["optimized_error"] or "")
+        assert res["results_match"] is False
+
+        # The connection survives the cancellation.
+        assert executor.table_stats["orders"] == 500_000
+        assert executor.compare("SELECT 1", "SELECT 1")["results_match"] is True
+
+    def test_timeout_is_not_defeated_by_the_row_count_fallback(
+        self, executor, short_deadline
+    ):
+        """A cancelled count must not fall through to an unbounded drain.
+
+        `_row_count` retries a streaming drain when the subquery wrap fails.
+        Treating a timeout as that kind of failure restarted the same runaway
+        query with the timer already spent, so the deadline bought nothing.
+        """
+        start = time.perf_counter()
+        count, error = executor._row_count(self.RUNAWAY)
+        elapsed = time.perf_counter() - start
+
+        assert count is None
+        assert "Query cancelled" in (error or "")
+        assert elapsed < 30
+
+    def test_deadline_releases_the_shared_execution_lock(
+        self, executor, short_deadline
+    ):
+        """One session's runaway query cannot block the others indefinitely."""
+        import threading
+
+        waited = {}
+
+        def hog():
+            executor._run(self.RUNAWAY)
+
+        def waiter():
+            start = time.perf_counter()
+            executor._run("SELECT 1")
+            waited["s"] = time.perf_counter() - start
+
+        hogger = threading.Thread(target=hog, daemon=True)
+        hogger.start()
+        second = threading.Thread(target=waiter, daemon=True)
+        second.start()
+        second.join(60)
+
+        assert "s" in waited, "second session never got the lock"
+        assert waited["s"] < 30
+        hogger.join(30)
+
+    def test_explain_returns_a_plan_and_survives_the_deadline(
+        self, executor, short_deadline
+    ):
+        """`explain()` still returns its plan; a timeout is reported, not raised.
+
+        Nothing else in the suite covered this method, which is how a dead
+        `return` slipped past a full green run.
+        """
+        plan = executor.explain("SELECT COUNT(*) FROM orders;")
+        assert isinstance(plan, str)
+        assert plan and "EXPLAIN error" not in plan
+
+        bad = executor.explain("SELECT * FRM orders")
+        assert bad.startswith("EXPLAIN error:")
+
+    def test_table_stats_are_unaffected_by_the_deadline(self, executor):
+        """The trusted stats queries keep working (and are not timed out)."""
+        assert executor.table_stats == {
+            "users": 10_000,
+            "orders": 500_000,
+            "products": 1_000,
+            "events": 1_000_000,
+        }
+
+    def test_memory_and_spill_limits_are_applied(self, executor):
+        """The limits are accepted by DuckDB, not silently ignored."""
+        from envs.sql_optim_env.server.executor import _DUCKDB_CONFIG
+
+        assert "memory_limit" in _DUCKDB_CONFIG
+        assert "max_temp_directory_size" in _DUCKDB_CONFIG
+        for option in ("memory_limit", "max_temp_directory_size"):
+            with executor._exec_lock:
+                value = executor.conn.execute(
+                    f"SELECT current_setting('{option}')"
+                ).fetchone()[0]
+            # A bounded size, not DuckDB's default of most of the machine.
+            assert "GiB" in value or "MiB" in value, (option, value)
+
+
 class TestLargeResultMeasurement:
     """Large result sets are measured without being pulled into Python.
 
