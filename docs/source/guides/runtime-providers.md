@@ -15,6 +15,7 @@ is a one-line change.
 | `DaytonaProvider` | Daytona cloud sandboxes | `pip install openenv[daytona]` | ✅ |
 | `ACASandboxProvider` | Azure Container Apps Sandboxes | `pip install openenv[aca]` | ✅ |
 | `ModalProvider` | Modal sandboxes | `pip install openenv[modal]` | ✅ |
+| `FystashProvider` | Fystash warm Firecracker rooms | `pip install openenv[fystash]` | ✅ experimental |
 | `KubernetesProvider` | Kubernetes cluster | core | 🚧 planned |
 
 Cloud-provider SDKs are optional extras, imported lazily, so installing core
@@ -25,6 +26,7 @@ cloud providers are imported from their module:
 ```python
 from openenv.core.containers.runtime import LocalDockerProvider  # core
 from openenv.core.containers.runtime.daytona_provider import DaytonaProvider  # cloud
+from openenv.core.containers.runtime.fystash_provider import FystashProvider  # cloud
 ```
 
 See the [Core API reference](../reference/core.md#container-providers) for each
@@ -45,8 +47,9 @@ async with MyEnv(provider=provider) as env:
     ...
 ```
 
-`ModalProvider`, `DaytonaProvider`, and `ACASandboxProvider` support this
-provider-owned flow. Providers that require an explicit image at
+`ModalProvider`, `DaytonaProvider`, `ACASandboxProvider`, and `FystashProvider`
+support this provider-owned flow (Fystash requires a **registry image** in v1 —
+no Dockerfile build). Providers that require an explicit image at
 `start_container()` time, such as `LocalDockerProvider` and
 `DockerSwarmProvider`, should still be started manually and passed in with the
 returned `base_url`:
@@ -147,6 +150,27 @@ provider = DaytonaProvider(image=image)
 
 Full examples: [`examples/daytona_tbench2_simple.py`](https://github.com/huggingface/OpenEnv/blob/main/examples/daytona_tbench2_simple.py)
 and [`examples/daytona_tbench2_concurrent.py`](https://github.com/huggingface/OpenEnv/blob/main/examples/daytona_tbench2_concurrent.py).
+
+### FystashProvider
+
+Runs the server in a Fystash warm Firecracker room (`template_id=docker` by
+default). Install with `pip install openenv[fystash]`. Requires
+`FYSTASH_API_KEY` (signup: https://fystash.ai/signup). Optional:
+`FYSTASH_API`, `FYSTASH_TEMPLATE_ID`.
+
+v1 accepts a **registry image** only (no `image_from_dockerfile`). After
+`docker pull` / `docker run` in the guest, port 8000 is exposed via Fystash
+preview URL.
+
+```python
+from openenv.core.containers.runtime.fystash_provider import FystashProvider
+
+provider = FystashProvider(image="your-org/echo-env:latest")
+base_url = provider.start_container()
+provider.wait_for_ready(base_url, timeout_s=300)
+```
+
+Full example: [`examples/fystash_echo_env.py`](https://github.com/huggingface/OpenEnv/blob/main/examples/fystash_echo_env.py).
 
 ### DockerSwarmProvider
 

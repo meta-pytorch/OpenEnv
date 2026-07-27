@@ -52,6 +52,9 @@ modal = [
     "modal>=1.4.0",
     "pyyaml>=6.0",
 ]
+fystash = [
+    # Uses core httpx + requests only; FYSTASH_API_KEY required at runtime.
+]
 inspect = [
     "inspect-ai>=0.3.0",
 ]
