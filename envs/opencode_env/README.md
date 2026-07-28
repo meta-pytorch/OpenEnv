@@ -140,6 +140,32 @@ turns = session.fetch_proxy_trace()             # per-turn (tokens, logprobs)
 session.close()
 ```
 
+#### Sandbox backends
+
+`E2BSandboxBackend` is the default. To run the agent in a **Hugging Face sandbox**
+instead, swap the backend (`huggingface_hub>=1.22` ships with the package):
+
+```python
+from opencode_env.sandbox import HFSandboxBackend
+
+factory = OpenCodeSessionFactory(
+    config=OpenCodeConfig(..., sandbox_home="/root"),   # HF sandbox execs as root
+    sandbox_backend=HFSandboxBackend(image="python:3.12"),
+    mode="transparent_proxy",
+)
+```
+
+`image="python:3.12"` cold-installs opencode + the proxy deps on every rollout. For faster
+rollouts use the pre-baked image (opencode + proxy deps already installed), built by CI from
+`sandbox/hf_image/Dockerfile`:
+
+```python
+sandbox_backend=HFSandboxBackend(image="ghcr.io/huggingface/openenv-opencode-sandbox:latest")
+```
+
+Any backend satisfying the `SandboxBackend` / `SandboxHandle` / `BgJob` protocols in
+`opencode_env.sandbox.base` can be plugged in the same way.
+
 ## Building the Docker Image
 
 The Dockerfile lives at `server/Dockerfile`. Use the `openenv` CLI from

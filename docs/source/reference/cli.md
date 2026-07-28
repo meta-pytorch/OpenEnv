@@ -6,6 +6,34 @@ The `openenv` CLI provides a set of commands for building, validating, and pushi
 
 [[autodoc]] openenv.cli.commands.init.init
 
+## `openenv import`
+
+Import a supported third-party source environment into a generated OpenEnv
+wrapper package. The command detects the source format from the directory
+contents, so ORS/OpenReward and Prime Intellect Verifiers sources do not
+require `--type` in the common case.
+
+The generated wrapper vendors the source tree into the package and includes
+vendored files as package data, so non-secret fixture/data files are available to
+the environment server at runtime. The importer carries portable dependencies
+from source `pyproject.toml` and `requirements.txt` files into the generated
+environment, skips VCS/cache/build directories and common secret file patterns
+such as `.env`, `secrets.yaml`, and private key files, and excludes compiled
+binary artifacts; review the generated `vendor/` directory before publishing a
+wrapper.
+
+```bash
+openenv import path/to/source --name my_env --output-dir ./envs
+openenv import path/to/source --name my_env --output-dir ./envs --env-class MyEnv
+```
+
+```{eval-rst}
+.. automodule:: openenv.cli.commands.import_env
+   :members:
+   :undoc-members:
+   :show-inheritance:
+```
+
 ## `openenv build`
 
 [[autodoc]] openenv.cli.commands.build.build
@@ -19,6 +47,9 @@ The `openenv` CLI provides a set of commands for building, validating, and pushi
 [[autodoc]] openenv.cli.commands.push.push
 
 ## `openenv serve`
+
+Local serving is not implemented in the CLI yet. This command exits non-zero
+and prints alternative ways to run an environment server.
 
 [[autodoc]] openenv.cli.commands.serve.serve
 

@@ -268,6 +268,7 @@ See example scripts in `examples/` directory.
 The OpenEnv CLI provides commands to manage environments:
 
 - **`openenv init <env_name>`** - Initialize a new environment from template
+- **`openenv import <source> --name <env_name> --output-dir <dir>`** - Wrap a supported third-party source environment, including ORS/OpenReward and Verifiers, as OpenEnv
 - **`openenv push [--repo-id <repo>] [--private]`** - Deploy environment to Hugging Face Spaces
 - **`openenv serve`** - Serve an environment locally with optional auto-reload
 - **`openenv build`** - Build the Docker image for an environment
@@ -279,6 +280,9 @@ The OpenEnv CLI provides commands to manage environments:
 ```bash
 # Create a new environment
 openenv init my_game_env
+
+# Or import an ORS/OpenReward or Verifiers source environment
+openenv import path/to/source --name my_game_env --output-dir .
 
 # Deploy to Hugging Face (will prompt for login if needed)
 cd my_game_env

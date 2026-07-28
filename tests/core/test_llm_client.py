@@ -237,6 +237,34 @@ class TestOpenAIClientCompleteWithTools:
         assert result.tool_calls == []
 
     @pytest.mark.asyncio
+    async def test_kwargs_override(self):
+        """Keyword arguments override default temperature and max_tokens."""
+        mock_openai = MagicMock()
+        mock_msg = MagicMock()
+        mock_msg.content = "Hello there"
+        mock_msg.tool_calls = None
+        mock_response = MagicMock()
+        mock_response.choices = [MagicMock()]
+        mock_response.choices[0].message = mock_msg
+        mock_openai.chat.completions.create = AsyncMock(return_value=mock_response)
+
+        with patch("openenv.core.llm_client.AsyncOpenAI", return_value=mock_openai):
+            client = OpenAIClient("http://localhost", 8000, model="gpt-4")
+            await client.complete_with_tools(
+                [{"role": "user", "content": "hi"}],
+                [],
+                temperature=0.9,
+                max_tokens=100,
+            )
+
+        mock_openai.chat.completions.create.assert_called_once_with(
+            model="gpt-4",
+            messages=[{"role": "user", "content": "hi"}],
+            temperature=0.9,
+            max_tokens=100,
+        )
+
+    @pytest.mark.asyncio
     async def test_with_tool_calls(self):
         """Response with tool calls are parsed into ToolCall objects."""
         mock_openai = MagicMock()

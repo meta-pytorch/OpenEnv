@@ -15,7 +15,7 @@ import typer
 import yaml
 from huggingface_hub import HfApi, login, whoami
 
-from .._cli_utils import console, validate_env_structure
+from .._cli_utils import _extract_hf_username, console, validate_env_structure
 
 app = typer.Typer(help="Push an OpenEnv environment to Hugging Face Spaces")
 
@@ -239,20 +239,62 @@ def _validate_openenv_directory(directory: Path) -> tuple[str, dict]:
     return env_name, manifest
 
 
-def _extract_hf_username(user_info: object) -> str | None:
-    """Extract a username from the supported Hugging Face whoami shapes."""
-    if isinstance(user_info, dict):
-        return (
-            user_info.get("name")
-            or user_info.get("fullname")
-            or user_info.get("username")
-        )
+def _rewrite_dockerfile_for_space(
+    dockerfile_content: str,
+    *,
+    base_image: str | None,
+    enable_interface: bool,
+) -> tuple[str, list[str]]:
+    """Rewrite deployment Dockerfile content and return printed change labels."""
+    lines = dockerfile_content.split("\n")
+    new_lines = []
+    cmd_found = False
+    base_image_updated = False
+    web_interface_env_exists = "ENABLE_WEB_INTERFACE" in dockerfile_content
+    last_instruction = None
 
-    return (
-        getattr(user_info, "name", None)
-        or getattr(user_info, "fullname", None)
-        or getattr(user_info, "username", None)
-    )
+    for line in lines:
+        stripped = line.strip()
+        token = stripped.split(maxsplit=1)[0] if stripped else ""
+        current_instruction = token.upper()
+
+        is_healthcheck_continuation = last_instruction == "HEALTHCHECK"
+
+        # Update base image if specified
+        if base_image and stripped.startswith("FROM") and not base_image_updated:
+            new_lines.append(f"FROM {base_image}")
+            base_image_updated = True
+            last_instruction = "FROM"
+            continue
+
+        if (
+            stripped.startswith("CMD")
+            and not cmd_found
+            and not web_interface_env_exists
+            and enable_interface
+            and not is_healthcheck_continuation
+        ):
+            new_lines.append("ENV ENABLE_WEB_INTERFACE=true")
+            cmd_found = True
+
+        new_lines.append(line)
+
+        if current_instruction:
+            last_instruction = current_instruction
+
+    if not cmd_found and not web_interface_env_exists and enable_interface:
+        new_lines.append("ENV ENABLE_WEB_INTERFACE=true")
+
+    if base_image and not base_image_updated:
+        new_lines.insert(0, f"FROM {base_image}")
+
+    changes = []
+    if base_image and base_image_updated:
+        changes.append("updated base image")
+    if enable_interface and not web_interface_env_exists:
+        changes.append("enabled web interface")
+
+    return "\n".join(new_lines), changes
 
 
 def _get_hf_username() -> str:
@@ -339,55 +381,12 @@ def _prepare_staging_directory(
     # Modify Dockerfile to optionally enable web interface and update base image
     if dockerfile_path and dockerfile_path.exists():
         dockerfile_content = dockerfile_path.read_text()
-        lines = dockerfile_content.split("\n")
-        new_lines = []
-        cmd_found = False
-        base_image_updated = False
-        web_interface_env_exists = "ENABLE_WEB_INTERFACE" in dockerfile_content
-        last_instruction = None
-
-        for line in lines:
-            stripped = line.strip()
-            token = stripped.split(maxsplit=1)[0] if stripped else ""
-            current_instruction = token.upper()
-
-            is_healthcheck_continuation = last_instruction == "HEALTHCHECK"
-
-            # Update base image if specified
-            if base_image and stripped.startswith("FROM") and not base_image_updated:
-                new_lines.append(f"FROM {base_image}")
-                base_image_updated = True
-                last_instruction = "FROM"
-                continue
-
-            if (
-                stripped.startswith("CMD")
-                and not cmd_found
-                and not web_interface_env_exists
-                and enable_interface
-                and not is_healthcheck_continuation
-            ):
-                new_lines.append("ENV ENABLE_WEB_INTERFACE=true")
-                cmd_found = True
-
-            new_lines.append(line)
-
-            if current_instruction:
-                last_instruction = current_instruction
-
-        if not cmd_found and not web_interface_env_exists and enable_interface:
-            new_lines.append("ENV ENABLE_WEB_INTERFACE=true")
-
-        if base_image and not base_image_updated:
-            new_lines.insert(0, f"FROM {base_image}")
-
-        dockerfile_path.write_text("\n".join(new_lines))
-
-        changes = []
-        if base_image and base_image_updated:
-            changes.append("updated base image")
-        if enable_interface and not web_interface_env_exists:
-            changes.append("enabled web interface")
+        dockerfile_content, changes = _rewrite_dockerfile_for_space(
+            dockerfile_content,
+            base_image=base_image,
+            enable_interface=enable_interface,
+        )
+        dockerfile_path.write_text(dockerfile_content)
         if changes:
             console.print(
                 f"[bold green]✓[/bold green] Updated Dockerfile: {', '.join(changes)}"

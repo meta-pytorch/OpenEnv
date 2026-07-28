@@ -293,19 +293,36 @@ def _build_docker_image(
         build_args["BUILD_MODE"] = build_mode
         build_args["ENV_NAME"] = env_path.name.replace("_env", "")
 
-        # Build Docker command
-        cmd = ["docker", "build", "-t", tag, "-f", str(dockerfile)]
-
-        if no_cache:
-            cmd.append("--no-cache")
-
-        for key, value in build_args.items():
-            cmd.extend(["--build-arg", f"{key}={value}"])
-
-        cmd.append(str(build_dir))
+        cmd = _docker_build_command(
+            tag=tag,
+            dockerfile=dockerfile,
+            build_dir=build_dir,
+            build_args=build_args,
+            no_cache=no_cache,
+        )
 
         result = _run_command(cmd, check=False)
         return result.returncode == 0
+
+
+def _docker_build_command(
+    tag: str,
+    dockerfile: Path,
+    build_dir: Path,
+    build_args: dict[str, str],
+    no_cache: bool,
+) -> list[str]:
+    """Build the docker build command for an OpenEnv environment."""
+    cmd = ["docker", "build", "-t", tag, "-f", str(dockerfile)]
+
+    if no_cache:
+        cmd.append("--no-cache")
+
+    for key, value in build_args.items():
+        cmd.extend(["--build-arg", f"{key}={value}"])
+
+    cmd.append(str(build_dir))
+    return cmd
 
 
 def _push_docker_image(tag: str, registry: str | None = None) -> bool:
@@ -319,6 +336,23 @@ def _push_docker_image(tag: str, registry: str | None = None) -> bool:
     console.print(f"[bold cyan]Pushing image:[/bold cyan] {tag}")
     result = _run_command(["docker", "push", tag], check=False)
     return result.returncode == 0
+
+
+def _parse_build_args(raw_args: list[str] | None) -> dict[str, str]:
+    """Parse Docker build args from repeated KEY=VALUE CLI options."""
+    build_args: dict[str, str] = {}
+
+    for arg in raw_args or []:
+        if "=" in arg:
+            key, value = arg.split("=", 1)
+            build_args[key] = value
+        else:
+            print(
+                f"Warning: Invalid build arg format: {arg}",
+                file=sys.stderr,
+            )
+
+    return build_args
 
 
 @app.command()
@@ -431,18 +465,7 @@ def build(
     console.print(f"[bold]Building Docker image for:[/bold] {env_path_obj.name}")
     console.print("=" * 60)
 
-    # Parse build args
-    build_args = {}
-    if build_arg:
-        for arg in build_arg:
-            if "=" in arg:
-                key, value = arg.split("=", 1)
-                build_args[key] = value
-            else:
-                print(
-                    f"Warning: Invalid build arg format: {arg}",
-                    file=sys.stderr,
-                )
+    build_args = _parse_build_args(build_arg)
 
     # Convert string paths to Path objects
     context_path_obj = Path(context) if context else None

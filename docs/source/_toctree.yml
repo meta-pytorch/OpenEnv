@@ -117,6 +117,8 @@
     title: Maze
   - local: environments/openapp
     title: OpenApp
+  - local: environments/qed_math
+    title: QED Math
   - local: environments/reasoning_gym
     title: Reasoning Gym
   - local: environments/tbench2

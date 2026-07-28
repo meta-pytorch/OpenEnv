@@ -6,6 +6,7 @@ import os
 from pathlib import Path
 
 from openenv.cli.__main__ import app
+from openenv.cli.commands.init import _resolve_template_path
 from typer.testing import CliRunner
 
 
@@ -227,6 +228,24 @@ def test_init_with_output_dir(tmp_path: Path) -> None:
     assert result.exit_code == 0
     assert env_dir.exists()
     assert (env_dir / "models.py").exists()
+
+
+def test_resolve_template_path_root() -> None:
+    """Test resolving the packaged init template root."""
+    template_path = _resolve_template_path("openenv.cli.templates.openenv_env", "")
+
+    assert template_path.is_dir()
+    assert (template_path / "models.py").exists()
+
+
+def test_resolve_template_path_nested_directory() -> None:
+    """Test resolving a nested init template directory."""
+    template_path = _resolve_template_path(
+        "openenv.cli.templates.openenv_env", "server"
+    )
+
+    assert template_path.is_dir()
+    assert (template_path / "Dockerfile").exists()
 
 
 def test_init_filename_templating(tmp_path: Path) -> None:

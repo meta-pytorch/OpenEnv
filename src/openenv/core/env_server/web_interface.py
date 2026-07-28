@@ -22,11 +22,13 @@ from fastapi import Body, FastAPI, HTTPException, status, WebSocket, WebSocketDi
 from fastapi.responses import RedirectResponse
 from pydantic import BaseModel, ConfigDict, Field
 
+from ._utils import overrides_method
 from .gradio_theme import OPENENV_GRADIO_CSS, OPENENV_GRADIO_THEME
 from .gradio_ui import build_gradio_app, get_gradio_display_title
 from .interfaces import Environment
 from .serialization import deserialize_action_with_preprocessing, serialize_observation
 from .types import Action, EnvironmentMetadata, Observation, State
+
 
 # Quick Start markdown template; placeholders match init suffixes (__ENV_NAME__, __ENV_CLASS_NAME__*).
 DEFAULT_QUICK_START_MARKDOWN = """
@@ -37,8 +39,8 @@ Connect from Python using `__ENV_CLASS_NAME__Env`:
 ```python
 from __ENV_NAME__ import __ENV_CLASS_NAME__Action, __ENV_CLASS_NAME__Env
 
-with __ENV_CLASS_NAME__Env.from_env("<SPACE_ID>") as env:
-    result = await env.step(__ENV_CLASS_NAME__Action(message="..."))
+with __ENV_CLASS_NAME__Env.from_env("<SPACE_ID>").sync() as env:
+    result = env.step(__ENV_CLASS_NAME__Action(message="..."))
 ```
 
 Or connect directly to a running server:
@@ -342,7 +344,7 @@ class WebInterfaceManager:
         """Reset the environment and update state."""
         reset_kwargs = reset_kwargs or {}
 
-        is_async = self.env.reset_async.__func__ is not Environment.reset_async
+        is_async = overrides_method(self.env.reset_async, Environment.reset_async)
         sig = inspect.signature(self.env.reset_async if is_async else self.env.reset)
         valid_kwargs = self._get_valid_kwargs(sig, reset_kwargs)
 
@@ -470,7 +472,12 @@ def create_web_interface_app(
 
     # Create the base environment app
     app = create_fastapi_app(
-        env, action_cls, observation_cls, max_concurrent_envs, concurrency_config
+        env,
+        action_cls,
+        observation_cls,
+        max_concurrent_envs,
+        concurrency_config,
+        env_name=env_name,
     )
 
     # Load environment metadata
@@ -550,47 +557,18 @@ def create_web_interface_app(
     quick_start_md = get_quick_start_markdown(metadata, action_cls, observation_cls)
 
     display_title = title_override or get_gradio_display_title(metadata)
-    default_blocks = build_gradio_app(
+    gradio_blocks = _build_gradio_blocks(
         web_manager,
         action_fields,
         metadata,
         is_chat_env,
-        title=metadata.name,
-        quick_start_md=quick_start_md,
+        quick_start_md,
+        display_title=display_title,
+        gradio_builder=gradio_builder,
+        custom_tab_name=custom_tab_name,
+        custom_tab_primary=custom_tab_primary,
+        show_default_tab=show_default_tab,
     )
-    default_blocks.title = display_title
-    if gradio_builder is not None:
-        custom_blocks = gradio_builder(
-            web_manager,
-            action_fields,
-            metadata,
-            is_chat_env,
-            display_title,
-            quick_start_md,
-        )
-        if not isinstance(custom_blocks, gr.Blocks):
-            raise TypeError(
-                f"gradio_builder must return a gr.Blocks instance, "
-                f"got {type(custom_blocks).__name__}"
-            )
-        if not show_default_tab:
-            # No TabbedInterface wrapper to carry the app title.
-            custom_blocks.title = display_title
-            gradio_blocks = custom_blocks
-        else:
-            if custom_tab_primary:
-                tab_blocks = [custom_blocks, default_blocks]
-                tab_labels = [custom_tab_name, "Playground"]
-            else:
-                tab_blocks = [default_blocks, custom_blocks]
-                tab_labels = ["Playground", custom_tab_name]
-            gradio_blocks = gr.TabbedInterface(
-                tab_blocks,
-                tab_names=tab_labels,
-                title=display_title,
-            )
-    else:
-        gradio_blocks = default_blocks
     app = gr.mount_gradio_app(
         app,
         gradio_blocks,
@@ -600,6 +578,66 @@ def create_web_interface_app(
     )
 
     return app
+
+
+def _build_gradio_blocks(
+    web_manager: WebInterfaceManager,
+    action_fields: List[Dict[str, Any]],
+    metadata: EnvironmentMetadata,
+    is_chat_env: bool,
+    quick_start_md: str,
+    *,
+    display_title: str,
+    gradio_builder: Optional[Callable[..., Any]],
+    custom_tab_name: str,
+    custom_tab_primary: bool,
+    show_default_tab: bool,
+) -> gr.Blocks:
+    """Build the Gradio block tree mounted at `/web`."""
+    default_blocks = build_gradio_app(
+        web_manager,
+        action_fields,
+        metadata,
+        is_chat_env,
+        title=metadata.name,
+        quick_start_md=quick_start_md,
+    )
+    default_blocks.title = display_title
+
+    if gradio_builder is None:
+        return default_blocks
+
+    custom_blocks = gradio_builder(
+        web_manager,
+        action_fields,
+        metadata,
+        is_chat_env,
+        display_title,
+        quick_start_md,
+    )
+    if not isinstance(custom_blocks, gr.Blocks):
+        raise TypeError(
+            f"gradio_builder must return a gr.Blocks instance, "
+            f"got {type(custom_blocks).__name__}"
+        )
+
+    if not show_default_tab:
+        # No TabbedInterface wrapper to carry the app title.
+        custom_blocks.title = display_title
+        return custom_blocks
+
+    if custom_tab_primary:
+        tab_blocks = [custom_blocks, default_blocks]
+        tab_labels = [custom_tab_name, "Playground"]
+    else:
+        tab_blocks = [default_blocks, custom_blocks]
+        tab_labels = ["Playground", custom_tab_name]
+
+    return gr.TabbedInterface(
+        tab_blocks,
+        tab_names=tab_labels,
+        title=display_title,
+    )
 
 
 def _is_chat_env(action_cls: Type[Action]) -> bool:
