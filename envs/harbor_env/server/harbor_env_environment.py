@@ -158,6 +158,13 @@ class HarborEnvironment(Environment[HarborAction, HarborObservation, HarborState
         del seed
 
         self.close()
+        # A failed reset must not leave the previous episode's state behind.
+        # close() has already torn the sandbox down, so anything read from
+        # `state` after a raise below would describe a task that is no longer
+        # running. Drop to "no episode" first, then do the work that can fail.
+        self._state = HarborState(mode=self.mode)
+        self._refresh_catalog_state()
+
         task = self.catalog.get(self._select_task_id(kwargs.get("task_id")))
         sandbox = self._sandbox_factory(self.mode)
         try:

@@ -9,13 +9,23 @@ guard the claim that a real Harbor task directory runs unmodified.
 
 from __future__ import annotations
 
+import io
 import json
+import tarfile
 import textwrap
 from pathlib import Path
 
 import pytest
-from harbor_env import HarborAction, HarborEnv, HarborObservation, HarborState
+from harbor_env import (
+    AGENT_ACTIONS,
+    CONTROL_ACTIONS,
+    HarborAction,
+    HarborEnv,
+    HarborObservation,
+    HarborState,
+)
 from harbor_env.server import (
+    DockerSandbox,
     HarborEnvironment,
     HarborTask,
     LocalSandbox,
@@ -371,6 +381,86 @@ def test_resolve_within_rejects_escapes(relative: str) -> None:
         resolve_within("/work", relative)
 
 
+@pytest.mark.parametrize("relative", ["", "   ", ".", "a/.."])
+def test_resolve_within_rejects_paths_naming_the_workdir(relative: str) -> None:
+    """An empty path must not resolve to the working directory itself.
+
+    `read` would try to cat a directory and report a confusing "no such file",
+    but `write` is worse: the target splits into ("/", "workspace"), so the
+    upload would drop a regular file over the whole checkout.
+    """
+    with pytest.raises(ValueError):
+        resolve_within("/work", relative)
+
+
+def test_empty_paths_are_rejected_as_actions(env: HarborEnvironment) -> None:
+    """The action layer surfaces the rejection instead of a backend error."""
+    env.reset(task_id=EXAMPLE_TASK_ID)
+
+    for action in (
+        HarborAction(action_type="read", path=""),
+        HarborAction(action_type="write", path="", content="x"),
+    ):
+        observation = env.step(action)
+        assert not observation.success
+        assert "path" in observation.error
+
+    # The working directory survived the write attempt.
+    listing = env.step(HarborAction(action_type="exec", command="ls"))
+    assert listing.output.split() == ["stats.py"]
+
+
+def test_docker_upload_dir_archives_each_entry_once(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """`rglob` yields directories too, and `tarfile.add` recurses by default.
+
+    Left alone, every nested file is archived once through its parent directory
+    and again on its own iteration.
+    """
+    source = tmp_path / "tests"
+    (source / "nested").mkdir(parents=True)
+    (source / "test.sh").write_text("#!/bin/bash\n", encoding="utf-8")
+    (source / "nested" / "grade.py").write_text("x = 1\n", encoding="utf-8")
+
+    captured: dict[str, bytes] = {}
+
+    class _FakeContainer:
+        def put_archive(self, path: str, data: bytes) -> bool:
+            captured["data"] = data
+            return True
+
+    sandbox = DockerSandbox()
+    monkeypatch.setattr(sandbox, "_require_container", lambda: _FakeContainer())
+    monkeypatch.setattr(sandbox, "mkdirs", lambda *args, **kwargs: None)
+
+    sandbox.upload_dir(source, "/tests")
+
+    with tarfile.open(fileobj=io.BytesIO(captured["data"])) as archive:
+        names = archive.getnames()
+
+    assert sorted(names) == ["nested", "nested/grade.py", "test.sh"]
+    assert len(names) == len(set(names))
+
+
+def test_action_types_partition_into_agent_and_control() -> None:
+    """The two sets must stay a partition of what the server actually handles.
+
+    They are what documents which actions belong in a policy's action space, so
+    a new action type that nobody classified would silently read as
+    agent-reachable.
+    """
+    handled = set(HarborEnvironment(tasks=str(BUNDLED_TASKS_DIR))._handlers)
+
+    assert AGENT_ACTIONS | CONTROL_ACTIONS == handled
+    assert not (AGENT_ACTIONS & CONTROL_ACTIONS)
+    # Everything classified is also accepted on the wire, and nothing else is.
+    for action_type in handled:
+        HarborAction(action_type=action_type)
+    with pytest.raises(ValueError):
+        HarborAction(action_type="reset")
+
+
 def test_sandbox_paths_expose_harbor_layout_as_env() -> None:
     env = SandboxPaths(workdir="/workspace").as_env()
 
@@ -594,6 +684,32 @@ def test_reset_without_a_task_id_lists_the_options(tmp_path: Path) -> None:
             environment.reset()
     finally:
         environment.close()
+
+
+def test_failed_reset_does_not_leave_the_previous_episode_in_state(
+    env: HarborEnvironment,
+) -> None:
+    """A reset that raises must not leave `state` describing a dead episode.
+
+    reset() tears the old sandbox down before it can fail, so reporting the
+    previous task afterwards would tell a trainer an episode is running when
+    nothing is.
+    """
+    env.reset(task_id=EXAMPLE_TASK_ID)
+    env.step(HarborAction(action_type="evaluate"))
+    assert env.state.task_id == EXAMPLE_TASK_ID
+    assert env.state.evaluated
+
+    with pytest.raises(KeyError):
+        env.reset(task_id="no-such-task")
+
+    assert env.state.task_id == ""
+    assert env.state.task_name == ""
+    assert env.state.workdir == ""
+    assert env.state.reward is None
+    assert not env.state.evaluated
+    # The catalog listing survives — it does not belong to any one episode.
+    assert env.state.task_count == 1
 
 
 def test_reset_starts_a_clean_episode(env: HarborEnvironment) -> None:

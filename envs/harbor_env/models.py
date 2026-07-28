@@ -5,7 +5,7 @@
 Shared by the client and the server; neither side imports the other.
 """
 
-from typing import Any, Literal
+from typing import Any, get_args, Literal, Union
 
 from openenv.core.env_server.types import Action, Observation, State
 from pydantic import Field
@@ -20,10 +20,13 @@ AgentActionType = Literal["exec", "read", "write"]
 #: infrastructure side of the boundary.
 ControlActionType = Literal["evaluate", "solve"]
 
-HarborActionType = Literal["exec", "read", "write", "evaluate", "solve"]
+#: Every action the server accepts. Composed from the two sets above rather than
+#: restated, so the wire schema and the agent/orchestration split cannot drift:
+#: a new action has to be classified as one or the other to exist at all.
+HarborActionType = Union[AgentActionType, ControlActionType]
 
-AGENT_ACTIONS: frozenset[str] = frozenset({"exec", "read", "write"})
-CONTROL_ACTIONS: frozenset[str] = frozenset({"evaluate", "solve"})
+AGENT_ACTIONS: frozenset[str] = frozenset(get_args(AgentActionType))
+CONTROL_ACTIONS: frozenset[str] = frozenset(get_args(ControlActionType))
 
 
 class HarborAction(Action):
