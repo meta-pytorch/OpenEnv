@@ -40,7 +40,7 @@ def _create_test_openenv_env(env_dir: Path, env_name: str = "test_env") -> None:
     pyproject_content = f"""[project]
 name = "{env_name}"
 version = "0.1.0"
-dependencies = ["openenv[core]>=0.2.0"]
+dependencies = ["openenv>=0.2.0"]
 """
     (env_dir / "pyproject.toml").write_text(pyproject_content)
 
