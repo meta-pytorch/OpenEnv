@@ -549,6 +549,43 @@ def test_docker_reset_rejects_task_without_image(tmp_path: Path):
         env.reset(task_id="imageless-task")
 
 
+def test_docker_failed_reset_closes_previous_container(tmp_path: Path):
+    """A rejected reset must not leave the previous container usable with
+    metadata from the new task."""
+    task = tmp_path / "imageless-task"
+    task.mkdir()
+    (task / "task.toml").write_text("[metadata]\n")
+    (task / "instruction.md").write_text("do it\n")
+
+    class _PreviousContainer:
+        def __init__(self):
+            self.events = []
+
+        def stop(self, timeout):
+            self.events.append(("stop", timeout))
+
+        def remove(self, force):
+            self.events.append(("remove", force))
+
+    env = Tbench2DockerEnvironment(
+        tasks_dir=str(tmp_path), output_dir=str(tmp_path / "runs")
+    )
+    previous_container = _PreviousContainer()
+    env._container = previous_container
+    env._task_dir = tmp_path / "previous-task"
+    env._instruction = "previous task"
+    env._workdir = "/previous-workdir"
+
+    with pytest.raises(RuntimeError, match="docker_image"):
+        env.reset(task_id="imageless-task")
+
+    assert previous_container.events == [("stop", 10), ("remove", True)]
+    assert env._container is None
+    assert env._task_dir is None
+    assert env._instruction == ""
+    assert env._workdir == ""
+
+
 class _FakeImage:
     def __init__(self, working_dir: str):
         self.attrs = {"Config": {"WorkingDir": working_dir}}

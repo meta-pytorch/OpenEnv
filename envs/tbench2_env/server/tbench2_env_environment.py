@@ -726,25 +726,23 @@ class Tbench2DockerEnvironment(
         # Read task configuration including Docker image
         task_toml_path = task_dir / "task.toml"
         if task_toml_path.exists():
-            self._task_config = tomllib.loads(
-                task_toml_path.read_text(encoding="utf-8")
-            )
-            self._task_image = self._task_config.get("environment", {}).get(
-                "docker_image", ""
-            )
+            task_config = tomllib.loads(task_toml_path.read_text(encoding="utf-8"))
+            task_image = task_config.get("environment", {}).get("docker_image", "")
         else:
-            self._task_image = ""
-            self._task_config = {}
+            task_image = ""
+            task_config = {}
 
-        self._instruction = _read_instruction(task_dir)
-        self._task_dir = task_dir
+        instruction = _read_instruction(task_dir)
 
         # No host-execution fallback: silently running agent commands on the
         # env-server host would be a containment hole (arbitrary agent shell
         # outside any container) and a scoring-fidelity hole (no official
         # image, no canonical harness) at once. Every official TB2 task
         # declares its image; a task dir that doesn't is a bug to surface.
-        if not self._task_image:
+        if not task_image:
+            # Fail closed: a rejected reset must not leave a previous
+            # container usable with metadata from this new task.
+            self.close()
             raise RuntimeError(
                 f"task {resolved_task_id} declares no [environment] docker_image "
                 "in task.toml; Docker mode runs every episode in the task's "
@@ -757,7 +755,19 @@ class Tbench2DockerEnvironment(
         trial_dir = self.output_dir / trial_name
         trial_dir.mkdir(parents=True, exist_ok=True)
 
-        self._start_container(task_dir, trial_dir)
+        # A successful reset replaces the previous episode. Commit the new
+        # metadata only after all task inputs have been validated, and leave
+        # the session closed if container startup fails.
+        self.close()
+        self._task_config = task_config
+        self._task_image = task_image
+        self._instruction = instruction
+        self._task_dir = task_dir
+        try:
+            self._start_container(task_dir, trial_dir)
+        except Exception:
+            self.close()
+            raise
 
         return Tbench2Observation(
             instruction=self._instruction,
