@@ -39,6 +39,7 @@ import json
 import os
 import time
 from abc import ABC, abstractmethod
+from collections.abc import Coroutine
 from contextlib import suppress
 from typing import Any, Callable, Dict, Generic, Optional, Type, TYPE_CHECKING, TypeVar
 from urllib.parse import urlsplit
@@ -99,6 +100,87 @@ class _AutoAsyncResult(Generic[ResultT]):
         if self._resolved:
             return repr(self._result)
         return f"<{type(self).__name__} pending>"
+
+
+class _BootstrapResult(Coroutine, Generic[EnvClientT]):
+    """Bootstrap handle returned by the client factory methods.
+
+    Returned by [`~openenv.core.EnvClient.from_docker_image`] and
+    [`~openenv.core.EnvClient.from_env`]. Resolving the handle is what actually
+    starts the container / Space and connects the WebSocket, so a single factory
+    call serves both execution modes:
+
+    - `await handle` connects on the running event loop and returns the connected
+      async client (unchanged async behavior).
+    - `handle.sync()` connects on the sync background loop and returns a
+      `SyncEnvClient`, mirroring the instance-level [`~openenv.core.EnvClient.sync`].
+
+    The handle is a full coroutine (it implements `send` / `throw` / `close`), so
+    it is a drop-in for the previous `async def` factories: `asyncio.run(...)`,
+    `run_async_safely(...)`, and bare `await` all accept it, in addition to the
+    new `.sync()` chain. Bootstrap is lazy — the underlying coroutine (and the
+    container/Space start) is created only when the handle is driven or `.sync()`
+    is called.
+    """
+
+    def __init__(self, bootstrap: Callable[[], EnvClientT]):
+        self._bootstrap = bootstrap
+        self._coro: Optional[Coroutine[Any, Any, EnvClientT]] = None
+        self._used = False
+
+    def _consume(self) -> EnvClientT:
+        """Run the bootstrap exactly once; a second resolve is a programming error.
+
+        Mirrors native coroutine semantics (a coroutine cannot be awaited twice)
+        so that a handle re-driven via a second `.sync()`, or `await` followed by
+        `.sync()`, raises instead of silently starting a second container/Space.
+        """
+        if self._used:
+            raise RuntimeError(
+                "This bootstrap handle has already been resolved; call the "
+                "factory again to start a new environment."
+            )
+        self._used = True
+        return self._bootstrap()
+
+    async def _resolve_async(self) -> EnvClientT:
+        client = self._consume()
+        await client.connect()
+        return client
+
+    def _ensure_coro(self) -> "Coroutine[Any, Any, EnvClientT]":
+        if self._coro is None:
+            self._coro = self._resolve_async()
+        return self._coro
+
+    def __await__(self):
+        return self._ensure_coro().__await__()
+
+    def send(self, value: Any) -> Any:
+        return self._ensure_coro().send(value)
+
+    def throw(self, *args: Any, **kwargs: Any) -> Any:
+        return self._ensure_coro().throw(*args, **kwargs)
+
+    def close(self) -> None:
+        if self._coro is not None:
+            self._coro.close()
+
+    def sync(self) -> "SyncEnvClient":
+        client = self._consume()
+        try:
+            client._run_sync(client._connect_async)
+        except Exception:
+            # _consume() already started the provider. On the async path
+            # _connect_async releases it, but here the failure may be the sync
+            # loop setup itself (before _connect_async runs), so stop the
+            # provider directly rather than routing through the broken loop.
+            client._stop_provider_best_effort()
+            raise
+        return client.sync()
+
+    def __repr__(self) -> str:
+        return f"<{type(self).__name__} pending (await, run, or call .sync())>"
 
 
 def _normalize_mode(mode: Optional[str]) -> str:
@@ -256,6 +338,20 @@ class EnvClient(ABC, Generic[ActT, ObsT, StateT]):
         self._ws_loop: Optional[asyncio.AbstractEventLoop] = None
         if base_url is not None:
             self._set_base_url(base_url)
+
+    @property
+    def base_url(self) -> Optional[str]:
+        """Public read-only URL of the environment server this client targets.
+
+        Returns the normalized `http(s)`/`ws(s)` base URL (no trailing slash),
+        or `None` when the client was created with a provider but has not yet
+        started its container (the URL is assigned lazily on `connect()`).
+
+        This is the public counterpart to the private `self._base_url`; the
+        previously-public `base_url` attribute was dropped in the `core`
+        refactor, leaving sync consumers with no way to read the URL back.
+        """
+        return self._base_url
 
     def _set_base_url(self, base_url: str) -> None:
         self._base_url = base_url.rstrip("/")
@@ -503,14 +599,48 @@ class EnvClient(ABC, Generic[ActT, ObsT, StateT]):
         return response
 
     @classmethod
-    async def from_docker_image(
+    def _bootstrap_container(
         cls: Type[EnvClientT],
         image: str,
         provider: Optional["ContainerProvider"] = None,
         **kwargs: Any,
     ) -> EnvClientT:
+        """Start a Docker container and build an *unconnected* client for it.
+
+        Invoked lazily by the `from_docker_image` bootstrap handle when it is
+        awaited or `.sync()`'d: the container start / readiness wait is plain
+        blocking code, so the only thing that differs between the async and sync
+        resolution paths is how the WebSocket is connected (awaited vs. run sync).
+        """
+        if provider is None:
+            provider = LocalDockerProvider()
+
+        try:
+            # Start container, wait for readiness, then build the client.
+            base_url = provider.start_container(image, **kwargs)
+            provider.wait_for_ready(base_url)
+            return cls(base_url=base_url, provider=provider)
+        except Exception:
+            # No EnvClient exists yet for the caller to close(), so release the
+            # container here if start / readiness / construction fails.
+            provider.stop_container()
+            raise
+
+    @classmethod
+    def from_docker_image(
+        cls: Type[EnvClientT],
+        image: str,
+        provider: Optional["ContainerProvider"] = None,
+        **kwargs: Any,
+    ) -> "_BootstrapResult[EnvClientT]":
         """
         Create an environment client by spinning up a Docker container.
+
+        Returns a bootstrap handle so the same call works from both async and
+        synchronous code: `await` it for the connected async client, or chain
+        `.sync()` for a connected `SyncEnvClient` (e.g. a TRL GRPO rollout loop
+        that cannot `await`). Bootstrap is lazy — the container starts when the
+        handle is resolved.
 
         Args:
             image (`str`):
@@ -521,25 +651,26 @@ class EnvClient(ABC, Generic[ActT, ObsT, StateT]):
                 Additional arguments to pass to `provider.start_container()`.
 
         Returns:
-            Connected client instance
+            `_BootstrapResult`: `await` for a connected async client, or call
+            `.sync()` for a connected `SyncEnvClient`.
+
+        Examples:
+
+        ```python
+        # Async
+        env = await MyEnv.from_docker_image("coding-env:latest")
+
+        # Sync
+        env = MyEnv.from_docker_image("coding-env:latest").sync()
+        result = env.reset()
+        ```
         """
-        if provider is None:
-            provider = LocalDockerProvider()
-
-        # Start container
-        base_url = provider.start_container(image, **kwargs)
-
-        # Wait for server to be ready
-        provider.wait_for_ready(base_url)
-
-        # Create and connect client
-        client = cls(base_url=base_url, provider=provider)
-        await client.connect()
-
-        return client
+        return _BootstrapResult(
+            lambda: cls._bootstrap_container(image, provider, **kwargs)
+        )
 
     @classmethod
-    async def from_env(
+    def _bootstrap_env(
         cls: Type[EnvClientT],
         repo_id: str,
         *,
@@ -547,43 +678,13 @@ class EnvClient(ABC, Generic[ActT, ObsT, StateT]):
         provider: Optional["ContainerProvider | RuntimeProvider"] = None,
         **provider_kwargs: Any,
     ) -> EnvClientT:
-        """
-        Create a client from a Hugging Face Space.
+        """Start a HF Space (docker or uv) and build an *unconnected* client.
 
-        Args:
-            repo_id (`str`):
-                Hugging Face space identifier `{org}/{space}`.
-            use_docker (`bool`, *optional*, defaults to `True`):
-                When `True`, pull from the HF registry and launch via `LocalDockerProvider`.
-                When `False`, run the space locally with `UVProvider`.
-            provider (`ContainerProvider` or `RuntimeProvider`, *optional*):
-                Provider instance to reuse. Must be a `ContainerProvider` when
-                `use_docker=True` and a `RuntimeProvider` otherwise.
-            **provider_kwargs:
-                Additional keyword arguments forwarded to either the container provider's
-                `start_container` (docker) or to the `UVProvider` constructor/start (uv).
-                When `use_docker=False`, the `project_path` argument can be used to override
-                the default git URL (`git+https://huggingface.co/spaces/{repo_id}`).
-
-        Returns:
-            Connected client instance
-
-        Examples:
-
-            ```python
-            # Pull and run from HF Docker registry
-            env = await MyEnv.from_env("openenv/echo-env")
-
-            # Run locally with UV (clones the space)
-            env = await MyEnv.from_env("openenv/echo-env", use_docker=False)
-
-            # Run from a local checkout
-            env = await MyEnv.from_env(
-                "openenv/echo-env",
-                use_docker=False,
-                project_path="/path/to/local/checkout"
-            )
-            ```
+        Invoked lazily by the `from_env` bootstrap handle; see
+        `_bootstrap_container` for the same split rationale. On a startup
+        failure the spawned process (and, for a git+ `project_path`, the temp
+        clone directory) is released before re-raising; a later *connection*
+        failure is cleaned up by `_connect_async` via `close()`.
         """
         # Extract start args that apply to both providers
         start_args = {}
@@ -596,14 +697,17 @@ class EnvClient(ABC, Generic[ActT, ObsT, StateT]):
             docker_provider = provider or LocalDockerProvider()
             tag = provider_kwargs.pop("tag", "latest")
             image = f"registry.hf.space/{repo_id.replace('/', '-')}:{tag}"
-            base_url = docker_provider.start_container(
-                image, **start_args, **provider_kwargs
-            )
-            docker_provider.wait_for_ready(base_url)
-
-            client = cls(base_url=base_url, provider=docker_provider)
-            await client.connect()
-            return client
+            try:
+                base_url = docker_provider.start_container(
+                    image, **start_args, **provider_kwargs
+                )
+                docker_provider.wait_for_ready(base_url)
+                return cls(base_url=base_url, provider=docker_provider)
+            except Exception:
+                # No EnvClient exists yet for the caller to close(), so release
+                # the container here if start / readiness / construction fails.
+                docker_provider.stop_container()
+                raise
         else:
             # UV mode: clone and run with uv
             if provider is None:
@@ -633,16 +737,78 @@ class EnvClient(ABC, Generic[ActT, ObsT, StateT]):
                     provider.wait_for_ready(
                         timeout_s=max(0.0, deadline - time.monotonic())
                     )
-
-                client = cls(base_url=base_url, provider=provider)
-                await client.connect()
+                return cls(base_url=base_url, provider=provider)
             except Exception:
-                # No EnvClient may exist yet for the caller to close(), so
-                # this is the only chance to release the spawned process and
-                # (for a git+ project_path) the temp clone directory.
+                # No EnvClient exists yet for the caller to close(), so this is
+                # the only chance to release the spawned process and (for a
+                # git+ project_path) the temp clone directory. Covers start,
+                # readiness, and client construction (e.g. an invalid mode).
                 provider.stop()
                 raise
-            return client
+
+    @classmethod
+    def from_env(
+        cls: Type[EnvClientT],
+        repo_id: str,
+        *,
+        use_docker: bool = True,
+        provider: Optional["ContainerProvider | RuntimeProvider"] = None,
+        **provider_kwargs: Any,
+    ) -> "_BootstrapResult[EnvClientT]":
+        """
+        Create a client from a Hugging Face Space.
+
+        Returns a bootstrap handle: `await` it for the connected async client, or
+        chain `.sync()` for a connected `SyncEnvClient`. Bootstrap is lazy — the
+        Space starts when the handle is resolved.
+
+        Args:
+            repo_id (`str`):
+                Hugging Face space identifier `{org}/{space}`.
+            use_docker (`bool`, *optional*, defaults to `True`):
+                When `True`, pull from the HF registry and launch via `LocalDockerProvider`.
+                When `False`, run the space locally with `UVProvider`.
+            provider (`ContainerProvider` or `RuntimeProvider`, *optional*):
+                Provider instance to reuse. Must be a `ContainerProvider` when
+                `use_docker=True` and a `RuntimeProvider` otherwise.
+            **provider_kwargs:
+                Additional keyword arguments forwarded to either the container provider's
+                `start_container` (docker) or to the `UVProvider` constructor/start (uv).
+                When `use_docker=False`, the `project_path` argument can be used to override
+                the default git URL (`git+https://huggingface.co/spaces/{repo_id}`).
+
+        Returns:
+            `_BootstrapResult`: `await` for a connected async client, or call
+            `.sync()` for a connected `SyncEnvClient`.
+
+        Examples:
+
+            ```python
+            # Async: pull and run from HF Docker registry
+            env = await MyEnv.from_env("openenv/echo-env")
+
+            # Sync: chain .sync()
+            env = MyEnv.from_env("openenv/echo-env").sync()
+
+            # Run locally with UV (clones the space)
+            env = await MyEnv.from_env("openenv/echo-env", use_docker=False)
+
+            # Run from a local checkout
+            env = await MyEnv.from_env(
+                "openenv/echo-env",
+                use_docker=False,
+                project_path="/path/to/local/checkout"
+            )
+            ```
+        """
+        return _BootstrapResult(
+            lambda: cls._bootstrap_env(
+                repo_id,
+                use_docker=use_docker,
+                provider=provider,
+                **provider_kwargs,
+            )
+        )
 
     @abstractmethod
     def _step_payload(self, action: ActT) -> Dict[str, Any]:
@@ -746,6 +912,23 @@ class EnvClient(ABC, Generic[ActT, ObsT, StateT]):
                 if self._start_provider_on_connect:
                     self._base_url = None
                     self._ws_url = None
+
+    def _stop_provider_best_effort(self) -> None:
+        """Stop the underlying provider directly, ignoring any errors.
+
+        Releases a started container/process when there is no connected client
+        to `close()` through the normal path — e.g. sync bootstrap setup fails
+        after the provider started but before the connection is established, so
+        routing cleanup through the (possibly broken) sync loop is not an option.
+        """
+        provider = self._provider
+        if provider is None:
+            return
+        with suppress(Exception):
+            if hasattr(provider, "stop_container"):
+                provider.stop_container()
+            elif hasattr(provider, "stop"):
+                provider.stop()
 
     async def __aenter__(self) -> "EnvClient":
         """Enter async context manager, ensuring connection is established."""

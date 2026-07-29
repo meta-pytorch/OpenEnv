@@ -4,7 +4,11 @@
 
 from pathlib import Path
 
-from openenv.cli.commands.build import _detect_build_context, _parse_build_args
+from openenv.cli.commands.build import (
+    _detect_build_context,
+    _docker_build_command,
+    _parse_build_args,
+)
 
 
 def test_detect_build_context_uses_envs_child_as_in_repo(tmp_path: Path) -> None:
@@ -61,3 +65,56 @@ def test_parse_build_args_warns_and_skips_invalid(capsys) -> None:
 
     captured = capsys.readouterr()
     assert "Warning: Invalid build arg format: missing_equals" in captured.err
+
+
+def test_docker_build_command_preserves_existing_order(tmp_path: Path) -> None:
+    """Docker command assembly keeps the existing option ordering."""
+    dockerfile = tmp_path / "Dockerfile"
+    build_dir = tmp_path / "build"
+
+    assert _docker_build_command(
+        tag="openenv-example",
+        dockerfile=dockerfile,
+        build_dir=build_dir,
+        build_args={"BUILD_MODE": "standalone", "ENV_NAME": "example"},
+        no_cache=False,
+    ) == [
+        "docker",
+        "build",
+        "-t",
+        "openenv-example",
+        "-f",
+        str(dockerfile),
+        "--build-arg",
+        "BUILD_MODE=standalone",
+        "--build-arg",
+        "ENV_NAME=example",
+        str(build_dir),
+    ]
+
+
+def test_docker_build_command_includes_no_cache_before_build_args(
+    tmp_path: Path,
+) -> None:
+    """No-cache builds keep the current flag placement before build args."""
+    dockerfile = tmp_path / "Dockerfile"
+    build_dir = tmp_path / "build"
+
+    assert _docker_build_command(
+        tag="openenv-example",
+        dockerfile=dockerfile,
+        build_dir=build_dir,
+        build_args={"TOKEN": "a=b=c"},
+        no_cache=True,
+    ) == [
+        "docker",
+        "build",
+        "-t",
+        "openenv-example",
+        "-f",
+        str(dockerfile),
+        "--no-cache",
+        "--build-arg",
+        "TOKEN=a=b=c",
+        str(build_dir),
+    ]

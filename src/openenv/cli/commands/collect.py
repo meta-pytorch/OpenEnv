@@ -86,33 +86,34 @@ def _resolve_api_key(provider: str) -> str:
     )
 
 
+def _extract_legal_actions(messages: list[dict[str, Any]]) -> list[int]:
+    for message in reversed(messages):
+        content = message.get("content") or ""
+        if not isinstance(content, str):
+            continue
+        try:
+            payload = json.loads(content)
+        except (json.JSONDecodeError, ValueError):
+            payload = None
+        if isinstance(payload, dict) and "legal_actions" in payload:
+            legal = payload["legal_actions"]
+            if isinstance(legal, list):
+                return [int(a) for a in legal]
+        match = re.search(r"Legal actions:\s*\[([^\]]*)\]", content)
+        if match:
+            raw = match.group(1).strip()
+            if not raw:
+                return []
+            return [int(x) for x in raw.split(",")]
+    return []
+
+
 def _build_scripted_model_step():
     """Default teacher: pick the first legal action from the latest observation.
 
     Matches the scripted teacher in ``examples/ttt_collect_demo.py``. Lets
     users smoke-test the CLI without any API key configured.
     """
-
-    def _extract_legal_actions(messages: list[dict[str, Any]]) -> list[int]:
-        for message in reversed(messages):
-            content = message.get("content") or ""
-            if not isinstance(content, str):
-                continue
-            try:
-                payload = json.loads(content)
-            except (json.JSONDecodeError, ValueError):
-                payload = None
-            if isinstance(payload, dict) and "legal_actions" in payload:
-                legal = payload["legal_actions"]
-                if isinstance(legal, list):
-                    return [int(a) for a in legal]
-            match = re.search(r"Legal actions:\s*\[([^\]]*)\]", content)
-            if match:
-                raw = match.group(1).strip()
-                if not raw:
-                    return []
-                return [int(x) for x in raw.split(",")]
-        return []
 
     def model_step(messages, tools, sampling):
         del sampling
