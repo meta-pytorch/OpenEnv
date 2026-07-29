@@ -47,10 +47,27 @@ class OpenCodeEnv(MCPToolClient):
     / context-manager semantics from :class:`MCPToolClient`.
     """
 
-    def __init__(self, base_url: str, *, message_timeout_s: float = 1800.0, **kwargs):
+    def __init__(
+        self,
+        base_url: str,
+        connect_timeout_s: float = 10.0,
+        message_timeout_s: float = 1800.0,
+        websocket_ping_interval_s: float | None = 20.0,
+        websocket_ping_timeout_s: float | None = 20.0,
+        provider: Any | None = None,
+        mode: str | None = None,
+    ):
         # One rollout runs for minutes (the server caps a run at 900s); the base
         # 60s default would time out client-side mid-rollout.
-        super().__init__(base_url, message_timeout_s=message_timeout_s, **kwargs)
+        super().__init__(
+            base_url=base_url,
+            connect_timeout_s=connect_timeout_s,
+            message_timeout_s=message_timeout_s,
+            websocket_ping_interval_s=websocket_ping_interval_s,
+            websocket_ping_timeout_s=websocket_ping_timeout_s,
+            provider=provider,
+            mode=mode,
+        )
 
     def run_rollout(
         self,
