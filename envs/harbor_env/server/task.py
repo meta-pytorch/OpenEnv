@@ -118,10 +118,14 @@ class NetworkPolicy:
 
     @property
     def modes(self) -> frozenset[str]:
-        """Every mode this task can ask for, across all phases."""
-        return frozenset(
-            {self.for_phase("agent"), self.for_phase("verifier"), self.baseline}
-        )
+        """The effective mode of each phase.
+
+        The baseline is deliberately *not* unioned in: when both phases override
+        it, the baseline never takes effect, and including it would (for
+        example) disable networking for a task whose agent and verifier both
+        asked for `public`.
+        """
+        return frozenset({self.for_phase("agent"), self.for_phase("verifier")})
 
     @property
     def restricted(self) -> bool:
@@ -372,10 +376,10 @@ class HarborTask:
             os_name=os_name,
             network=_network_policy(config, environment),
             resources=ResourceLimits(
-                cpus=_positive_int(environment.get("cpus")),
-                memory_mb=_positive_int(environment.get("memory_mb")),
-                storage_mb=_positive_int(environment.get("storage_mb")),
-                gpus=_positive_int(environment.get("gpus")),
+                cpus=_positive_int(environment.get("cpus"), "cpus"),
+                memory_mb=_positive_int(environment.get("memory_mb"), "memory_mb"),
+                storage_mb=_positive_int(environment.get("storage_mb"), "storage_mb"),
+                gpus=_positive_int(environment.get("gpus"), "gpus"),
             ),
             agent_user=_user(_table(config, "agent").get("user")),
             verifier_user=_user(_table(config, "verifier").get("user")),
@@ -618,12 +622,28 @@ def _user(value: Any) -> str | None:
     return str(value).strip()
 
 
-def _positive_int(value: Any) -> int | None:
-    try:
-        parsed = int(value)  # type: ignore[arg-type]
-    except (TypeError, ValueError):
+def _positive_int(value: Any, field: str) -> int | None:
+    """Parse a resource limit, distinguishing "absent" from "malformed".
+
+    Returning `None` for a bad value would read as "no limit declared", so a
+    typo would silently buy the task unlimited resources *and* stop the local
+    backend refusing it. An invalid declaration is a format error.
+    """
+    if value is None:
         return None
-    return parsed if parsed > 0 else None
+    if isinstance(value, bool) or not isinstance(value, (int, float, str)):
+        raise TaskFormatError(f"[environment].{field} must be a positive integer")
+    try:
+        parsed = int(str(value).strip())
+    except (TypeError, ValueError) as exc:
+        raise TaskFormatError(
+            f"[environment].{field} must be a positive integer, got {value!r}"
+        ) from exc
+    if parsed <= 0:
+        raise TaskFormatError(
+            f"[environment].{field} must be a positive integer, got {parsed}"
+        )
+    return parsed
 
 
 def _positive_float(value: Any, fallback: float) -> float:

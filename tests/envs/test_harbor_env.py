@@ -617,13 +617,25 @@ def test_agent_cannot_reach_the_verifier(env: HarborEnvironment) -> None:
 
 
 def test_planted_reward_files_are_discarded(env: HarborEnvironment) -> None:
+    """A reward the agent writes itself must not survive into the score.
+
+    The path is taken from the sandbox rather than `$HARBOR_LOGS_DIR`, which is
+    deliberately hidden from agent commands — reading it from the environment
+    would make the plant fail and the test pass for the wrong reason.
+    """
     env.reset(task_id=EXAMPLE_TASK_ID)
+    logs_dir = env._sandbox.paths.logs_verifier
     env.step(
         HarborAction(
             action_type="exec",
-            command='mkdir -p "$HARBOR_LOGS_DIR" && echo \'{"reward": 1.0}\' > "$HARBOR_LOGS_DIR/reward.json"',
+            command=(
+                f"mkdir -p {logs_dir!r} && "
+                f"echo '{{\"reward\": 1.0}}' > {logs_dir!r}/reward.json"
+            ),
         )
     )
+    planted = Path(logs_dir) / "reward.json"
+    assert planted.is_file(), "the plant itself failed; the test would be vacuous"
 
     assert env.step(HarborAction(action_type="evaluate")).reward == pytest.approx(
         BUGGY_REWARD
@@ -914,8 +926,8 @@ def test_reset_does_not_disclose_the_task_directory(env: HarborEnvironment) -> N
 
     assert "path" not in observation.info["task"]
     assert str(BUNDLED_TASKS_DIR) not in json.dumps(observation.info)
-    # Orchestration still gets it — state is infrastructure-side.
-    assert env.state.task_path.endswith(EXAMPLE_TASK_ID)
+    # `state` rides the same socket, so it must not carry the path either.
+    assert str(BUNDLED_TASKS_DIR) not in json.dumps(env.state.model_dump())
 
 
 def test_local_exec_does_not_inherit_server_secrets(
@@ -1074,6 +1086,9 @@ class _RecordingSandbox(Sandbox):
         self.paths = SandboxPaths(workdir="/app")
         self.task_env = {}
         self.chowned: list[tuple[str, str]] = []
+        self.read_users: list[str | None] = []
+        self.write_users: list[str | None] = []
+        self.agent_user: str | None = None
 
     def _boot(self, task: HarborTask) -> SandboxPaths:
         return self.paths
@@ -1085,14 +1100,116 @@ class _RecordingSandbox(Sandbox):
         if user:
             self.chowned.extend((user, path) for path in paths)
 
-    def read_text(self, path: str) -> str | None:
-        return None
+    def read_text(self, path: str, user: str | None = None) -> str | None:
+        self.read_users.append(user)
+        return "contents"
 
-    def write_text(self, path: str, content: str) -> None:
-        return None
+    def write_text(self, path: str, content: str, user: str | None = None) -> None:
+        self.write_users.append(user)
 
     def upload_dir(self, source, destination: str) -> None:
         return None
 
     def close(self) -> None:
         return None
+
+
+def test_malformed_resource_limits_are_rejected_not_ignored(tmp_path: Path) -> None:
+    """A typo must not silently buy the task unlimited resources.
+
+    Treating an invalid value as "absent" would also stop the local backend
+    refusing the task, so the failure compounds.
+    """
+    for bad in ("0", "-4", '"lots"'):
+        config = textwrap.dedent(
+            f"""
+            schema_version = "1.4"
+
+            [task]
+            name = "tests/bad"
+
+            [environment]
+            cpus = {bad}
+            """
+        ).strip()
+        write_task(tmp_path, "bad", config=config, seed_files={"a.py": "x = 1\n"})
+        catalog = TaskCatalog(tmp_path)
+        catalog.refresh()
+
+        with pytest.raises(TaskFormatError, match="cpus"):
+            catalog.get("bad")
+
+
+def test_storage_limits_are_refused_rather_than_faked() -> None:
+    """Docker accepts `storage_opt` on drivers that never enforce it.
+
+    A task that believes it is capped and is not is worse than one that is told
+    up front we cannot cap it.
+    """
+    task = HarborTask.load(BUNDLED_TASKS_DIR / EXAMPLE_TASK_ID)
+
+    with pytest.raises(SandboxError, match="quota"):
+        _container_limits(replace(task, resources=ResourceLimits(storage_mb=32)))
+
+
+def test_phase_overrides_replace_the_baseline_they_override() -> None:
+    """A baseline both phases override must not still take effect."""
+    policy = NetworkPolicy(baseline="no-network", agent="public", verifier="public")
+
+    assert policy.modes == {"public"}
+    assert not policy.restricted
+
+    task = HarborTask.load(BUNDLED_TASKS_DIR / EXAMPLE_TASK_ID)
+    assert "network_mode" not in _container_limits(replace(task, network=policy))
+
+
+def test_agent_supplied_timeout_cannot_exceed_the_configured_ceiling(
+    tmp_path: Path,
+) -> None:
+    """`timeout_s` arrives on the wire, so it is policy-controlled."""
+    recorded: list[float] = []
+
+    class _Recording(LocalSandbox):
+        def exec(self, command, *, timeout_s, env=None, workdir=None, **kw):
+            recorded.append(timeout_s)
+            return ExecResult(0, "")
+
+    environment = HarborEnvironment(
+        mode="local", command_timeout_s=5.0, sandbox_factory=lambda mode: _Recording()
+    )
+    try:
+        environment.reset(task_id=EXAMPLE_TASK_ID)
+        recorded.clear()
+        environment.step(
+            HarborAction(action_type="exec", command="sleep 1", timeout_s=86_400.0)
+        )
+    finally:
+        environment.close()
+
+    assert recorded == [5.0]
+
+
+def test_agent_reads_and_writes_run_as_the_declared_user() -> None:
+    """`read` used `cat` as root and `write` extracted a root-owned tar.
+
+    Either would let a task that declared an unprivileged agent reach files
+    that agent could never have touched with `exec`.
+    """
+    task = replace(
+        HarborTask.load(BUNDLED_TASKS_DIR / EXAMPLE_TASK_ID), agent_user="nobody"
+    )
+    del task  # the sandbox is driven directly below
+    sandbox = _RecordingSandbox()
+    environment = HarborEnvironment(mode="local", sandbox_factory=lambda mode: sandbox)
+    try:
+        environment.reset(task_id=EXAMPLE_TASK_ID)
+        sandbox.agent_user = "nobody"
+        environment.step(HarborAction(action_type="read", path="stats.py"))
+        environment.step(
+            HarborAction(action_type="write", path="stats.py", content="x = 1\n")
+        )
+    finally:
+        environment.close()
+
+    assert sandbox.read_users == ["nobody"]
+    assert sandbox.write_users == ["nobody"]

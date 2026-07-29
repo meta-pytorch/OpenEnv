@@ -74,13 +74,15 @@ HARBOR_TASKS_DIR=./tasks HARBOR_MODE=docker           uv run --project envs/harb
 | `docker` (default) | Inside the task's own image, files streamed over the Docker API | Everything — and the only backend that can enforce a task's network, resource and user policies |
 | `local` | Subprocesses under a per-episode directory tree | Self-contained tasks on Docker-less hosts such as Hugging Face Spaces |
 
-> **`local` mode is a filesystem boundary, not a security boundary.** `exec`
-> runs shell commands as the server's own user, so a task or a policy can read
-> whatever that user can and can reach the network. It is opt-in for that
-> reason. The server's own environment is *not* passed through — only `PATH`,
-> `HOME` and a short allowlist — so API keys and Hub tokens held by the process
-> stay out of task commands. Tasks needing a secret declare it in
-> `[environment].env`.
+> **`local` mode is not a security boundary.** `exec` runs shell commands as
+> the server's own user, so a task or a policy can read whatever that user can
+> and can reach the network. It is opt-in for that reason.
+>
+> The server's environment is not passed through — only `PATH`, `HOME` and a
+> short allowlist — which keeps API keys out of the common case. Treat that as
+> hygiene, **not** containment: on Linux a child process can still recover the
+> parent's environment through `/proc/<ppid>/environ`. If a policy you do not
+> control can reach the socket, use `docker` mode.
 
 `local` mode refuses any task whose `task.toml` declares a policy it cannot
 enforce — `network_mode`, `cpus`/`memory_mb`, or an `[agent].user` — rather than

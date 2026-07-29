@@ -26,6 +26,7 @@ provide five primitives (boot, exec, read, write, upload). Two backends ship:
 
 from __future__ import annotations
 
+import base64
 import io
 import logging
 import os
@@ -207,12 +208,25 @@ class Sandbox(ABC):
         """
 
     @abstractmethod
-    def read_text(self, path: str) -> str | None:
-        """Read a text file, returning `None` when it does not exist."""
+    def read_text(self, path: str, user: str | None = None) -> str | None:
+        """Read a text file, returning `None` when it does not exist.
+
+        Args:
+            user (`str`, *optional*):
+                Read as this account. Agent reads must pass the task's
+                `[agent].user`, or a task that declared an unprivileged agent
+                would still read root-only files through this path.
+        """
 
     @abstractmethod
-    def write_text(self, path: str, content: str) -> None:
-        """Write a text file, creating parent directories as needed."""
+    def write_text(self, path: str, content: str, user: str | None = None) -> None:
+        """Write a text file, creating parent directories as needed.
+
+        Args:
+            user (`str`, *optional*):
+                Write as this account, so an unprivileged agent cannot create
+                files it could not have created with `exec`.
+        """
 
     @abstractmethod
     def upload_dir(self, source: Path, destination: str) -> None:
@@ -475,13 +489,15 @@ class LocalSandbox(Sandbox):
             )
         return ExecResult(completed.returncode, completed.stdout + completed.stderr)
 
-    def read_text(self, path: str) -> str | None:
+    def read_text(self, path: str, user: str | None = None) -> str | None:
+        del user  # _boot refuses tasks that declare one
         target = Path(path)
         if not target.is_file():
             return None
         return target.read_text(encoding="utf-8", errors="replace")
 
-    def write_text(self, path: str, content: str) -> None:
+    def write_text(self, path: str, content: str, user: str | None = None) -> None:
+        del user  # _boot refuses tasks that declare one
         target = Path(path)
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_text(content, encoding="utf-8")
@@ -606,11 +622,28 @@ class DockerSandbox(Sandbox):
             timed_out=status == TIMEOUT_EXIT_CODE,
         )
 
-    def read_text(self, path: str) -> str | None:
-        result = self.exec(f"cat {_quote(path)}", timeout_s=60.0)
+    def read_text(self, path: str, user: str | None = None) -> str | None:
+        result = self.exec(f"cat {_quote(path)}", timeout_s=60.0, user=user)
         return result.output if result.ok else None
 
-    def write_text(self, path: str, content: str) -> None:
+    def write_text(self, path: str, content: str, user: str | None = None) -> None:
+        if user:
+            # put_archive extracts as root, which would let an unprivileged
+            # agent create root-owned files — and, through a symlink out of the
+            # working directory, create them anywhere. Write through the shell
+            # as the declared user instead, so the kernel applies its
+            # permissions. Base64 keeps arbitrary bytes off the command line.
+            payload = base64.b64encode(content.encode("utf-8")).decode("ascii")
+            result = self.exec(
+                f"printf %s {_quote(payload)} | base64 -d > {_quote(path)}",
+                timeout_s=120.0,
+                user=user,
+            )
+            if not result.ok:
+                raise SandboxError(
+                    f"could not write {path} as {user!r}: {result.output.strip()}"
+                )
+            return
         container = self._require_container()
         directory, name = posixpath.split(path)
         self.mkdirs(directory)
@@ -748,10 +781,15 @@ def _container_limits(task: HarborTask) -> dict[str, object]:
     if limits.memory_mb is not None:
         kwargs["mem_limit"] = f"{limits.memory_mb}m"
     if limits.storage_mb is not None:
-        # Needs a quota-capable storage driver; where one is absent Docker
-        # rejects the container outright, which is the fail-closed outcome we
-        # want rather than a silently unbounded filesystem.
-        kwargs["storage_opt"] = {"size": f"{limits.storage_mb}m"}
+        # Docker accepts `storage_opt` on drivers that cannot honour it — the
+        # option lands in HostConfig and is then simply not enforced, which is
+        # the worst outcome: a task believes it is capped and is not. Refuse it
+        # rather than pretend.
+        raise SandboxError(
+            f"task {task.task_id!r} requests storage_mb={limits.storage_mb}; this "
+            "backend cannot guarantee a filesystem quota (Docker silently ignores "
+            "storage_opt on drivers without quota support). Grade it with `harbor run`."
+        )
     if limits.gpus is not None:
         raise SandboxError(
             f"task {task.task_id!r} requests {limits.gpus} GPU(s); this backend does "

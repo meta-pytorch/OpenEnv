@@ -89,7 +89,13 @@ def main() -> int:
     parser.add_argument("--limit", type=int, default=None, help="stop after N tasks")
     args = parser.parse_args()
 
-    env = HarborEnvironment(tasks=args.tasks, mode=args.mode)
+    env = HarborEnvironment(
+        tasks=args.tasks,
+        mode=args.mode,
+        # This script *is* the orchestration: it must be able to solve and
+        # grade even where the serving deployment disables those controls.
+        allow_control_actions=True,
+    )
     task_ids = env.catalog.task_ids()[: args.limit]
     if not task_ids:
         print(f"no Harbor tasks found under {env.catalog.root}", file=sys.stderr)

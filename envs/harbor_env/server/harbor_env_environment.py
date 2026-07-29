@@ -217,7 +217,6 @@ class HarborEnvironment(Environment[HarborAction, HarborObservation, HarborState
             episode_id=episode_id or str(uuid4()),
             task_id=task.task_id,
             task_name=task.name,
-            task_path=str(task.path),
             workdir=sandbox.paths.workdir,
             mode=sandbox.mode,
         )
@@ -300,9 +299,15 @@ class HarborEnvironment(Environment[HarborAction, HarborObservation, HarborState
         del task
         if not action.command.strip():
             raise ValueError("exec requires a non-empty command")
+        # `timeout_s` arrives on the wire, so it is policy-controlled. Treat the
+        # configured value as a ceiling rather than a default: an unbounded
+        # command would otherwise pin a training slot indefinitely.
+        timeout_s = min(
+            action.timeout_s or self.command_timeout_s, self.command_timeout_s
+        )
         result = sandbox.exec(
             action.command,
-            timeout_s=action.timeout_s or self.command_timeout_s,
+            timeout_s=timeout_s,
             env=sandbox.task_env,
             user=sandbox.agent_user,
             agent_visible=True,
@@ -314,7 +319,7 @@ class HarborEnvironment(Environment[HarborAction, HarborObservation, HarborState
     ) -> HarborObservation:
         del task
         target = resolve_within(sandbox.paths.workdir, action.path)
-        content = sandbox.read_text(target)
+        content = sandbox.read_text(target, user=sandbox.agent_user)
         if content is None:
             raise FileNotFoundError(f"no such file: {action.path}")
         return self._observe("read", output=content)
@@ -324,7 +329,7 @@ class HarborEnvironment(Environment[HarborAction, HarborObservation, HarborState
     ) -> HarborObservation:
         del task
         target = resolve_within(sandbox.paths.workdir, action.path)
-        sandbox.write_text(target, action.content)
+        sandbox.write_text(target, action.content, user=sandbox.agent_user)
         return self._observe(
             "write", output=f"wrote {len(action.content)} bytes to {action.path}"
         )
@@ -334,10 +339,15 @@ class HarborEnvironment(Environment[HarborAction, HarborObservation, HarborState
     ) -> HarborObservation:
         """Run the task's verifier and forward its reward. Ends the episode."""
         del action
+        # Terminate first. Staging puts the verifier's own files in the
+        # sandbox, so a failure anywhere below must still end the episode —
+        # otherwise a task whose verifier user is wrong leaves /tests readable
+        # with the episode still running.
+        self._state.evaluated = True
+
         result = sandbox.run_verifier(task)
         report = sandbox.reward_report()
 
-        self._state.evaluated = True
         self._state.reward = report.value
         self._state.last_exit_code = result.exit_code
 

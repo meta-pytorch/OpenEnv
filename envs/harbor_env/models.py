@@ -118,8 +118,6 @@ class HarborState(State):
             Identifier of the running task, empty before the first `reset()`.
         task_name (`str`):
             The task's `[task].name`.
-        task_path (`str`):
-            Task directory on the server.
         workdir (`str`):
             Working directory inside the sandbox.
         mode (`str`):
@@ -141,7 +139,6 @@ class HarborState(State):
 
     task_id: str = Field(default="")
     task_name: str = Field(default="")
-    task_path: str = Field(default="")
     workdir: str = Field(default="")
     mode: str = Field(default="")
     available_tasks: list[str] = Field(default_factory=list)
