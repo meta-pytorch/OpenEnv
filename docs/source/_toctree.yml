@@ -129,6 +129,8 @@
     title: Agent World Model
   - local: environments/opencode
     title: OpenCode
+  - local: environments/pelican_svg
+    title: Pelican SVG
   - local: environments/sophistry_bench_sprint
     title: Sophistry Bench Sprint
   title: Environments
