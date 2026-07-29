@@ -140,6 +140,26 @@ class LatexOCRRubric:
         target_canon = _strip_all_whitespace(target_norm)
 
         exact = pred_canon == target_canon
+
+        # Length guard: penalize predictions whose RAW length (measured before whitespace is
+        # stripped, so padding counts) far exceeds the target's. Compute this before edit
+        # distance so inputs whose reward is already guaranteed to be zero cannot trigger
+        # quadratic work.
+        length_factor = 1.0
+        if self.overlong_ratio > 0:
+            allowed = max(self.overlong_floor, self.overlong_ratio * len(target_norm))
+            if len(raw) > allowed:
+                over = (len(raw) - allowed) / allowed
+                length_factor = max(0.0, 1.0 - over)
+
+        if length_factor == 0.0:
+            return GradeResult(
+                reward=0.0,
+                exact_match=exact,
+                char_error_rate=0.0 if exact else 1.0,
+                length_factor=0.0,
+            )
+
         if not target_canon:
             cer = 0.0 if not pred_canon else 1.0
         else:
@@ -150,17 +170,7 @@ class LatexOCRRubric:
         reward = (1.0 - self.exact_weight) * similarity + self.exact_weight * float(
             exact
         )
-
-        # Length guard: penalize predictions whose RAW length (measured before whitespace is
-        # stripped, so padding counts) far exceeds the target's. Reward decays linearly with
-        # the excess and reaches 0 at twice the allowance.
-        length_factor = 1.0
-        if self.overlong_ratio > 0:
-            allowed = max(self.overlong_floor, self.overlong_ratio * len(target_norm))
-            if len(raw) > allowed:
-                over = (len(raw) - allowed) / allowed
-                length_factor = max(0.0, 1.0 - over)
-                reward *= length_factor
+        reward *= length_factor
 
         return GradeResult(
             reward=round(reward, 6),

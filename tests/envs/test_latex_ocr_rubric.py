@@ -133,3 +133,17 @@ def test_length_guard_can_be_disabled():
     g = rubric.LatexOCRRubric(overlong_ratio=0).grade(target + "\n" * 500, target)
     assert g.length_factor == pytest.approx(1.0)  # guard off -> old (hackable) behavior
     assert g.reward == pytest.approx(1.0)
+
+
+def test_zero_length_factor_skips_edit_distance(monkeypatch):
+    def unexpected_edit_distance(*_args):
+        raise AssertionError("edit distance must not run after reward reaches zero")
+
+    monkeypatch.setattr(rubric, "levenshtein", unexpected_edit_distance)
+    g = rubric.LatexOCRRubric(overlong_ratio=1.0, overlong_floor=1).grade(
+        "x" * 100,
+        "y",
+    )
+
+    assert g.reward == pytest.approx(0.0)
+    assert g.length_factor == pytest.approx(0.0)

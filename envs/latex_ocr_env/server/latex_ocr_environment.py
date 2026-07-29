@@ -163,7 +163,13 @@ class LatexOCREnvironment(Environment):
     def list_splits(self) -> list[str]:
         return _configured_splits()
 
+    def _validate_split(self, split: str) -> None:
+        splits = self.list_splits()
+        if split not in splits:
+            raise ValueError(f"unknown split {split!r}; configured splits: {splits}")
+
     def num_tasks(self, split: str) -> int:
+        self._validate_split(split)
         # Honest denominator in both modes; stream reads metadata only.
         if self.mode == "stream":
             total = _split_total(self.dataset_name, split)
@@ -172,19 +178,18 @@ class LatexOCREnvironment(Environment):
         return len(_load_split(self.dataset_name, split))
 
     def list_tasks(self, split: str) -> list[dict[str, Any]]:
-        n = self.num_tasks(split)
+        self._validate_split(split)
         if self.mode == "stream":
-            # Positional stubs only; do not enumerate huge splits.
-            preview = min(n if n > 0 else 0, 100)
-            return [
-                {"id": f"{split}-{i}", "index": i, "sequential": True}
-                for i in range(preview)
-            ]
+            raise NotImplementedError(
+                "list_tasks is unavailable in stream mode; use num_tasks and "
+                "get_task_range for bounded discovery"
+            )
+        n = self.num_tasks(split)
         return [{"id": f"{split}-{i}", "index": i} for i in range(n)]
 
     def get_task(self, split: str, index: int) -> dict[str, Any]:
         n = self.num_tasks(split)
-        if index < 0 or (n > 0 and index >= n):
+        if index < 0 or (n >= 0 and index >= n):
             raise IndexError(f"index {index} out of range for split {split} (n={n})")
         task = {"id": f"{split}-{index}", "index": index, "split": split}
         if self.mode == "stream":
@@ -196,22 +201,31 @@ class LatexOCREnvironment(Environment):
         self, split: str, start: int | None = None, stop: int | None = None
     ) -> list[dict[str, Any]]:
         n = self.num_tasks(split)
-        start = 0 if start is None else start
-        stop = n if stop is None else (min(stop, n) if n > 0 else stop)
-        # In stream mode `n` comes from metadata and can be enormous; cap the number
-        # of generated stubs so an unbounded range can't OOM the process.
+        if n >= 0:
+            start, stop, _ = slice(start, stop).indices(n)
+        else:
+            if (start is not None and start < 0) or (stop is not None and stop < 0):
+                raise ValueError(
+                    "negative task range bounds require a known split size"
+                )
+            if stop is None:
+                raise ValueError("stop is required when the split size is unknown")
+            start = 0 if start is None else start
+
+        # In stream mode `n` comes from metadata and can be enormous. Reject
+        # oversized requests rather than silently returning an incomplete slice.
         if self.mode == "stream" and stop - start > _STREAM_RANGE_CAP:
-            logger.warning(
-                "get_task_range: capping stream range %d..%d to %d stubs",
-                start,
-                stop,
-                _STREAM_RANGE_CAP,
+            raise ValueError(
+                f"stream task ranges may contain at most {_STREAM_RANGE_CAP} tasks"
             )
-            stop = start + _STREAM_RANGE_CAP
-        return [
+        tasks = [
             {"id": f"{split}-{i}", "index": i, "split": split}
             for i in range(start, stop)
         ]
+        if self.mode == "stream":
+            for task in tasks:
+                task["sequential"] = True
+        return tasks
 
     # ------------------------------------------------------------------ #
     # Episode                                                             #
@@ -224,10 +238,7 @@ class LatexOCREnvironment(Environment):
         episode_id: str | None = None,
         **kwargs: Any,
     ) -> LatexOCRObservation:
-        if split not in self.list_splits():
-            raise ValueError(
-                f"unknown split {split!r}; configured splits: {self.list_splits()}"
-            )
+        self._validate_split(split)
         self._done = False
         self._state = State(episode_id=episode_id or str(uuid4()), step_count=0)
         if self.mode == "stream":
