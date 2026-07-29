@@ -357,6 +357,43 @@ class Sandbox(ABC):
                 f"{result.output.strip()}"
             )
 
+    def resolve_agent_path(self, relative: str) -> str:
+        """Resolve an agent-supplied path, refusing anything outside the workdir.
+
+        Two checks, because either alone is insufficient:
+
+        1. [`resolve_within`] rejects absolute paths and lexical `..` escapes.
+        2. The result is then canonicalized *on the sandbox's own filesystem*,
+           which is the only way to catch a symlink the agent planted with
+           `exec`. Without this, `ln -s /tests t` followed by
+           `read path="t/test.sh"` walks straight out of the working directory
+           and reads the grader.
+
+        Raises:
+            `ValueError`: If the path escapes the working directory, before or
+                after symlink resolution.
+        """
+        target = resolve_within(self.paths.workdir, relative)
+        real = self.real_path(target)
+        # Canonicalize the base as well: the working directory itself often
+        # sits behind a link (macOS `/var` -> `/private/var`), and comparing a
+        # resolved path against an unresolved base would reject every legitimate
+        # access.
+        base = self.real_path(self.paths.workdir)
+        if real != base and not real.startswith(base.rstrip("/") + "/"):
+            raise ValueError(
+                f"path escapes the working directory through a link: {relative!r}"
+            )
+        return real
+
+    @abstractmethod
+    def real_path(self, path: str) -> str:
+        """Canonicalize `path` on the sandbox's filesystem, resolving symlinks.
+
+        The final component need not exist — a `write` legitimately creates it —
+        but every parent must, so a link in the middle cannot hide.
+        """
+
     def mkdirs(self, *paths: str) -> None:
         """Create directories inside the sandbox.
 
@@ -441,6 +478,18 @@ class LocalSandbox(Sandbox):
                 "own user with the host's network. Run the server with "
                 "HARBOR_MODE=docker."
             )
+        if task.docker_image:
+            # The task ships its starting state as seed files, so the state is
+            # reproducible here — but the image it named supplies the toolchain,
+            # and the host's may differ. Say so rather than let a version skew
+            # surface as a mis-graded episode.
+            logger.warning(
+                "task %s declares [environment].docker_image = %s; the local backend "
+                "runs on the host toolchain instead, so results may differ from "
+                "`harbor run`. Use HARBOR_MODE=docker for a faithful result.",
+                task.task_id,
+                task.docker_image,
+            )
 
         self._root.mkdir(parents=True, exist_ok=True)
         return SandboxPaths(
@@ -488,6 +537,14 @@ class LocalSandbox(Sandbox):
                 timed_out=True,
             )
         return ExecResult(completed.returncode, completed.stdout + completed.stderr)
+
+    def real_path(self, path: str) -> str:
+        target = Path(path)
+        if target.exists():
+            return str(target.resolve())
+        # A `write` may be creating the final component; resolving the parent
+        # still catches a symlinked directory on the way there.
+        return str(target.parent.resolve() / target.name)
 
     def read_text(self, path: str, user: str | None = None) -> str | None:
         del user  # _boot refuses tasks that declare one
@@ -621,6 +678,20 @@ class DockerSandbox(Sandbox):
             output=text,
             timed_out=status == TIMEOUT_EXIT_CODE,
         )
+
+    def real_path(self, path: str) -> str:
+        # `readlink -m` canonicalizes every component and, unlike `-f`, does not
+        # require any of them to exist — a `write` legitimately creates nested
+        # directories. Symlinks that *do* exist are still resolved, which is the
+        # only part that matters for confinement.
+        result = self.exec(f"readlink -m {_quote(path)}", timeout_s=60.0)
+        canonical = result.output.strip()
+        if not result.ok or not canonical:
+            raise SandboxError(
+                f"could not canonicalize {path!r} inside the sandbox; refusing the "
+                "action rather than trusting an unresolved path"
+            )
+        return canonical
 
     def read_text(self, path: str, user: str | None = None) -> str | None:
         result = self.exec(f"cat {_quote(path)}", timeout_s=60.0, user=user)

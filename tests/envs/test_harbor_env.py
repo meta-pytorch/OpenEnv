@@ -1100,6 +1100,9 @@ class _RecordingSandbox(Sandbox):
         if user:
             self.chowned.extend((user, path) for path in paths)
 
+    def real_path(self, path: str) -> str:
+        return path
+
     def read_text(self, path: str, user: str | None = None) -> str | None:
         self.read_users.append(user)
         return "contents"
@@ -1213,3 +1216,60 @@ def test_agent_reads_and_writes_run_as_the_declared_user() -> None:
 
     assert sandbox.read_users == ["nobody"]
     assert sandbox.write_users == ["nobody"]
+
+
+def test_symlinks_cannot_walk_read_write_out_of_the_workdir(
+    env: HarborEnvironment,
+) -> None:
+    """`resolve_within` is lexical, so it cannot see a link the agent planted.
+
+    `exec ln -s /tests t` followed by `read path="t/test.sh"` would otherwise
+    walk straight out of the working directory and read the grader.
+    """
+    env.reset(task_id=EXAMPLE_TASK_ID)
+    tests_dir = Path(env._sandbox.paths.tests)
+    tests_dir.mkdir(parents=True, exist_ok=True)
+    (tests_dir / "grade.py").write_text("# grader internals\n", encoding="utf-8")
+    env.step(HarborAction(action_type="exec", command=f"ln -sfn {tests_dir} link"))
+
+    leaked = env.step(HarborAction(action_type="read", path="link/grade.py"))
+    planted = env.step(
+        HarborAction(action_type="write", path="link/test.sh", content="exit 0")
+    )
+
+    assert not leaked.success and "escapes" in leaked.error
+    assert not planted.success and "escapes" in planted.error
+    assert not (tests_dir / "test.sh").exists()
+
+
+def test_legitimate_paths_survive_symlink_canonicalization(
+    env: HarborEnvironment,
+) -> None:
+    """The working directory itself often sits behind a link.
+
+    On macOS it is under `/var`, which is a symlink to `/private/var`; comparing
+    a resolved path against an unresolved base would reject everything.
+    """
+    env.reset(task_id=EXAMPLE_TASK_ID)
+
+    assert env.step(HarborAction(action_type="read", path="stats.py")).success
+    # A write may legitimately create directories that do not exist yet.
+    assert env.step(
+        HarborAction(action_type="write", path="pkg/mod/new.py", content="x = 1\n")
+    ).success
+    assert env.step(HarborAction(action_type="read", path="pkg/mod/new.py")).success
+
+
+def test_local_mode_flags_a_declared_image_it_is_not_providing(
+    env: HarborEnvironment,
+) -> None:
+    """A seed-file task is reproducible locally, but its toolchain may not be.
+
+    `fix-sum-bug` declares `docker_image = "python:3.12-slim"`; running it on
+    the host's Python is close enough to be useful and different enough to
+    mis-grade, so the mismatch is surfaced rather than left silent.
+    """
+    observation = env.reset(task_id=EXAMPLE_TASK_ID)
+
+    assert "python:3.12-slim" in observation.info["toolchain_warning"]
+    assert "HARBOR_MODE=docker" in observation.info["toolchain_warning"]

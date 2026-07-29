@@ -36,7 +36,6 @@ try:
     from harbor_env.server.sandbox import (
         create_sandbox,
         ExecResult,
-        resolve_within,
         Sandbox,
         SandboxError,
     )
@@ -52,7 +51,6 @@ except ImportError:
     from sandbox import (
         create_sandbox,
         ExecResult,
-        resolve_within,
         Sandbox,
         SandboxError,
     )
@@ -222,16 +220,20 @@ class HarborEnvironment(Environment[HarborAction, HarborObservation, HarborState
         )
         self._refresh_catalog_state()
 
-        return self._observe(
-            action_type="reset",
-            output="",
-            info={
-                "task": task.summary(),
-                # Agent-visible paths only — the observation reaches the policy,
-                # and the verifier/oracle directories are not its business.
-                "paths": sandbox.paths.as_env(agent_visible=True),
-            },
-        )
+        info: dict[str, Any] = {
+            "task": task.summary(),
+            # Agent-visible paths only — the observation reaches the policy,
+            # and the verifier/oracle directories are not its business.
+            "paths": sandbox.paths.as_env(agent_visible=True),
+        }
+        if sandbox.mode == "local" and task.docker_image:
+            # Visible to the training run, not just the server log: the task
+            # named a toolchain this backend is not providing.
+            info["toolchain_warning"] = (
+                f"task declares docker_image={task.docker_image!r} but is running on "
+                "the host toolchain; use HARBOR_MODE=docker for a faithful result"
+            )
+        return self._observe(action_type="reset", output="", info=info)
 
     def step(
         self,
@@ -318,7 +320,7 @@ class HarborEnvironment(Environment[HarborAction, HarborObservation, HarborState
         self, action: HarborAction, sandbox: Sandbox, task: HarborTask
     ) -> HarborObservation:
         del task
-        target = resolve_within(sandbox.paths.workdir, action.path)
+        target = sandbox.resolve_agent_path(action.path)
         content = sandbox.read_text(target, user=sandbox.agent_user)
         if content is None:
             raise FileNotFoundError(f"no such file: {action.path}")
@@ -328,7 +330,7 @@ class HarborEnvironment(Environment[HarborAction, HarborObservation, HarborState
         self, action: HarborAction, sandbox: Sandbox, task: HarborTask
     ) -> HarborObservation:
         del task
-        target = resolve_within(sandbox.paths.workdir, action.path)
+        target = sandbox.resolve_agent_path(action.path)
         sandbox.write_text(target, action.content, user=sandbox.agent_user)
         return self._observe(
             "write", output=f"wrote {len(action.content)} bytes to {action.path}"
