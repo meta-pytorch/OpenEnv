@@ -3,10 +3,6 @@
 # /// script
 # requires-python = ">=3.10"
 # dependencies = [
-#     # Plain `openenv`, not `openenv[core]`. That extra does not exist: the
-#     # published extras are daytona, aca, modal and inspect. uv only warns and
-#     # installs the base package, which is why the mistake survives in other
-#     # examples, but the warning is noise in every job log.
 #     "openenv",
 #     "trl",
 #     "trackio",
