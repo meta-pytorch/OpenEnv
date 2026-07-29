@@ -27,6 +27,8 @@ from harbor_env import (
 )
 from harbor_env.server import (
     DockerSandbox,
+    ExecResult,
+    Sandbox,
     HarborEnvironment,
     HarborTask,
     LocalSandbox,
@@ -1040,3 +1042,57 @@ def test_planted_files_do_not_survive_into_the_staged_verifier(tmp_path: Path) -
         assert not (tests_dir / "planted.txt").exists()
     finally:
         environment.close()
+
+
+def test_declared_user_gets_ownership_of_what_it_must_write() -> None:
+    """`[agent].user` is useless if the agent cannot write its own workdir.
+
+    The Harbor directories are created by the image's default account, so a
+    non-root phase inherits a tree it cannot touch — `write` fails and the
+    verifier cannot save its reward. Ownership is handed over explicitly.
+    """
+    task = replace(
+        HarborTask.load(BUNDLED_TASKS_DIR / EXAMPLE_TASK_ID),
+        agent_user="nobody",
+        verifier_user="nobody",
+    )
+    sandbox = _RecordingSandbox()
+
+    sandbox.start(task)
+    sandbox.run_verifier(task)
+
+    assert ("nobody", sandbox.paths.workdir) in sandbox.chowned
+    assert ("nobody", sandbox.paths.logs_verifier) in sandbox.chowned
+
+
+class _RecordingSandbox(Sandbox):
+    """A sandbox that records the calls the phases make, without executing."""
+
+    mode = "recording"
+
+    def __init__(self) -> None:
+        self.paths = SandboxPaths(workdir="/app")
+        self.task_env = {}
+        self.chowned: list[tuple[str, str]] = []
+
+    def _boot(self, task: HarborTask) -> SandboxPaths:
+        return self.paths
+
+    def exec(self, command, *, timeout_s, env=None, workdir=None, user=None, **kw):
+        return ExecResult(0, "")
+
+    def chown(self, user: str | None, *paths: str) -> None:
+        if user:
+            self.chowned.extend((user, path) for path in paths)
+
+    def read_text(self, path: str) -> str | None:
+        return None
+
+    def write_text(self, path: str, content: str) -> None:
+        return None
+
+    def upload_dir(self, source, destination: str) -> None:
+        return None
+
+    def close(self) -> None:
+        return None

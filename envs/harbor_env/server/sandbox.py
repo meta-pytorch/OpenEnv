@@ -235,8 +235,14 @@ class Sandbox(ABC):
         self.agent_user = task.agent_user
         self.paths = self._boot(task)
         self.mkdirs(self.paths.workdir, self.paths.logs_verifier, self.paths.logs_agent)
+        # The directories above are created by the image's default user (root).
+        # A task that asks for `[agent].user` would otherwise get a working
+        # directory it cannot write to, which breaks every `write` action and
+        # any edit the agent makes.
+        self.chown(task.agent_user, self.paths.workdir, self.paths.logs_agent)
         if task.seed_files:
             self.upload_dir(task.environment_dir, self.paths.workdir)
+            self.chown(task.agent_user, self.paths.workdir)
 
     def stage_tests(self, task: HarborTask) -> None:
         """Copy `tests/` to `/tests`, as Harbor's harness does before verifying.
@@ -277,6 +283,9 @@ class Sandbox(ABC):
         )
         self.mkdirs(self.paths.logs_verifier)
         self.stage_tests(task)
+        # Same reason as the working directory: a `[verifier].user` that cannot
+        # write its reward file would make every task unscorable.
+        self.chown(task.verifier_user, self.paths.logs_verifier, self.paths.tests)
         script = posixpath.join(self.paths.tests, task.test_script.name)
         return self.exec(
             f"bash {_quote(script)}",
@@ -296,6 +305,7 @@ class Sandbox(ABC):
                 f"task {task.task_id!r} has no solution/solve.sh, so it has no oracle"
             )
         self.stage_solution(task)
+        self.chown(task.agent_user, self.paths.solution)
         script = posixpath.join(self.paths.solution, task.solve_script.name)
         return self.exec(
             f"bash {_quote(script)}",
@@ -314,6 +324,24 @@ class Sandbox(ABC):
         """Backend-specific hint for why a verifier produced no reward file."""
         del task
         return None
+
+    def chown(self, user: str | None, *paths: str) -> None:
+        """Hand `paths` to `user`, so a non-root phase can write to them.
+
+        A no-op when the task declares no user. Runs as the image's default
+        account, which is the only one able to change ownership.
+        """
+        if not user or not paths:
+            return
+        quoted = " ".join(_quote(path) for path in paths)
+        result = self.exec(
+            f"chown -R {_quote(user)} {quoted}", timeout_s=120.0, workdir="/"
+        )
+        if not result.ok:
+            raise SandboxError(
+                f"could not give {user!r} ownership of {list(paths)}: "
+                f"{result.output.strip()}"
+            )
 
     def mkdirs(self, *paths: str) -> None:
         """Create directories inside the sandbox.
@@ -720,6 +748,9 @@ def _container_limits(task: HarborTask) -> dict[str, object]:
     if limits.memory_mb is not None:
         kwargs["mem_limit"] = f"{limits.memory_mb}m"
     if limits.storage_mb is not None:
+        # Needs a quota-capable storage driver; where one is absent Docker
+        # rejects the container outright, which is the fail-closed outcome we
+        # want rather than a silently unbounded filesystem.
         kwargs["storage_opt"] = {"size": f"{limits.storage_mb}m"}
     if limits.gpus is not None:
         raise SandboxError(
