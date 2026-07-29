@@ -55,14 +55,20 @@ HARBOR_TASKS_DIR=./tasks HARBOR_MODE=docker           uv run --project envs/harb
 
 | Mode | How it runs | Use it for |
 |------|-------------|-----------|
-| `local` (default) | Subprocesses under a per-episode directory tree | Self-contained tasks; no Docker, so it works on Hugging Face Spaces |
-| `docker` | Inside the task's own image, files streamed over the Docker API | Everything — required for tasks whose starting state lives in an image |
+| `docker` (default) | Inside the task's own image, files streamed over the Docker API | Everything — and the only backend that can enforce a task's network, resource and user policies |
+| `local` | Subprocesses under a per-episode directory tree | Self-contained tasks on Docker-less hosts such as Hugging Face Spaces |
 
 > **`local` mode is a filesystem boundary, not a security boundary.** `exec`
-> runs shell commands as the server's own user with the server's own
-> environment, so a task or a policy can read whatever that user can and can
-> reach the network. Serve task sets you trust in `local` mode; use `docker`
-> mode for anything else.
+> runs shell commands as the server's own user, so a task or a policy can read
+> whatever that user can and can reach the network. It is opt-in for that
+> reason. The server's own environment is *not* passed through — only `PATH`,
+> `HOME` and a short allowlist — so API keys and Hub tokens held by the process
+> stay out of task commands. Tasks needing a secret declare it in
+> `[environment].env`.
+
+`local` mode refuses any task whose `task.toml` declares a policy it cannot
+enforce — `network_mode`, `cpus`/`memory_mb`, or an `[agent].user` — rather than
+running it unconstrained and reporting a score the task never sanctioned.
 
 `docker` mode needs the `docker` Python package. It ships in this environment's
 own dependencies, so `uv run --project envs/harbor_env server` already has it;
@@ -83,6 +89,24 @@ task 'pallets__click-2951' keeps its starting state in a container image
 (environment/Dockerfile), which the local backend cannot reproduce.
 Run the server with HARBOR_MODE=docker, or use a task that ships its files in environment/.
 ```
+
+## Task policies
+
+`task.toml` may constrain how a task runs. These are honoured in `docker` mode
+and cause `local` mode to refuse the task:
+
+| Declaration | Effect |
+|---|---|
+| `[environment].network_mode = "no-network"` | The container gets no network |
+| `[environment].cpus` / `memory_mb` / `storage_mb` | Real container limits |
+| `[environment].workdir` | Overrides the image's `WORKDIR` |
+| `[agent].user` / `[verifier].user` | That phase runs as the named account |
+| `network_mode = "allowlist"`, `gpus` | **Refused** — needs a filtering proxy / accelerators this backend does not provide. Grade with `harbor run`. |
+
+A task whose phases disagree (say a `public` agent and a `no-network` verifier)
+gets the **restrictive** setting for the whole episode: a container has one
+network, and resolving the conflict permissively would hand a sandboxed
+verifier the internet.
 
 ## The task format
 
@@ -145,8 +169,12 @@ poison a training run.
 `exec`, `read` and `write` are the agent's action space. `evaluate` and `solve`
 are training-orchestration controls: they decide when an episode ends and can
 hand over the answer, so they belong on the infrastructure side of OpenEnv's
-[dual API boundary](https://github.com/huggingface/OpenEnv/blob/main/rfcs/001-architecture.md)
-and are never exposed to the agent.
+[dual API boundary](https://github.com/huggingface/OpenEnv/blob/main/rfcs/001-architecture.md).
+Set `HARBOR_ALLOW_CONTROL_ACTIONS=0` to have the server refuse them outright,
+for deployments where a policy can reach the same socket.
+
+`evaluate` ends the episode. Every later action is refused and keeps reporting
+`done=True` — the episode never returns to a running state without `reset()`.
 
 `read` and `write` are confined to the working directory, so an agent cannot
 reach `/tests` or `/solution`. The verifier log directory is also cleared
@@ -219,7 +247,8 @@ A verifier that hardcodes `/logs/verifier` still works in `docker` mode; in
 | Variable | Default | Meaning |
 |----------|---------|---------|
 | `HARBOR_TASKS_DIR` | bundled examples | Task directory, or `hf://datasets/<org>/<name>[@rev]` |
-| `HARBOR_MODE` | `local` | `local` or `docker` |
+| `HARBOR_MODE` | `docker` | `docker` or `local` |
+| `HARBOR_ALLOW_CONTROL_ACTIONS` | `1` | Accept `evaluate`/`solve`; set `0` for agent-facing deployments |
 | `HARBOR_DEFAULT_TASK_ID` | — | Task used when `reset()` names none |
 | `HARBOR_COMMAND_TIMEOUT_S` | `120` | Timeout for agent `exec` actions |
 | `HARBOR_DEFAULT_IMAGE` | `python:3.12-slim` | Image for self-contained tasks in `docker` mode |
@@ -245,7 +274,7 @@ docker run --rm -p 8000:8000 \
 ```
 
 Hugging Face Spaces cannot run Docker-in-Docker, so a Space serves `local` mode
-and therefore self-contained tasks.
+and therefore self-contained tasks that declare no restrictive policies.
 
 ## Examples
 

@@ -77,6 +77,87 @@ class TaskFormatError(ValueError):
     """Raised when a directory is not a well-formed Harbor task."""
 
 
+#: Harbor's network policies, from `[environment].network_mode` and the
+#: per-phase `[agent]` / `[verifier]` overrides.
+NETWORK_NONE = "no-network"
+NETWORK_PUBLIC = "public"
+NETWORK_ALLOWLIST = "allowlist"
+
+_NETWORK_MODES = frozenset({NETWORK_NONE, NETWORK_PUBLIC, NETWORK_ALLOWLIST})
+
+
+@dataclass(frozen=True)
+class NetworkPolicy:
+    """What network a task's phases are allowed to reach.
+
+    Harbor declares a baseline in `[environment]` and lets `[agent]` and
+    `[verifier]` narrow it. A task that asks for `no-network` is usually
+    testing offline behaviour, so granting it the daemon's default bridge is
+    both a wrong result and an escape hatch.
+
+    Args:
+        baseline (`str`, *optional*, defaults to `"public"`):
+            `[environment].network_mode`.
+        agent (`str`, *optional*):
+            `[agent].network_mode`, when the task overrides the baseline.
+        verifier (`str`, *optional*):
+            `[verifier].network_mode`, when the task overrides the baseline.
+        allowed_hosts (`tuple[str, ...]`):
+            Hosts named by an `allowlist` policy.
+    """
+
+    baseline: str = NETWORK_PUBLIC
+    agent: str | None = None
+    verifier: str | None = None
+    allowed_hosts: tuple[str, ...] = ()
+
+    def for_phase(self, phase: str) -> str:
+        """The effective mode for `"agent"` or `"verifier"`."""
+        override = self.agent if phase == "agent" else self.verifier
+        return override or self.baseline
+
+    @property
+    def modes(self) -> frozenset[str]:
+        """Every mode this task can ask for, across all phases."""
+        return frozenset(
+            {self.for_phase("agent"), self.for_phase("verifier"), self.baseline}
+        )
+
+    @property
+    def restricted(self) -> bool:
+        """Whether any phase asks for something other than open internet."""
+        return bool(self.modes - {NETWORK_PUBLIC})
+
+
+@dataclass(frozen=True)
+class ResourceLimits:
+    """`[environment]` resource caps, as Harbor spells them.
+
+    Args:
+        cpus (`int`, *optional*):
+            `[environment].cpus`.
+        memory_mb (`int`, *optional*):
+            `[environment].memory_mb`.
+        storage_mb (`int`, *optional*):
+            `[environment].storage_mb`.
+        gpus (`int`, *optional*):
+            `[environment].gpus`.
+    """
+
+    cpus: int | None = None
+    memory_mb: int | None = None
+    storage_mb: int | None = None
+    gpus: int | None = None
+
+    @property
+    def declared(self) -> bool:
+        """Whether the task asked for any limit at all."""
+        return any(
+            value is not None
+            for value in (self.cpus, self.memory_mb, self.storage_mb, self.gpus)
+        )
+
+
 @dataclass(frozen=True)
 class HarborTask:
     """An immutable view of one Harbor task directory.
@@ -112,6 +193,17 @@ class HarborTask:
             `[environment].build_timeout_sec`.
         os_name (`str`):
             `[environment].os`. Only `"linux"` is supported here.
+        network ([`NetworkPolicy`]):
+            Baseline `[environment]` network policy, and the per-phase
+            `[agent]` / `[verifier]` overrides Harbor allows.
+        resources ([`ResourceLimits`]):
+            `[environment].cpus` / `memory_mb` / `storage_mb` / `gpus`.
+        agent_user (`str` or `None`):
+            `[agent].user` — the account agent commands run as.
+        verifier_user (`str` or `None`):
+            `[verifier].user` — the account the verifier runs as.
+        declared_workdir (`str` or `None`):
+            `[environment].workdir`, which overrides the image's `WORKDIR`.
     """
 
     task_id: str
@@ -128,6 +220,11 @@ class HarborTask:
     verifier_timeout_s: float = DEFAULT_VERIFIER_TIMEOUT_S
     build_timeout_s: float = DEFAULT_BUILD_TIMEOUT_S
     os_name: str = "linux"
+    network: NetworkPolicy = field(default_factory=lambda: NetworkPolicy())
+    resources: ResourceLimits = field(default_factory=lambda: ResourceLimits())
+    agent_user: str | None = None
+    verifier_user: str | None = None
+    declared_workdir: str | None = None
 
     # --- directory layout ---------------------------------------------------
 
@@ -273,16 +370,33 @@ class HarborTask:
                 environment.get("build_timeout_sec"), DEFAULT_BUILD_TIMEOUT_S
             ),
             os_name=os_name,
+            network=_network_policy(config, environment),
+            resources=ResourceLimits(
+                cpus=_positive_int(environment.get("cpus")),
+                memory_mb=_positive_int(environment.get("memory_mb")),
+                storage_mb=_positive_int(environment.get("storage_mb")),
+                gpus=_positive_int(environment.get("gpus")),
+            ),
+            agent_user=_user(_table(config, "agent").get("user")),
+            verifier_user=_user(_table(config, "verifier").get("user")),
+            declared_workdir=str(environment["workdir"])
+            if environment.get("workdir")
+            else None,
         )
 
     def summary(self) -> dict[str, Any]:
-        """A JSON-serializable digest, surfaced in observations and state."""
+        """A JSON-serializable digest, surfaced in observations and state.
+
+        Deliberately omits [`path`]: the observation reaches the agent, and
+        naming the task directory on the server would point straight at
+        `solution/` and `tests/`. [`HarborState.task_path`] still carries it for
+        training orchestration, which is on the infrastructure side.
+        """
         return {
             "task_id": self.task_id,
             "name": self.name,
             "description": self.description,
             "schema_version": self.schema_version,
-            "path": str(self.path),
             "needs_image": self.needs_image,
             "docker_image": self.docker_image,
             "has_verifier": self.test_script is not None,
@@ -453,6 +567,63 @@ def _str_map(value: Any) -> dict[str, str]:
 
 def _timeout(config: dict[str, Any], section: str, fallback: float) -> float:
     return _positive_float(_table(config, section).get("timeout_sec"), fallback)
+
+
+def _network_policy(
+    config: dict[str, Any], environment: dict[str, Any]
+) -> NetworkPolicy:
+    """Read the baseline policy plus the per-phase overrides Harbor allows.
+
+    `allow_internet` is Harbor's deprecated spelling; it is still honoured so
+    older tasks are not silently granted more network than they asked for.
+    """
+    baseline = _network_mode(environment.get("network_mode"))
+    if baseline is None:
+        allow_internet = environment.get("allow_internet")
+        if allow_internet is False:
+            baseline = NETWORK_NONE
+        else:
+            baseline = NETWORK_PUBLIC
+
+    hosts = environment.get("allowed_hosts")
+    allowed = tuple(str(h) for h in hosts) if isinstance(hosts, list) else ()
+    return NetworkPolicy(
+        baseline=baseline,
+        agent=_network_mode(_table(config, "agent").get("network_mode")),
+        verifier=_network_mode(_table(config, "verifier").get("network_mode")),
+        allowed_hosts=allowed,
+    )
+
+
+def _network_mode(value: Any) -> str | None:
+    """Normalize a declared mode, rejecting anything we do not understand.
+
+    An unrecognized mode must not silently degrade to `public` — that is the
+    exact failure this parsing exists to prevent.
+    """
+    if value is None:
+        return None
+    mode = str(value).strip().lower()
+    if mode not in _NETWORK_MODES:
+        raise TaskFormatError(
+            f"unknown network_mode {value!r}; expected one of {sorted(_NETWORK_MODES)}"
+        )
+    return mode
+
+
+def _user(value: Any) -> str | None:
+    """`[agent].user` / `[verifier].user`, which Harbor allows as a name or UID."""
+    if value is None or (isinstance(value, str) and not value.strip()):
+        return None
+    return str(value).strip()
+
+
+def _positive_int(value: Any) -> int | None:
+    try:
+        parsed = int(value)  # type: ignore[arg-type]
+    except (TypeError, ValueError):
+        return None
+    return parsed if parsed > 0 else None
 
 
 def _positive_float(value: Any, fallback: float) -> float:

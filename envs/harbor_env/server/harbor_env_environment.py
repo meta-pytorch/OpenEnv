@@ -27,7 +27,12 @@ from openenv.core.env_server.interfaces import Environment
 # Support both in-repo and standalone imports
 try:
     # In-repo imports (when running from OpenEnv repository)
-    from harbor_env.models import HarborAction, HarborObservation, HarborState
+    from harbor_env.models import (
+        CONTROL_ACTIONS,
+        HarborAction,
+        HarborObservation,
+        HarborState,
+    )
     from harbor_env.server.sandbox import (
         create_sandbox,
         ExecResult,
@@ -38,7 +43,12 @@ try:
     from harbor_env.server.task import HarborTask, resolve_task_source, TaskCatalog
 except ImportError:
     # Standalone imports (when environment is standalone with openenv from pip)
-    from models import HarborAction, HarborObservation, HarborState
+    from models import (
+        CONTROL_ACTIONS,
+        HarborAction,
+        HarborObservation,
+        HarborState,
+    )
     from sandbox import (
         create_sandbox,
         ExecResult,
@@ -53,9 +63,24 @@ logger = logging.getLogger(__name__)
 
 DEFAULT_COMMAND_TIMEOUT_S = 120.0
 
+#: Sandbox backend used when `HARBOR_MODE` is unset. Docker is the faithful
+#: backend and the only one that can enforce a task's network, resource and
+#: user policies, so it is the default; `local` is an explicit opt-in for
+#: Docker-less hosts such as Hugging Face Spaces.
+DEFAULT_MODE = "docker"
+
 #: Upper bound on how many task ids [`HarborState.available_tasks`] carries, so
 #: a catalog with thousands of tasks does not bloat every state response.
 MAX_LISTED_TASKS = 200
+
+
+def _env_flag(name: str, default: bool) -> bool:
+    """Read a boolean environment variable."""
+    raw = os.getenv(name)
+    if raw is None:
+        return default
+    return raw.strip().lower() not in {"0", "false", "no", "off", ""}
+
 
 _ActionHandler = Callable[[HarborAction, Sandbox, HarborTask], HarborObservation]
 
@@ -82,6 +107,13 @@ class HarborEnvironment(Environment[HarborAction, HarborObservation, HarborState
         command_timeout_s (`float`, *optional*, defaults to `120.0`):
             Timeout applied to agent `exec` actions. The verifier and the oracle
             instead use the timeouts declared in `task.toml`.
+        allow_control_actions (`bool`, *optional*, defaults to `True`):
+            Whether `evaluate` and `solve` are accepted. They are training
+            controls, not agent actions — set this to `False` (or
+            `HARBOR_ALLOW_CONTROL_ACTIONS=0`) when the same socket is reachable
+            by a policy, so the split is enforced by the server rather than by
+            convention. A run that disables them has no way to score itself, so
+            it is only useful for agent-facing deployments.
         sandbox_factory (`Callable[[str], Sandbox]`, *optional*):
             Builds the sandbox for a mode. Injected by tests; defaults to
             `sandbox.create_sandbox`.
@@ -107,11 +139,17 @@ class HarborEnvironment(Environment[HarborAction, HarborObservation, HarborState
         mode: str | None = None,
         default_task_id: str | None = None,
         command_timeout_s: float = DEFAULT_COMMAND_TIMEOUT_S,
+        allow_control_actions: bool | None = None,
         sandbox_factory: Callable[[str], Sandbox] | None = None,
     ) -> None:
         super().__init__()
-        self.mode = (mode or os.getenv("HARBOR_MODE") or "local").lower()
+        self.mode = (mode or os.getenv("HARBOR_MODE") or DEFAULT_MODE).lower()
         self.command_timeout_s = command_timeout_s
+        self.allow_control_actions = (
+            allow_control_actions
+            if allow_control_actions is not None
+            else _env_flag("HARBOR_ALLOW_CONTROL_ACTIONS", default=True)
+        )
         self.default_task_id = (
             default_task_id or os.getenv("HARBOR_DEFAULT_TASK_ID") or None
         )
@@ -188,7 +226,12 @@ class HarborEnvironment(Environment[HarborAction, HarborObservation, HarborState
         return self._observe(
             action_type="reset",
             output="",
-            info={"task": task.summary(), "paths": sandbox.paths.as_env()},
+            info={
+                "task": task.summary(),
+                # Agent-visible paths only — the observation reaches the policy,
+                # and the verifier/oracle directories are not its business.
+                "paths": sandbox.paths.as_env(agent_visible=True),
+            },
         )
 
     def step(
@@ -207,6 +250,20 @@ class HarborEnvironment(Environment[HarborAction, HarborObservation, HarborState
         self._state.last_action_type = action.action_type
 
         try:
+            if self._state.evaluated:
+                # `evaluate` ends the episode. Serving further actions would let
+                # a trainer keep stepping past a terminal state and, worse,
+                # report done=False after already reporting done=True.
+                raise SandboxError(
+                    "the episode ended when the verifier ran; call reset() to "
+                    "start another"
+                )
+            if action.action_type in CONTROL_ACTIONS and not self.allow_control_actions:
+                raise PermissionError(
+                    f"{action.action_type!r} is a training-orchestration control, not "
+                    "an agent action; the server was started with "
+                    "HARBOR_ALLOW_CONTROL_ACTIONS=0"
+                )
             sandbox, task = self._require_episode()
             return self._handlers[action.action_type](action, sandbox, task)
         except Exception as exc:
@@ -218,6 +275,9 @@ class HarborEnvironment(Environment[HarborAction, HarborObservation, HarborState
                 output="",
                 success=False,
                 error=str(exc),
+                # A terminated episode stays terminated — never walk done back.
+                done=self._state.evaluated,
+                reward=None,
             )
 
     @property
@@ -244,6 +304,8 @@ class HarborEnvironment(Environment[HarborAction, HarborObservation, HarborState
             action.command,
             timeout_s=action.timeout_s or self.command_timeout_s,
             env=sandbox.task_env,
+            user=sandbox.agent_user,
+            agent_visible=True,
         )
         return self._from_exec("exec", result)
 

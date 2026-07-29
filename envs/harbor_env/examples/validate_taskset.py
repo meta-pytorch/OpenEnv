@@ -30,6 +30,7 @@ from dataclasses import dataclass
 
 from harbor_env import HarborAction
 from harbor_env.server import HarborEnvironment
+from harbor_env.server.harbor_env_environment import DEFAULT_MODE
 
 
 #: A task whose oracle scores below this is treated as broken.
@@ -75,7 +76,16 @@ def main() -> int:
     parser.add_argument(
         "--tasks", default=None, help="task directory or hf://datasets/<org>/<name>"
     )
-    parser.add_argument("--mode", default="local", choices=["local", "docker"])
+    parser.add_argument(
+        "--mode",
+        default=DEFAULT_MODE,
+        choices=["docker", "local"],
+        help=(
+            f"sandbox backend (default: {DEFAULT_MODE}). `local` needs no Docker but "
+            "only runs self-contained tasks that declare no network, resource or user "
+            "policy."
+        ),
+    )
     parser.add_argument("--limit", type=int, default=None, help="stop after N tasks")
     args = parser.parse_args()
 

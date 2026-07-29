@@ -62,6 +62,9 @@ ENV ENABLE_WEB_INTERFACE=true
 
 # Point at your own task set with `-e HARBOR_TASKS_DIR=...`; the default serves
 # the bundled example task so the image is useful out of the box.
+# The library default is `docker`. Inside this image there is no daemon unless
+# the host socket is mounted, so the image ships `local` and the docs show the
+# `-e HARBOR_MODE=docker -v /var/run/docker.sock:...` invocation for real task sets.
 ENV HARBOR_MODE=local
 
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \

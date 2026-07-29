@@ -42,10 +42,14 @@ from pathlib import Path
 
 try:  # In-repo import (PYTHONPATH=src:envs)
     from harbor_env.server.reward import read_reward, RewardReport
-    from harbor_env.server.task import HarborTask
+    from harbor_env.server.task import (
+        HarborTask,
+        NETWORK_ALLOWLIST,
+        NETWORK_NONE,
+    )
 except ImportError:  # Standalone image layout
     from reward import read_reward, RewardReport
-    from task import HarborTask
+    from task import HarborTask, NETWORK_ALLOWLIST, NETWORK_NONE
 
 
 logger = logging.getLogger(__name__)
@@ -63,6 +67,29 @@ _ABSOLUTE_HARBOR_PATHS = re.compile(
 #: Substitutes `${VAR}` / `$VAR` in `[environment].env` values from the server's
 #: own environment, matching how `harbor run` resolves them.
 _ENV_REFERENCE = re.compile(r"\$\{(\w+)\}|\$(\w+)")
+
+
+#: Variables a subprocess genuinely needs to run. Everything else in the
+#: server's environment — API keys, Hub tokens, cloud credentials — is withheld
+#: from task commands, which are attacker-controlled input in every threat
+#: model that matters. A task that needs a secret declares it in
+#: `[environment].env`, which is resolved explicitly by `expand_env_refs`.
+_ENV_PASSTHROUGH = (
+    "PATH",
+    "HOME",
+    "LANG",
+    "LC_ALL",
+    "TERM",
+    "TMPDIR",
+    "SHELL",
+    "USER",
+    "SYSTEMROOT",
+)
+
+
+def _baseline_environ() -> dict[str, str]:
+    """The minimal environment a local subprocess starts from."""
+    return {name: os.environ[name] for name in _ENV_PASSTHROUGH if name in os.environ}
 
 
 class SandboxError(RuntimeError):
@@ -100,20 +127,32 @@ class SandboxPaths:
     def logs_agent(self) -> str:
         return posixpath.join(self.logs, "agent")
 
-    def as_env(self) -> dict[str, str]:
+    def as_env(self, *, agent_visible: bool = False) -> dict[str, str]:
         """Path layout as environment variables.
 
         Portable task scripts should prefer these over hardcoded absolute paths
         so the same `tests/test.sh` runs under `harbor run` and under
         [`LocalSandbox`]; `TEST_DIR` is included for Terminal-Bench lineage
         scripts that expect it.
+
+        Args:
+            agent_visible (`bool`, *optional*, defaults to `False`):
+                Return only the paths an agent legitimately needs. The verifier
+                and oracle directories are withheld: they are where the grading
+                logic and the answer live, and only the verifier and oracle
+                themselves need to be told where they are.
         """
-        return {
+        agent_paths = {
             "HARBOR_WORKDIR": self.workdir,
+            "HARBOR_AGENT_LOGS_DIR": self.logs_agent,
+        }
+        if agent_visible:
+            return agent_paths
+        return {
+            **agent_paths,
             "HARBOR_TESTS_DIR": self.tests,
             "HARBOR_SOLUTION_DIR": self.solution,
             "HARBOR_LOGS_DIR": self.logs_verifier,
-            "HARBOR_AGENT_LOGS_DIR": self.logs_agent,
             "TEST_DIR": self.tests,
         }
 
@@ -134,6 +173,10 @@ class Sandbox(ABC):
     #: Episode-wide variables from `[environment].env`, resolved by [`start`].
     task_env: dict[str, str]
 
+    #: Account agent commands run as, from `[agent].user`. `None` means the
+    #: image's own default.
+    agent_user: str | None = None
+
     # --- backend primitives -------------------------------------------------
 
     @abstractmethod
@@ -148,8 +191,20 @@ class Sandbox(ABC):
         timeout_s: float,
         env: dict[str, str] | None = None,
         workdir: str | None = None,
+        user: str | None = None,
+        agent_visible: bool = False,
     ) -> ExecResult:
-        """Run `command` through `bash` and return its merged output."""
+        """Run `command` through `bash` and return its merged output.
+
+        Args:
+            agent_visible (`bool`, *optional*, defaults to `False`):
+                Whether this command is the agent's. Agent commands are not told
+                where the verifier and oracle directories live.
+            user (`str`, *optional*):
+                Account to run as, from `[agent].user` / `[verifier].user`.
+                Backends that cannot switch user must reject such tasks in
+                [`_boot`] rather than ignore this.
+        """
 
     @abstractmethod
     def read_text(self, path: str) -> str | None:
@@ -177,6 +232,7 @@ class Sandbox(ABC):
         staged here — see [`stage_tests`] and [`stage_solution`].
         """
         self.task_env = expand_env_refs(task.environment_env)
+        self.agent_user = task.agent_user
         self.paths = self._boot(task)
         self.mkdirs(self.paths.workdir, self.paths.logs_verifier, self.paths.logs_agent)
         if task.seed_files:
@@ -186,15 +242,22 @@ class Sandbox(ABC):
         """Copy `tests/` to `/tests`, as Harbor's harness does before verifying.
 
         Staging happens at verification time rather than at reset so the agent
-        never sees the verifier while it is working.
+        never sees the verifier while it is working. The destination is cleared
+        first: the agent shares the filesystem and could otherwise pre-create
+        files there that the real verifier would then read.
         """
         if task.tests_dir.is_dir():
-            self.upload_dir(task.tests_dir, self.paths.tests)
+            self._replace_dir(task.tests_dir, self.paths.tests)
 
     def stage_solution(self, task: HarborTask) -> None:
         """Copy `solution/` to `/solution`, as Harbor's oracle agent does."""
         if task.solution_dir.is_dir():
-            self.upload_dir(task.solution_dir, self.paths.solution)
+            self._replace_dir(task.solution_dir, self.paths.solution)
+
+    def _replace_dir(self, source: Path, destination: str) -> None:
+        """Upload `source` over a freshly emptied `destination`."""
+        self.exec(f"rm -rf {_quote(destination)}", timeout_s=60.0, workdir="/")
+        self.upload_dir(source, destination)
 
     def run_verifier(self, task: HarborTask) -> ExecResult:
         """Stage `tests/` and run `tests/test.sh`.
@@ -219,6 +282,7 @@ class Sandbox(ABC):
             f"bash {_quote(script)}",
             timeout_s=task.verifier_timeout_s,
             env={**self.task_env, **expand_env_refs(task.verifier_env)},
+            user=task.verifier_user,
         )
 
     def run_solution(self, task: HarborTask) -> ExecResult:
@@ -237,6 +301,7 @@ class Sandbox(ABC):
             f"bash {_quote(script)}",
             timeout_s=task.agent_timeout_s,
             env=self.task_env,
+            user=task.agent_user,
         )
 
     def reward_report(self) -> RewardReport:
@@ -313,6 +378,28 @@ class LocalSandbox(Sandbox):
                 "Run the server with HARBOR_MODE=docker, or use a task that ships its "
                 "files in environment/."
             )
+        # Fail closed on anything this backend cannot actually enforce. A task
+        # that asked for no-network, a CPU cap or a dedicated user has made a
+        # statement about how it must be graded; running it anyway under the
+        # server's own account would quietly produce a result the task never
+        # sanctioned.
+        unenforceable: list[str] = []
+        if task.network.restricted:
+            unenforceable.append(
+                f"network_mode={sorted(task.network.modes - {'public'})}"
+            )
+        if task.resources.declared:
+            unenforceable.append("resource limits")
+        if task.agent_user or task.verifier_user:
+            unenforceable.append("a declared user")
+        if unenforceable:
+            raise SandboxError(
+                f"task {task.task_id!r} declares {', '.join(unenforceable)}, which the "
+                "local backend cannot enforce — it runs subprocesses as the server's "
+                "own user with the host's network. Run the server with "
+                "HARBOR_MODE=docker."
+            )
+
         self._root.mkdir(parents=True, exist_ok=True)
         return SandboxPaths(
             workdir=str(self._root / "workspace"),
@@ -328,11 +415,18 @@ class LocalSandbox(Sandbox):
         timeout_s: float,
         env: dict[str, str] | None = None,
         workdir: str | None = None,
+        user: str | None = None,
+        agent_visible: bool = False,
     ) -> ExecResult:
+        if user:  # pragma: no cover - _boot rejects these tasks up front
+            raise SandboxError(
+                "the local backend cannot run commands as another user; "
+                "use HARBOR_MODE=docker"
+            )
         cwd = Path(workdir or self.paths.workdir)
         cwd.mkdir(parents=True, exist_ok=True)
-        process_env = dict(os.environ)
-        process_env.update(self.paths.as_env())
+        process_env = _baseline_environ()
+        process_env.update(self.paths.as_env(agent_visible=agent_visible))
         process_env.update(env or {})
         # Keep the task's tree free of interpreter droppings.
         process_env.setdefault("PYTHONDONTWRITEBYTECODE", "1")
@@ -430,6 +524,7 @@ class DockerSandbox(Sandbox):
         self._container = None
         self._image = ""
         self._has_timeout: bool | None = None
+        self._agent_user: str | None = None
 
     @property
     def image(self) -> str:
@@ -446,8 +541,12 @@ class DockerSandbox(Sandbox):
             environment=dict(self.task_env),
             labels={"openenv.env": "harbor_env", "openenv.task": task.task_id},
             auto_remove=False,
+            **_container_limits(task),
         )
-        return SandboxPaths(workdir=self._image_workdir(client))
+        self._agent_user = task.agent_user
+        return SandboxPaths(
+            workdir=task.declared_workdir or self._image_workdir(client)
+        )
 
     def exec(
         self,
@@ -456,15 +555,18 @@ class DockerSandbox(Sandbox):
         timeout_s: float,
         env: dict[str, str] | None = None,
         workdir: str | None = None,
+        user: str | None = None,
+        agent_visible: bool = False,
     ) -> ExecResult:
         container = self._require_container()
-        process_env = dict(self.paths.as_env())
+        process_env = dict(self.paths.as_env(agent_visible=agent_visible))
         process_env.update(env or {})
         wrapped = self._with_timeout(command, timeout_s)
         exit_code, output = container.exec_run(
             cmd=["bash", "-c", wrapped],
             workdir=workdir or self.paths.workdir,
             environment=process_env,
+            user=user or "",
             demux=False,
         )
         text = output.decode("utf-8", errors="replace") if output else ""
@@ -574,6 +676,57 @@ class DockerSandbox(Sandbox):
         if self._container is None:
             raise SandboxError("sandbox is not running; call start() first")
         return self._container
+
+
+def _container_limits(task: HarborTask) -> dict[str, object]:
+    """Translate the task's declared policies into `containers.run` kwargs.
+
+    Raises:
+        [`SandboxError`]: If the task asks for a policy this backend cannot
+            enforce faithfully. Failing closed matters more than breadth here:
+            silently granting a `no-network` task the daemon's default bridge
+            would both corrupt the result and hand a sandboxed process the
+            internet.
+    """
+    kwargs: dict[str, object] = {}
+
+    modes = task.network.modes
+    if NETWORK_ALLOWLIST in modes:
+        raise SandboxError(
+            f"task {task.task_id!r} declares network_mode='allowlist' "
+            f"(hosts: {list(task.network.allowed_hosts) or 'unspecified'}), which "
+            "needs a filtering proxy this backend does not run. Grade it with "
+            "`harbor run`, which implements the allowlist."
+        )
+    if modes == {NETWORK_NONE}:
+        kwargs["network_mode"] = "none"
+    elif NETWORK_NONE in modes:
+        # Per-phase split: one phase wants isolation, another wants the network.
+        # A container has a single network, so honouring both is impossible —
+        # take the restrictive one rather than the permissive one.
+        logger.warning(
+            "task %s asks for different network modes per phase (%s); applying the "
+            "most restrictive (no-network) for the whole episode",
+            task.task_id,
+            sorted(modes),
+        )
+        kwargs["network_mode"] = "none"
+
+    limits = task.resources
+    if limits.cpus is not None:
+        # Docker expresses CPU count as a quota against a 100ms period.
+        kwargs["cpu_period"] = 100_000
+        kwargs["cpu_quota"] = int(limits.cpus * 100_000)
+    if limits.memory_mb is not None:
+        kwargs["mem_limit"] = f"{limits.memory_mb}m"
+    if limits.storage_mb is not None:
+        kwargs["storage_opt"] = {"size": f"{limits.storage_mb}m"}
+    if limits.gpus is not None:
+        raise SandboxError(
+            f"task {task.task_id!r} requests {limits.gpus} GPU(s); this backend does "
+            "not allocate accelerators. Grade it with `harbor run`."
+        )
+    return kwargs
 
 
 def create_sandbox(mode: str, **kwargs) -> Sandbox:

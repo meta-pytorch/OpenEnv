@@ -13,6 +13,7 @@ import io
 import json
 import tarfile
 import textwrap
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
@@ -34,8 +35,18 @@ from harbor_env.server import (
     TaskFormatError,
 )
 from harbor_env.server.reward import read_reward
-from harbor_env.server.sandbox import expand_env_refs, resolve_within, SandboxPaths
-from harbor_env.server.task import BUNDLED_TASKS_DIR, resolve_task_source
+from harbor_env.server.sandbox import (
+    _container_limits,
+    expand_env_refs,
+    resolve_within,
+    SandboxPaths,
+)
+from harbor_env.server.task import (
+    BUNDLED_TASKS_DIR,
+    NetworkPolicy,
+    ResourceLimits,
+    resolve_task_source,
+)
 from openenv.core.env_server.serialization import serialize_observation
 
 
@@ -450,7 +461,9 @@ def test_action_types_partition_into_agent_and_control() -> None:
     a new action type that nobody classified would silently read as
     agent-reachable.
     """
-    handled = set(HarborEnvironment(tasks=str(BUNDLED_TASKS_DIR))._handlers)
+    handled = set(
+        HarborEnvironment(tasks=str(BUNDLED_TASKS_DIR), mode="local")._handlers
+    )
 
     assert AGENT_ACTIONS | CONTROL_ACTIONS == handled
     assert not (AGENT_ACTIONS & CONTROL_ACTIONS)
@@ -512,7 +525,7 @@ def test_local_sandbox_cleans_up_its_root(tmp_path: Path) -> None:
 
 @pytest.fixture
 def env():
-    environment = HarborEnvironment()
+    environment = HarborEnvironment(mode="local")
     yield environment
     environment.close()
 
@@ -623,7 +636,7 @@ def test_unscorable_episode_reports_no_reward(tmp_path: Path) -> None:
         seed_files={"noop.txt": "hi\n"},
         test_script="#!/bin/bash\necho 'graded nothing'\n",
     )
-    environment = HarborEnvironment(tasks=str(tmp_path))
+    environment = HarborEnvironment(tasks=str(tmp_path), mode="local")
     try:
         environment.reset(task_id="silent")
         obs = environment.step(HarborAction(action_type="evaluate"))
@@ -639,7 +652,7 @@ def test_unscorable_episode_reports_no_reward(tmp_path: Path) -> None:
 
 def test_missing_verifier_is_reported(tmp_path: Path) -> None:
     write_task(tmp_path, "ungraded", seed_files={"a.txt": "x\n"})
-    environment = HarborEnvironment(tasks=str(tmp_path))
+    environment = HarborEnvironment(tasks=str(tmp_path), mode="local")
     try:
         environment.reset(task_id="ungraded")
         obs = environment.step(HarborAction(action_type="evaluate"))
@@ -657,7 +670,7 @@ def test_absolute_path_verifier_gets_an_actionable_hint(tmp_path: Path) -> None:
         seed_files={"a.txt": "x\n"},
         test_script="#!/bin/bash\necho 1.0 > /logs/verifier/reward.txt\n",
     )
-    environment = HarborEnvironment(tasks=str(tmp_path))
+    environment = HarborEnvironment(tasks=str(tmp_path), mode="local")
     try:
         environment.reset(task_id="hardcoded")
         obs = environment.step(HarborAction(action_type="evaluate"))
@@ -678,7 +691,7 @@ def test_step_before_reset_is_reported(env: HarborEnvironment) -> None:
 def test_reset_without_a_task_id_lists_the_options(tmp_path: Path) -> None:
     write_task(tmp_path, "one")
     write_task(tmp_path, "two")
-    environment = HarborEnvironment(tasks=str(tmp_path))
+    environment = HarborEnvironment(tasks=str(tmp_path), mode="local")
     try:
         with pytest.raises(ValueError, match="needs a task_id"):
             environment.reset()
@@ -767,3 +780,263 @@ def test_client_step_payload_round_trips(tmp_path: Path) -> None:
     payload = HarborEnv(base_url="http://localhost:8000")._step_payload(action)
 
     assert HarborAction.model_validate(payload) == action
+
+
+# ---------------------------------------------------------------------------
+# task policies: network, resources, user
+# ---------------------------------------------------------------------------
+
+_POLICY_TASK = textwrap.dedent(
+    """
+    schema_version = "1.4"
+
+    [task]
+    name = "tests/policy"
+    description = "fixture"
+
+    [environment]
+    network_mode = "no-network"
+    cpus = 2
+    memory_mb = 512
+
+    [agent]
+    user = "agent"
+
+    [verifier]
+    user = "root"
+    """
+).strip()
+
+
+def test_task_parses_network_resource_and_user_policies(tmp_path: Path) -> None:
+    write_task(tmp_path, "policy", config=_POLICY_TASK, seed_files={"a.py": "x = 1\n"})
+    task = TaskCatalog(tmp_path).get("policy")
+
+    assert task.network.baseline == "no-network"
+    assert task.network.restricted
+    assert task.resources.cpus == 2
+    assert task.resources.memory_mb == 512
+    assert task.agent_user == "agent"
+    assert task.verifier_user == "root"
+
+
+def test_unknown_network_mode_is_rejected_not_downgraded(tmp_path: Path) -> None:
+    """Silently treating an unrecognized mode as `public` is the bug to avoid."""
+    config = _POLICY_TASK.replace('network_mode = "no-network"', 'network_mode = "vpn"')
+    write_task(tmp_path, "weird", config=config, seed_files={"a.py": "x = 1\n"})
+
+    with pytest.raises(TaskFormatError, match="network_mode"):
+        TaskCatalog(tmp_path).get("weird")
+
+
+def test_deprecated_allow_internet_false_still_restricts(tmp_path: Path) -> None:
+    config = textwrap.dedent(
+        """
+        schema_version = "1.4"
+
+        [task]
+        name = "tests/legacy"
+
+        [environment]
+        allow_internet = false
+        """
+    ).strip()
+    write_task(tmp_path, "legacy", config=config, seed_files={"a.py": "x = 1\n"})
+
+    assert TaskCatalog(tmp_path).get("legacy").network.baseline == "no-network"
+
+
+def test_local_backend_refuses_policies_it_cannot_enforce(tmp_path: Path) -> None:
+    """Fail closed: a no-network task must not silently get the host network."""
+    write_task(tmp_path, "policy", config=_POLICY_TASK, seed_files={"a.py": "x = 1\n"})
+    task = TaskCatalog(tmp_path).get("policy")
+    sandbox = LocalSandbox()
+
+    with pytest.raises(SandboxError) as excinfo:
+        sandbox.start(task)
+
+    message = str(excinfo.value)
+    assert "network_mode" in message
+    assert "resource limits" in message
+    assert "a declared user" in message
+    assert "HARBOR_MODE=docker" in message
+    sandbox.close()
+
+
+def test_docker_limits_translate_harbor_policies() -> None:
+    """no-network → an isolated network; cpus/memory → real container caps."""
+    task = HarborTask.load(BUNDLED_TASKS_DIR / EXAMPLE_TASK_ID)
+    restricted = replace(
+        task,
+        network=NetworkPolicy(baseline="no-network"),
+        resources=ResourceLimits(cpus=2, memory_mb=512),
+    )
+
+    limits = _container_limits(restricted)
+
+    assert limits["network_mode"] == "none"
+    assert limits["cpu_quota"] == 200_000
+    assert limits["cpu_period"] == 100_000
+    assert limits["mem_limit"] == "512m"
+    # An unrestricted task gets no constraints imposed on it.
+    assert _container_limits(task) == {}
+
+
+def test_allowlist_and_gpu_tasks_are_refused_rather_than_approximated() -> None:
+    task = HarborTask.load(BUNDLED_TASKS_DIR / EXAMPLE_TASK_ID)
+
+    with pytest.raises(SandboxError, match="allowlist"):
+        _container_limits(replace(task, network=NetworkPolicy(baseline="allowlist")))
+    with pytest.raises(SandboxError, match="GPU"):
+        _container_limits(replace(task, resources=ResourceLimits(gpus=1)))
+
+
+def test_mixed_phase_network_modes_take_the_restrictive_one() -> None:
+    """One container, one network — never resolve the conflict permissively."""
+    task = HarborTask.load(BUNDLED_TASKS_DIR / EXAMPLE_TASK_ID)
+    mixed = replace(
+        task, network=NetworkPolicy(baseline="public", verifier="no-network")
+    )
+
+    assert _container_limits(mixed)["network_mode"] == "none"
+
+
+# ---------------------------------------------------------------------------
+# the agent's view of the server
+# ---------------------------------------------------------------------------
+
+
+def test_reset_does_not_disclose_the_task_directory(env: HarborEnvironment) -> None:
+    """The observation reaches the agent; the task path points at solution/."""
+    observation = env.reset(task_id=EXAMPLE_TASK_ID)
+
+    assert "path" not in observation.info["task"]
+    assert str(BUNDLED_TASKS_DIR) not in json.dumps(observation.info)
+    # Orchestration still gets it — state is infrastructure-side.
+    assert env.state.task_path.endswith(EXAMPLE_TASK_ID)
+
+
+def test_local_exec_does_not_inherit_server_secrets(
+    env: HarborEnvironment, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Task commands are attacker-controlled; the server's tokens are not theirs."""
+    monkeypatch.setenv("HF_TOKEN", "hf_super_secret")
+    env.reset(task_id=EXAMPLE_TASK_ID)
+
+    observation = env.step(HarborAction(action_type="exec", command="env"))
+
+    assert "hf_super_secret" not in observation.output
+    # PATH still gets through, or nothing would run at all.
+    assert "PATH=" in observation.output
+
+
+# ---------------------------------------------------------------------------
+# episode termination and the control-action split
+# ---------------------------------------------------------------------------
+
+
+def test_episode_stays_terminal_after_evaluate(env: HarborEnvironment) -> None:
+    """`done` must never walk back from True to False."""
+    env.reset(task_id=EXAMPLE_TASK_ID)
+    graded = env.step(HarborAction(action_type="evaluate"))
+    assert graded.done
+
+    for action in (
+        HarborAction(action_type="exec", command="ls"),
+        HarborAction(action_type="read", path="stats.py"),
+        HarborAction(action_type="evaluate"),
+    ):
+        observation = env.step(action)
+        assert observation.done, f"{action.action_type} reported done=False"
+        assert not observation.success
+        assert observation.reward is None
+        assert "episode ended" in observation.error
+
+
+def test_control_actions_can_be_refused_server_side(tmp_path: Path) -> None:
+    """The agent/orchestration split, enforced rather than documented."""
+    environment = HarborEnvironment(mode="local", allow_control_actions=False)
+    try:
+        environment.reset(task_id=EXAMPLE_TASK_ID)
+
+        for action_type in sorted(CONTROL_ACTIONS):
+            observation = environment.step(HarborAction(action_type=action_type))
+            assert not observation.success
+            assert "orchestration control" in observation.error
+            assert not observation.done
+
+        # Agent actions are unaffected.
+        assert environment.step(HarborAction(action_type="exec", command="ls")).success
+    finally:
+        environment.close()
+
+
+def test_agent_commands_are_not_told_where_the_verifier_lives(
+    env: HarborEnvironment,
+) -> None:
+    """`/tests` holds the grading logic and `/solution` holds the answer.
+
+    Exporting their locations into the agent's environment hands a policy the
+    map even when the directories are not staged yet.
+    """
+    env.reset(task_id=EXAMPLE_TASK_ID)
+
+    observation = env.step(
+        HarborAction(
+            action_type="exec",
+            command="echo [$HARBOR_SOLUTION_DIR][$HARBOR_TESTS_DIR][$HARBOR_LOGS_DIR]",
+        )
+    )
+
+    assert observation.output.strip() == "[][][]"
+    # The agent still knows where it is working.
+    assert (
+        "HARBOR_WORKDIR"
+        in env.step(HarborAction(action_type="exec", command="env")).output
+    )
+
+
+def test_verifier_still_receives_its_paths(env: HarborEnvironment) -> None:
+    """Withholding paths from the agent must not break the verifier."""
+    env.reset(task_id=EXAMPLE_TASK_ID)
+
+    graded = env.step(HarborAction(action_type="evaluate"))
+
+    assert graded.reward == pytest.approx(BUGGY_REWARD)
+    assert graded.info["reward_source"] == "reward.json"
+
+
+def test_planted_files_do_not_survive_into_the_staged_verifier(tmp_path: Path) -> None:
+    """The agent shares the filesystem and can pre-create the tests directory.
+
+    Anything it leaves there must be wiped before the real `tests/` lands, or a
+    policy could plant a file the verifier goes on to read.
+    """
+    write_task(
+        tmp_path,
+        "plantable",
+        seed_files={"a.py": "x = 1\n"},
+        test_script=(
+            "#!/bin/bash\n"
+            'mkdir -p "$HARBOR_LOGS_DIR"\n'
+            'if [ -f "$HARBOR_TESTS_DIR/planted.txt" ]; then\n'
+            '  echo "1.0" > "$HARBOR_LOGS_DIR/reward.txt"\n'
+            "else\n"
+            '  echo "0.0" > "$HARBOR_LOGS_DIR/reward.txt"\n'
+            "fi\n"
+            "exit 0\n"
+        ),
+    )
+    environment = HarborEnvironment(tasks=str(tmp_path), mode="local")
+    try:
+        environment.reset(task_id="plantable")
+        tests_dir = Path(environment._sandbox.paths.tests)
+        tests_dir.mkdir(parents=True, exist_ok=True)
+        (tests_dir / "planted.txt").write_text("gotcha", encoding="utf-8")
+
+        graded = environment.step(HarborAction(action_type="evaluate"))
+
+        assert graded.reward == 0.0, "a planted file survived into the verifier"
+        assert not (tests_dir / "planted.txt").exists()
+    finally:
+        environment.close()
