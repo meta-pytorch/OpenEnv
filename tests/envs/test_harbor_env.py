@@ -28,10 +28,10 @@ from harbor_env import (
 from harbor_env.server import (
     DockerSandbox,
     ExecResult,
-    Sandbox,
     HarborEnvironment,
     HarborTask,
     LocalSandbox,
+    Sandbox,
     SandboxError,
     TaskCatalog,
     TaskFormatError,
@@ -46,8 +46,8 @@ from harbor_env.server.sandbox import (
 from harbor_env.server.task import (
     BUNDLED_TASKS_DIR,
     NetworkPolicy,
-    ResourceLimits,
     resolve_task_source,
+    ResourceLimits,
 )
 from openenv.core.env_server.serialization import serialize_observation
 
