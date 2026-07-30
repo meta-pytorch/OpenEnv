@@ -57,7 +57,8 @@ class PelicanSvgEnvironment(
         subject (`str`, *optional*):
             Fix the animal instead of sampling one. Pair with `vehicle` to pin
             the task entirely, which is what a leaderboard run wants. Pinning
-            just one fills the other from the canonical pelican-bicycle pair.
+            just one fills the other from the canonical pelican-bicycle pair,
+            and any pin takes precedence over `sample_tasks`.
         vehicle (`str`, *optional*):
             Fix the vehicle instead of sampling one.
         sample_tasks (`bool`, *optional*, defaults to `False`):
@@ -67,7 +68,8 @@ class PelicanSvgEnvironment(
             incomparable.
         held_out_only (`bool`, *optional*, defaults to `False`):
             Sample, but never the pelican-and-bicycle prompt. Implies
-            `sample_tasks`.
+            `sample_tasks`. This is a hard promise: a pin that resolves to the
+            canonical task raises `ValueError` rather than serving it.
         judge ([`VisionJudge`], *optional*):
             Semantic scorer. When omitted and `enable_judge` is `True`, one is
             built from a Hugging Face Inference Providers token if the ambient
@@ -132,19 +134,31 @@ class PelicanSvgEnvironment(
         task_id: str | None = None,
     ) -> Task:
         if task_id:
-            return task_from_ids([task_id])[0]
-        subject = subject or self._fixed_subject
-        vehicle = vehicle or self._fixed_vehicle
-        if subject or vehicle:
-            # A partial pin is honoured, with the unpinned half taken from the
-            # canonical pair rather than silently ignoring the request.
-            return make_task(subject or CANONICAL_PAIR[0], vehicle or CANONICAL_PAIR[1])
-        if self._sample_tasks or self._held_out_only:
-            return sample_task(seed=seed, held_out_only=self._held_out_only)
-        # Default to Simon Willison's original prompt. It is the one with a
-        # public body of results behind it, and a default that changes on every
-        # reset makes two runs incomparable by accident.
-        return make_task(*CANONICAL_PAIR)
+            task = task_from_ids([task_id])[0]
+        else:
+            subject = subject or self._fixed_subject
+            vehicle = vehicle or self._fixed_vehicle
+            if subject or vehicle:
+                # A partial pin is honoured, with the unpinned half taken from
+                # the canonical pair rather than silently ignoring the request.
+                task = make_task(
+                    subject or CANONICAL_PAIR[0], vehicle or CANONICAL_PAIR[1]
+                )
+            elif self._sample_tasks or self._held_out_only:
+                return sample_task(seed=seed, held_out_only=self._held_out_only)
+            else:
+                # Default to Simon Willison's original prompt. It is the one
+                # with a public body of results behind it, and a default that
+                # changes on every reset makes two runs incomparable by
+                # accident.
+                task = make_task(*CANONICAL_PAIR)
+        if self._held_out_only and not task.held_out:
+            raise ValueError(
+                "held_out_only promises the canonical task is never served, "
+                f"but this pin resolves to {task.task_id!r}. Pin a held-out "
+                "combination or drop held_out_only."
+            )
+        return task
 
     def reset(
         self,

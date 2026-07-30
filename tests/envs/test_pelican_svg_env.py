@@ -653,6 +653,26 @@ class TestEnvironment:
         assert observation.task_id == "pelican_skateboard"
         assert observation.expected_wheels == 2
 
+    def test_partial_pin_works_at_reset_time_too(self):
+        environment = self.environment()
+        assert environment.reset(subject="octopus").task_id == "octopus_bicycle"
+        assert environment.reset(vehicle="skateboard").task_id == "pelican_skateboard"
+
+    def test_pin_takes_precedence_over_sampling(self):
+        environment = self.environment(sample_tasks=True, subject="octopus")
+        assert environment.reset(seed=5).task_id == "octopus_bicycle"
+
+    def test_held_out_only_rejects_a_pin_that_resolves_canonical(self):
+        """held_out_only is a hard promise, not a default."""
+        with pytest.raises(ValueError, match="held-out"):
+            self.environment(held_out_only=True, subject="pelican").reset()
+        with pytest.raises(ValueError, match="held-out"):
+            self.environment(held_out_only=True).reset(task_id="pelican_bicycle")
+
+    def test_held_out_only_accepts_a_held_out_pin(self):
+        environment = self.environment(held_out_only=True, subject="capybara")
+        assert environment.reset().task_id == "capybara_bicycle"
+
     def test_default_task_is_the_original_prompt(self):
         """A default that changes per reset makes two runs incomparable."""
         assert self.environment().reset().task_id == "pelican_bicycle"
