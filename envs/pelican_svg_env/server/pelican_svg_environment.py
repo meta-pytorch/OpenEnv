@@ -16,6 +16,7 @@ import base64
 import os
 from typing import Any, Optional
 
+from huggingface_hub import get_token
 from openenv.core.env_server import Environment
 
 from ..models import PelicanSvgAction, PelicanSvgObservation, PelicanSvgState
@@ -28,20 +29,23 @@ from .vision_judge import DEFAULT_JUDGE_MODEL, HFVisionClient, VisionJudge
 def _judge_from_env() -> VisionJudge | None:
     """Build a judge from environment variables, or `None` to run offline.
 
-    A missing token is not an error. The environment stays fully usable with
+    A missing token is not an error: the environment stays fully usable with
     the deterministic layers alone, which is what tests and cost-sensitive
-    training loops want.
+    training loops want. It does mean no judge, though. Configuring one whose
+    every call fails would keep the 0.35/0.65 weight split while `semantic`
+    never scores, silently capping the reward at 0.35.
     """
     if os.environ.get("PELICAN_SVG_DISABLE_JUDGE", "").lower() in {"1", "true", "yes"}:
         return None
-    token = os.environ.get("HF_TOKEN") or os.environ.get("HUGGING_FACE_HUB_TOKEN")
-    model = os.environ.get("PELICAN_SVG_JUDGE_MODEL", DEFAULT_JUDGE_MODEL)
-    try:
-        return VisionJudge(HFVisionClient(model=model, api_key=token))
-    except Exception:
-        # No usable credentials or no network. Fall back to offline scoring
-        # rather than failing every episode.
+    token = (
+        os.environ.get("HF_TOKEN")
+        or os.environ.get("HUGGING_FACE_HUB_TOKEN")
+        or get_token()
+    )
+    if not token:
         return None
+    model = os.environ.get("PELICAN_SVG_JUDGE_MODEL", DEFAULT_JUDGE_MODEL)
+    return VisionJudge(HFVisionClient(model=model, api_key=token))
 
 
 class PelicanSvgEnvironment(

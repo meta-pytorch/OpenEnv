@@ -12,7 +12,6 @@ dependencies = [
     "fastapi>=0.115.0",
     "pydantic>=2.0.0",
     "uvicorn[standard]>=0.24.0",
-    "requests>=2.31.0",
     # resvg ships self-contained wheels for manylinux, musllinux, macOS and
     # Windows, so rasterising needs no system libraries in the image. It is
     # also deterministic and refuses to resolve external entities or fetch

@@ -51,7 +51,6 @@ class VisionClient(Protocol):
         max_tokens: int = 400,
     ) -> str:
         """Send a prompt plus an image and return the reply text."""
-        ...
 
 
 class HFVisionClient:

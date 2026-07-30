@@ -256,17 +256,18 @@ async def generate(client, semaphore, model, prompt, seed, args):
                     "error": error,
                 }
             except Exception as exc:
-                if attempt == 2:
-                    return {
-                        "reply": "",
-                        "reasoning_chars": 0,
-                        "reply_chars": 0,
-                        "prompt_tokens": 0,
-                        "completion_tokens": 0,
-                        "latency_s": round(time.monotonic() - started, 2),
-                        "error": f"{type(exc).__name__}: {str(exc)[:160]}",
-                    }
-                await asyncio.sleep(4 * (attempt + 1))
+                failure = exc
+                if attempt < 2:
+                    await asyncio.sleep(4 * (attempt + 1))
+        return {
+            "reply": "",
+            "reasoning_chars": 0,
+            "reply_chars": 0,
+            "prompt_tokens": 0,
+            "completion_tokens": 0,
+            "latency_s": round(time.monotonic() - started, 2),
+            "error": f"{type(failure).__name__}: {str(failure)[:160]}",
+        }
 
 
 def fetch_prompt(env_url: str, task: str) -> str:
