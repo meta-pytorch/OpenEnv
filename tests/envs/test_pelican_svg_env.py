@@ -22,6 +22,7 @@ from envs.pelican_svg_env.server.gate import run_gate
 from envs.pelican_svg_env.server.geometry import (
     apply,
     extract_shapes,
+    flatten_path,
     length,
     parse_transform,
     significant_shapes,
@@ -231,6 +232,24 @@ class TestGeometry:
             parse_svg(svg('<rect x="25" y="25" width="50" height="50"/>'))
         )[0]
         assert shape.radius_cv == pytest.approx(0.107, abs=0.02)
+
+    def test_smooth_cubic_after_quadratic_does_not_reflect_its_control(self):
+        """S may only reflect after C/S; after Q its first control is the cursor."""
+        points = [
+            p
+            for sub, _ in flatten_path("M 0 0 Q 50 100 100 0 S 200 100 200 0")
+            for p in sub
+        ]
+        assert min(y for _, y in points) >= 0
+
+    def test_smooth_quadratic_after_cubic_does_not_reflect_its_control(self):
+        """T may only reflect after Q/T; after C its control is the cursor."""
+        points = [
+            p
+            for sub, _ in flatten_path("M 0 0 C 20 80 80 80 100 0 T 200 0")
+            for p in sub
+        ]
+        assert min(y for _, y in points) >= 0
 
     def test_long_ellipse_is_rejected_by_aspect(self):
         shape = extract_shapes(

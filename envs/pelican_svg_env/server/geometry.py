@@ -238,7 +238,8 @@ def flatten_path(d: str) -> list[tuple[list[Point], bool]]:
     current: list[Point] = []
     cursor: Point = (0.0, 0.0)
     start: Point = (0.0, 0.0)
-    last_control: Point | None = None
+    last_cubic: Point | None = None
+    last_quad: Point | None = None
     command = ""
     index = 0
 
@@ -330,10 +331,10 @@ def flatten_path(d: str) -> list[tuple[list[Point], bool]]:
             else:
                 c1 = (
                     (
-                        2 * cursor[0] - last_control[0],
-                        2 * cursor[1] - last_control[1],
+                        2 * cursor[0] - last_cubic[0],
+                        2 * cursor[1] - last_cubic[1],
                     )
-                    if last_control
+                    if last_cubic
                     else cursor
                 )
                 c2 = (
@@ -347,7 +348,7 @@ def flatten_path(d: str) -> list[tuple[list[Point], bool]]:
             if not current:
                 current = [cursor]
             current.extend(_sample_cubic(cursor, c1, c2, end))
-            last_control, cursor = c2, end
+            last_cubic, last_quad, cursor = c2, None, end
             continue
         elif upper in {"Q", "T"}:
             args = take(4 if upper == "Q" else 2)
@@ -365,10 +366,10 @@ def flatten_path(d: str) -> list[tuple[list[Point], bool]]:
             else:
                 c1 = (
                     (
-                        2 * cursor[0] - last_control[0],
-                        2 * cursor[1] - last_control[1],
+                        2 * cursor[0] - last_quad[0],
+                        2 * cursor[1] - last_quad[1],
                     )
-                    if last_control
+                    if last_quad
                     else cursor
                 )
                 end = (
@@ -378,7 +379,7 @@ def flatten_path(d: str) -> list[tuple[list[Point], bool]]:
             if not current:
                 current = [cursor]
             current.extend(_sample_quadratic(cursor, c1, end))
-            last_control, cursor = c1, end
+            last_quad, last_cubic, cursor = c1, None, end
             continue
         elif upper == "A":
             args = take(7)
@@ -399,7 +400,7 @@ def flatten_path(d: str) -> list[tuple[list[Point], bool]]:
         else:
             index += 1
             continue
-        last_control = None
+        last_cubic = last_quad = None
 
     flush(False)
     return subpaths
