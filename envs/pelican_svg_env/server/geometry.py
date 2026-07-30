@@ -758,6 +758,15 @@ NON_RENDERED = frozenset({"defs", "symbol", "clipPath", "mask", "marker", "patte
 MAX_USE_DEPTH = 4
 
 
+def _presentation(element: ET.Element, name: str) -> str | None:
+    """A presentation property, with any inline `style` declaration winning."""
+    for declaration in (element.get("style") or "").split(";"):
+        prop, _, value = declaration.partition(":")
+        if prop.strip() == name:
+            return value.strip()
+    return element.get(name)
+
+
 def _use_target(element: ET.Element) -> str:
     """The id a `<use>` points at, from either `href` or the legacy
     `xlink:href`. Only same-document fragment references are resolvable."""
@@ -773,7 +782,10 @@ def extract_shapes(root: ET.Element) -> list[Shape]:
     Transforms are accumulated down the tree, so a shape nested inside
     translated groups lands where it visually appears. `<use>` references are
     resolved to the geometry they instantiate, and template containers such as
-    `<defs>` contribute nothing on their own.
+    `<defs>` contribute nothing on their own. Geometry that never reaches the
+    canvas is excluded: hidden or fully transparent subtrees, outlines whose
+    fill and stroke both resolve to `none`, and shapes entirely outside the
+    viewBox.
 
     Args:
         root (`xml.etree.ElementTree.Element`):
@@ -793,11 +805,36 @@ def extract_shapes(root: ET.Element) -> list[Shape]:
     scale = 1.0 / size if size else 1.0
     normalise: Matrix = (scale, 0.0, 0.0, scale, -min_x * scale, -min_y * scale)
     viewport = root_viewport(root)
+    canvas = (viewport.width * scale, viewport.height * scale)
 
     shapes: list[Shape] = []
     by_id = {el.get("id"): el for el in root.iter() if el.get("id")}
 
-    def walk(element: ET.Element, matrix: Matrix, depth: int = 0) -> None:
+    def on_canvas(shape: Shape) -> bool:
+        return (
+            shape.bbox[2] >= 0
+            and shape.bbox[3] >= 0
+            and shape.bbox[0] <= canvas[0]
+            and shape.bbox[1] <= canvas[1]
+        )
+
+    def walk(
+        element: ET.Element,
+        matrix: Matrix,
+        fill: str | None,
+        stroke: str | None,
+        depth: int = 0,
+    ) -> None:
+        if _presentation(element, "display") == "none":
+            return
+        if _presentation(element, "visibility") in {"hidden", "collapse"}:
+            return
+        opacity = _numbers(_presentation(element, "opacity"))
+        if opacity and opacity[0] == 0:
+            return
+        fill = _presentation(element, "fill") or fill
+        stroke = _presentation(element, "stroke") or stroke
+
         tag = strip_namespace(element.tag)
         local = multiply(matrix, parse_transform(element.get("transform")))
 
@@ -815,20 +852,23 @@ def extract_shapes(root: ET.Element) -> list[Shape]:
                 length(element.get("x"), viewport.width),
                 length(element.get("y"), viewport.height),
             )
-            walk(target, multiply(local, offset), depth + 1)
+            walk(target, multiply(local, offset), fill, stroke, depth + 1)
             return
 
-        for subpath, closed in element_polylines(element, viewport):
-            transformed = [apply(local, point) for point in subpath]
-            shape = _build_shape(tag, transformed, closed)
-            if shape is not None:
-                shapes.append(shape)
+        # Fill defaults to black, so an outline paints unless the fill is an
+        # explicit `none` with no stroke to fall back on.
+        if fill != "none" or (stroke or "none") != "none":
+            for subpath, closed in element_polylines(element, viewport):
+                transformed = [apply(local, point) for point in subpath]
+                shape = _build_shape(tag, transformed, closed)
+                if shape is not None and on_canvas(shape):
+                    shapes.append(shape)
         for child in element:
             if strip_namespace(child.tag) in NON_RENDERED:
                 continue
-            walk(child, local, depth)
+            walk(child, local, fill, stroke, depth)
 
-    walk(root, normalise)
+    walk(root, normalise, None, None)
     shapes.sort(key=lambda s: s.extent, reverse=True)
     return shapes
 

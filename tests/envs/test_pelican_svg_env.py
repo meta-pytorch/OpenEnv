@@ -251,6 +251,45 @@ class TestGeometry:
         ]
         assert min(y for _, y in points) >= 0
 
+    @pytest.mark.parametrize(
+        "hiding",
+        [
+            'display="none"',
+            'style="display: none"',
+            'visibility="hidden"',
+            'opacity="0"',
+        ],
+    )
+    def test_hidden_geometry_is_not_scored(self, hiding):
+        source = svg(f'<circle cx="50" cy="50" r="25" {hiding}/>')
+        assert extract_shapes(parse_svg(source)) == []
+
+    def test_a_hidden_group_hides_its_children(self):
+        source = svg('<g display="none"><circle cx="50" cy="50" r="25"/></g>')
+        assert extract_shapes(parse_svg(source)) == []
+
+    def test_unpainted_geometry_is_not_scored(self):
+        source = svg('<circle cx="50" cy="50" r="25" fill="none" stroke="none"/>')
+        assert extract_shapes(parse_svg(source)) == []
+
+    def test_a_stroked_outline_with_no_fill_still_counts(self):
+        source = svg('<circle cx="50" cy="50" r="25" fill="none" stroke="black"/>')
+        assert len(extract_shapes(parse_svg(source))) == 1
+
+    def test_a_child_can_repaint_inside_an_unpainted_group(self):
+        source = svg(
+            '<g fill="none" stroke="none"><circle cx="50" cy="50" r="25" fill="black"/></g>'
+        )
+        assert len(extract_shapes(parse_svg(source))) == 1
+
+    def test_off_canvas_geometry_is_not_scored(self):
+        source = svg('<circle cx="-500" cy="50" r="25"/>')
+        assert extract_shapes(parse_svg(source)) == []
+
+    def test_partially_visible_geometry_still_counts(self):
+        source = svg('<circle cx="0" cy="50" r="25"/>')
+        assert len(extract_shapes(parse_svg(source))) == 1
+
     def test_long_ellipse_is_rejected_by_aspect(self):
         shape = extract_shapes(
             parse_svg(svg('<ellipse cx="50" cy="50" rx="30" ry="15"/>'))
