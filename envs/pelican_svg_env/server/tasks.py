@@ -284,4 +284,7 @@ def sample_task(seed: int | None = None, held_out_only: bool = False) -> Task:
 def task_from_ids(task_ids: Sequence[str]) -> list[Task]:
     """Resolve task identifiers back into tasks, preserving order."""
     index = {task.task_id: task for task in all_tasks()}
+    unknown = [task_id for task_id in task_ids if task_id not in index]
+    if unknown:
+        raise ValueError(f"Unknown task ids {unknown}. Valid ids: {sorted(index)}")
     return [index[task_id] for task_id in task_ids]

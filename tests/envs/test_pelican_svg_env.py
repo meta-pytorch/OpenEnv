@@ -42,7 +42,12 @@ from envs.pelican_svg_env.server.svg_source import (
     SvgParseError,
     TruncatedSvgError,
 )
-from envs.pelican_svg_env.server.tasks import all_tasks, make_task, sample_task
+from envs.pelican_svg_env.server.tasks import (
+    all_tasks,
+    make_task,
+    sample_task,
+    task_from_ids,
+)
 from envs.pelican_svg_env.server.vision_judge import VisionJudge
 
 FIXTURES = pathlib.Path(__file__).resolve().parents[2] / "envs/pelican_svg_env/fixtures"
@@ -385,6 +390,27 @@ class TestStructure:
         assert len(wheels) == 1
         assert wheels[0].radius == pytest.approx(0.15, abs=0.01)
 
+    def test_frame_check_spans_the_outermost_wheels(self):
+        """A third wheel-like shape in the row must not shrink the span.
+
+        The frame connects the outermost hubs, and anything sitting between
+        them, another wheel candidate included, counts as bridging geometry.
+        """
+        source = svg(
+            '<circle cx="90" cy="220" r="34" fill="none" stroke="#222" stroke-width="5"/>'
+            '<circle cx="180" cy="220" r="45" fill="none" stroke="#222" stroke-width="5"/>'
+            '<circle cx="380" cy="220" r="45" fill="none" stroke="#222" stroke-width="5"/>'
+            '<line x1="180" y1="220" x2="280" y2="170" stroke="#222" stroke-width="5"/>'
+            '<line x1="280" y1="170" x2="380" y2="220" stroke="#222" stroke-width="5"/>'
+            '<line x1="180" y1="220" x2="380" y2="220" stroke="#222" stroke-width="5"/>'
+            '<ellipse cx="280" cy="130" rx="45" ry="30" fill="gray"/>',
+            view_box="0 0 500 300",
+        )
+        shapes = significant_shapes(extract_shapes(parse_svg(source)))
+        assert len(find_wheels(shapes, expected=2)) == 3
+        report = analyse_structure(shapes, expected_wheels=2).to_dict()
+        assert report["checks"]["frame_spans_wheels"] is True
+
     def test_two_real_wheels_beat_a_pedal_when_one_wheel_is_expected(self):
         """A bicycle scored as a unicycle must fail wheel_count.
 
@@ -536,6 +562,10 @@ class TestTasks:
     def test_forbidden_terms_cover_subject_and_vehicle(self):
         terms = make_task("pelican", "bicycle").forbidden_terms
         assert "pelican" in terms and "bicycle" in terms and "bird" in terms
+
+    def test_unknown_task_id_names_the_valid_ones(self):
+        with pytest.raises(ValueError, match="pelican_bicycle"):
+            task_from_ids(["pelican_bicycel"])
 
 
 class StubVisionClient:
