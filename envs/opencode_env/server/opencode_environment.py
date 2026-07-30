@@ -89,7 +89,7 @@ class OpenCodeEnvironment(MCPEnvironment):
         except ImportError:  # pragma: no cover
             from config import OpenCodeConfig  # type: ignore
             from harness import OpenCodeSessionFactory  # type: ignore
-            from sandbox import E2BSandboxBackend  # type: ignore
+            from openenv.core.sandbox import E2BSandboxBackend
             from task import OpenCodeTask  # type: ignore
 
         self._CommandResult = CommandResult
