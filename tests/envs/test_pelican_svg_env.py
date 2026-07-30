@@ -646,6 +646,13 @@ class TestEnvironment:
         assert observation.task_id == "capybara_unicycle"
         assert observation.expected_wheels == 1
 
+    def test_partial_pin_is_honoured(self):
+        """Pinning one dimension must not be silently ignored."""
+        assert self.environment(subject="octopus").reset().task_id == "octopus_bicycle"
+        observation = self.environment(vehicle="skateboard").reset()
+        assert observation.task_id == "pelican_skateboard"
+        assert observation.expected_wheels == 2
+
     def test_default_task_is_the_original_prompt(self):
         """A default that changes per reset makes two runs incomparable."""
         assert self.environment().reset().task_id == "pelican_bicycle"

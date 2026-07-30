@@ -56,7 +56,8 @@ class PelicanSvgEnvironment(
     Args:
         subject (`str`, *optional*):
             Fix the animal instead of sampling one. Pair with `vehicle` to pin
-            the task entirely, which is what a leaderboard run wants.
+            the task entirely, which is what a leaderboard run wants. Pinning
+            just one fills the other from the canonical pelican-bicycle pair.
         vehicle (`str`, *optional*):
             Fix the vehicle instead of sampling one.
         sample_tasks (`bool`, *optional*, defaults to `False`):
@@ -134,8 +135,10 @@ class PelicanSvgEnvironment(
             return task_from_ids([task_id])[0]
         subject = subject or self._fixed_subject
         vehicle = vehicle or self._fixed_vehicle
-        if subject and vehicle:
-            return make_task(subject, vehicle)
+        if subject or vehicle:
+            # A partial pin is honoured, with the unpinned half taken from the
+            # canonical pair rather than silently ignoring the request.
+            return make_task(subject or CANONICAL_PAIR[0], vehicle or CANONICAL_PAIR[1])
         if self._sample_tasks or self._held_out_only:
             return sample_task(seed=seed, held_out_only=self._held_out_only)
         # Default to Simon Willison's original prompt. It is the one with a
