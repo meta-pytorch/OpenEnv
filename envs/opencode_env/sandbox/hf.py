@@ -11,12 +11,16 @@ from __future__ import annotations
 import time
 from pathlib import PurePosixPath
 
+import httpx
 from huggingface_hub import Sandbox
 
 from .base import BgJob, ExecResult, SandboxHandle
 
 
 _WAIT_POLL_INTERVAL_S = 0.5
+# The sandbox API occasionally drops a single poll; give up only after this many
+# consecutive transient failures.
+_MAX_TRANSIENT_POLL_ERRORS = 10
 
 
 class HFBgJob:
@@ -32,14 +36,26 @@ class HFBgJob:
 
     def wait(self, timeout: float | None = None) -> int:
         deadline = None if timeout is None else time.monotonic() + timeout
+        transient_errors = 0
         while True:
-            proc = next((p for p in self._sandbox.processes() if p.pid == self.pid), None)
-            # Finished processes stay listed (running=False); a vanished pid means
-            # the sandbox was torn down mid-run, not a clean exit.
-            if proc is None:
-                raise RuntimeError(f"process {self.pid} vanished (sandbox torn down?)")
-            if not proc.running:
-                return int(proc.exit_code) if proc.exit_code is not None else 0
+            try:
+                procs = self._sandbox.processes()
+                transient_errors = 0
+            except httpx.TransportError:
+                # Transient sandbox-API disconnect (RemoteProtocolError, read
+                # timeout, ...): retry on the next poll tick, still honoring the deadline.
+                transient_errors += 1
+                if transient_errors > _MAX_TRANSIENT_POLL_ERRORS:
+                    raise
+                procs = None
+            if procs is not None:
+                proc = next((p for p in procs if p.pid == self.pid), None)
+                # Finished processes stay listed (running=False); a vanished pid means
+                # the sandbox was torn down mid-run, not a clean exit.
+                if proc is None:
+                    raise RuntimeError(f"process {self.pid} vanished (sandbox torn down?)")
+                if not proc.running:
+                    return int(proc.exit_code) if proc.exit_code is not None else 0
             if deadline is not None:
                 remaining = deadline - time.monotonic()
                 if remaining <= 0:

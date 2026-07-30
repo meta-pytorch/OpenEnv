@@ -336,10 +336,15 @@ def test_withhold_removes_symlinked_tests(tmp_path: Path):
 
 
 class _FakeContainer:
-    """Records exec/put_archive calls in one ordered event log."""
+    """Records exec/put_archive calls in one ordered event log.
 
-    def __init__(self, exec_output: bytes = b"__TB2_EXIT_CODE__:0\n"):
+    exec_run receives argv form (["bash", "-c", payload]); the log records
+    the shell payload, and raw_cmds keeps the argv for shape assertions.
+    """
+
+    def __init__(self, exec_output: bytes = b"__TB2_REWARD__:1\n"):
         self.events: list[tuple] = []
+        self.raw_cmds: list = []
         self.exec_output = exec_output
 
     def put_archive(self, dest, data):
@@ -347,7 +352,8 @@ class _FakeContainer:
         return True
 
     def exec_run(self, cmd, workdir=None, stdout=True, stderr=True):
-        self.events.append(("exec", cmd))
+        self.raw_cmds.append(cmd)
+        self.events.append(("exec", cmd[-1] if isinstance(cmd, list) else cmd))
         return 0, self.exec_output
 
 
@@ -385,15 +391,55 @@ def test_evaluate_docker_stages_tests_at_verify(tmp_path: Path):
     output, reward, info = env._evaluate_docker()
 
     assert reward == 1.0
+    assert info == {"tests_passed": True, "harness": "tests/test.sh"}
     kinds = [e[0] for e in container.events]
-    # rm -rf the agent-writable staging dir BEFORE the fresh copy goes in,
-    # the copy lands before pytest runs, and tests are removed again after.
+    # rm -rf the agent-writable fixed paths BEFORE the fresh copy goes in,
+    # the copy lands before test.sh runs, and both are removed again after.
     assert kinds == ["exec", "put", "exec", "exec"]
-    assert "rm -rf /task/tests" in container.events[0][1]
-    assert container.events[1][1] == "/task/tests"
+    assert "rm -rf /tests /logs/verifier" in container.events[0][1]
+    assert container.events[1][1] == "/tests"
     assert "test.sh" in _tar_names(container.events[1][2])
-    assert "pytest" in container.events[2][1]
-    assert "rm -rf /task/tests" in container.events[3][1]
+    eval_cmd = container.events[2][1]
+    # Canonical harness from the agent's workdir, bounded by the verifier
+    # budget, verdict read from reward.txt — not bare pytest in /task.
+    assert "bash /tests/test.sh" in eval_cmd
+    assert eval_cmd.startswith("cd /task && ")  # no resolved workdir → /task
+    assert "timeout 900" in eval_cmd
+    assert "/logs/verifier/reward.txt" in eval_cmd
+    assert "rm -rf /tests /logs/verifier" in container.events[3][1]
+
+
+def test_evaluate_docker_runs_in_resolved_workdir(tmp_path: Path):
+    task = _make_task_dir(tmp_path)
+    env = Tbench2DockerEnvironment()
+    env._container = _FakeContainer()
+    env._task_dir = task
+    env._workdir = "/app"
+
+    _, reward, _ = env._evaluate_docker()
+
+    assert reward == 1.0
+    eval_cmd = env._container.events[2][1]
+    assert eval_cmd.startswith("cd /app && ")
+
+
+def test_evaluate_docker_fallback_without_testsh(tmp_path: Path):
+    """A task dir whose tests/ ships no canonical harness scores via pytest,
+    still against the staged /tests copy."""
+    task = _make_task_dir(tmp_path)
+    (task / "tests" / "test.sh").unlink()
+    env = Tbench2DockerEnvironment()
+    container = _FakeContainer(exec_output=b"__TB2_EXIT_CODE__:0\n")
+    env._container = container
+    env._task_dir = task
+
+    output, reward, info = env._evaluate_docker()
+
+    assert reward == 1.0
+    assert info == {"tests_passed": True, "exit_code": 0}
+    eval_cmd = container.events[2][1]
+    assert "pytest -q /tests -rA" in eval_cmd
+    assert "test.sh" not in eval_cmd
 
 
 def test_evaluate_docker_cleans_up_when_scoring_raises(tmp_path: Path):
@@ -404,8 +450,9 @@ def test_evaluate_docker_cleans_up_when_scoring_raises(tmp_path: Path):
 
     class _ExplodingContainer(_FakeContainer):
         def exec_run(self, cmd, workdir=None, stdout=True, stderr=True):
-            if "pytest" in cmd:
-                self.events.append(("exec", cmd))
+            payload = cmd[-1] if isinstance(cmd, list) else cmd
+            if "test.sh" in payload:
+                self.events.append(("exec", payload))
                 raise RuntimeError("docker daemon hiccup")
             return super().exec_run(cmd, workdir=workdir, stdout=stdout, stderr=stderr)
 
@@ -418,7 +465,7 @@ def test_evaluate_docker_cleans_up_when_scoring_raises(tmp_path: Path):
         env._evaluate_docker()
 
     assert container.events[-1][0] == "exec"
-    assert "rm -rf /task/tests" in container.events[-1][1]
+    assert "rm -rf /tests /logs/verifier" in container.events[-1][1]
 
 
 def test_evaluate_docker_fails_closed_when_prestage_wipe_fails(tmp_path: Path):
@@ -428,9 +475,10 @@ def test_evaluate_docker_fails_closed_when_prestage_wipe_fails(tmp_path: Path):
 
     class _StubbornContainer(_FakeContainer):
         def exec_run(self, cmd, workdir=None, stdout=True, stderr=True):
-            self.events.append(("exec", cmd))
-            if "rm -rf /task/tests" in cmd and "mkdir" in cmd:
-                return 1, b"rm: cannot remove '/task/tests': busy\n"
+            payload = cmd[-1] if isinstance(cmd, list) else cmd
+            self.events.append(("exec", payload))
+            if "rm -rf /tests" in payload and "mkdir" in payload:
+                return 1, b"rm: cannot remove '/tests': busy\n"
             return 0, self.exec_output
 
     env = Tbench2DockerEnvironment()
@@ -438,7 +486,7 @@ def test_evaluate_docker_fails_closed_when_prestage_wipe_fails(tmp_path: Path):
     env._container = container
     env._task_dir = task
 
-    with pytest.raises(RuntimeError, match="could not reset /task/tests"):
+    with pytest.raises(RuntimeError, match="could not reset /tests"):
         env._evaluate_docker()
 
     assert not any(e[0] == "put" for e in container.events)
@@ -450,9 +498,10 @@ def test_evaluate_docker_warns_when_cleanup_fails(tmp_path: Path, caplog):
 
     class _LeakyContainer(_FakeContainer):
         def exec_run(self, cmd, workdir=None, stdout=True, stderr=True):
-            self.events.append(("exec", cmd))
-            if "rm -rf /task/tests" in cmd and "mkdir" not in cmd:
-                return 1, b"rm: cannot remove '/task/tests': busy\n"
+            payload = cmd[-1] if isinstance(cmd, list) else cmd
+            self.events.append(("exec", payload))
+            if "rm -rf /tests" in payload and "mkdir" not in payload:
+                return 1, b"rm: cannot remove '/tests': busy\n"
             return 0, self.exec_output
 
     env = Tbench2DockerEnvironment()
@@ -465,7 +514,7 @@ def test_evaluate_docker_warns_when_cleanup_fails(tmp_path: Path, caplog):
 
     assert reward == 1.0
     assert any(
-        "failed to remove staged /task/tests" in record.message
+        "failed to remove staged /tests" in record.getMessage()
         for record in caplog.records
     )
 
@@ -482,6 +531,98 @@ def test_evaluate_docker_missing_tests_scores_zero(tmp_path: Path):
 
     assert reward == 0.0
     assert container.events == []
+
+
+def test_docker_reset_rejects_task_without_image(tmp_path: Path):
+    """No host-execution fallback: a task dir that declares no docker_image
+    must fail reset loudly, not silently run agent commands on the server."""
+    task = tmp_path / "imageless-task"
+    task.mkdir()
+    (task / "task.toml").write_text("[metadata]\n")
+    (task / "instruction.md").write_text("do it\n")
+
+    env = Tbench2DockerEnvironment(
+        tasks_dir=str(tmp_path), output_dir=str(tmp_path / "runs")
+    )
+
+    with pytest.raises(RuntimeError, match="docker_image"):
+        env.reset(task_id="imageless-task")
+
+
+def test_docker_failed_reset_closes_previous_container(tmp_path: Path):
+    """A rejected reset must not leave the previous container usable with
+    metadata from the new task."""
+    task = tmp_path / "imageless-task"
+    task.mkdir()
+    (task / "task.toml").write_text("[metadata]\n")
+    (task / "instruction.md").write_text("do it\n")
+
+    class _PreviousContainer:
+        def __init__(self):
+            self.events = []
+
+        def stop(self, timeout):
+            self.events.append(("stop", timeout))
+
+        def remove(self, force):
+            self.events.append(("remove", force))
+
+    env = Tbench2DockerEnvironment(
+        tasks_dir=str(tmp_path), output_dir=str(tmp_path / "runs")
+    )
+    previous_container = _PreviousContainer()
+    env._container = previous_container
+    env._task_dir = tmp_path / "previous-task"
+    env._instruction = "previous task"
+    env._workdir = "/previous-workdir"
+
+    with pytest.raises(RuntimeError, match="docker_image"):
+        env.reset(task_id="imageless-task")
+
+    assert previous_container.events == [("stop", 10), ("remove", True)]
+    assert env._container is None
+    assert env._task_dir is None
+    assert env._instruction == ""
+    assert env._workdir == ""
+
+
+class _FakeImage:
+    def __init__(self, working_dir: str):
+        self.attrs = {"Config": {"WorkingDir": working_dir}}
+
+
+def test_docker_workdir_prefers_image_metadata(tmp_path: Path):
+    """Image Config.WorkingDir wins (it sees base-image WORKDIRs); the task
+    Dockerfile is the fallback, /task the last resort."""
+    task = _make_task_dir(tmp_path)
+    (task / "environment").mkdir()
+    (task / "environment" / "Dockerfile").write_text(
+        "FROM debian:12\nWORKDIR /from-dockerfile\n"
+    )
+    env = Tbench2DockerEnvironment()
+
+    assert env._resolve_workdir(_FakeImage("/from-image"), task) == "/from-image"
+    assert env._resolve_workdir(_FakeImage(""), task) == "/from-dockerfile"
+
+    bare = tmp_path / "bare-task"
+    bare.mkdir()
+    assert env._resolve_workdir(_FakeImage(""), bare) == "/task"
+
+
+def test_docker_exec_passes_command_as_argv(tmp_path: Path):
+    """Agent commands ride as a bash -c argv element, so shell quoting in the
+    command (a single quote, say) survives byte-identical; the exec cd's into
+    the resolved image workdir."""
+    env = Tbench2DockerEnvironment()
+    container = _FakeContainer()
+    env._container = container
+    env._workdir = "/app"
+
+    env._exec_in_container("echo 'hi there'")
+
+    (raw,) = container.raw_cmds
+    assert isinstance(raw, list) and raw[:2] == ["bash", "-c"]
+    assert raw[2] == "cd /app && echo 'hi there'"
 
 
 @pytest.mark.skipif(camel is None, reason="camel-ai not installed")
