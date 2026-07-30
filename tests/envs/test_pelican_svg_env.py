@@ -385,6 +385,26 @@ class TestStructure:
         assert len(wheels) == 1
         assert wheels[0].radius == pytest.approx(0.15, abs=0.01)
 
+    def test_two_real_wheels_beat_a_pedal_when_one_wheel_is_expected(self):
+        """A bicycle scored as a unicycle must fail wheel_count.
+
+        The expected count is a preference and the ground is a fact, so the
+        two wheels win the row ranking and the check then fails honestly,
+        rather than the pedal being adopted as the single expected wheel.
+        """
+        source = svg(
+            '<circle cx="120" cy="220" r="55" fill="none" stroke="#222" stroke-width="6"/>'
+            '<circle cx="280" cy="220" r="55" fill="none" stroke="#222" stroke-width="6"/>'
+            '<circle cx="200" cy="250" r="14" fill="#222"/>'
+            '<line x1="120" y1="220" x2="280" y2="220" stroke="#222" stroke-width="6"/>',
+            view_box="0 0 400 300",
+        )
+        shapes = significant_shapes(extract_shapes(parse_svg(source)))
+        wheels = find_wheels(shapes, expected=1)
+        assert len(wheels) == 2
+        report = analyse_structure(shapes, expected_wheels=1)
+        assert report.to_dict()["checks"]["wheel_count"] is False
+
     def test_a_rider_bigger_than_the_wheels_does_not_hide_them(self):
         """A body drawn larger than the wheels must not become the anchor.
 

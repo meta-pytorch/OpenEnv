@@ -215,23 +215,24 @@ def find_wheels(shapes: Sequence[Shape], expected: int = 2) -> list[Shape]:
             <= WHEEL_ROW_TOLERANCE * max(seed.radius, s.radius)
         ]
         merged = _merge_concentric(row)
-        # Prefer a row with the expected number of wheels, then the row whose
-        # *bottom edge* sits lowest, then the largest wheels. The bottom edge,
-        # centre plus radius, is what touches the ground, and comparing it
-        # instead of the centre keeps two failure modes out. A hub is
-        # concentric with its rim, so by centre height they tie and the winner
-        # used to fall to floating-point noise, scoring the same drawing 1.000
-        # on one machine and 0.333 on a deployed Space; by bottom edge the rim
-        # simply reaches lower. And with a single expected wheel, a pedal
-        # drawn below the axle out-lowers the wheel's centre but not the point
-        # where the wheel meets the ground. The height is still quantised so
-        # that "the same row" does not depend on the last bits of a float.
+        # Rank rows by the *bottom edge* first, centre plus radius, which is
+        # what touches the ground. Only among rows reaching equally low does
+        # the expected wheel count get a vote, and radius settles what is
+        # left. The order matters: where a row sits is a fact about the
+        # drawing, while the expected count is only our preference, and
+        # letting the preference outrank the ground let a lone pedal beat two
+        # real wheels whenever a bicycle was scored as a unicycle. Bottom
+        # edges also break the hub-versus-rim tie by geometry, where centre
+        # heights tied exactly and the winner fell to floating-point noise,
+        # scoring the same drawing 1.000 on one machine and 0.333 on a
+        # deployed Space. The height is still quantised so that rows touching
+        # the same ground line compare as equals.
         key = (
-            1 if len(merged) == expected else 0,
             round(
                 sum(s.centroid[1] + s.radius for s in merged) / len(merged),
                 ROW_HEIGHT_PRECISION,
             ),
+            1 if len(merged) == expected else 0,
             sum(s.radius for s in merged) / len(merged),
         )
         if best_key is None or key > best_key:
