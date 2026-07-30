@@ -265,15 +265,22 @@ def _is_background(shape: Shape, wheels: Sequence[Shape] = ()) -> bool:
 def _frame_spans_wheels(
     shapes: Sequence[Shape], wheels: Sequence[Shape]
 ) -> tuple[bool, str]:
-    """Whether non-wheel geometry bridges the gap between two hubs."""
-    left, right = wheels[0], wheels[1]
+    """Whether geometry bridges the gap between the outermost hubs.
+
+    The span runs between the outermost pair, matching `wheels_apart`, since
+    taking the two leftmost measured a short inner gap whenever a third
+    wheel-like shape shared the row. Only the two span wheels are excluded
+    from the coverage count: anything between them, including another wheel
+    candidate, genuinely bridges the gap.
+    """
+    left, right = wheels[0], wheels[-1]
     mean_r = (left.radius + right.radius) / 2.0
     hub_y = (left.centroid[1] + right.centroid[1]) / 2.0
     x0, x1 = left.centroid[0], right.centroid[0]
     if x1 <= x0:
         return False, "wheels are not horizontally separated"
 
-    wheel_ids = {id(w) for w in wheels}
+    wheel_ids = {id(left), id(right)}
     # The frame sits above the axle line but not as high as the rider, so allow
     # a generous band upward and only a little below.
     top = hub_y - 2.5 * mean_r
