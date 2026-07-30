@@ -66,7 +66,7 @@ Two failure modes are established in the literature and were present in the prio
 | Served-template == training-template invariant | **OpenEnv core** | template hash in provenance, fail loudly on mismatch (D3, D11) |
 | Token buffer / chain assembly | **TRL** | `_chain_to_sequences`; OpenEnv keeps no buffer (D3, D4) |
 | Trace record shape | **OpenEnv core** | `TraceEntry` / `HarnessTrace`, exported for any trainer (D16) |
-| Exposing the server to a remote sandbox | **OpenEnv core** | reverse tunnel + per-rollout base URL; mechanism unresolved (D18) |
+| Connecting a remote sandbox to the server | **OpenEnv core** | `Sandbox.proxy_url_for` WebSocket relay, or an outbound tunnel (D18) |
 | Reward / grading | **OpenEnv env** | `verify()` — tests run in sandbox, reward never leaves the env |
 | Generation (inference engine) | **TRL** | `vllm serve` in `VLLM_SERVER_DEV_MODE=1`; `return_token_ids`, logprobs at generation |
 | Chat-template *authoring* correctness | **TRL / transformers** | [`chat_template_utils`](https://github.com/huggingface/trl/blob/main/trl/chat_template_utils.py), template audits |
@@ -112,7 +112,7 @@ flowchart TD
             W --> G
         end
     end
-    H -->|"/v1/chat/completions over reverse tunnel"| S
+    H -->|"/v1/chat/completions over the sandbox port proxy"| S
     S -->|"generate (localhost)"| V
     V --> S
     R -.->|"fetch_proxy_trace()"| W
@@ -248,26 +248,31 @@ So OpenEnv asks for no new fencing primitive. Its obligations are the complement
 
 **D17 — Trace records enough to classify calls; the trainer keeps the policy.** A real harness fires LLM calls that must never be trained on — title generators, context summarizers, sub-agent scaffolding. The recorder tags each entry with `call_kind` ("agent" / "aux") from what it can observe at the boundary (endpoint, declared model, sampling shape, harness-specific markers). *Rationale:* today TRL's default `agent_turn_fn` has to guess this from trace structure; the interception point has strictly more information. *Trade-off:* the tag is a hint, not a verdict — the decision stays the caller's, via TRL's existing `agent_turn_fn` (which entries are real agent turns), `train_turn_fn` (which turns to reinforce, e.g. `has_tool_call` for action-only agents), and `rollout_reward_fn` (outcome → training reward). OpenEnv must not bake a training policy into a recorder.
 
-**D18 — Remote sandboxes reach a trainer-side server through a reverse tunnel; the platform does not provide this direction.** The server stays colocated with the trainer, and the harness receives only `OPENAI_BASE_URL = <tunnel>/rollout/<sid>/v1` plus the per-rollout bearer (D5). Nothing OpenEnv writes runs inside the sandbox.
+**D18 — Remote sandboxes connect to a trainer-side server; `huggingface_hub.Sandbox`'s port proxy covers it.** The server stays colocated with the trainer, and the harness receives only `OPENAI_BASE_URL = <host>/rollout/<sid>/v1` plus the per-rollout bearer (D5).
 
-*What the platform does and does not give.* HF Sandbox is built on HF Jobs: a job declares `expose=[port]` and the **HF Jobs proxy** registers `https://<job_id>--<port>.hf.jobs`, authenticated by an HF token with read access to the job's namespace plus a per-sandbox 256-bit `X-Sandbox-Token` validated by the in-pod server (the URL alone returns 401). That makes **in-sandbox** servers reachable from outside for free, on HF infrastructure. It does *not* expose an arbitrary port on the *trainer's* host to the sandbox — which is the direction trainer-side interception needs, and which a training host generally cannot offer unaided. So this decision requires a reverse tunnel as extra machinery.
+*The platform primitive.* `huggingface_hub.Sandbox` (first-class since 1.22.0, with an `hf sandbox` CLI) exposes a general port proxy: [`Sandbox.proxy_url_for(port, path, scheme=...)`](https://github.com/huggingface/huggingface_hub/blob/main/src/huggingface_hub/_sandbox.py) returns `https://<job_id>--49983.hf.jobs/…/proxy/<port><path>`, and the in-job server forwards to whatever listens on that port inside the sandbox — **including WebSocket upgrades and streamed responses**, the proxy being protocol-agnostic (pass `scheme="wss://"`). Auth is `Sandbox.proxy_headers`: the HF bearer plus the per-sandbox `X-Sandbox-Token`. A dedicated sandbox binds `127.0.0.1:<port>`; a pooled one binds a unix socket at `$SBX_PROXY_DIR/<port>.sock` (Landlock blocks TCP there), e.g. `uvicorn app:app --uds $SBX_PROXY_DIR/8000.sock`.
 
-*Trade-off, stated honestly.* The in-sandbox topology is the one the platform natively supports, and it is what ships today ([#998](https://github.com/huggingface/OpenEnv/pull/998), validated end to end on E2B and HF sandboxes). Trainer-side interception buys the two properties below and pays for them with a tunnel to operate per rollout, in a direction the platform hands us for free the other way round. This is the weakest-supported decision in this RFC and the one most likely to be revised; @sergiopaniego validated a working trainer-side shape on OpenCode and Pi (local subprocess and remote HF sandboxes) and the concrete tunnel mechanism should be recorded here before this is treated as settled.
+*So there are two workable routes to a trainer-side recorder, both platform-native:*
+
+1. **Sandbox dials out.** The harness posts to a tunnel hostname that fronts the trainer's server. Needs the trainer side to be reachable, which the Jobs proxy does not arrange — this is the extra machinery.
+2. **Trainer dials in, over the port proxy.** A minimal shim in the sandbox accepts the harness's HTTP calls and multiplexes them to the trainer over a WebSocket the *trainer* opened via `proxy_url_for(port, scheme="wss://")`. No public trainer address, no external tunnel service, and streaming works because the proxy carries it. The cost is that a shim does run in the sandbox, which is a weaker form of "nothing OpenEnv writes runs inside the sandbox" — it relays, it does not record.
+
+Route 2 is the one to prefer where a reverse tunnel is inconvenient, since it needs nothing beyond `huggingface_hub`. Either way the harness sees only `OPENAI_BASE_URL` and the per-rollout bearer, and the token-faithful data stays trainer-side. @sergiopaniego validated a working trainer-side shape on OpenCode and Pi (local subprocess and remote HF sandboxes); recording which of these two it used will settle the default.
 
 ### Interception topology (local and remote sandboxes)
 
-Where the recorder runs is not an implementation detail — it decides what crosses the network, which direction needs a tunnel, and whether weight-sync fencing is a local call.
+Where the recorder runs is not an implementation detail — it decides what crosses the network and whether the recorder can observe the weight-sync fence.
 
 ```
-In-sandbox (what ships today; the direction the platform supports):
+In-sandbox (what ships today):
   [sandbox]  agent → in-sandbox proxy →(HTTPS egress)→ vLLM  [trainer host]
-             trainer reads the trace back afterwards over the HF Jobs proxy
-             (expose=[port] → https://<job_id>--<port>.hf.jobs, no extra machinery)
+             the proxy records inside the sandbox; the trainer reads the trace back
+             afterwards through Sandbox.proxy_url_for / files
 
 Trainer-side (this RFC):
-  [sandbox]  agent →(reverse tunnel)→ interception server → vLLM  [trainer host, localhost]
+  [sandbox]  agent → thin relay →(Sandbox.proxy_url_for, wss)→ interception server → vLLM
              the server records canonical ids on the trainer host, live; the trainer assembles
-             (needs a tunnel exposing a trainer port — not provided by HF Jobs)
+             (or: agent →(outbound tunnel)→ interception server, where one is available)
 ```
 
 Two properties follow from the trainer-side placement:
@@ -277,7 +282,7 @@ Two properties follow from the trainer-side placement:
 
 Because only the base-URL host differs between the local-subprocess and remote-sandbox cases, one code path covers both: local runs point at `http://127.0.0.1:<port>/rollout/<sid>/v1`, remote runs at the tunnel hostname.
 
-Given that the platform supports the in-sandbox direction natively, the in-sandbox proxy stays a first-class supported mode rather than a legacy one — it is the right default when no trainer-side tunnel is available. The two modes should share the recorder implementation and the `TraceEntry` shape (D16), differing only in where the process runs and which way the connection is opened. Note that both properties above are about *where the recorder sits*, not about which end dials; an in-sandbox recorder that ships canonical ids back is still token-faithful, it just carries the ids over the wire and cannot observe the fence.
+The in-sandbox proxy stays a supported mode rather than a legacy one — it is the simpler deployment and the right default when neither D18 transport is set up. Both modes share the recorder implementation and the `TraceEntry` shape (D16), differing only in where the process runs and which end opens the connection. The properties above are about *where the recorder sits*, not about which end dials: an in-sandbox recorder that ships canonical ids back is still token-faithful, it just carries the ids over the wire and cannot observe the fence.
 
 ### Request lifecycle
 
@@ -316,7 +321,7 @@ The merged TRL worker names its OpenEnv-side dependencies directly. Current stat
 | Export the loop-owning session protocol (D16) | open — removes a `TODO(@openenv)` |
 | Async harness layer (`_generate_one` currently runs whole sessions on a thread pool) | open — `TODO(@openenv)`, performance |
 | Sandbox protocol + E2B/HF/Docker backends into `core/harness/sandbox/` | open — deferred follow-up to [#998](https://github.com/huggingface/OpenEnv/pull/998); track `huggingface_hub.Sandbox` / `hf sandbox` now that it is first-class in 1.22.0 |
-| Reverse-tunnel mechanism for trainer-side interception (D18) | open — the platform provides the opposite direction; unresolved |
+| Pick the D18 transport: sandbox-dials-out tunnel vs trainer-dials-in over `Sandbox.proxy_url_for` WebSocket | open — both viable; the latter needs only `huggingface_hub` |
 | Interception server + trace recorder in core (this RFC) | open |
 | Inject `return_token_ids` and record `prompt_token_ids` (D3) | open — one request field; retires the `--return-tokens-as-token-ids` / `"token_id:{id}"` workaround |
 | End-of-turn token id (config or auto-detect) so consumers can slice interstitials (D3) | open |
@@ -357,7 +362,7 @@ Property tests runnable without GPUs, none of which need a tokenizer in core: ca
 - Tracking issue [#940](https://github.com/huggingface/OpenEnv/issues/940) — `swe_rl_env`, `swe_rl_agent`, sandbox backends in core, interception + trace, this RFC
 - Existing in-sandbox proxy: [`envs/opencode_env/sandbox/interception.py`](../envs/opencode_env/sandbox/interception.py) (`TurnRecord`, logprob capture)
 - PR [#998](https://github.com/huggingface/OpenEnv/pull/998) — `HFSandboxBackend` + `sandbox_home` fix (merged); consolidating `SandboxBackend`/`SandboxHandle`/`BgJob` + E2B/HF into `core/harness/sandbox/` is its deferred follow-up
-- **HF Sandbox / Jobs proxy** (the mechanism behind D18): [github.com/huggingface/hf-sandbox](https://github.com/huggingface/hf-sandbox) — a job declares `expose=[port]`, the Jobs proxy registers `https://<job_id>--<port>.hf.jobs`, authenticated by an HF namespace-scoped token plus a per-sandbox 256-bit `X-Sandbox-Token`. Upstreamed as a first-class `Sandbox` API and `hf sandbox` CLI in `huggingface_hub` 1.22.0 (the floor [#998](https://github.com/huggingface/OpenEnv/pull/998) already requires); the prototype repo is being archived
+- **`huggingface_hub.Sandbox`** (the mechanism behind D18, first-class since 1.22.0 — the floor [#998](https://github.com/huggingface/OpenEnv/pull/998) already requires — plus an `hf sandbox` CLI): [`src/huggingface_hub/_sandbox.py`](https://github.com/huggingface/huggingface_hub/blob/main/src/huggingface_hub/_sandbox.py) (`proxy_url_for`, `proxy_headers`, `SANDBOX_SERVER_PORT`, `$SBX_PROXY_DIR/<port>.sock`), [`cli/sandbox.py`](https://github.com/huggingface/huggingface_hub/blob/main/src/huggingface_hub/cli/sandbox.py), [guide](https://huggingface.co/docs/huggingface_hub/main/en/guides/sandbox)
 - PR [#1007](https://github.com/huggingface/OpenEnv/pull/1007) — `ResourceSessionFactory` generic over its session type (merged)
 - PR [#1009](https://github.com/huggingface/OpenEnv/pull/1009) — session `create()` retry with backoff (merged)
 - PR [#694](https://github.com/huggingface/OpenEnv/pull/694) / [#695](https://github.com/huggingface/OpenEnv/pull/695) — prior attempt (both closed)
