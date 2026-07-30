@@ -251,7 +251,7 @@ def test_validate_command_accepts_dockerfile_managed_openenv_runtime(
         'server = "server.app:main"\n'
     )
     (env_dir / "server" / "Dockerfile").write_text(
-        'RUN pip install --no-cache-dir --no-deps "openenv[core]>=0.2.2"\n'
+        'RUN pip install --no-cache-dir --no-deps "openenv>=0.2.2"\n'
     )
 
     result = runner.invoke(app, ["validate", str(env_dir), "--json"])
