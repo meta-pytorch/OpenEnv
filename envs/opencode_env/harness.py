@@ -57,15 +57,17 @@ from .opencode_runtime import (
     proxy_trace_path,
     system_prompt_path,
 )
-from .sandbox.base import BgJob, SandboxBackend, SandboxHandle
+from openenv.core import sandbox as _core_sandbox
+from openenv.core.sandbox import BgJob, SandboxBackend, SandboxHandle
 from .task import OpenCodeTask
 
 
 # Mode B proxy port. In-sandbox paths derive from config.sandbox_home (opencode_runtime).
 _PROXY_PORT = 7000
 
-# Local proxy source, uploaded to proxy_source_path(config) unless already baked in.
-_PROXY_SOURCE_PATH = Path(__file__).parent / "sandbox" / "interception.py"
+# Proxy source (shared, in openenv.core.sandbox), uploaded to proxy_source_path(config)
+# unless already baked into the image.
+_PROXY_SOURCE_PATH = Path(_core_sandbox.__file__).parent / "interception.py"
 
 
 Verifier = Callable[[SandboxHandle, OpenCodeTask], VerifyResult]

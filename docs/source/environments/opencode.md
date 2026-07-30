@@ -133,7 +133,7 @@ session.close()
 instead, swap the backend (`huggingface_hub>=1.22` ships with the package):
 
 ```python
-from opencode_env.sandbox import HFSandboxBackend
+from openenv.core.sandbox import HFSandboxBackend
 
 factory = OpenCodeSessionFactory(
     config=OpenCodeConfig(..., sandbox_home="/root"),   # HF sandbox execs as root
@@ -144,14 +144,14 @@ factory = OpenCodeSessionFactory(
 
 `image="python:3.12"` cold-installs opencode + the proxy deps on every rollout. For faster
 rollouts use the pre-baked image (opencode + proxy deps already installed), built by CI from
-`sandbox/hf_image/Dockerfile`:
+`hf_image/Dockerfile`:
 
 ```python
 sandbox_backend=HFSandboxBackend(image="ghcr.io/huggingface/openenv-opencode-sandbox:latest")
 ```
 
 Any backend satisfying the `SandboxBackend` / `SandboxHandle` / `BgJob` protocols in
-`opencode_env.sandbox.base` can be plugged in the same way.
+`openenv.core.sandbox.base` can be plugged in the same way.
 
 ## Building the Docker Image
 
@@ -257,7 +257,7 @@ opencode and the proxy's Python deps. Build a one-time template that
 ships those pre-installed:
 
 ```bash
-.venv/bin/python envs/opencode_env/sandbox/build_template.py
+.venv/bin/python src/openenv/core/sandbox/build_template.py
 # → builds `opencode-rl` template in your E2B account (~1m20s, one-time)
 ```
 
