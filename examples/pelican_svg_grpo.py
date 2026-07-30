@@ -204,8 +204,19 @@ def _extract_svg(text: str) -> str:
     return matches[-1].strip() if matches else ""
 
 
-def sample_completions(model_path: str, prompt: str, count: int, max_new_tokens: int):
-    """Greedy-ish samples from a checkpoint, for the before and after probe."""
+def sample_completions(
+    model_path: str,
+    prompt: str,
+    count: int,
+    max_new_tokens: int,
+    enable_thinking: bool = False,
+):
+    """Greedy-ish samples from a checkpoint, for the before and after probe.
+
+    Applies the chat template with the same `enable_thinking` the training
+    dataset used. Probing in a different template mode than the one the policy
+    was trained under would measure the wrong thing.
+    """
     import torch
     from transformers import AutoModelForCausalLM, AutoTokenizer
 
@@ -215,7 +226,10 @@ def sample_completions(model_path: str, prompt: str, count: int, max_new_tokens:
     )
     messages = [{"role": "user", "content": prompt}]
     text = tokenizer.apply_chat_template(
-        messages, tokenize=False, add_generation_prompt=True
+        messages,
+        tokenize=False,
+        add_generation_prompt=True,
+        enable_thinking=enable_thinking,
     )
     inputs = tokenizer([text] * count, return_tensors="pt").to(model.device)
     with torch.no_grad():
@@ -386,7 +400,11 @@ def main() -> None:
             else:
                 judge_url, judge_provider = start_env(disable_judge=False)
             texts = sample_completions(
-                args.model, prompt, args.probe_samples, args.max_completion_length
+                args.model,
+                prompt,
+                args.probe_samples,
+                args.max_completion_length,
+                enable_thinking=args.enable_thinking,
             )
             before = judged_probe(judge_url, texts, save_to=probe_dir / "before")
             print(f"judged probe before training: {before}")
@@ -442,7 +460,11 @@ def main() -> None:
         after = None
         if args.probe_samples and judge_url:
             texts = sample_completions(
-                args.out, prompt, args.probe_samples, args.max_completion_length
+                args.out,
+                prompt,
+                args.probe_samples,
+                args.max_completion_length,
+                enable_thinking=args.enable_thinking,
             )
             after = judged_probe(judge_url, texts, save_to=probe_dir / "after")
             print(f"judged probe after training: {after}")

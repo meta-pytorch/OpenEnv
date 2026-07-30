@@ -215,23 +215,22 @@ def find_wheels(shapes: Sequence[Shape], expected: int = 2) -> list[Shape]:
             <= WHEEL_ROW_TOLERANCE * max(seed.radius, s.radius)
         ]
         merged = _merge_concentric(row)
-        # Prefer a row with the expected number of wheels, then the lowest row,
-        # then the largest wheels. Lowest wins because a vehicle sits on the
-        # ground while its rider does not.
-        #
-        # The height is quantised before it is compared, and that matters more
-        # than it looks. A wheel's hub is concentric with its rim but too small
-        # to share a row with it, so it forms a valid row of its own at the same
-        # height. Comparing raw floats let the two rows differ in the last bits
-        # of `cy`, which decided the winner before the radius was ever consulted:
-        # the same drawing scored 1.000 on one machine and 0.333 on a deployed
-        # Space, because the tie went to floating-point noise and a hub of radius
-        # 0.02 beat a rim of 0.1248. Rounding to the nearest hundredth of the
-        # canvas makes "the same row" mean what it says.
+        # Prefer a row with the expected number of wheels, then the row whose
+        # *bottom edge* sits lowest, then the largest wheels. The bottom edge,
+        # centre plus radius, is what touches the ground, and comparing it
+        # instead of the centre keeps two failure modes out. A hub is
+        # concentric with its rim, so by centre height they tie and the winner
+        # used to fall to floating-point noise, scoring the same drawing 1.000
+        # on one machine and 0.333 on a deployed Space; by bottom edge the rim
+        # simply reaches lower. And with a single expected wheel, a pedal
+        # drawn below the axle out-lowers the wheel's centre but not the point
+        # where the wheel meets the ground. The height is still quantised so
+        # that "the same row" does not depend on the last bits of a float.
         key = (
             1 if len(merged) == expected else 0,
             round(
-                sum(s.centroid[1] for s in merged) / len(merged), ROW_HEIGHT_PRECISION
+                sum(s.centroid[1] + s.radius for s in merged) / len(merged),
+                ROW_HEIGHT_PRECISION,
             ),
             sum(s.radius for s in merged) / len(merged),
         )

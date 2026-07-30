@@ -338,7 +338,9 @@ def _parse_checklist(raw: str, questions: dict[str, str]) -> dict[str, bool]:
     """Parse the judge's JSON reply, defaulting missing keys to false.
 
     A missing or unparseable answer counts against the submission rather than
-    for it, so a flaky judge cannot inflate a score.
+    for it, so a flaky judge cannot inflate a score. Only a JSON `true` counts:
+    the schema asks for booleans, and truthy strings such as `"false"` or
+    `"no"` from a judge that ignored it must not read as approval.
     """
     payload: dict[str, Any] = {}
     match = _JSON_BLOCK.search(raw or "")
@@ -349,4 +351,4 @@ def _parse_checklist(raw: str, questions: dict[str, str]) -> dict[str, bool]:
                 payload = parsed
         except json.JSONDecodeError:
             payload = {}
-    return {key: bool(payload.get(key, False)) for key in questions}
+    return {key: payload.get(key) is True for key in questions}

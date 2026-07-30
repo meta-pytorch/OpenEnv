@@ -367,6 +367,24 @@ class TestStructure:
     def test_scribble_scores_zero(self):
         assert self.structure("bad_scribble").score == 0.0
 
+    def test_a_pedal_below_the_axle_does_not_displace_a_single_wheel(self):
+        """With one expected wheel, rows are ranked by bottom edge.
+
+        A pedal drawn below the axle has a lower centre than the wheel, but
+        the wheel's rim is what reaches the ground.
+        """
+        source = svg(
+            '<circle cx="200" cy="200" r="60" fill="none" stroke="#222" stroke-width="6"/>'
+            '<circle cx="230" cy="245" r="14" fill="#222"/>'
+            '<line x1="200" y1="140" x2="200" y2="80" stroke="#222" stroke-width="6"/>',
+            view_box="0 0 400 300",
+        )
+        wheels = find_wheels(
+            significant_shapes(extract_shapes(parse_svg(source))), expected=1
+        )
+        assert len(wheels) == 1
+        assert wheels[0].radius == pytest.approx(0.15, abs=0.01)
+
     def test_a_rider_bigger_than_the_wheels_does_not_hide_them(self):
         """A body drawn larger than the wheels must not become the anchor.
 
@@ -648,6 +666,20 @@ class TestEnvironment:
         observation = self.environment().reset(task_id="capybara_unicycle")
         assert observation.task_id == "capybara_unicycle"
         assert observation.expected_wheels == 1
+
+    def test_truthy_strings_do_not_pass_the_checklist(self):
+        """Only a JSON true counts. A judge that answers "false" as a string
+        ignored the schema, and that must not read as approval."""
+        from envs.pelican_svg_env.server.vision_judge import _parse_checklist
+
+        questions = {"a": "?", "b": "?", "c": "?", "d": "?"}
+        raw = '{"a": "false", "b": "no", "c": "0", "d": true}'
+        assert _parse_checklist(raw, questions) == {
+            "a": False,
+            "b": False,
+            "c": False,
+            "d": True,
+        }
 
     def test_partial_pin_is_honoured(self):
         """Pinning one dimension must not be silently ignored."""
