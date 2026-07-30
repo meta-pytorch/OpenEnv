@@ -195,6 +195,9 @@ class TestGeometry:
             'C 25 36.2 36.2 25 50 25 C 63.8 25 75 36.2 75 50 Z"/>'
         ),
         "arc": '<path d="M 25 50 A 25 25 0 1 1 75 50 A 25 25 0 1 1 25 50 Z"/>',
+        # The same two arcs with the flags run together and into the next
+        # coordinate, which the spec allows and minifiers produce.
+        "arc_compact_flags": '<path d="M 25 50 A 25 25 0 1175 50 A 25 25 0 1125 50 Z"/>',
     }
 
     @pytest.mark.parametrize("spelling", sorted(CIRCLES))

@@ -24,9 +24,6 @@ _CURVE_SAMPLES = 16
 MIN_SHAPE_EXTENT = 0.04
 
 _NUMBER = re.compile(r"[-+]?(?:\d*\.\d+|\d+\.?)(?:[eE][-+]?\d+)?")
-_PATH_TOKEN = re.compile(
-    r"([MmLlHhVvCcSsQqTtAaZz])|([-+]?(?:\d*\.\d+|\d+\.?)(?:[eE][-+]?\d+)?)"
-)
 _TRANSFORM = re.compile(r"(matrix|translate|scale|rotate|skewX|skewY)\s*\(([^)]*)\)")
 
 Point = tuple[float, float]
@@ -187,6 +184,43 @@ def _sample_arc(
     return pts
 
 
+def _tokenize_path(d: str) -> list[str | float]:
+    """Split path data into command letters and numbers.
+
+    Needs command context rather than one regex, because arc flags are single
+    digits that may run straight into the next number: in ``A 25 25 0 0175 50``
+    the spec reads ``0``, ``1``, ``75``. Positions three and four of an arc's
+    argument group therefore consume exactly one character.
+    """
+    tokens: list[str | float] = []
+    command = ""
+    arg_index = 0
+    i = 0
+    while i < len(d):
+        char = d[i]
+        if char in " \t\n\r,":
+            i += 1
+        elif char.isalpha():
+            command = char
+            arg_index = 0
+            tokens.append(char)
+            i += 1
+        elif command in "Aa" and arg_index % 7 in (3, 4):
+            if char not in "01":
+                break
+            tokens.append(float(char))
+            arg_index += 1
+            i += 1
+        else:
+            match = _NUMBER.match(d, i)
+            if match is None:
+                break
+            tokens.append(float(match.group(0)))
+            arg_index += 1
+            i = match.end()
+    return tokens
+
+
 def flatten_path(d: str) -> list[tuple[list[Point], bool]]:
     """Flatten a path ``d`` attribute into subpaths of straight segments.
 
@@ -198,9 +232,7 @@ def flatten_path(d: str) -> list[tuple[list[Point], bool]]:
         `list[tuple[list[Point], bool]]`: One entry per subpath, holding its
             points and whether the subpath was explicitly closed with `Z`.
     """
-    tokens: list[str | float] = []
-    for cmd, num in _PATH_TOKEN.findall(d or ""):
-        tokens.append(cmd if cmd else float(num))
+    tokens = _tokenize_path(d or "")
 
     subpaths: list[tuple[list[Point], bool]] = []
     current: list[Point] = []
