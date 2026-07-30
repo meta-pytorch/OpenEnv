@@ -225,12 +225,16 @@ class PiSessionFactory(ResourceSessionFactory):
         task: Any,
         seed: int | None = None,
         episode_id: str | None = None,
+        start_agent: bool = True,
     ) -> PiSession:
         """Create one session, retrying with exponential backoff.
 
         Session creation spins up a sandbox, installs Pi, and starts the proxy +
         agent, the flakiest step in a rollout. Each failed attempt tears its own
         sandbox down (see :meth:`_create_once`), so a retry never leaks.
+
+        Pass ``start_agent=False`` to return before launching the agent (for
+        example to run setup first), then call ``session.start_agent()``.
         """
         import logging
         import time
@@ -239,7 +243,9 @@ class PiSessionFactory(ResourceSessionFactory):
         last_exc: Exception = RuntimeError("create_attempts must be >= 1")
         for i in range(self._create_attempts):
             try:
-                return self._create_once(task, seed=seed, episode_id=episode_id)
+                return self._create_once(
+                    task, seed=seed, episode_id=episode_id, start_agent=start_agent
+                )
             except Exception as exc:  # noqa: BLE001
                 last_exc = exc
                 if i + 1 < self._create_attempts:
@@ -256,6 +262,7 @@ class PiSessionFactory(ResourceSessionFactory):
         task: Any,
         seed: int | None = None,
         episode_id: str | None = None,
+        start_agent: bool = True,
     ) -> PiSession:
         import logging
         _log = logging.getLogger(__name__)
@@ -312,7 +319,8 @@ class PiSessionFactory(ResourceSessionFactory):
                 proxy_trace_path=proxy_trace_path_str,
                 proxy_bg_job=proxy_bg_job,
             )
-            session.start_agent()
+            if start_agent:
+                session.start_agent()
             return session
         except Exception as exc:
             _log.error("factory.create: setup failed, killing sandbox: %r", exc)
