@@ -460,11 +460,11 @@ def _build_turn_record(
     token_ids: list[int] = []
     per_token_logps: list[float] = []
     for entry in content_lp:
-        token = entry.get("token", "")
-        tokens.append(token)
-        # vLLM (--return-tokens-as-token-ids) returns the id in the token field as "token_id:<int>".
-        if token.startswith("token_id:"):
-            token_ids.append(int(token.split(":", 1)[1]))
+        tokens.append(entry.get("token", ""))
+        # OpenAI returns no raw token ids; vLLM returns them as ``token_id``.
+        token_id = entry.get("token_id")
+        if token_id is not None:
+            token_ids.append(int(token_id))
         lp = entry.get("logprob")
         if lp is not None:
             per_token_logps.append(float(lp))
