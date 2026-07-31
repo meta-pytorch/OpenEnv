@@ -9,6 +9,7 @@ from unittest.mock import MagicMock, patch
 
 import yaml
 from openenv.cli.__main__ import app
+from openenv.cli.commands.push import _rewrite_dockerfile_for_space
 from typer.testing import CliRunner
 
 
@@ -39,7 +40,7 @@ def _create_test_openenv_env(env_dir: Path, env_name: str = "test_env") -> None:
     pyproject_content = f"""[project]
 name = "{env_name}"
 version = "0.1.0"
-dependencies = ["openenv[core]>=0.2.0"]
+dependencies = ["openenv>=0.2.0"]
 """
     (env_dir / "pyproject.toml").write_text(pyproject_content)
 
@@ -807,6 +808,32 @@ def test_push_handles_base_image_not_found_in_dockerfile(tmp_path: Path) -> None
 
         # Should still work (adds FROM at beginning)
         assert mock_api.upload_folder.called
+
+
+def test_rewrite_dockerfile_skips_healthcheck_cmd() -> None:
+    """Test that web-interface ENV is not inserted before a HEALTHCHECK CMD."""
+    dockerfile = "\n".join(
+        [
+            "FROM openenv-base:latest",
+            "HEALTHCHECK --interval=30s \\",
+            "  CMD curl -f http://localhost:8000/health || exit 1",
+            'CMD ["uvicorn", "server.app:app"]',
+        ]
+    )
+
+    rewritten, changes = _rewrite_dockerfile_for_space(
+        dockerfile,
+        base_image=None,
+        enable_interface=True,
+    )
+
+    assert changes == ["enabled web interface"]
+    assert (
+        "HEALTHCHECK --interval=30s \\\n"
+        "  CMD curl -f http://localhost:8000/health || exit 1\n"
+        "ENV ENABLE_WEB_INTERFACE=true\n"
+        'CMD ["uvicorn", "server.app:app"]'
+    ) in rewritten
 
 
 def test_push_excludes_files_from_ignore_file(tmp_path: Path) -> None:

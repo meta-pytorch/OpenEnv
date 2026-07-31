@@ -38,14 +38,14 @@ class GenericEnvClient(EnvClient[Dict[str, Any], Dict[str, Any], Dict[str, Any]]
             print(result.observation)  # Dict[str, Any]
             print(result.observation.get("output"))
 
-        # From local Docker image
-        env = GenericEnvClient.from_docker_image("coding-env:latest")
+        # From local Docker image (chain .sync() for synchronous use)
+        env = GenericEnvClient.from_docker_image("coding-env:latest").sync()
         result = env.reset()
         result = env.step({"code": "x = 1 + 2"})
         env.close()
 
         # From HuggingFace Hub (pulls Docker image, no pip install)
-        env = GenericEnvClient.from_env("user/my-env", use_docker=True)
+        env = GenericEnvClient.from_env("user/my-env", use_docker=True).sync()
         result = env.reset()
         env.close()
         ```

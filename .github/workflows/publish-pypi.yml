@@ -62,7 +62,7 @@ jobs:
           fi
 
       - name: Set up Python
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@v7
         with:
           python-version: "3.11"
 
@@ -151,3 +151,158 @@ jobs:
               --title "${GITHUB_REF_NAME}" \
               --generate-notes
           fi
+
+  post-release-bump:
+    name: Open post-release bump PR
+    needs:
+      - build
+      - publish-to-pypi
+      - create-github-release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v7
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Compute next dev version
+        id: next
+        env:
+          RELEASED_VERSION: ${{ needs.build.outputs.version }}
+        run: |
+          if [[ ! "$RELEASED_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "ERROR: release version must be stable and match X.Y.Z"
+            exit 1
+          fi
+
+          MAJOR=$(echo "$RELEASED_VERSION" | cut -d. -f1)
+          MINOR=$(echo "$RELEASED_VERSION" | cut -d. -f2)
+          PATCH=$(echo "$RELEASED_VERSION" | cut -d. -f3)
+          NEXT_PATCH=$((PATCH + 1))
+          NEXT_DEV="${MAJOR}.${MINOR}.${NEXT_PATCH}.dev0"
+          echo "dev_version=$NEXT_DEV" >> "$GITHUB_OUTPUT"
+          echo "branch=bump/${NEXT_DEV}" >> "$GITHUB_OUTPUT"
+
+      - name: Verify pyproject.toml shows the released version
+        env:
+          RELEASED_VERSION: ${{ needs.build.outputs.version }}
+        run: |
+          CURRENT=$(python3 -c "
+          import tomllib
+          with open('pyproject.toml', 'rb') as f:
+              d = tomllib.load(f)
+          print(d['project']['version'])
+          ")
+          if [ "$CURRENT" != "$RELEASED_VERSION" ]; then
+            echo "ERROR: pyproject.toml is '$CURRENT' but release tag is '$RELEASED_VERSION'"
+            exit 1
+          fi
+
+      - name: Verify release exists on PyPI
+        env:
+          VERSION: ${{ needs.build.outputs.version }}
+        run: |
+          for attempt in 1 2 3 4 5; do
+            if python3 - <<'PY'
+          import os
+          import urllib.error
+          import urllib.request
+
+          version = os.environ["VERSION"]
+          url = f"https://pypi.org/pypi/openenv/{version}/json"
+          try:
+              with urllib.request.urlopen(url, timeout=30) as response:
+                  if response.status == 200:
+                      raise SystemExit(0)
+          except urllib.error.HTTPError as exc:
+              if exc.code != 404:
+                  raise
+          raise SystemExit(1)
+          PY
+            then
+              echo "openenv ${VERSION} is available on PyPI"
+              exit 0
+            fi
+            echo "openenv ${VERSION} is not visible on PyPI yet; retrying..."
+            sleep 30
+          done
+
+          echo "ERROR: openenv ${VERSION} is not available on PyPI; refusing post-release bump"
+          exit 1
+
+      - name: Create bump branch and edit pyproject.toml
+        env:
+          DEV_VERSION: ${{ steps.next.outputs.dev_version }}
+          BRANCH: ${{ steps.next.outputs.branch }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          if git ls-remote --exit-code --heads origin "$BRANCH" >/dev/null 2>&1; then
+            echo "Branch $BRANCH already exists; reusing it"
+            git fetch origin "$BRANCH"
+            git checkout -B "$BRANCH" FETCH_HEAD
+          else
+            git checkout -b "$BRANCH"
+          fi
+
+          python3 - <<'PYEOF'
+          import os
+          import pathlib
+          import re
+
+          dev_version = os.environ["DEV_VERSION"]
+          pyproject = pathlib.Path("pyproject.toml")
+          text = pyproject.read_text()
+          text = re.sub(
+              r'^version = ".*"',
+              f'version = "{dev_version}"',
+              text,
+              count=1,
+              flags=re.MULTILINE,
+          )
+          pyproject.write_text(text)
+          PYEOF
+
+          if git diff --quiet; then
+            echo "pyproject.toml already contains ${DEV_VERSION}"
+          else
+            git add pyproject.toml
+            git commit -m "chore: bump version to ${DEV_VERSION} (post-release)"
+            git push origin "$BRANCH"
+          fi
+
+      - name: Create pull request
+        env:
+          GH_TOKEN: ${{ github.token }}
+          DEV_VERSION: ${{ steps.next.outputs.dev_version }}
+          RELEASED_VERSION: ${{ needs.build.outputs.version }}
+          BRANCH: ${{ steps.next.outputs.branch }}
+        run: |
+          EXISTING_PR=$(gh pr list \
+            --repo "$GITHUB_REPOSITORY" \
+            --head "$BRANCH" \
+            --state open \
+            --json number \
+            --jq '.[0].number // empty')
+
+          if [ -n "$EXISTING_PR" ]; then
+            echo "Post-release bump PR already exists: #${EXISTING_PR}"
+            exit 0
+          fi
+
+          gh pr create \
+            --repo "$GITHUB_REPOSITORY" \
+            --base main \
+            --head "$BRANCH" \
+            --title "chore: bump version to ${DEV_VERSION} (post-release)" \
+            --body "Automatic post-release bump after ${RELEASED_VERSION} was published.
+
+          **Change**: \`pyproject.toml\` version \`${RELEASED_VERSION}\` → \`${DEV_VERSION}\`
+
+          _Generated by \`.github/workflows/publish-pypi.yml\`_"
