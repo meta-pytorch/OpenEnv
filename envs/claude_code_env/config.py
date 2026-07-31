@@ -51,8 +51,11 @@ class ClaudeCodeConfig(BaseModel):
 
     # --- Transparent-proxy tuning --------------------------------------------
     # Cap ``max_tokens`` / ``max_completion_tokens`` on forwarded requests. Only
-    # used in ``mode="transparent_proxy"``. ``None`` disables the cap.
-    proxy_max_tokens_cap: int | None = 16_384
+    # used in ``mode="transparent_proxy"``. ``None`` disables the cap. Kept well
+    # below the vLLM context window because Claude Code's system prompt is large
+    # and grows per turn, so ``prompt_tokens + max_tokens`` can otherwise exceed
+    # ``max_model_len`` and the upstream returns 400.
+    proxy_max_tokens_cap: int | None = 8_192
     # Per-turn top-k logprobs the proxy requests from the upstream.
     proxy_top_logprobs: int = 5
     # Disable reasoning/thinking mode for Qwen3 / Qwen3.5 models. Proxy sets

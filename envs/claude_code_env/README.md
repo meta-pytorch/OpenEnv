@@ -9,7 +9,7 @@ app_port: 8000
 base_path: /web
 tags:
   - openenv
-short_description: Claude Code agent in a Hugging Face sandbox with logprob capture
+short_description: Claude Code agent in an HF sandbox with logprob capture
 ---
 
 # Claude Code Environment for OpenEnv
@@ -55,6 +55,12 @@ injects `logprobs=true` and captures `completion_token_ids` + `per_token_logps`
 on the OpenAI/vLLM side, exactly as it does for `opencode_env` and `pi_env`.
 Training correctness is unchanged: the shim only translates the envelope, and
 capture still happens at the vLLM seam.
+
+Serve the upstream vLLM with a generous `--max-model-len`. Claude Code's system
+prompt is large and grows each turn, so `prompt_tokens + max_tokens` can exceed a
+small context window and the upstream returns 400. `proxy_max_tokens_cap` (default
+`8192`) bounds the completion side, but the server still needs headroom for the
+prompt (`--max-model-len 98304` works well for Qwen3-4B).
 
 Inside the sandbox the agent runs headless via `claude -p --output-format json
 --dangerously-skip-permissions`, with the prompt piped on stdin. Claude Code is
@@ -104,12 +110,11 @@ on `localhost:7100` in front of it, and points Claude Code at the shim via
 `HFSandboxBackend` (from `openenv.core.sandbox`) runs the agent in a Hugging Face
 sandbox. `image="python:3.12"` cold-installs Node 22, the Claude Code CLI
 (`npm install -g @anthropic-ai/claude-code`), and the proxy's Python deps on every
-rollout. Cold-install per rollout is the current default (no pre-baked image is
-published yet). A pre-baked image (Node + Claude Code + proxy deps already
-installed) can be dropped in the same way once one exists:
+rollout. For faster rollouts use the pre-baked image (Node + Claude Code + proxy deps
+already installed), built by CI from `hf_image/Dockerfile`:
 
 ```python
-sandbox_backend=HFSandboxBackend(image="python:3.12")
+sandbox_backend=HFSandboxBackend(image="ghcr.io/huggingface/openenv-claude-code-sandbox:latest")
 ```
 
 Any backend satisfying the `SandboxBackend` / `SandboxHandle` / `BgJob` protocols

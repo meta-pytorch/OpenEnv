@@ -43,6 +43,12 @@ envelope, and capture still happens at the vLLM seam. Requesting the proxy unary
 keeps the capture path identical to the other coding-agent envs and avoids
 stream reassembly on the shim side.
 
+Serve the upstream vLLM with a generous `--max-model-len`. Claude Code's system
+prompt is large and grows each turn, so `prompt_tokens + max_tokens` can exceed a
+small context window and the upstream returns 400. `proxy_max_tokens_cap` (default
+`8192`) bounds the completion side, but the server still needs headroom for the
+prompt (`--max-model-len 98304` works well for Qwen3-4B).
+
 Inside the sandbox the agent runs headless via `claude -p --output-format json
 --dangerously-skip-permissions`. The sandbox execs as root, so `IS_SANDBOX=1` is
 set to let `--dangerously-skip-permissions` run. On the first rollout the sandbox
@@ -86,12 +92,12 @@ on `localhost:7100` in front of it, and points Claude Code at the shim via
 
 `HFSandboxBackend` (from `openenv.core.sandbox`) runs the agent in a Hugging Face
 sandbox. `image="python:3.12"` cold-installs Node 22, the Claude Code CLI, and the
-proxy's Python deps on every rollout. Cold-install per rollout is the current
-default. A pre-baked image (Node + Claude Code + proxy deps already installed) can
-be dropped in the same way once one is published:
+proxy's Python deps on every rollout. For faster rollouts use the pre-baked image
+(Node + Claude Code + proxy deps already installed), built by CI from
+`hf_image/Dockerfile`:
 
 ```python
-sandbox_backend=HFSandboxBackend(image="python:3.12")
+sandbox_backend=HFSandboxBackend(image="ghcr.io/huggingface/openenv-claude-code-sandbox:latest")
 ```
 
 Any backend satisfying the `SandboxBackend` / `SandboxHandle` / `BgJob` protocols

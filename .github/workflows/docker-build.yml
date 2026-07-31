@@ -112,6 +112,12 @@ jobs:
           - name: opencode-sandbox
             dockerfile: envs/opencode_env/hf_image/Dockerfile
             context: envs/opencode_env
+          - name: claude-code-env
+            dockerfile: envs/claude_code_env/server/Dockerfile
+            context: envs/claude_code_env
+          - name: claude-code-sandbox
+            dockerfile: envs/claude_code_env/hf_image/Dockerfile
+            context: envs/claude_code_env
           - name: openapp-env
             dockerfile: envs/openapp_env/server/Dockerfile
             context: envs/openapp_env

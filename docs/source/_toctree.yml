@@ -54,6 +54,8 @@
     title: RL Training with an Agentic Harness
   - local: tutorials/sft-warmup
     title: SFT Training with Environments
+  - local: tutorials/claude-agent-grpo
+    title: Training a Real Coding Agent (Claude Code)
   title: Tutorials
 - isExpanded: false
   sections:
