@@ -53,7 +53,7 @@
   - local: tutorials/browsergym-harness
     title: RL Training with an Agentic Harness
   - local: tutorials/opencode-agent-grpo
-    title: Training a Real Coding Agent
+    title: Coding Agent Training with TRL
   - local: tutorials/sft-warmup
     title: SFT Training with Environments
   - local: tutorials/pi-agent-grpo

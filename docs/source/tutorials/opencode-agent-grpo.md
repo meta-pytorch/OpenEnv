@@ -1,4 +1,4 @@
-# Training a Real Coding Agent with GRPO (OpenCode)
+# Coding Agent Training with TRL (OpenCode)
 
 This tutorial covers the black-box training path: training the actual
 [`opencode`](https://opencode.ai) coding agent, with its own planner, tools,
