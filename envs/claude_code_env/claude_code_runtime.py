@@ -140,14 +140,16 @@ def build_run_cmd(config: ClaudeCodeConfig) -> str:
         if config.system_prompt
         else ""
     )
+    # Pass the prompt on stdin, not as a trailing positional: ``--allowedTools`` is
+    # variadic and would otherwise swallow the prompt argument as another tool.
     return (
         "set -o pipefail && "
         f'export PATH="{node_dir(config)}/bin:{npm_prefix(config)}/bin:$PATH" && '
         f"cd {workdir_path(config)} && "
+        f"cat {instruction_path(config)} | "
         f"{claude_bin_path(config)} -p --output-format json --dangerously-skip-permissions "
         f"--model {config.model} "
         f"{turns_flag}{tools_flag}{system_flag}"
-        f'"$(cat {instruction_path(config)})" '
         f"2>&1 | tee {agent_log_path(config)}"
     ).strip()
 
