@@ -127,6 +127,8 @@
     title: Wildfire
   - local: environments/agent_world_model
     title: Agent World Model
+  - local: environments/claude_code
+    title: Claude Code
   - local: environments/opencode
     title: OpenCode
   - local: environments/pelican_svg

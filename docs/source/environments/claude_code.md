@@ -1,29 +1,13 @@
----
-title: Claude Code Environment Server
-emoji: 🤖
-colorFrom: pink
-colorTo: purple
-sdk: docker
-pinned: false
-app_port: 8000
-base_path: /web
-tags:
-  - openenv
-short_description: Claude Code agent in a Hugging Face sandbox with logprob capture
----
-
+<!-- openenv-source: claude_code_env -->
 # Claude Code Environment for OpenEnv
 
 `claude_code_env` runs the [Claude Code](https://github.com/anthropics/claude-code)
-CLI (`@anthropic-ai/claude-code`) inside an isolated
-[Hugging Face sandbox](https://huggingface.co/docs/huggingface_hub/package_reference/sandbox)
-against an OpenAI-compatible LLM endpoint, capturing per-token logprobs for GRPO
-training.
-
-It is a sibling of `opencode_env` and `pi_env`: same two-layer design (an
-in-process harness primitive plus a deployable HTTP env), same transparent-proxy
-logprob capture, same uniform `(instruction, setup, verify)` Task shape. The
-agent is Claude Code, and the default sandbox backend is Hugging Face.
+CLI (`@anthropic-ai/claude-code`) inside an isolated OpenEnv sandbox against an
+OpenAI-compatible LLM endpoint, capturing per-token logprobs for RL training. It
+is a sibling of `opencode_env` and `pi_env`: same two-layer design (an in-process
+harness primitive plus a deployable HTTP env), same transparent-proxy logprob
+capture, same uniform `(instruction, setup, verify)` Task shape. The agent is
+Claude Code, and the default sandbox backend is Hugging Face.
 
 The env is **task-agnostic**. Every rollout is configured at call-time with a
 uniform Task shape:
@@ -53,18 +37,17 @@ and translates the reply back into the Anthropic shape (replaying it as a
 synthetic Anthropic SSE sequence when Claude Code asked to stream). The proxy
 injects `logprobs=true` and captures `completion_token_ids` + `per_token_logps`
 on the OpenAI/vLLM side, exactly as it does for `opencode_env` and `pi_env`.
-Training correctness is unchanged: the shim only translates the envelope, and
-capture still happens at the vLLM seam.
+
+Training correctness is therefore unchanged: the shim only translates the
+envelope, and capture still happens at the vLLM seam. Requesting the proxy unary
+keeps the capture path identical to the other coding-agent envs and avoids
+stream reassembly on the shim side.
 
 Inside the sandbox the agent runs headless via `claude -p --output-format json
---dangerously-skip-permissions`, with the prompt piped on stdin. Claude Code is
-pointed at the shim (or, in `black_box` mode, at an Anthropic-native endpoint)
-via `ANTHROPIC_BASE_URL`. Its config dir is `.claude` (a `settings.json` marks
-onboarding complete so `claude -p` does not block on first-run prompts). The
-sandbox execs as root, so `IS_SANDBOX=1` is set to let
-`--dangerously-skip-permissions` run. On the first rollout the sandbox bootstraps
-Node 22 and installs `@anthropic-ai/claude-code`. The sandbox layer (backend plus
-interception proxy) comes from `openenv.core.sandbox`.
+--dangerously-skip-permissions`. The sandbox execs as root, so `IS_SANDBOX=1` is
+set to let `--dangerously-skip-permissions` run. On the first rollout the sandbox
+bootstraps Node 22 and installs `@anthropic-ai/claude-code`. The sandbox layer
+(backend + interception proxy) comes from `openenv.core.sandbox`.
 
 ## In-process primitive (no HTTP)
 
@@ -78,7 +61,7 @@ from claude_code_env import ClaudeCodeConfig, ClaudeCodeSessionFactory, ClaudeCo
 
 factory = ClaudeCodeSessionFactory(
     config=ClaudeCodeConfig(
-        base_url="https://my-vllm-endpoint/v1",       # the real upstream the proxy forwards to
+        base_url="https://my-vllm-endpoint/v1",      # the real upstream the proxy forwards to
         api_key=os.environ.get("VLLM_API_KEY", "intercepted"),
         model="Qwen/Qwen3.5-4B",
         sandbox_home="/root",                          # HF sandbox execs as root
@@ -102,11 +85,10 @@ on `localhost:7100` in front of it, and points Claude Code at the shim via
 ### Sandbox backend
 
 `HFSandboxBackend` (from `openenv.core.sandbox`) runs the agent in a Hugging Face
-sandbox. `image="python:3.12"` cold-installs Node 22, the Claude Code CLI
-(`npm install -g @anthropic-ai/claude-code`), and the proxy's Python deps on every
-rollout. Cold-install per rollout is the current default (no pre-baked image is
-published yet). A pre-baked image (Node + Claude Code + proxy deps already
-installed) can be dropped in the same way once one exists:
+sandbox. `image="python:3.12"` cold-installs Node 22, the Claude Code CLI, and the
+proxy's Python deps on every rollout. Cold-install per rollout is the current
+default. A pre-baked image (Node + Claude Code + proxy deps already installed) can
+be dropped in the same way once one is published:
 
 ```python
 sandbox_backend=HFSandboxBackend(image="python:3.12")
@@ -173,7 +155,7 @@ Single tool, two ways to specify the LLM endpoint:
 | `max_tokens_cap` | `int` | `4096` | Per-turn `max_tokens` clamp. |
 | `top_logprobs` | `int` | `5` | HF Router cap is 5, OpenAI 0 to 20, vLLM unbounded. |
 | `agent_timeout_s` | `float` | `900.0` | Hard wall budget for one `claude` run. |
-| `image` | `str` | `""` | HF sandbox image. Blank falls back to `python:3.12` (cold-installs Node + Claude Code). |
+| `image` | `str` | `""` | HF sandbox image; blank falls back to `python:3.12` (cold-installs Node + Claude Code). |
 
 Returns `RolloutResult` JSON with: `reward`, `setup_results[]`,
 `verify_results[]`, `proxy_turns[]`, `files{}`, `agent_log_tail`,
@@ -223,7 +205,7 @@ Hyperbolic / Featherless (silent drop) and Groq (HTTP 400).
 
 ```
 claude_code_env/
-├── README.md                       # this file
+├── README.md                       # env overview
 ├── openenv.yaml                    # OpenEnv space spec
 ├── pyproject.toml                  # deps + ``server`` entrypoint
 ├── __init__.py                     # re-exports primitive + client + models
@@ -239,7 +221,7 @@ claude_code_env/
 │
 └── server/
     ├── __init__.py
-    ├── app.py                      # FastAPI factory, mounts Gradio at /web
+    ├── app.py                      # FastAPI factory; mounts Gradio at /web
     ├── claude_code_environment.py  # MCPEnvironment with single ``run_rollout`` tool
     ├── gradio_ui.py                # the /web Gradio Blocks UI
     ├── catalog.py                  # endpoint shorthand resolver
@@ -249,3 +231,10 @@ claude_code_env/
 The sandbox backend + interception proxy are imported from
 `openenv.core.sandbox`. `claude_code_env` ships only the Anthropic translation
 shim (`anthropic_shim.py`) on top.
+
+## References
+
+- [OpenEnv docs](https://huggingface.co/docs/openenv)
+- [Claude Code](https://github.com/anthropics/claude-code)
+- [Hugging Face sandbox](https://huggingface.co/docs/huggingface_hub/package_reference/sandbox)
+- [OpenCode environment](opencode) (OpenAI-native sibling env)
