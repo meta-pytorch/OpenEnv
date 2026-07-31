@@ -207,6 +207,13 @@ def _sse(event: str, data: dict) -> str:
     return f"event: {event}\ndata: {json.dumps(data)}\n\n"
 
 
+def _error_response(want_stream: bool, message: str):
+    err = {"type": "error", "error": {"type": "api_error", "message": message}}
+    if want_stream:
+        return StreamingResponse(iter([_sse("error", err)]), media_type="text/event-stream")
+    return JSONResponse(err, status_code=502)
+
+
 def stream_events(anthropic_msg: dict):
     """Replay a complete Anthropic message as a synthetic SSE event sequence."""
     msg_head = {k: anthropic_msg[k] for k in ("id", "type", "role", "model", "stop_sequence")}
@@ -281,13 +288,17 @@ def build_app(upstream_url: str, api_key: str) -> FastAPI:
             resp = await client.post(
                 chat_url, json=openai_body, headers={"Authorization": f"Bearer {api_key}"}
             )
-            resp.raise_for_status()
-            anthropic_msg = translate_response(resp.json(), model)
-        except Exception as exc:  # surface upstream failures to Claude Code
-            err = {"type": "error", "error": {"type": "api_error", "message": str(exc)}}
-            if want_stream:
-                return StreamingResponse(iter([_sse("error", err)]), media_type="text/event-stream")
-            return JSONResponse(err, status_code=502)
+        except Exception as exc:  # network-level failure reaching the proxy
+            return _error_response(want_stream, f"upstream request failed: {exc}")
+        if resp.status_code >= 400:
+            detail = resp.text[:1000]
+            print(
+                f"[shim] upstream {resp.status_code}: {detail}\n"
+                f"[shim] request body: {json.dumps(openai_body)[:2000]}",
+                flush=True,
+            )
+            return _error_response(want_stream, f"upstream {resp.status_code}: {detail}")
+        anthropic_msg = translate_response(resp.json(), model)
 
         if want_stream:
             return StreamingResponse(stream_events(anthropic_msg), media_type="text/event-stream")
