@@ -129,3 +129,42 @@ def test_every_seam_declares_a_known_dialect():
 def test_unknown_seam_raises():
     with pytest.raises((KeyError, ValueError)):
         seams.get("definitely-not-a-harness")
+
+
+# --- concurrency ------------------------------------------------------------
+def test_process_env_lock_is_usable_from_several_event_loops():
+    """It guards `os.environ`, which is global to the process, not to an event loop.
+
+    Rollouts arrive on several loops: the env server answers each request on its own, and a caller
+    using `asyncio.run` per rollout creates another. An `asyncio.Lock` binds to the first loop that
+    uses it and then raises "is bound to a different event loop" for every other one, which failed
+    100% of concurrent rollouts while passing every sequential test.
+    """
+    import asyncio
+    import threading
+
+    lock = rollout._PROC_ENV_LOCK
+    assert isinstance(lock, type(threading.Lock())), "must not be an asyncio primitive"
+
+    errors: list[str] = []
+    done: list[int] = []
+
+    def worker(tag: int) -> None:
+        async def body() -> None:
+            with lock:
+                await asyncio.sleep(0.005)
+
+        try:
+            asyncio.run(body())
+            done.append(tag)
+        except Exception as exc:  # noqa: BLE001 - the failure being pinned
+            errors.append(f"{type(exc).__name__}: {exc}")
+
+    threads = [threading.Thread(target=worker, args=(i,)) for i in range(8)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+
+    assert not errors, errors[:2]
+    assert len(done) == 8

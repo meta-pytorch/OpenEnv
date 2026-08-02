@@ -19,8 +19,8 @@ had to be individually wrapped. Behind a result object that failure mode cannot 
 
 from __future__ import annotations
 
-import asyncio
 import os
+import threading
 import time
 import uuid
 from pathlib import Path
@@ -52,7 +52,14 @@ _NO_HARBOR_RETRY = 0
 # That channel is global, so two concurrent rollouts of the same harness would overwrite each
 # other's session key. The lock is held only across agent construction (`Trial.create`), which is
 # brief; the rollout itself then runs unserialised.
-_PROC_ENV_LOCK = asyncio.Lock()
+#
+# A `threading.Lock`, not an `asyncio.Lock`. What is being protected is `os.environ`, which is global
+# to the PROCESS, not to an event loop, and rollouts arrive on several loops: the env server answers
+# each request on its own loop, and any caller using `asyncio.run` per rollout creates another. An
+# asyncio lock binds to the first loop that uses it and then raises
+# "is bound to a different event loop" for every other one, which fails 100% of concurrent rollouts
+# while passing every sequential test.
+_PROC_ENV_LOCK = threading.Lock()
 
 
 def apply_process_env(seam_name: str, env: dict[str, str]) -> None:
@@ -246,7 +253,11 @@ async def run_rollout(
             force_build=force_build,
         )
 
-        async with _PROC_ENV_LOCK:
+        # Held across construction because Harbor's wrappers read `os.environ` while building the
+        # agent, so the variables must still be in place when `Trial.create` runs. It is a blocking
+        # acquire inside an async function, which is acceptable only because construction does no
+        # I/O worth speaking of: the sandbox is booted later, by `trial.run()`, outside the lock.
+        with _PROC_ENV_LOCK:
             config = build_trial_config(**config_kwargs)
             trial = await Trial.create(config)
         trial_result = await trial.run()
