@@ -39,8 +39,12 @@ def detect(path: str, headers: dict[str, str], body: dict[str, Any]) -> APIType:
     if "/v1/responses" in path:
         return APIType.OPENAI_RESPONSES
     # Google puts the method in the path: `/v1beta/models/{model}:generateContent`, and its
-    # streaming variant `:streamGenerateContent`. Both contain this substring.
-    if "generateContent" in path:
+    # streaming variant `:streamGenerateContent`. The comparison must be case-insensitive: the
+    # streaming form capitalises the G, so a literal `"generateContent" in path` matches the
+    # non-streaming route and misses every streaming one. A missed Google request is then handed to
+    # the chat-completions transformer, which finds no `messages` and produces a valid-looking
+    # response in the wrong envelope, and gemini-cli reports that as nothing at all.
+    if "generatecontent" in path.lower():
         return APIType.GOOGLE
 
     if "anthropic-version" in {k.lower() for k in headers}:

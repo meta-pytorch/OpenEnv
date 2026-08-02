@@ -168,6 +168,21 @@ def _tool_calls(response: dict[str, Any]) -> list[dict[str, Any]]:
                 "arguments": function.get("arguments", call.get("arguments", "")),
             }
         )
+    # Anthropic does not use `tool_calls`: it puts tool use in the content block list. Reading only
+    # the chat-completions shape leaves claude-code's actions out of the result entirely, so
+    # `contract.json` and the rendered conversation both show it as a stream of text that did
+    # nothing.
+    content = response.get("content")
+    if isinstance(content, list):
+        for block in content:
+            if (
+                isinstance(block, dict)
+                and block.get("type") == "tool_use"
+                and block.get("name")
+            ):
+                out.append(
+                    {"name": str(block["name"]), "arguments": block.get("input", "")}
+                )
     return out
 
 
