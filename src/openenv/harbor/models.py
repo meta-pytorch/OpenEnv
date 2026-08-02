@@ -1,0 +1,253 @@
+"""Wire types for harbor_env.
+
+Two shapes matter. `HarborTaskRef` is what the Task API hands out during discovery, one per dataset
+item. `HarborRolloutResult` is what one `run_rollout` returns: the reward, and enough token detail to
+train on.
+
+Everything here is JSON-serialisable by construction — `run_rollout` returns
+`result.model_dump_json()` and the client re-validates, matching how `opencode_env` and `pi_env` do
+it. There is no shared memory between server and client.
+"""
+
+from __future__ import annotations
+
+from typing import Any
+
+from openenv.core.env_server.types import State
+from pydantic import BaseModel, Field
+
+
+class HarborTaskRef(BaseModel):
+    """One task, as returned by the Task API. What a trainer's dataset holds per row."""
+
+    index: int
+    task_id: str
+    task_name: str
+    dataset: str = ""
+    instruction: str = ""
+
+
+class HarborTurn(BaseModel):
+    """One model call, captured exactly. The unit a trainer consumes.
+
+    `prompt_token_ids` is the engine's own tokenisation of everything before this turn, not a local
+    re-render. That distinction is the whole point of the capture layer: re-tokenising a prompt
+    offline drifts from what the model actually saw (measured at 0/6 exact on Qwen3.5 until thinking
+    was disabled), and a drifted prompt silently forks a long conversation into short fragments.
+    """
+
+    turn: int
+    role: str = "agent"
+    finish_reason: str | None = None
+    prompt_token_ids: list[int] = Field(default_factory=list)
+    completion_token_ids: list[int] = Field(default_factory=list)
+    per_token_logps: list[float] = Field(default_factory=list)
+    n_tools: int = 0
+    discarded: bool = False
+
+    # What the model actually produced, in readable form. Only the assistant's own output is kept,
+    # never the prompt side: the prompt is already present as token ids and repeating it as text
+    # would roughly double the payload for no new information. This is what makes a result
+    # inspectable without a tokenizer, and it is what a reward function keys on when it needs to
+    # know which tool was called rather than how many tokens were spent.
+    text: str = ""
+    tool_calls: list[dict[str, Any]] = Field(default_factory=list)
+
+
+class HarborConversation(BaseModel):
+    """One complete conversation from a rollout, exactly as the harness assembled it.
+
+    A rollout can contain several: a root is a conversation that started from a fresh prompt, so
+    subagents and auxiliary calls each get their own. `messages` is the full list including the
+    system prompt and every tool result, which is what makes a finished rollout readable rather than
+    a column of token counts.
+    """
+
+    root_id: str = ""
+    role: str = "agent"  # agent | auxiliary | discarded
+    n_turns: int = 0
+    messages: list[dict[str, Any]] = Field(default_factory=list)
+
+
+class HarborStepResult(BaseModel):
+    """One step of a multi-step task. Harbor gates progression on `min_reward`."""
+
+    name: str = ""
+    rewards: dict[str, float] = Field(default_factory=dict)
+    passed: bool = True
+
+
+class HarborRolloutResult(BaseModel):
+    """Everything one rollout produced.
+
+    A failed rollout is still a valid result: `ok=False`, `error` set, `reward=None`. Nothing raises
+    across the server boundary, because a rollout exception reaching a trainer is what hangs every
+    rank at the NCCL barrier forever.
+    """
+
+    # identity
+    task_id: str = ""
+    task_name: str = ""
+    dataset: str = ""
+    harness: str = ""
+    sandbox: str = ""
+    trial_name: str = ""
+    session_id: str = ""
+
+    # outcome — forwarded from Harbor's verifier, never recomputed here
+    reward: float | None = None
+    rewards: dict[str, float] = Field(default_factory=dict)
+    reward_key: str = ""
+    step_results: list[HarborStepResult] = Field(default_factory=list)
+
+    # capture
+    turns: list[HarborTurn] = Field(default_factory=list)
+    conversations: list[HarborConversation] = Field(default_factory=list)
+    n_turns: int = 0
+    n_roots: int = 0
+    n_trainable_tokens: int = 0
+    multi_turn: bool = False
+    atif: str = "none"
+    findings: list[str] = Field(default_factory=list)
+
+    # timings and diagnostics. There is no metrics endpoint and no structured logging in the env
+    # server, so observability has to ride back inside the payload or it does not exist.
+    wall_s: float = 0.0
+    phase_timings: dict[str, float] = Field(default_factory=dict)
+    agent_log_tail: str = ""
+
+    # failure
+    ok: bool = True
+    error: str | None = None
+    exception_type: str | None = None
+
+    @property
+    def solved(self) -> bool:
+        """Graded AND positive. `reward is None` means the verifier never ran, which is not a zero."""
+        return self.reward is not None and self.reward > 0
+
+
+class HarborState(State):
+    """Per-session counters. Mutated inside the tool, since `step` only dispatches."""
+
+    rollouts_completed: int = 0
+    last_reward: float | None = None
+    last_task_id: str | None = None
+    last_trial_name: str | None = None
+    llm_url: str = ""
+    intercept_url: str = ""
+
+
+def _assistant_text(response: dict[str, Any]) -> str:
+    """The assistant's own words, flattened across the shapes the four dialects produce."""
+    content = response.get("content")
+    if isinstance(content, list):  # anthropic / responses send block lists
+        return " ".join(
+            part.get("text", "")
+            for part in content
+            if isinstance(part, dict) and part.get("text")
+        )
+    return content if isinstance(content, str) else ""
+
+
+def _tool_calls(response: dict[str, Any]) -> list[dict[str, Any]]:
+    """Tool calls as `{name, arguments}`, normalised across dialects.
+
+    Kept as data rather than a rendered string: a reward function that wants to check which tool ran
+    should not have to parse a display format.
+    """
+    out: list[dict[str, Any]] = []
+    for call in response.get("tool_calls") or []:
+        function = call.get("function") or {}
+        name = function.get("name") or call.get("name")
+        if not name:
+            continue
+        out.append(
+            {
+                "name": str(name),
+                "arguments": function.get("arguments", call.get("arguments", "")),
+            }
+        )
+    return out
+
+
+def conversations_from_document(document: dict[str, Any]) -> list[HarborConversation]:
+    """Rebuild the full conversations, system prompt and tool results included.
+
+    The deepest node of a chain already carries the whole conversation in `request_messages`, since
+    each call replays everything before it. So the last node per root plus its own response is the
+    complete transcript, with no stitching and no risk of drifting from what was actually sent.
+    """
+    by_node = {t["node_id"]: t for t in document.get("turns", [])}
+    # One per root, not one per sequence. A fork produces several paths through the same root, and
+    # each replays the same conversation up to the branch point, so emitting one per sequence shows
+    # the reader near-identical transcripts and calls both of them the main conversation. The
+    # longest path is the complete one.
+    best: dict[str, HarborConversation] = {}
+
+    for sequence in document.get("sequences", []):
+        node_ids = sequence.get("node_ids") or []
+        if not node_ids:
+            continue
+        last = by_node.get(node_ids[-1], {})
+        messages = list(last.get("request_messages") or [])
+        response = last.get("response_message") or {}
+        if response:
+            messages.append({**response, "role": response.get("role", "assistant")})
+        if not messages:
+            continue
+        root_id = str(sequence.get("root_id", "")) or node_ids[0]
+        candidate = HarborConversation(
+            root_id=root_id,
+            role=str(sequence.get("role", "agent")),
+            n_turns=int(sequence.get("n_turns", len(node_ids))),
+            messages=messages,
+        )
+        current = best.get(root_id)
+        if current is None or len(candidate.messages) > len(current.messages):
+            best[root_id] = candidate
+    return list(best.values())
+
+
+def turns_from_document(document: dict[str, Any]) -> list[HarborTurn]:
+    """Flatten a capture document into per-turn training rows.
+
+    Only `agent` sequences become turns. Auxiliary calls are dropped here rather than marked,
+    because they are not the agent working on the task and must never carry its reward — a
+    next-speaker classification credited with solving a task is a reward-hacking gift.
+    """
+    by_node = {t["node_id"]: t for t in document.get("turns", [])}
+    rows: list[HarborTurn] = []
+    index = 0
+
+    for sequence in document.get("sequences", []):
+        if sequence.get("role") != "agent":
+            continue
+        cursor = 0
+        input_ids = sequence["input_ids"]
+        mask = sequence["loss_mask"]
+        logprobs = sequence["logprobs"]
+        for node_id, length in zip(sequence["node_ids"], sequence["turn_lengths"]):
+            node = by_node.get(node_id, {})
+            response = node.get("response_message") or {}
+            sampled = [(i, m) for i, m in zip(input_ids, mask) if m]
+            span = sampled[cursor : cursor + length]
+            lp = [p for p, m in zip(logprobs, mask) if m][cursor : cursor + length]
+            rows.append(
+                HarborTurn(
+                    turn=index,
+                    finish_reason=node.get("finish_reason"),
+                    prompt_token_ids=input_ids[: sequence["prompt_len"]]
+                    if index == 0
+                    else [],
+                    completion_token_ids=[i for i, _ in span],
+                    per_token_logps=lp,
+                    n_tools=node.get("n_tools", 0),
+                    discarded=bool(node.get("discarded")),
+                    text=_assistant_text(response),
+                    tool_calls=_tool_calls(response),
+                )
+            )
+            cursor += length
+            index += 1
+    return rows
