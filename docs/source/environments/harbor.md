@@ -1,12 +1,4 @@
----
-title: Harbor
-emoji: ⚓
-colorFrom: blue
-colorTo: indigo
-sdk: docker
-app_port: 8000
----
-
+<!-- openenv-source: harbor_env -->
 # harbor_env
 
 Run a Harbor task with a coding agent and capture every token id and per-token logprob it produced,
