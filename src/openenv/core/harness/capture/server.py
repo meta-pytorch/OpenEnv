@@ -1,0 +1,532 @@
+"""The intercept server.
+
+    input   an OpenAI-spec endpoint you already host (vLLM or SGLang) + the served model name
+    output  per rollout, a JSON document of exact token ids, logprobs and loss masks, ready to train
+
+In between: a coding agent points at this URL, in whichever wire dialect it speaks, and
+nothing about the agent changes except a base URL and an API key.
+
+    agent (in an E2B sandbox, any of ~37)
+       |  OPENAI_BASE_URL / ANTHROPIC_BASE_URL / provider config = this server
+       |  API key = the rollout's session id       <- the entire multiplexing scheme
+       v
+    THIS  --detect dialect--> normalise to chat --inject capture params--> your engine
+       <--replay in the agent's dialect (SSE if it asked for SSE)---------┘
+       |
+       └─ each call becomes a node in the rollout graph, linked by token prefix
+
+WHY IT CAPTURES FAITHFULLY: we never tokenize. The engine tokenizes each prompt to serve it and hands
+back `prompt_token_ids`, so turn k+1's prompt is the canonical tokenization of everything up to that
+point, tool results included. Completions come back as sampled ids with aligned logprobs. Stitching
+those along a graph path reproduces exactly what the model saw and produced, with no local chat
+template involved. See `graph.py`.
+
+TWO ASYMMETRIES, both learned from real failures:
+
+  * **Capture is non-streaming, the reply is whatever the client asked for.** One complete response
+    carries ids and logprobs whole; reassembling them from SSE deltas is error-prone in exactly the
+    way that silently corrupts training data. But a harness that requested SSE and receives a JSON
+    body does not error, it yields nothing: opencode reported `step-finish reason:"unknown"`, zero
+    tokens, no error, having been handed a perfectly valid tool call. See `sse.py`.
+  * **We validate on ingest, not on export.** A turn whose logprobs are misaligned must be caught
+    while we still know which turn it was.
+
+Run:  python -m intercept.server --llm-url http://127.0.0.1:8000 --model Qwen3.5-9B
+"""
+
+from __future__ import annotations
+
+import argparse
+import logging
+import uuid
+from typing import Any
+
+from fastapi import FastAPI, Request
+from fastapi.responses import JSONResponse, StreamingResponse
+
+from . import sse
+from .detection import APIType, detect
+from .dialects import TransformManager
+from .export import export_session
+from .graph import TurnNode
+from .sessions import extract_harness_session, SessionRegistry
+from .upstream import InferenceClient, UpstreamError
+from .validate import check_turn
+
+logger = logging.getLogger("intercept")
+
+
+def _system_digest(messages: list[dict[str, Any]]) -> str | None:
+    """Cheap identity for 'which conversation is this'. Recorded, never used for routing."""
+    import hashlib
+
+    for message in messages or []:
+        if message.get("role") == "system":
+            content = message.get("content")
+            if isinstance(content, list):  # anthropic / responses send block lists
+                content = " ".join(
+                    p.get("text", "") for p in content if isinstance(p, dict)
+                )
+            if isinstance(content, str) and content:
+                return hashlib.sha256(content.encode()).hexdigest()[:16]
+    return None
+
+
+# Routes an agent calls that are NOT model turns. They must be answered, but must never become graph
+# nodes: recording them adds a bogus root and corrupts the trajectory structure.
+#
+# Borrowed from verifiers, whose Dialect ABC carries `aux_routes` for exactly this
+# (v1/dialects/anthropic.py:273, "relayed as native JSON, never recorded on the trace").
+# claude-code calls count_tokens before sending a turn; without this the catch-all would hand it to
+# `transform_request`, forward nonsense upstream, and file the result as a model call.
+AUX_ROUTES: tuple[str, ...] = ("/v1/messages/count_tokens",)
+
+
+def is_aux_route(path: str) -> bool:
+    normalised = "/" + path.lstrip("/")
+    return any(normalised.endswith(route) for route in AUX_ROUTES)
+
+
+def approximate_token_count(body: dict[str, Any]) -> int:
+    """Answer a count_tokens request without a tokenizer.
+
+    We deliberately do not load one: the whole design keeps tokenization on the engine, and pulling a
+    tokenizer in here just to serve a side request would reintroduce the "two sources of truth"
+    problem this architecture exists to avoid. Agents use this figure for context-budget decisions,
+    not for anything that reaches training, so a ~4-chars-per-token estimate is sufficient. If a
+    harness turns out to depend on exactness, forward it to the engine's /tokenize endpoint instead.
+    """
+    text_len = 0
+    for message in body.get("messages") or []:
+        content = message.get("content")
+        if isinstance(content, str):
+            text_len += len(content)
+        elif isinstance(content, list):
+            for part in content:
+                if isinstance(part, dict):
+                    text_len += len(str(part.get("text") or part.get("content") or ""))
+    system = body.get("system")
+    if isinstance(system, str):
+        text_len += len(system)
+    elif isinstance(system, list):
+        text_len += sum(
+            len(str(p.get("text", ""))) for p in system if isinstance(p, dict)
+        )
+    text_len += len(str(body.get("tools") or ""))
+    return max(1, text_len // 4)
+
+
+def wants_stream(path: str, body: dict[str, Any]) -> bool:
+    """Did the client ask for SSE? Each dialect says so differently.
+
+    OpenAI chat, Responses and Anthropic all set `stream: true` in the body. **Google does not.** It
+    signals streaming in the URL: `:streamGenerateContent`, usually with `?alt=sse`. gemini-cli calls
+
+        POST /v1beta/models/<model>:streamGenerateContent?alt=sse
+
+    with no `stream` key anywhere in the body, so a body-only check returns False and we answer a
+    streaming request with a plain JSON document. It arrives as HTTP 200 and the client dies parsing
+    it:
+
+        Error: Incomplete JSON segment at the end
+            at ApiClient.processStreamResponse_1 (@google/gemini-cli/...)
+
+    Same failure family as opencode's silent `reason:"unknown"`: a valid-looking response in the
+    wrong envelope. verifiers models this as a per-dialect `Dialect.streaming(body)`; this is the
+    same idea kept to one function.
+    """
+    if body.get("stream") is True:
+        return True
+    lowered = path.lower()
+    return "streamgeneratecontent" in lowered or "alt=sse" in lowered
+
+
+_MAX_TOKENS_KEYS = ("max_tokens", "max_completion_tokens", "max_output_tokens")
+
+
+def clamp_output_tokens(chat_request: dict[str, Any], cap: int | None) -> int | None:
+    """Cap the requested output length so prompt + completion fits the served context window.
+
+    Harnesses ask for absurd output budgets. qwen-coder requests **64000** output tokens, which on a
+    65536-token model leaves room for a 1536-token prompt and then fails on the next character:
+
+        maximum context length is 65536 tokens. However, you requested 64000 output tokens and
+        your prompt contains at least 1537 input tokens, for a total of at least 65537
+
+    Every call 502s, the agent does nothing, and it presents as "reached the intercept, captured
+    nothing". Polar caps this too (`proxy_max_tokens_cap = 16384`, noting opencode's ~32000 default
+    "exceeds some provider limits"), so it is a known hazard rather than one harness misbehaving.
+
+    A fixed cap rather than `context - len(prompt)`: computing the latter needs a tokenizer here, and
+    keeping tokenization on the engine is the whole design. Agent turns are short (the longest seen
+    across every validated harness is 874 tokens), so a few thousand is generous.
+
+    Returns the value it replaced, for logging, or None if nothing changed.
+    """
+    if not cap:
+        return None
+    for key in _MAX_TOKENS_KEYS:
+        value = chat_request.get(key)
+        if isinstance(value, int) and value > cap:
+            chat_request[key] = cap
+            return value
+    return None
+
+
+def normalise_for_capture(chat_request: dict[str, Any]) -> None:
+    """Force the upstream call into the one shape that yields complete, capturable responses.
+
+    `stream_options` is not cosmetic: vLLM validates it against `stream` and rejects the pair with
+    "Stream options can only be defined when `stream=True`", which 400s the ENTIRE request. opencode
+    sends it on every call, so leaving it in is a total outage rather than a degradation.
+
+    Both keys are set here rather than left to the inference client, because the client rewrites
+    `stream` only after this point: a check against the incoming value sees `true` and leaves
+    `stream_options` behind, which is precisely the bug this exists to prevent.
+
+    An empty `tools` array is dropped for the same reason. vLLM rejects it outright:
+
+        `tools` must not be an empty array. Either provide at least one tool or omit the field
+        entirely.
+
+    kimi-cli sends `tools: []` once its agent loop has no tools left to offer, which 400s the call.
+    The two forms mean the same thing to the model, so dropping the key is lossless and keeps the
+    rollout alive rather than truncating it mid-trajectory.
+    """
+    chat_request["stream"] = False
+    chat_request.pop("stream_options", None)
+    for key in ("tools", "functions"):
+        if key in chat_request and not chat_request[key]:
+            chat_request.pop(key)
+    # `tool_choice` without `tools` is equally invalid, and is meaningless once the list is gone.
+    if "tools" not in chat_request:
+        chat_request.pop("tool_choice", None)
+
+
+def normalise_response(response: dict[str, Any]) -> None:
+    """Fill in usage sub-objects that vLLM leaves null but the OpenAI schema always returns.
+
+    vLLM returns `"prompt_tokens_details": null` when prefix caching is off. OpenAI always returns
+    the object, so a harness that reads `usage.prompt_tokens_details.cached_tokens` without guarding
+    gets an AttributeError. trae-agent does exactly that and dies after its FIRST call:
+
+        'NoneType' object has no attribute 'cached_tokens'
+
+    which produced a clean single-turn capture and a task the agent never attempted.
+
+    This touches ONLY accounting fields. No token id, logprob or message content is altered, so it
+    cannot affect what gets captured or trained. It is a compatibility shim that makes us MORE
+    OpenAI-conformant than the engine behind us, which is the safe direction: a client that already
+    guarded for null sees a zeroed object instead, which reads the same.
+    """
+    usage = response.get("usage")
+    if not isinstance(usage, dict):
+        return
+    if usage.get("prompt_tokens_details") is None:
+        usage["prompt_tokens_details"] = {"cached_tokens": 0, "audio_tokens": 0}
+    if usage.get("completion_tokens_details") is None:
+        usage["completion_tokens_details"] = {
+            "reasoning_tokens": 0,
+            "audio_tokens": 0,
+            "accepted_prediction_tokens": 0,
+            "rejected_prediction_tokens": 0,
+        }
+
+
+def normalise_client_payload(payload: dict[str, Any], api_type: APIType) -> None:
+    """Fill in usage sub-objects the OUTBOUND dialect promises but the transformer omits.
+
+    Sibling of `normalise_response`, one layer further out. That one repairs the chat-completions
+    usage we get FROM vLLM; this repairs the usage we hand TO the client after translation.
+
+    Polar's Responses transformer builds usage as exactly
+    `{"input_tokens", "output_tokens", "total_tokens"}` (transform/openai_responses.py:43), with no
+    detail sub-objects. The real Responses API always returns them, and trae-agent reads them without
+    a guard (trae_agent/utils/llm_clients/openai_client.py):
+
+        cache_read_input_tokens=response.usage.input_tokens_details.cached_tokens or 0,
+        reasoning_tokens=response.usage.output_tokens_details.reasoning_tokens or 0,
+
+    so `input_tokens_details` is None and it dies with
+    `'NoneType' object has no attribute 'cached_tokens'` after its FIRST call.
+
+    Note this is why trae-agent looked like a chat-completions harness for a whole night: its seam
+    says `openai_chat`, but the access log shows exactly one `POST /v1/responses` against 465
+    chat-completions calls. It speaks Responses.
+
+    Accounting fields only. No token id, logprob or content is touched, so capture is unaffected.
+    """
+    usage = payload.get("usage")
+    if not isinstance(usage, dict):
+        return
+    if api_type is APIType.OPENAI_RESPONSES:
+        if usage.get("input_tokens_details") is None:
+            usage["input_tokens_details"] = {"cached_tokens": 0}
+        if usage.get("output_tokens_details") is None:
+            usage["output_tokens_details"] = {"reasoning_tokens": 0}
+
+
+def create_app(
+    *,
+    llm_url: str,
+    model: str | None = None,
+    engine: str = "vllm",
+    require_registered: bool = True,
+    max_output_tokens: int | None = 8192,
+) -> FastAPI:
+    app = FastAPI(title="openenv-capture")
+
+    # Identifies this app instance on /health. A caller that binds a port cannot tell "my server is
+    # up" from "someone else's server already held this port" by connecting alone, and answering the
+    # wrong process is silent: sessions are minted here and rejected there, so the agent gets 401 and
+    # the rollout reports no model calls.
+    app.state.instance_id = uuid.uuid4().hex
+    app.state.inference = InferenceClient(
+        base_url=llm_url.rstrip("/"), served_model=model
+    )
+    app.state.transforms = TransformManager()
+    app.state.registry = SessionRegistry(require_registered=require_registered)
+    app.state.model = model
+    app.state.llm_url = llm_url
+    app.state.max_output_tokens = max_output_tokens
+
+    @app.get("/health")
+    async def health() -> dict[str, Any]:
+        return {
+            "status": "ok",
+            "instance": app.state.instance_id,
+            "upstream": llm_url,
+            "engine": engine,
+            "model": app.state.model,
+            "sessions": len(app.state.registry.list_ids()),
+            "require_registered": app.state.registry.require_registered,
+        }
+
+    @app.post("/sessions")
+    async def create_session(payload: dict[str, Any] | None = None) -> dict[str, Any]:
+        """Mint a rollout id. Hand it to the agent as its API key; that is the whole integration."""
+        payload = payload or {}
+        session = app.state.registry.create(
+            payload.get("session_id"), **(payload.get("metadata") or {})
+        )
+        return {"session_id": session.session_id}
+
+    @app.get("/sessions")
+    async def list_sessions() -> dict[str, Any]:
+        return {"sessions": app.state.registry.summary()}
+
+    @app.get("/sessions/{session_id}")
+    async def session_status(session_id: str) -> Any:
+        """Live progress. `idle_s` is the cheapest wedge detector: turns arriving means progress."""
+        session = app.state.registry.get(session_id)
+        if session is None:
+            return JSONResponse({"error": "unknown session"}, status_code=404)
+        return {
+            "session_id": session_id,
+            "idle_s": round(session.idle_seconds, 1),
+            "upstream_errors": session.upstream_errors,
+            **session.graph.stats(),
+        }
+
+    @app.get("/sessions/{session_id}/rollout")
+    async def rollout(
+        session_id: str, include_discarded: bool = False, include_messages: bool = False
+    ) -> Any:
+        """THE training endpoint: stitched, masked, logprob-aligned, validated."""
+        session = app.state.registry.get(session_id)
+        if session is None:
+            return JSONResponse({"error": "unknown session"}, status_code=404)
+        return export_session(
+            session,
+            include_discarded=include_discarded,
+            include_messages=include_messages,
+        )
+
+    @app.delete("/sessions/{session_id}")
+    async def delete_session(session_id: str) -> dict[str, Any]:
+        return {"deleted": app.state.registry.delete(session_id)}
+
+    @app.get("/v1/models")
+    async def models() -> Any:
+        return await app.state.inference.list_models()
+
+    @app.post("/{path:path}")
+    async def proxy(path: str, request: Request) -> Any:
+        """Catch-all: /v1/chat/completions, /v1/messages, /v1/responses, :generateContent."""
+        headers = dict(request.headers)
+        try:
+            body = await request.json()
+        except Exception:  # noqa: BLE001
+            return JSONResponse(
+                {"error": {"message": "body must be JSON"}}, status_code=400
+            )
+
+        # Answered, never recorded. Must come before session routing and dialect handling: an aux
+        # route is not a model turn, so it has no business creating a node or a session.
+        if is_aux_route(path):
+            logger.info("aux route %s (answered, not recorded)", path)
+            return JSONResponse({"input_tokens": approximate_token_count(body)})
+
+        session = app.state.registry.resolve(headers, body)
+        if session is None:
+            # Deliberately 401 rather than serving an unknown caller: this port is public.
+            return JSONResponse(
+                {
+                    "error": {
+                        "message": "unknown API key; register a session via POST /sessions",
+                        "type": "invalid_request_error",
+                    }
+                },
+                status_code=401,
+            )
+
+        api_type: APIType = detect(f"/{path}", headers, body)
+        transformer = app.state.transforms.get(api_type)
+
+        original_request = dict(body)
+        # Include the query string: Google puts `alt=sse` there, not in the body.
+        full_target = (
+            f"/{path}?{request.url.query}" if request.url.query else f"/{path}"
+        )
+        client_wants_stream = wants_stream(full_target, body)
+        chat_request = transformer.transform_request(dict(body))
+        if app.state.model:
+            chat_request["model"] = app.state.model
+        normalise_for_capture(chat_request)
+        clamped = clamp_output_tokens(chat_request, app.state.max_output_tokens)
+        if clamped:
+            logger.info(
+                "clamped requested output tokens %d -> %d",
+                clamped,
+                app.state.max_output_tokens,
+            )
+
+        try:
+            response = await app.state.inference.completion(chat_request)
+        except UpstreamError as exc:
+            session.upstream_errors += 1
+            logger.warning("upstream error [%s]: %s", session.session_id, exc)
+            return JSONResponse({"error": {"message": str(exc)}}, status_code=502)
+
+        normalise_response(response)
+        _ingest(session, chat_request, response, api_type)
+
+        if client_wants_stream:
+            return StreamingResponse(
+                sse.replay(api_type, transformer, response, original_request),
+                media_type="text/event-stream",
+                headers=sse.SSE_HEADERS,
+            )
+        payload = transformer.transform_response(response, original_request)
+        normalise_client_payload(payload, api_type)
+        return JSONResponse(payload)
+
+    def _ingest(
+        session,
+        chat_request: dict[str, Any],
+        response: dict[str, Any],
+        api_type: APIType,
+    ) -> None:
+        """Turn one upstream response into a graph node, validating before it lands.
+
+        Never raises. A capture problem must degrade one turn, not kill a rollout that is otherwise
+        producing usable data, and certainly not take down the server serving every other rollout.
+        """
+        try:
+            choice = (response.get("choices") or [{}])[0]
+            logprob_entries = (choice.get("logprobs") or {}).get("content") or []
+            logprobs = [e.get("logprob") for e in logprob_entries] or None
+            sampled_ids = choice.get("token_ids") or []
+            prompt_ids = response.get("prompt_token_ids") or []
+            index = session.graph.stats()["n_turns"]
+
+            report = check_turn(
+                prompt_ids,
+                sampled_ids,
+                logprobs,
+                finish_reason=choice.get("finish_reason"),
+                index=index,
+            )
+            session.findings.extend(str(f) for f in report.findings)
+            if not report.ok:
+                logger.warning(
+                    "[%s] turn %d rejected: %s",
+                    session.session_id,
+                    index,
+                    "; ".join(str(f) for f in report.fatal),
+                )
+                # Still recorded, with logprobs dropped: the tokens are real context for later turns,
+                # and `sequence_for` masks a turn whose logprobs it cannot trust.
+                logprobs = None
+
+            session.graph.add_turn(
+                TurnNode(
+                    node_id=uuid.uuid4().hex[:12],
+                    prompt_ids=list(prompt_ids),
+                    sampled_ids=list(sampled_ids),
+                    sampled_logprobs=list(logprobs) if logprobs else None,
+                    model=chat_request.get("model"),
+                    finish_reason=choice.get("finish_reason"),
+                    harness_session_id=extract_harness_session({}, chat_request),
+                    system_digest=_system_digest(chat_request.get("messages") or []),
+                    n_tools=len(chat_request.get("tools") or []),
+                    request_messages=chat_request.get("messages") or [],
+                    request_tools=chat_request.get("tools"),
+                    response_message=choice.get("message") or {},
+                )
+            )
+            session.last_turn_at = __import__("time").time()
+            session.metadata.setdefault("api_type", api_type.value)
+        except Exception:  # noqa: BLE001
+            logger.exception("[%s] ingest failed; turn dropped", session.session_id)
+
+    return app
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(
+        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
+    )
+    parser.add_argument(
+        "--llm-url", required=True, help="OpenAI-spec endpoint you host"
+    )
+    parser.add_argument(
+        "--model", default=None, help="served model name to send upstream"
+    )
+    parser.add_argument("--engine", default="vllm", choices=["vllm", "sglang"])
+    parser.add_argument("--host", default="0.0.0.0")
+    parser.add_argument("--port", type=int, default=8100)
+    parser.add_argument(
+        "--max-output-tokens",
+        type=int,
+        default=8192,
+        help="cap on requested completion length; 0 disables",
+    )
+    parser.add_argument(
+        "--allow-unregistered",
+        action="store_true",
+        help="serve unknown API keys (local debugging only; this port may be public)",
+    )
+    args = parser.parse_args()
+
+    import uvicorn
+
+    logging.basicConfig(
+        level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s"
+    )
+    uvicorn.run(
+        create_app(
+            llm_url=args.llm_url,
+            model=args.model,
+            engine=args.engine,
+            require_registered=not args.allow_unregistered,
+            max_output_tokens=args.max_output_tokens or None,
+        ),
+        host=args.host,
+        port=args.port,
+        log_level="info",
+    )
+
+
+if __name__ == "__main__":
+    main()
