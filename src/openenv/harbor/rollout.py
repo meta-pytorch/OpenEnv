@@ -332,6 +332,17 @@ async def run_rollout(
         if not report.ok:
             result.ok = False
             result.error = result.error or "capture failed validation"
+
+        # A FATAL from the document's own validation means the capture is unusable, and until now it
+        # was recorded in `findings` without touching `ok`. Only the trace-reconciliation report
+        # could set `ok`, so a rollout that reached the verifier but produced NO model calls came
+        # back `ok=True` with zero trainable tokens, and reconciliation agreed because both sides
+        # were empty. One such rollout even carried reward=1.0, which is the worst shape available:
+        # a trainer filtering on `ok` would accept a row with nothing in it and a positive reward.
+        fatal = [f for f in result.findings if f.startswith("[FATAL")]
+        if fatal:
+            result.ok = False
+            result.error = result.error or fatal[0]
     except Exception as exc:  # noqa: BLE001
         result.ok = False
         result.error = (

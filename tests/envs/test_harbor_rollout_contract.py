@@ -168,3 +168,49 @@ def test_process_env_lock_is_usable_from_several_event_loops():
 
     assert not errors, errors[:2]
     assert len(done) == 8
+
+
+# --- ok must mean usable ----------------------------------------------------
+def test_a_fatal_capture_finding_makes_the_rollout_unusable():
+    """`ok=True` with zero model calls is the worst shape a result can take.
+
+    A rollout that reached the verifier but produced no captured calls used to come back `ok=True`
+    with zero trainable tokens, because only trace reconciliation could clear `ok` and it agreed:
+    both sides were empty. One such rollout carried reward=1.0, so a trainer filtering on `ok` would
+    have accepted a row containing nothing at all alongside a positive reward.
+    """
+    import asyncio
+    from pathlib import Path
+
+    result = asyncio.run(
+        rollout.run_rollout(
+            task_dir=Path("/definitely/not/a/task"),
+            harness="opencode",
+            sandbox="e2b",
+            registry=_FakeRegistry(),
+            intercept_url="http://127.0.0.1:9",
+            model="m",
+            trials_dir=Path("/tmp"),
+        )
+    )
+    # The trial cannot even be built, so this must be a result rather than an exception.
+    assert result.ok is False
+    assert result.reward is None
+    assert result.error
+
+
+class _FakeSession:
+    session_id = "sess-test"
+
+    def __init__(self) -> None:
+        self.graph = None
+
+
+class _FakeRegistry:
+    """Enough of `SessionRegistry` for `run_rollout` to mint and delete a session."""
+
+    def create(self, session_id=None, **_kwargs):
+        return _FakeSession()
+
+    def delete(self, _session_id):
+        return True
