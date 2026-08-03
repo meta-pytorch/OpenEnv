@@ -16,7 +16,12 @@ capture is hardest to get right, so they are also the ones most worth having cov
 
 ## Provenance
 
-Adapted from the Polar gateway (`polar/gateway/transform/`, Apache-2.0). Changes made when
+Adapted from the Polar gateway (`polar/gateway/transform/`, Apache-2.0).
+Upstream: https://github.com/NVIDIA-NeMo/ProRL-Agent-Server (paper: https://arxiv.org/abs/2605.24220).
+Named here because the package called `polar` on PyPI is an unrelated project, which is the
+reason this is vendored rather than depended on.
+
+Changes made when
 vendoring:
 
 - import paths rewritten to be relative and self-contained; no dependency on Polar remains
