@@ -97,3 +97,49 @@ def test_the_marker_never_reaches_the_engine():
     assert "_served_model" not in prepare_request(
         {"messages": [], "_served_model": "leaked"}, served_model="x"
     )
+
+
+# --- the caller's messages are the ones the graph stores ---------------------
+def test_prepare_request_does_not_rewrite_the_callers_messages():
+    """`reasoning_content` -> `reasoning` is for the engine only.
+
+    The message dicts handed in here are the same objects the graph stores as `request_messages`.
+    Renaming a field in place means the captured turn no longer records what the harness sent, so
+    conversation export and any re-tokenisation downstream see the wrong shape.
+    """
+    message = {"role": "assistant", "content": "hi", "reasoning_content": "thinking"}
+    request = {"messages": [message]}
+
+    out = prepare_request(dict(request), served_model="m")
+
+    assert message["reasoning_content"] == "thinking", "caller's message was mutated"
+    assert "reasoning" not in message
+    # The engine still gets the rename it needs.
+    assert out["messages"][0]["reasoning"] == "thinking"
+    assert "reasoning_content" not in out["messages"][0]
+
+
+def test_messages_without_reasoning_are_passed_through_untouched():
+    message = {"role": "user", "content": "go"}
+    out = prepare_request({"messages": [message]})
+    assert out["messages"][0] is message
+
+
+# --- engine base URL --------------------------------------------------------
+@pytest.mark.parametrize(
+    "given",
+    [
+        "http://host:8000",
+        "http://host:8000/",
+        "http://host:8000/v1",
+        "http://host:8000/v1/",
+    ],
+)
+def test_engine_base_is_the_root_whichever_form_is_given(given):
+    """Every route this layer builds is `/v1/...`, so a `/v1` base must not double up.
+
+    `http://host:8000/v1` is what an OpenAI SDK wants and what people paste, and it used to make
+    the startup probe request `/v1/v1/models` and report a healthy engine as unreachable.
+    """
+    assert upstream.normalise_engine_base(given) == "http://host:8000"
+    assert upstream.InferenceClient(given).base_url == "http://host:8000"

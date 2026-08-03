@@ -24,6 +24,7 @@ import urllib.error
 import urllib.request
 from dataclasses import dataclass, field
 
+from .upstream import normalise_engine_base
 from .validate import check_upstream_response
 
 
@@ -62,7 +63,7 @@ def list_models(llm_url: str, timeout: float = 30.0) -> list[str]:
     """Served model ids, or [] if the endpoint is unreachable."""
     try:
         with urllib.request.urlopen(
-            f"{llm_url.rstrip('/')}/v1/models", timeout=timeout
+            f"{normalise_engine_base(llm_url)}/v1/models", timeout=timeout
         ) as r:
             return [m.get("id", "") for m in json.loads(r.read()).get("data", [])]
     except Exception:  # noqa: BLE001 - unreachable is reported by the caller, not raised here
@@ -77,7 +78,9 @@ def validate_llm(llm_url: str, model: str, *, timeout: float = 120.0) -> LLMRepo
     a proxy in between that strips fields). The only trustworthy check is asking for a completion and
     looking at what comes back.
     """
-    base = llm_url.rstrip("/")
+    # Accepts both `http://host:8000` and `http://host:8000/v1`, so a URL that works with any
+    # OpenAI SDK also works here instead of probing `/v1/v1/models` and reporting it dead.
+    base = normalise_engine_base(llm_url)
     served = list_models(base, timeout=min(timeout, 30.0))
 
     if not served:

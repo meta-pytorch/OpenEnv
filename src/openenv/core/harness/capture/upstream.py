@@ -53,10 +53,27 @@ class UpstreamTransportError(UpstreamError):
     """Connection-level failure: refused, reset, DNS."""
 
 
+def normalise_engine_base(url: str) -> str:
+    """The engine root, with any trailing `/v1` removed.
+
+    Every route this module builds is already `/v1/...`, so a caller who passes the OpenAI-style
+    base (`http://host:8000/v1`, which is what most SDKs and most people hand you) would otherwise
+    get `/v1/v1/chat/completions` and see a healthy engine reported as unreachable. Accept both
+    forms and normalise here rather than making every call site remember which one it holds.
+    """
+    base = url.rstrip("/")
+    return base[: -len("/v1")] if base.endswith("/v1") else base
+
+
 def prepare_request(
     request: dict[str, Any], *, served_model: str | None = None
 ) -> dict[str, Any]:
-    """Add the params that make a response capturable. Mutates and returns `request`."""
+    """Add the params that make a response capturable. Mutates and returns `request`.
+
+    Only the top level of `request` is mutated. Nested message dicts are copied before they are
+    rewritten, because the caller's messages are the same objects the graph stores: rewriting them
+    in place would mean a captured turn no longer records what the harness actually sent.
+    """
     request["logprobs"] = True
     request["return_token_ids"] = True
     # Not `setdefault`: that keeps an explicitly-provided `None`, and vLLM only fills
@@ -70,9 +87,18 @@ def prepare_request(
     # canonical `reasoning_content`. Without this rename an earlier turn's interleaved thinking
     # renders as an empty `<think></think>` and the prompt silently differs from what the model
     # actually produced — which breaks prefix matching for the turn after it.
-    for message in request.get("messages") or []:
-        if isinstance(message, dict) and message.get("reasoning_content") is not None:
-            message["reasoning"] = message.pop("reasoning_content")
+    messages = request.get("messages")
+    if isinstance(messages, list):
+        rewritten: list[Any] = []
+        for message in messages:
+            if (
+                isinstance(message, dict)
+                and message.get("reasoning_content") is not None
+            ):
+                message = dict(message)
+                message["reasoning"] = message.pop("reasoning_content")
+            rewritten.append(message)
+        request["messages"] = rewritten
 
     # `_served_model` is an internal marker the dialect transformers read; the server sets it before
     # transforming and the transformer strips it. Setting it here would be too late to be read and
@@ -122,7 +148,7 @@ class InferenceClient:
     _CONNECT_TIMEOUT_S = 30.0
 
     def __init__(self, base_url: str, *, served_model: str | None = None) -> None:
-        self.base_url = base_url.rstrip("/")
+        self.base_url = normalise_engine_base(base_url)
         self.served_model = served_model
         self._client: httpx.AsyncClient | None = None
 
