@@ -9,25 +9,29 @@ app_port: 8000
 
 # Harbor Environment
 
-Run a coding agent on a [Harbor](https://github.com/laude-institute/harbor) task and get back the
-exact token ids and per-token logprobs of every model call it made, plus the task's own reward.
-That is what a trainer needs, and it cannot be reconstructed afterwards.
+**Train one policy against many coding agents.** Pick a Harbor dataset, pick an agent, pick a
+sandbox, and get back the exact token ids and per-token logprobs of every model call the agent made,
+plus the task's own reward.
 
 ## Overview
 
-Harbor decouples three things that usually come welded together:
+An agent harness is a moving part you probably do not want to own. opencode, codex, claude-code and
+gemini-cli each have their own loop, their own tool surface and their own wire format, and a policy
+trained against exactly one of them learns that one's habits.
+
+The usual cost of supporting several is one integration per agent. Here it is one integration total:
 
 | | |
 |---|---|
-| **task** | the instruction, the sandbox image, and the verifier that scores the result |
-| **harness** | the coding agent: its tool surface and its loop |
-| **sandbox** | where the agent runs: docker, e2b, modal, daytona and others |
+| **16 harnesses** | validated end to end, across 4 wire dialects |
+| **23 sandbox backends** | from Harbor, 4 with credential checks wired in |
+| **any Harbor dataset** | HF repo, local directory, or Harbor registry name |
 
-This environment adds the OpenEnv surface on top: dataset discovery over the Task API, one
-`run_rollout` MCP tool, and a capture proxy that sits between the agent and your model.
+All three are chosen **per rollout**, so one server covers the whole matrix and rotating the harness
+during training is a config change rather than a new environment.
 
-The agent, the sandbox and the task are chosen **per rollout**, so one server covers the whole
-matrix. Adding a new agent does not mean writing a new environment.
+Harbor supplies the tasks, sandboxes, agents and verifiers. This environment adds the OpenEnv
+surface: dataset discovery over the Task API, one `run_rollout` MCP tool, a capture proxy, and a UI.
 
 ### What you get back
 
@@ -39,13 +43,46 @@ turn.completion_token_ids   # what it sampled
 turn.per_token_logps        # the behaviour-policy logprob of each sampled token
 ```
 
-plus `result.reward` from the task's verifier.
+plus `result.reward` from the task's verifier. That tuple is the whole training contract.
 
-Nothing is tokenised locally. The engine tokenises each prompt in order to serve it and returns
-`prompt_token_ids`, so turn *k+1*'s prompt is by construction the canonical tokenisation of
+## The intercept
+
+The agent is a black box. It is a real CLI tool running in a sandbox, and it was never written with
+training in mind. So instead of modifying it, an OpenAI-spec proxy is placed between it and your
+model, and every call is recorded as it passes.
+
+```
+agent in a sandbox
+   |  base URL points at the proxy, API key IS the capture session id
+   v
+capture proxy  --normalise to chat, force token ids on-->  your endpoint
+   ^                                                            |
+   |  replay in the agent's own dialect  <----------------------+
+   |
+   +-- every call becomes a node in a rollout graph, linked by token prefix
+```
+
+Three properties make this work across agents rather than for one:
+
+**Nothing is tokenised locally.** The engine tokenises each prompt in order to serve it and hands
+back `prompt_token_ids`, so turn *k+1*'s prompt is by construction the canonical tokenisation of
 everything before it, tool results included. Re-rendering a prompt offline with a chat template
 drifts from what the model actually saw, and a prompt that differs by one token silently splits one
 long conversation into several short ones.
+
+**Four wire dialects.** Coding agents did not converge on one API. chat-completions, OpenAI
+Responses, Anthropic Messages and Google `generateContent` are all translated to a single upstream
+shape and replayed in the dialect the agent expects, streaming included. That is what makes codex,
+claude-code and gemini-cli work rather than only the chat-completions agents.
+
+**The API key is the session id.** One proxy serves many concurrent rollouts with no port each, and
+a caller without a registered session is rejected, so the proxy is safe to expose to a sandbox.
+
+Turns are linked into a graph by **exact token prefix**: a call whose `prompt_token_ids` begin with
+an existing node's full sequence becomes its child. Nothing else is consulted, because request ids
+and timestamps are per-agent and the prefix is not. Conversations, retries and subagent branches
+fall out of that for free, and a branch the agent abandoned is marked discarded so it is never
+trained with the reward the main path earned.
 
 ## Prerequisites
 
@@ -130,52 +167,186 @@ with HarborEnv(base_url="http://localhost:8000") as env:
 `harness` and `sandbox` are per call, so consecutive rollouts against the same server can use
 different agents and different backends.
 
-## Configuration
+## CLI reference
 
-### CLI
+Four commands. Every flag below is the complete set, with its type and default. `openenv harbor
+<command> --help` prints the same thing.
 
-| flag | meaning |
+Exit codes:
+
+| code | meaning |
 |---|---|
-| `--llm-url` | OpenAI-spec endpoint. Required, no default, no environment fallback |
-| `--dataset` | HF repo id, local directory, or Harbor `name@version`. Repeatable |
-| `--harness` | a validated seam name, or `module:Class` for your own agent |
-| `--sandbox` | Harbor environment type: `e2b`, `modal`, `docker`, ... |
-| `--reward-key` | which reward key is the training signal, for multi-reward tasks |
-| `--expose` | how the sandbox reaches the capture proxy: `gradio`, `cloudflare`, `direct` |
-| `--keep-sandbox` | leave the sandbox alive for debugging |
-| `--force-build` | rebuild the sandbox image, bypassing the content-hash cache |
+| `0` | success |
+| `1` | ran, but failed. `rollout` returns this if **any** rollout in the batch was unusable |
+| `2` | usage error: a missing or invalid flag. Nothing ran |
 
-`--llm-url` deliberately has no default. An unset endpoint produces rollouts that look completely
-normal and carry no token ids, so it is better to fail immediately.
+The `1` and `2` split matters if you are scripting this: `2` means the command never started, so
+retrying it unchanged will fail the same way.
 
-### Environment variables
+### `openenv harbor info`
 
-Used when deploying, where there is no command line:
+Report what this machine can run. Read-only: boots no sandbox, starts no server, makes no rollout.
 
-| variable | meaning |
-|---|---|
-| `OPENENV_LLM_URL` | OpenAI-spec endpoint. Required |
-| `OPENENV_DATASETS` | comma-separated dataset specs |
-| `OPENENV_MODEL` | served model id. Read from the endpoint when it serves exactly one |
-| `E2B_API_KEY` | offer the `e2b` sandbox |
-| `MODAL_TOKEN_ID`, `MODAL_TOKEN_SECRET` | offer the `modal` sandbox |
-| `OPENAI_API_KEY` | some task verifiers use an LLM judge and need this |
+| flag | type | default | meaning |
+|---|---|---|---|
+| `--llm-url` | str | `""` | OpenAI-spec endpoint. Optional here; without it the LLM section is skipped and the rest still reports |
+| `--model` | str | `""` | Served model id. Auto-detected when the endpoint serves exactly one |
+| `--dataset` | str | none | Dataset spec. Repeatable, or comma-separated |
+| `--env-file` | path | `""` | dotenv with provider credentials, loaded before the checks |
+| `--verbose` | flag | off | List all 30 harnesses, not only the 16 validated |
+| `--json` | flag | off | Emit machine-readable JSON instead of the text report |
 
-## Environment Details
+```bash
+openenv harbor info --llm-url $LLM --dataset org/tasks --json
+```
 
-### Supported agents
+The JSON has four top-level keys: `llm`, `sandboxes`, `datasets`, `harnesses`. Each sandbox entry is
+`{name, available, detail}`, so a script can select a backend without parsing prose:
 
-16 harnesses are validated end to end, grouped by the wire dialect they speak:
+```bash
+openenv harbor info --llm-url $LLM --json \
+  | jq -r '.sandboxes[] | select(.available) | .name'
+```
 
-| dialect | agents |
-|---|---|
-| chat-completions | `opencode`, `goose`, `qwen-coder`, `swe-agent`, `mini-swe-agent`, `openhands-sdk`, `openclaw`, `hermes`, `kimi-cli`, `pi`, `vibe`, `terminus-2` |
-| OpenAI Responses | `codex`, `trae-agent` |
-| Anthropic Messages | `claude-code` |
-| Google generateContent | `gemini-cli` |
+### `openenv harbor rollout`
 
-Supporting all four dialects rather than chat-completions alone is what makes the last four rows
-work. Any other Harbor agent can be reached with `--harness module:Class`.
+Run rollouts with no env server involved. This is the debugging path: if `rollout` works and `serve`
+does not, the fault is in the serving layer and nothing below it.
+
+| flag | type | default | meaning |
+|---|---|---|---|
+| `--llm-url` | str | **required** | OpenAI-spec endpoint. No default and no env fallback, on purpose |
+| `--dataset` | str | **required** | Dataset spec. Only the first is used by this command |
+| `--task-index` | int | `0` | Index into the split. Stable: index is a task's identity |
+| `-n`, `--n-tasks` | int | `1` | Run this many consecutive tasks from `--task-index` |
+| `--harness` | str | `opencode` | A validated seam name, or `module:Class` for your own agent |
+| `--sandbox` | str | `e2b` | Harbor environment type |
+| `--model` | str | `""` | Served model id. Auto-detected when unambiguous |
+| `--port` | int | `8100` | Local port for the capture proxy. One per concurrent process |
+| `--expose` | str | `gradio` | How the sandbox reaches the proxy: `gradio`, `cloudflare`, `direct` |
+| `--reward-key` | str | `""` | Which reward key is the training signal, for multi-reward tasks |
+| `--trials-dir` | path | tmp | Where Harbor writes trial artifacts |
+| `--keep-sandbox` | flag | off | Leave sandboxes alive for debugging |
+| `--force-build` | flag | off | Rebuild the sandbox image, bypassing the content-hash cache |
+| `--env-file` | path | `""` | dotenv with provider credentials |
+| `--out` | path | `""` | Write the full result JSON, token ids and logprobs included |
+
+```bash
+openenv harbor rollout --llm-url $LLM --dataset org/tasks \
+  --task-index 0 -n 5 --harness codex --sandbox modal --out results.json
+```
+
+`-n` runs tasks sequentially in one process, reusing one proxy and one forward. To parallelise, run
+several processes and **give each its own `--port`**. Two processes sharing a port is refused with
+an error naming the process that holds it.
+
+Use `--force-build` when a task has never been built on this account, or when a cached image has
+drifted because the task pins its dependencies loosely.
+
+### `openenv harbor serve`
+
+Start the env server: Task API for discovery, one long-running `run_rollout` MCP tool, and a UI at
+`/web`.
+
+| flag | type | default | meaning |
+|---|---|---|---|
+| `--llm-url` | str | **required** | OpenAI-spec endpoint |
+| `--dataset` | str | none | Dataset specs to serve as splits. Repeatable |
+| `--model` | str | `""` | Served model id |
+| `--host` | str | `0.0.0.0` | Bind address |
+| `--port` | int | `8000` | Env server port. Faces the trainer and the browser |
+| `--capture-port` | int | `8100` | Capture proxy port. Faces the sandbox |
+| `--expose` | str | `gradio` | How the sandbox reaches the proxy |
+| `--env-file` | path | `""` | dotenv with provider credentials |
+
+Refuses to start if the endpoint cannot return token ids.
+
+### `openenv harbor push`
+
+Deploy the same server to a Hugging Face Space.
+
+| flag | type | default | meaning |
+|---|---|---|---|
+| `--llm-url` | str | **required** | Endpoint the deployed Space will use |
+| `--repo-id` | str | **required** | Target Space, e.g. `you/harbor-env` |
+| `--dataset` | str | none | Dataset specs. Repeatable |
+| `--model` | str | `""` | Served model id |
+| `--bucket` | str | Space name | Storage bucket holding the task suites. `none` disables the mount and downloads instead |
+| `--hardware` | str | `""` | Space hardware, e.g. `cpu-basic` |
+| `--private` | flag | off | Create it private. Rollouts then cannot work, see below |
+| `--recreate` | flag | off | Delete the Space first, then deploy fresh |
+| `--dry-run` | flag | off | Print exactly what would be sent and stop |
+| `--env-file` | path | `""` | dotenv whose provider keys become Space **secrets** |
+
+```bash
+openenv harbor push --llm-url $LLM --dataset org/train,org/eval \
+  --repo-id you/harbor-env --env-file .env --dry-run
+```
+
+`--private` is supported but rollouts will not work on a private Space: the capture proxy is served
+at `<space-url>/capture`, and a private Space requires an auth header the sandboxed agent does not
+send. Use it only to park a deployment.
+
+## Supported harnesses
+
+16 of the 30 known agents are validated end to end. "Validated" means a real rollout produced token
+ids and logprobs, and where the agent emits a trajectory, its own record agreed with the capture.
+
+| harness | dialect | runs |
+|---|---|---|
+| `opencode` | chat-completions | in sandbox |
+| `goose` | chat-completions | in sandbox |
+| `qwen-coder` | chat-completions | in sandbox |
+| `swe-agent` | chat-completions | in sandbox |
+| `mini-swe-agent` | chat-completions | in sandbox |
+| `openhands-sdk` | chat-completions | in sandbox |
+| `openclaw` | chat-completions | in sandbox |
+| `hermes` | chat-completions | in sandbox |
+| `kimi-cli` | chat-completions | in sandbox |
+| `pi` | chat-completions | in sandbox |
+| `vibe` | chat-completions | in sandbox |
+| `terminus-2` | chat-completions | **host side** |
+| `codex` | OpenAI Responses | in sandbox |
+| `trae-agent` | OpenAI Responses | in sandbox |
+| `claude-code` | Anthropic Messages | in sandbox |
+| `gemini-cli` | Google generateContent | in sandbox |
+
+Supporting four dialects rather than chat-completions alone is what makes the last four rows work.
+
+`terminus-2` runs in the server process rather than inside the sandbox, so it reaches the proxy on
+localhost and needs no public URL.
+
+The other 14 known agents have a seam but are untested; run `openenv harbor info --verbose` to list
+them. Anything Harbor supports can be reached with `--harness module:Class`.
+
+## Supported sandboxes
+
+`openenv harbor info` checks these four by default and reports why any is unusable:
+
+| sandbox | credentials | validated |
+|---|---|---|
+| `e2b` | `E2B_API_KEY` | yes, extensively |
+| `modal` | `MODAL_TOKEN_ID` + `MODAL_TOKEN_SECRET`, or `~/.modal.toml` | yes, extensively |
+| `docker` | none, but the daemon must be running | works, not swept |
+| `daytona` | `DAYTONA_API_KEY`, or `DAYTONA_JWT_TOKEN` + `DAYTONA_ORGANIZATION_ID` | not swept |
+
+e2b and modal were compared on identical tasks and came out indistinguishable, which is the check
+that matters: a backend-specific capture bug is exactly what a single-backend test hides.
+
+Harbor registers 23 backends in total. Any of them can be passed to `--sandbox`; the four above are
+the ones with a credential check wired in.
+
+## Environment details
+
+### Where the proxy runs
+
+Locally there are two ports: the env server faces the trainer and the browser, the capture proxy
+faces the sandbox and is the only one published. Sharing one port would expose the env server the
+moment the proxy became reachable.
+
+Hosted, that inverts. A Space has one port and one public URL, so the proxy is mounted on the env
+server's own app at `/capture` and nothing is forwarded. It still rejects callers without a
+registered session id, which is what keeps a public mount from being an open relay.
 
 ### Sandboxes and providers
 
@@ -270,32 +441,6 @@ is a separate conversation, and only agent conversations are counted as trainabl
 
 **Exit code 137.** The agent was killed inside the sandbox, almost always by the OOM killer on a
 large input. That is a task failure, not a capture failure.
-
-## How it works
-
-```
-agent in a sandbox
-   |  base URL points at the proxy, API key is the capture session id
-   v
-capture proxy  --normalise to chat, force token ids on-->  your endpoint
-   ^                                                            |
-   |  replay in the agent's own dialect  <----------------------
-   |
-   +-- every call becomes a node in a rollout graph, linked by token prefix
-```
-
-The agent's API key is the capture session id, which is how one proxy serves many concurrent
-rollouts without a port each.
-
-Turns are linked by **exact token prefix**: a call whose `prompt_token_ids` begin with an existing
-node's full sequence becomes its child. Nothing else is used, because request ids and timestamps are
-per-agent and the prefix is not. That gives conversations, retries and subagent branches for free,
-and lets abandoned branches be marked discarded so they are never trained with the reward the main
-path earned.
-
-Locally the proxy runs on its own port and is published to the sandbox. When hosted there is one
-port and one public URL, so it is mounted on the env server's own app instead and nothing is
-forwarded.
 
 ## References
 
