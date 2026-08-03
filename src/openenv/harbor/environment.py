@@ -186,7 +186,7 @@ class HarborEnvironment(MCPEnvironment):
         keep_sandbox: bool,
         force_build: bool,
     ) -> str:
-        import asyncio
+        from openenv.core.utils import run_async_safely
         from pathlib import Path
 
         from .models import HarborRolloutResult
@@ -209,7 +209,10 @@ class HarborEnvironment(MCPEnvironment):
                 ok=False, error=str(exc)[:400], harness=harness, sandbox=sandbox
             ).model_dump_json()
 
-        result = asyncio.run(
+        # Not `asyncio.run`: this handler is reached from the MCP server, which is already inside a
+        # running loop under ASGI, and `asyncio.run` raises there. The helper runs the coroutine on
+        # a worker thread when a loop is already going.
+        result = run_async_safely(
             _run(
                 task_dir=task_dir,
                 harness=harness,

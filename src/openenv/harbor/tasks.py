@@ -173,13 +173,15 @@ def has_symlinks(task_dir: Path) -> list[Path]:
 
 def _registry_task_dirs(spec: str) -> list[Path]:
     """A Harbor registry dataset, e.g. `terminal-bench@1.0`. Downloads on first use."""
-    import asyncio
+    from openenv.core.utils import run_async_safely
 
     from harbor.models.job.config import DatasetConfig
 
     name, _, version = spec.partition("@")
     config = DatasetConfig(name=name, version=version or None)
-    task_configs = asyncio.run(config.get_task_configs(disable_verification=True))
+    # Discovery is reached from async callers too (`run_batch` is a coroutine), and `asyncio.run`
+    # cannot be called from a running loop.
+    task_configs = run_async_safely(config.get_task_configs(disable_verification=True))
     return [Path(str(t.get_local_path())) for t in task_configs]
 
 
