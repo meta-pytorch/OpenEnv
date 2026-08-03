@@ -56,3 +56,59 @@ def test_stream_task_range_rejects_oversized_requests(monkeypatch):
 
     with pytest.raises(ValueError, match="at most 10"):
         env.get_task_range("train", 0, 11)
+
+
+def test_row_cap_is_the_answer_when_metadata_has_no_total(monkeypatch):
+    """A missing `num_examples` gives -1, but a capped cursor stops at the cap.
+
+    Reporting -1 there says "unknown" about a number we know exactly, and every progress field
+    derived from it (`remaining`, `pct_done`) silently degrades with it.
+    """
+    monkeypatch.setattr(environment_module, "_split_total", lambda *_args: -1)
+    monkeypatch.setenv("LATEX_OCR_MAX_ROWS", "50")
+    env = LatexOCREnvironment(mode="stream")
+
+    assert env.num_tasks("train") == 50
+
+
+def test_row_cap_still_loses_to_a_smaller_real_total(monkeypatch):
+    monkeypatch.setattr(environment_module, "_split_total", lambda *_args: 20)
+    monkeypatch.setenv("LATEX_OCR_MAX_ROWS", "50")
+    assert LatexOCREnvironment(mode="stream").num_tasks("train") == 20
+
+
+def test_unknown_total_stays_unknown_without_a_cap(monkeypatch):
+    monkeypatch.setattr(environment_module, "_split_total", lambda *_args: -1)
+    monkeypatch.delenv("LATEX_OCR_MAX_ROWS", raising=False)
+    assert LatexOCREnvironment(mode="stream").num_tasks("train") == -1
+
+
+def test_step_reports_the_same_total_reset_did(monkeypatch):
+    """`step` used `_split_total`, which ignores the cap, so the denominator moved mid-episode.
+
+    A trainer reading progress saw `1/50` from reset and then `1/900` from step, for the same
+    split, in the same episode.
+    """
+    monkeypatch.setattr(environment_module, "_split_total", lambda *_args: 900)
+    monkeypatch.setenv("LATEX_OCR_MAX_ROWS", "50")
+    env = LatexOCREnvironment(mode="stream")
+
+    # One streamed row, without touching the network.
+    monkeypatch.setattr(
+        environment_module,
+        "_encode_image",
+        lambda _img: "",
+        raising=False,
+    )
+    env._stream = iter(
+        [{environment_module.IMAGE_COLUMN: None, environment_module.TEXT_COLUMN: "x^2"}]
+    )
+    env._stream_split = "train"
+    env._cursor = 0
+    env._exhausted = False
+
+    obs_reset = env.reset(split="train")
+    obs_step = env.step(environment_module.LatexOCRAction(latex="x^2"))
+
+    assert obs_reset.total == 50
+    assert obs_step.total == obs_reset.total, "the denominator changed mid-episode"

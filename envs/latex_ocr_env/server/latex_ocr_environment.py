@@ -174,7 +174,12 @@ class LatexOCREnvironment(Environment):
         if self.mode == "stream":
             total = _split_total(self.dataset_name, split)
             cap = _max_rows()
-            return min(total, cap) if (cap is not None and total > 0) else total
+            if cap is None:
+                return total
+            # A missing `num_examples` gives total == -1, but the cursor still stops at the cap,
+            # so the cap IS the number of tasks this split will serve. Returning -1 there reports
+            # "unknown" for a quantity we know exactly.
+            return cap if total < 0 else min(total, cap)
         return len(_load_split(self.dataset_name, split))
 
     def list_tasks(self, split: str) -> list[dict[str, Any]]:
@@ -356,11 +361,10 @@ class LatexOCREnvironment(Environment):
         self._state.step_count += 1
         self._done = True
 
-        total = (
-            _split_total(self.dataset_name, self._current_split)
-            if self.mode == "stream"
-            else -1
-        )
+        # `num_tasks`, not `_split_total`: the latter ignores LATEX_OCR_MAX_ROWS, so with a cap
+        # configured `total` jumped from the capped value reset() reported to the full dataset size
+        # the moment a prediction was graded.
+        total = self.num_tasks(self._current_split) if self.mode == "stream" else -1
         return LatexOCRObservation(
             done=True,
             reward=result.reward,
