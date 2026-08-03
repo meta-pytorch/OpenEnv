@@ -237,6 +237,10 @@ def turns_from_document(document: dict[str, Any]) -> list[HarborTurn]:
     """
     by_node = {t["node_id"]: t for t in document.get("turns", [])}
     rows: list[HarborTurn] = []
+    # Forked paths share their prefix, and each live path is exported as its own sequence, so the
+    # same node appears in more than one of them. Emit each node once: a duplicated row is the same
+    # model call credited twice, which quietly doubles its weight in the gradient.
+    seen: set[str] = set()
     index = 0
 
     for sequence in document.get("sequences", []):
@@ -245,6 +249,9 @@ def turns_from_document(document: dict[str, Any]) -> list[HarborTurn]:
         input_ids = sequence["input_ids"]
         logprobs = sequence["logprobs"]
         for node_id in sequence["node_ids"]:
+            if node_id in seen:
+                continue
+            seen.add(node_id)
             node = by_node.get(node_id, {})
             response = node.get("response_message") or {}
 

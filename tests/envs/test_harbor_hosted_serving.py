@@ -95,3 +95,38 @@ def test_mounted_capture_answers_under_the_prefix():
     # what stops a publicly mounted proxy being an open relay.
     assert response.status_code == 401
     assert "unknown API key" in response.json()["error"]["message"]
+
+
+def test_a_failed_forwarder_does_not_leave_the_capture_server_running(monkeypatch):
+    """A half-started service poisons every later attempt.
+
+    The capture server binds its port and starts a thread before the forwarder is built. If the
+    forwarder then fails, leaving that server up means the next `start()` fails on a port conflict
+    that says nothing about the real error.
+    """
+    stopped: list[bool] = []
+
+    class FakeCapture:
+        port = 8123
+
+        def start(self):
+            pass
+
+        def stop(self):
+            stopped.append(True)
+
+    def explode(*_args, **_kwargs):
+        raise RuntimeError("cloudflared is not installed")
+
+    monkeypatch.setattr(
+        "openenv.core.harness.capture.forwarding.make_forwarder", explode, raising=False
+    )
+
+    service = HarborService(llm_url=UNUSED_LLM, model="m", datasets=[])
+    service.capture = FakeCapture()
+
+    with pytest.raises(RuntimeError, match="cloudflared"):
+        service.start()
+
+    assert stopped == [True], "the capture server was left holding its port"
+    assert service.public_url in (None, "")

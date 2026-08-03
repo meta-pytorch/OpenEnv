@@ -150,3 +150,55 @@ def test_logprobs_line_up_with_the_tokens_they_score():
         assert all(p < 0 for p in row.per_token_logps), (
             "placeholder zeros, not real logprobs"
         )
+
+
+def test_a_node_shared_by_two_live_paths_is_exported_once():
+    """Forked paths share their prefix, and each live path is its own exported sequence.
+
+    Without dedup the shared turns appear once per path, so a trainer credits the same model call
+    more than once and quietly doubles its weight in the gradient.
+    """
+    session = FakeSession()
+    prompt = list(range(100, 140))
+
+    shared = TurnNode(
+        node_id="shared",
+        prompt_ids=list(prompt),
+        sampled_ids=[1000, 1001],
+        sampled_logprobs=[-0.1, -0.1],
+        index=0,
+        response_message={"content": "shared"},
+    )
+    session.graph.add_turn(shared)
+
+    # Two branches off the same parent, each of which continues, so neither is a discarded retry.
+    for i, branch in enumerate(("a", "b")):
+        first = TurnNode(
+            node_id=f"{branch}1",
+            prompt_ids=shared.end_ids + [7777, 7777],
+            sampled_ids=[2000 + i * 100, 2001 + i * 100],
+            sampled_logprobs=[-0.2, -0.2],
+            index=1 + i * 2,
+            response_message={"content": f"{branch}1"},
+        )
+        session.graph.add_turn(first)
+        session.graph.add_turn(
+            TurnNode(
+                node_id=f"{branch}2",
+                prompt_ids=first.end_ids + [7777, 7777],
+                sampled_ids=[3000 + i * 100],
+                sampled_logprobs=[-0.3],
+                index=2 + i * 2,
+                response_message={"content": f"{branch}2"},
+            )
+        )
+
+    document = export_mod.export_session(session, include_messages=True)
+    agent_paths = [s for s in document["sequences"] if s["role"] == "agent"]
+    assert len(agent_paths) == 2, "the fixture must actually produce two live paths"
+
+    rows = turns_from_document(document)
+    ids = [r.completion_token_ids[0] for r in rows]
+    assert len(ids) == len(set(ids)), f"a turn was exported twice: {ids}"
+    # The shared prefix once, plus two turns on each branch.
+    assert len(rows) == 5

@@ -99,8 +99,16 @@ class HarborService:
         from openenv.core.harness.capture.forwarding import make_forwarder
 
         self.capture.start()
-        self._forwarder = make_forwarder(self._expose_kind)
-        self.public_url = self._forwarder.start(self.capture.port)
+        # A half-started service is worse than a failed one: the capture server owns a port and a
+        # background thread, so leaving it up after the forwarder fails makes the next attempt fail
+        # too, on a port conflict that has nothing to do with the real error.
+        try:
+            self._forwarder = make_forwarder(self._expose_kind)
+            self.public_url = self._forwarder.start(self.capture.port)
+        except BaseException:
+            self._forwarder = None
+            self.capture.stop()
+            raise
         return self.public_url
 
     def stop(self) -> None:
