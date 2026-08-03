@@ -186,8 +186,9 @@ class HarborEnvironment(MCPEnvironment):
         keep_sandbox: bool,
         force_build: bool,
     ) -> str:
-        from openenv.core.utils import run_async_safely
         from pathlib import Path
+
+        from openenv.core.utils import run_async_safely
 
         from .models import HarborRolloutResult
         from .rollout import run_rollout as _run

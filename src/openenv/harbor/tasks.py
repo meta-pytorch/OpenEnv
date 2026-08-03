@@ -173,9 +173,8 @@ def has_symlinks(task_dir: Path) -> list[Path]:
 
 def _registry_task_dirs(spec: str) -> list[Path]:
     """A Harbor registry dataset, e.g. `terminal-bench@1.0`. Downloads on first use."""
-    from openenv.core.utils import run_async_safely
-
     from harbor.models.job.config import DatasetConfig
+    from openenv.core.utils import run_async_safely
 
     name, _, version = spec.partition("@")
     config = DatasetConfig(name=name, version=version or None)
