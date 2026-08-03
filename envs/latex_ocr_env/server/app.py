@@ -33,6 +33,11 @@ except ImportError:  # standalone (uvicorn server.app:app)
     from server.latex_ocr_environment import LatexOCREnvironment
 
 
+# The custom "Try it" tab is the documented way to poke this env by hand, and `create_app` only
+# mounts /web when this is set. Without it the tab was dark on Docker, on a Space and on the local
+# run path in this docstring. `setdefault` so ENABLE_WEB_INTERFACE=false still turns it off.
+os.environ.setdefault("ENABLE_WEB_INTERFACE", "true")
+
 app = create_app(
     LatexOCREnvironment,
     LatexOCRAction,

@@ -75,12 +75,11 @@ class LatexOCREnv(EnvClient[LatexOCRAction, LatexOCRObservation, State]):
         obs_data["reward"] = reward
         obs_data["done"] = done
         obs = LatexOCRObservation(**obs_data)
-        base = dict(observation=obs, reward=reward, done=done)
-        # Newer core's StepResult carries `info`; older core does not.
-        try:
-            return StepResult(**base, info=data.get("info", {}))
-        except TypeError:
-            return StepResult(**base)
+        # `metadata` is what StepResult actually exposes. The previous version passed `info=`,
+        # which raised TypeError on every call and dropped whatever the server sent. `info` is
+        # still read as a fallback because the server used that name at one point.
+        metadata = data.get("metadata") or data.get("info") or None
+        return StepResult(observation=obs, reward=reward, done=done, metadata=metadata)
 
     def _parse_state(self, data: dict[str, Any]) -> State:
         return State(**data)
