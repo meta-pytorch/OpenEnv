@@ -389,7 +389,15 @@ def create_app(
             f"/{path}?{request.url.query}" if request.url.query else f"/{path}"
         )
         client_wants_stream = wants_stream(full_target, body)
-        chat_request = transformer.transform_request(dict(body))
+        # The served model name has to be on the body BEFORE the transformer runs: each dialect
+        # reads `_served_model` inside `transform_request` to decide per-model request fixes, and
+        # `BaseTransformer._normalize_request` strips it again on the way out. Setting it afterwards,
+        # as the upstream client used to, meant the transformers never saw it (so the Qwen3.5
+        # thinking fix silently never applied) and the marker travelled on to the engine unused.
+        incoming = dict(body)
+        if app.state.model:
+            incoming["_served_model"] = app.state.model
+        chat_request = transformer.transform_request(incoming)
         if app.state.model:
             chat_request["model"] = app.state.model
         normalise_for_capture(chat_request)

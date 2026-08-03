@@ -59,7 +59,12 @@ def prepare_request(
     """Add the params that make a response capturable. Mutates and returns `request`."""
     request["logprobs"] = True
     request["return_token_ids"] = True
-    request.setdefault("top_logprobs", 0)
+    # Not `setdefault`: that keeps an explicitly-provided `None`, and vLLM only fills
+    # `logprobs.content[]` when `top_logprobs` is not None. A harness that sends
+    # `"top_logprobs": null` would then get a normal-looking response with no logprobs at all, so
+    # every turn it produced would be silently untrainable.
+    if request.get("top_logprobs") is None:
+        request["top_logprobs"] = 0
 
     # vLLM reads a prior turn's thinking from `reasoning`, while the dialect transformers emit the
     # canonical `reasoning_content`. Without this rename an earlier turn's interleaved thinking
@@ -69,11 +74,10 @@ def prepare_request(
         if isinstance(message, dict) and message.get("reasoning_content") is not None:
             message["reasoning"] = message.pop("reasoning_content")
 
-    if served_model:
-        # Read by the transformers for per-model request fixes (e.g. Qwen3.5 emits tool calls inside
-        # thinking, so thinking has to be disabled for tool use). Stripped again before the request
-        # leaves, in `BaseTransformer._normalize_request`.
-        request["_served_model"] = served_model
+    # `_served_model` is an internal marker the dialect transformers read; the server sets it before
+    # transforming and the transformer strips it. Setting it here would be too late to be read and
+    # would leak an unknown field to the engine, so this only guarantees it is gone.
+    request.pop("_served_model", None)
     return request
 
 
