@@ -41,6 +41,29 @@ except ImportError as _e2b_err:  # pragma: no cover
 
     E2BBgJob = E2BSandboxBackend = E2BSandboxHandle = _RequiresE2B  # type: ignore[assignment]
 
+try:
+    from .hf import HFBgJob, HFSandboxBackend, HFSandboxHandle  # noqa: F401
+except ImportError as _hf_err:  # pragma: no cover
+
+    class _RequiresHFSandbox:
+        """Stub raised when a recent enough ``huggingface_hub`` (with ``Sandbox``) is missing.
+
+        Lets the package import cleanly so unit tests, ``openenv validate``, and the
+        docs build can run. Actually constructing one of these classes raises a clear
+        ImportError. ``Sandbox`` ships in ``huggingface_hub>=1.22``.
+        """
+
+        _hf_import_error = _hf_err
+
+        def __init__(self, *_args, **_kwargs):
+            raise ImportError(
+                "huggingface_hub>=1.22 (with `Sandbox`) is required to use "
+                "HFSandboxBackend; upgrade via `pip install -U huggingface_hub`. "
+                f"Original import error: {self._hf_import_error}"
+            )
+
+    HFBgJob = HFSandboxBackend = HFSandboxHandle = _RequiresHFSandbox  # type: ignore[assignment]
+
 
 __all__ = [
     "BgJob",
@@ -50,4 +73,7 @@ __all__ = [
     "E2BBgJob",
     "E2BSandboxBackend",
     "E2BSandboxHandle",
+    "HFBgJob",
+    "HFSandboxBackend",
+    "HFSandboxHandle",
 ]

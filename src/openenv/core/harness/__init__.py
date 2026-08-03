@@ -12,7 +12,7 @@ import json
 import math
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
-from typing import Any, Callable, Protocol
+from typing import Any, Callable, Generic, Protocol, TypeVar
 
 from ..client_types import StepResult
 from ..env_server.mcp_types import JsonRpcErrorCode, JsonRpcResponse, Tool
@@ -141,8 +141,17 @@ class ResourceSession(ABC):
         """Release session resources."""
 
 
-class ResourceSessionFactory(ABC):
-    """Factory for producing isolated per-rollout sessions."""
+SessionT = TypeVar("SessionT", bound=ResourceSession)
+
+
+class ResourceSessionFactory(ABC, Generic[SessionT]):
+    """Factory for producing isolated per-rollout sessions.
+
+    Generic over the concrete session type it creates, so a subclass such as
+    ``OpenCodeSessionFactory(ResourceSessionFactory[OpenCodeSession])`` types
+    ``create`` as returning ``OpenCodeSession``. Subclassing without a type
+    argument stays valid and behaves as before.
+    """
 
     @abstractmethod
     def create(
@@ -150,7 +159,7 @@ class ResourceSessionFactory(ABC):
         task: Any,
         seed: int | None = None,
         episode_id: str | None = None,
-    ) -> ResourceSession:
+    ) -> SessionT:
         """Create one isolated resource session for a rollout."""
 
 

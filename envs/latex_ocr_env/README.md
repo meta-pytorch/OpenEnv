@@ -46,12 +46,14 @@ step(LatexOCRAction(latex=…)) -> reward, done=True { target_latex, exact_match
 |---|---|
 | `GET  /latex_ocr_env/splits` | list splits (`train`, `test`) |
 | `POST /latex_ocr_env/num_tasks` | row count for a split |
-| `POST /latex_ocr_env/tasks` | all task specs for a split |
+| `POST /latex_ocr_env/tasks` | all task specs for a split (materialize mode) |
 | `POST /latex_ocr_env/task` | one task by `{split, index}` |
 | `POST /latex_ocr_env/task_range` | slice `{split, start, stop}` |
 
 Client helpers: `env.list_splits()`, `env.num_tasks(split)`,
 `env.get_task(split, index)`, `env.get_task_range(split, start, stop)`.
+In stream mode, full task enumeration returns `501`; use `num_tasks` and
+bounded `get_task_range` calls instead.
 
 ## Run locally
 
