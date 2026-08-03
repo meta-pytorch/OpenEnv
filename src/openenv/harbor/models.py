@@ -108,6 +108,10 @@ class HarborRolloutResult(BaseModel):
     n_trainable_tokens: int = 0
     multi_turn: bool = False
     atif: str = "none"
+    # Which independent record the capture was checked against: `atif` for a harness trajectory,
+    # a reader name (e.g. `pi_session`) when the harness records the same thing under another
+    # format, or empty when it records nothing comparable.
+    trace_source: str = ""
     findings: list[str] = Field(default_factory=list)
 
     # timings and diagnostics. There is no metrics endpoint and no structured logging in the env

@@ -29,7 +29,7 @@ from typing import Any
 from openenv.core.harness.capture.export import export_session
 
 from . import seams
-from .atif import load_atif, reconcile
+from .atif import load_trace, reconcile
 from .models import (
     conversations_from_document,
     HarborRolloutResult,
@@ -310,9 +310,15 @@ async def run_rollout(
         ]
 
         trial_dir = _trial_dir(trial_result, trials_dir, trial_name)
-        atif = load_atif(trial_dir) if trial_dir else None
+        # Not every harness writes ATIF. Three of the sixteen (hermes, openclaw, pi) emit no
+        # `trajectory.json`, which left them with no independent check at all. pi does record the
+        # same information in its own session log, so `load_trace` falls back to that; hermes writes
+        # a zero-byte file and openclaw only echoes back its config, so for those two there is
+        # genuinely nothing to compare against and `none` is the honest answer.
+        atif, trace_source = load_trace(trial_dir) if trial_dir else (None, "")
         report = reconcile(document, atif)
         result.atif = "none" if atif is None else ("match" if report.ok else "MISMATCH")
+        result.trace_source = trace_source
         result.findings += [
             str(f) for f in report.findings if not str(f).startswith("[INFO]")
         ]

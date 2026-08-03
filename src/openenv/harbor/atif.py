@@ -50,6 +50,63 @@ def load_atif(trial_dir: str | Path) -> dict[str, Any] | None:
         return None
 
 
+def _pi_session_as_atif(trial_dir: Path) -> dict[str, Any] | None:
+    """pi's own session log, reshaped into the two ATIF fields reconciliation reads.
+
+    pi writes no `trajectory.json`, but it does write `agent/pi/sessions/*.jsonl`, and every
+    assistant record there carries `usage.output`: the completion-token count for that call, which
+    is exactly what `metrics.completion_tokens` provides in ATIF. So the cross-check is available
+    for pi after all, just under a different name and shape.
+    """
+    sessions = sorted((trial_dir / "agent" / "pi" / "sessions").glob("*.jsonl"))
+    if not sessions:
+        return None
+    steps: list[dict[str, Any]] = []
+    for raw in sessions[-1].read_text().splitlines():
+        try:
+            record = json.loads(raw)
+        except Exception:  # noqa: BLE001 - a malformed line must not lose the whole trace
+            continue
+        message = record.get("message") or {}
+        if record.get("type") != "message" or message.get("role") != "assistant":
+            continue
+        usage = message.get("usage") or {}
+        steps.append(
+            {
+                "source": "agent",
+                "metrics": {"completion_tokens": int(usage.get("output") or 0)},
+            }
+        )
+    return {"steps": steps} if steps else None
+
+
+# Harnesses that emit no ATIF but do write something equivalent. Keyed by nothing in particular:
+# each reader inspects the trial directory and returns None when its format is absent, so the order
+# only decides which wins if two ever match.
+_FALLBACK_TRACES = (_pi_session_as_atif,)
+
+
+def load_trace(trial_dir: str | Path) -> tuple[dict[str, Any] | None, str]:
+    """The best available independent record of this rollout.
+
+    Returns:
+        `tuple[dict | None, str]`: The trace and where it came from, one of `atif`, the name of a
+            fallback reader, or `""` when the harness recorded nothing to compare against.
+    """
+    trial_dir = Path(trial_dir)
+    atif = load_atif(trial_dir)
+    if atif is not None:
+        return atif, "atif"
+    for reader in _FALLBACK_TRACES:
+        try:
+            trace = reader(trial_dir)
+        except Exception:  # noqa: BLE001 - a fallback is a bonus, never a failure mode
+            continue
+        if trace is not None:
+            return trace, reader.__name__.strip("_").replace("_as_atif", "")
+    return None, ""
+
+
 def agent_steps(atif: dict[str, Any]) -> list[dict[str, Any]]:
     """Steps the agent produced. `source` is one of user | agent | system."""
     return [s for s in (atif.get("steps") or []) if s.get("source") == "agent"]

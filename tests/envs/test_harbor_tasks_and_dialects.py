@@ -182,3 +182,71 @@ def test_has_symlinks_is_empty_for_real_files(tmp_path):
 )
 def test_hf_repo_specs_are_distinguished_from_paths_and_registry_names(spec, is_repo):
     assert tasks._is_hf_repo(spec) is is_repo
+
+
+# --- trace fallback for harnesses that emit no ATIF --------------------------
+def test_pi_session_log_is_used_when_there_is_no_trajectory(tmp_path):
+    """Three of sixteen harnesses write no `trajectory.json`, leaving no independent check.
+
+    pi records the same thing under another name: every assistant record in its session log carries
+    `usage.output`, the completion-token count for that call, which is what ATIF calls
+    `metrics.completion_tokens`. So the cross-check exists after all.
+    """
+    import json as _json
+
+    atif = pytest.importorskip("openenv.harbor.atif")
+    sessions = tmp_path / "agent" / "pi" / "sessions"
+    sessions.mkdir(parents=True)
+    (sessions / "s.jsonl").write_text(
+        "\n".join(
+            _json.dumps(r)
+            for r in [
+                {"type": "session", "id": "x"},
+                {
+                    "type": "message",
+                    "message": {"role": "assistant", "usage": {"output": 63}},
+                },
+                {"type": "message", "message": {"role": "toolResult", "content": "ok"}},
+                {
+                    "type": "message",
+                    "message": {"role": "assistant", "usage": {"output": 41}},
+                },
+            ]
+        )
+    )
+    trace, source = atif.load_trace(tmp_path)
+    assert source == "pi_session"
+    assert atif.atif_turn_lengths(trace) == [63, 41]
+
+
+def test_a_real_trajectory_wins_over_any_fallback(tmp_path):
+    import json as _json
+
+    atif = pytest.importorskip("openenv.harbor.atif")
+    agent = tmp_path / "agent"
+    (agent / "pi" / "sessions").mkdir(parents=True)
+    (agent / "pi" / "sessions" / "s.jsonl").write_text(
+        _json.dumps(
+            {
+                "type": "message",
+                "message": {"role": "assistant", "usage": {"output": 9}},
+            }
+        )
+    )
+    (agent / "trajectory.json").write_text(
+        _json.dumps(
+            {"steps": [{"source": "agent", "metrics": {"completion_tokens": 77}}]}
+        )
+    )
+    trace, source = atif.load_trace(tmp_path)
+    assert source == "atif"
+    assert atif.atif_turn_lengths(trace) == [77]
+
+
+def test_no_trace_at_all_is_reported_honestly(tmp_path):
+    """hermes writes a zero-byte session file and openclaw only echoes its config back."""
+    atif = pytest.importorskip("openenv.harbor.atif")
+    (tmp_path / "agent").mkdir()
+    (tmp_path / "agent" / "hermes-session.jsonl").write_text("")
+    trace, source = atif.load_trace(tmp_path)
+    assert trace is None and source == ""
