@@ -20,6 +20,7 @@ had to be individually wrapped. Behind a result object that failure mode cannot 
 from __future__ import annotations
 
 import os
+import contextlib
 import threading
 import time
 import uuid
@@ -62,8 +63,14 @@ _NO_HARBOR_RETRY = 0
 _PROC_ENV_LOCK = threading.Lock()
 
 
-def apply_process_env(seam_name: str, env: dict[str, str]) -> None:
-    """Set the seam's process-level env vars, warning when one would break the grader.
+@contextlib.contextmanager
+def process_env(seam_name: str, env: dict[str, str]):
+    """Set the seam's process-level env vars for the duration of the block, then put them back.
+
+    Restoring matters because this is global state. Without it the last rollout's session id stays
+    in `os.environ` for the life of the process, so anything afterwards, including the next
+    rollout's grader, sees another harness's credentials. That is the same class of cross-talk the
+    lock exists to prevent, just spread over time instead of across threads.
 
     OPENAI_API_KEY is shared with the task grader: Harbor forwards it into the sandbox and the
     DataAgent grader's LLM-judge tier fires on `if os.environ.get("OPENAI_API_KEY")`. Overwriting it
@@ -71,6 +78,7 @@ def apply_process_env(seam_name: str, env: dict[str, str]) -> None:
     0 — which reads as a weak model rather than a broken harness, and poisons the RL baseline.
     """
     grader_key = os.environ.get("OPENAI_API_KEY")
+    previous = {key: os.environ.get(key) for key in env}
     for key, value in env.items():
         if key == "OPENAI_API_KEY" and grader_key and value != grader_key:
             print(
@@ -79,6 +87,14 @@ def apply_process_env(seam_name: str, env: dict[str, str]) -> None:
                 "numeric tolerance still apply)."
             )
         os.environ[key] = value
+    try:
+        yield
+    finally:
+        for key, was in previous.items():
+            if was is None:
+                os.environ.pop(key, None)
+            else:
+                os.environ[key] = was
 
 
 def _pick_reward(
@@ -149,10 +165,9 @@ def build_trial_config(
     )
 
     seam = seams.get(harness)
-    model_name, kwargs, agent_env, proc_env = seam.resolve(
+    model_name, kwargs, agent_env, _proc_env = seam.resolve(
         base_url=intercept_url, session=session_id, model=model
     )
-    apply_process_env(seam.name, proc_env)
 
     agent = AgentConfig(
         name=seam.import_path or harness,
@@ -257,7 +272,13 @@ async def run_rollout(
         # agent, so the variables must still be in place when `Trial.create` runs. It is a blocking
         # acquire inside an async function, which is acceptable only because construction does no
         # I/O worth speaking of: the sandbox is booted later, by `trial.run()`, outside the lock.
-        with _PROC_ENV_LOCK:
+        # Harbor's wrappers read `os.environ` while constructing the agent, so the seam's
+        # process-level vars have to be in place across `Trial.create` and are put back after.
+        seam = seams.get(harness)
+        *_, proc_env = seam.resolve(
+            base_url=intercept_url, session=session.session_id, model=model
+        )
+        with _PROC_ENV_LOCK, process_env(seam.name, proc_env):
             config = build_trial_config(**config_kwargs)
             trial = await Trial.create(config)
         trial_result = await trial.run()

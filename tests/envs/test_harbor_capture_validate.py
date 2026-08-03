@@ -146,3 +146,16 @@ def test_capabilities_serialise_for_the_wire():
     payload = caps.to_dict()
     assert set(payload) == {"harnesses", "sandboxes", "datasets", "llm"}
     assert payload["llm"]["ok"] is True
+
+
+def test_the_install_hint_does_not_point_at_the_unsatisfiable_extra():
+    """`harbor[cloud]` cannot be installed: langsmith and tensorlake demand incompatible websockets.
+
+    Both pyprojects avoid it for that reason, so an error message telling someone to install it
+    would send them straight to a resolver failure.
+    """
+    module = _module_with(_HAS_DAYTONA=False)
+    cls = type("DaytonaEnvironment", (), {"__module__": module.__name__})
+    detail = capabilities._missing_sdk(cls)
+    assert "harbor[cloud]" not in detail
+    assert "openenv[harbor]" in detail

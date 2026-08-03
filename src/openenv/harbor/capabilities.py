@@ -162,9 +162,12 @@ def _missing_sdk(environment_class: Any) -> str:
     if not absent:
         return ""
     extras = ", ".join(flag.removeprefix("_HAS_").lower() for flag in absent)
+    # Deliberately not `harbor[cloud]`: that extra cannot be installed at all, because it pulls
+    # `langsmith[sandbox]` and `tensorlake` together and they demand incompatible `websockets`
+    # ranges. Pointing someone at it would send them to a resolver error.
     return (
-        f"SDK not installed ({extras}). Install it with: pip install 'harbor[cloud]', "
-        "or `openenv[harbor]`, which pulls every cloud backend."
+        f"SDK not installed ({extras}). Install it with: pip install 'openenv[harbor]', "
+        "which pulls every sandbox backend."
     )
 
 
