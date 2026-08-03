@@ -75,3 +75,47 @@ def test_bare_asyncio_run_would_have_failed_here():
         RuntimeError, match="cannot be called from a running event loop"
     ):
         asyncio.run(outer())
+
+
+# --- port forwarding --------------------------------------------------------
+def test_cloudflare_quick_forward_uses_the_tunnel_subcommand():
+    """`cloudflared forward` is an alias for `cloudflared access`, a different feature entirely.
+
+    Invoked that way the process prints `Incorrect Usage. flag provided but not defined: -url` and
+    exits without ever emitting a *.trycloudflare.com URL, so `--expose cloudflare` failed at
+    startup every time anyone selected it. The quick tunnel is `cloudflared tunnel --url`.
+    """
+    forwarding = pytest.importorskip("openenv.core.harness.capture.forwarding")
+
+    recorded: list[list[str]] = []
+
+    class _Proc:
+        stdout = None
+
+        def poll(self):
+            return None
+
+        def terminate(self):
+            pass
+
+    forwarder = forwarding.CloudflareForwarder()
+    forwarder.preflight = lambda *_a, **_k: None
+
+    def fake_popen(cmd, **_kwargs):
+        recorded.append(cmd)
+        raise RuntimeError("stop here; the command line is what matters")
+
+    import subprocess
+
+    original = subprocess.Popen
+    subprocess.Popen = fake_popen
+    try:
+        with pytest.raises(Exception):
+            forwarder.start(8100)
+    finally:
+        subprocess.Popen = original
+
+    assert recorded, "start() never built a command"
+    cmd = recorded[0]
+    assert "forward" not in cmd, "`forward` is cloudflared access, not a tunnel"
+    assert cmd[1] == "tunnel" and "--url" in cmd

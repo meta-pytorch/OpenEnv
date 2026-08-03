@@ -204,7 +204,10 @@ class CloudflareForwarder(PortForwarder):
         if self._tunnel_name:
             cmd = [self._binary, "tunnel", "run", "--url", target, self._tunnel_name]
         else:
-            cmd = [self._binary, "forward", "--url", target, "--no-autoupdate"]
+            # `cloudflared tunnel --url`, not `cloudflared forward`. `forward` is an alias for
+            # `cloudflared access`, a completely different feature: it exits without ever printing a
+            # *.trycloudflare.com URL, so this path failed at startup every time it was selected.
+            cmd = [self._binary, "tunnel", "--no-autoupdate", "--url", target]
 
         self._proc = subprocess.Popen(
             cmd,
