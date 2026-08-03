@@ -54,6 +54,8 @@
     title: RL Training with an Agentic Harness
   - local: tutorials/sft-warmup
     title: SFT Training with Environments
+  - local: tutorials/pi-agent-grpo
+    title: Training a Real Coding Agent (Pi)
   title: Tutorials
 - isExpanded: false
   sections:
@@ -129,6 +131,10 @@
     title: Agent World Model
   - local: environments/opencode
     title: OpenCode
+  - local: environments/pelican_svg
+    title: Pelican SVG
+  - local: environments/pi
+    title: Pi
   - local: environments/sophistry_bench_sprint
     title: Sophistry Bench Sprint
   - local: environments/latex_ocr
