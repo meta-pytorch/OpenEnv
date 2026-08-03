@@ -30,17 +30,23 @@ from .graph import RolloutGraph, TurnNode
 
 
 def _agent_nodes(graph: RolloutGraph, document: dict[str, Any]) -> list[TurnNode]:
-    """Nodes on the agent's conversation, in arrival order, excluding discarded retries."""
-    agent_rows = [r for r in document["sequences"] if r["role"] == "agent"]
-    if not agent_rows:
+    """Every agent turn, in arrival order, excluding auxiliary calls and discarded retries.
+
+    All agent sequences, not just the first. A rollout can have several: a harness that rewrites its
+    system prompt mid-run starts a new root, and a fork produces several paths that share a prefix.
+    Taking `agent_rows[0]` dropped the rest, so `to_turn_records` and `to_trace_entries` silently
+    returned part of the rollout while reporting nothing wrong.
+
+    Nodes are deduplicated because forked paths share their common prefix, and ordered by arrival so
+    a turn's position matches the order the model produced it in.
+    """
+    keep: set[str] = set()
+    for row in document["sequences"]:
+        if row["role"] == "agent":
+            keep.update(row["node_ids"])
+    if not keep:
         return []
-    root = agent_rows[0]["root_id"]
-    keep = set(agent_rows[0]["node_ids"])
-    return [
-        n
-        for n in graph.nodes()
-        if graph.root_of(n.node_id) == root and n.node_id in keep
-    ]
+    return [n for n in graph.nodes() if n.node_id in keep]
 
 
 def to_trace_entries(
