@@ -198,6 +198,24 @@ class InterceptSweAgent(SweAgent):
         )
 
 
+# Runs INSIDE the sandbox. Truncates `openclaw.txt` after the last line that is exactly `}`, i.e.
+# the closing brace of openclaw's pretty-printed `--json` envelope. Deliberately not a JSON parser:
+# re-implementing Harbor's scan here is exactly what we are trying to avoid, so this only removes
+# the trailing lines and then lets Harbor's own parser do the parsing.
+_OPENCLAW_TRIM_TRAILING_LOG = """
+from pathlib import Path
+
+p = Path("/logs/agent/openclaw.txt")
+if p.is_file():
+    lines = p.read_text(encoding="utf-8", errors="replace").rstrip().splitlines()
+    for i in range(len(lines) - 1, -1, -1):
+        if lines[i] == "}":
+            if i < len(lines) - 1:
+                p.write_text("\\n".join(lines[: i + 1]) + "\\n", encoding="utf-8")
+            break
+"""
+
+
 class InterceptOpenClaw(OpenClaw):
     """openclaw, with its config actually present inside the sandbox.
 
@@ -233,6 +251,52 @@ class InterceptOpenClaw(OpenClaw):
             f"chmod 777 {self._CONTAINER_LOGS_AGENT}",
         )
         await environment.upload_file(local, target)
+
+    async def _copy_openclaw_session_file_to_agent_logs(
+        self, environment: BaseEnvironment, env: dict[str, str]
+    ) -> None:
+        """Strip openclaw's trailing stderr line so Harbor can parse its own capture file.
+
+        UPSTREAM HARBOR BUG. Delete this override once Harbor's parser tolerates trailing text.
+
+        Harbor runs openclaw as (openclaw.py:947-953):
+
+            openclaw agent --local --json ... 2>&1 </dev/null | stdbuf -oL tee /logs/agent/openclaw.txt
+
+        openclaw writes clean JSON to STDOUT; that `2>&1` merges its STDERR into the same file. After
+        the envelope is flushed, openclaw logs one info-level line to stderr:
+
+            [agents/agent-command] [agent] run <uuid> ended with stopReason=stop
+
+        Harbor then parses that file with a rule requiring the JSON object to consume the entire
+        remaining suffix (`_openclaw_decode_last_json_dict_suffix`, and the identical loop inside
+        `_openclaw_container_copy_session_transcript`). One trailing line defeats both, so the
+        container-side copy hits `sys.exit(0)` and `populate_context_post_run` returns at
+        `if not envelope: return` -- no `openclaw.session.jsonl` and no `trajectory.json` at all,
+        while the session file sits on disk the whole time. Verified by stream: the line appears in
+        stderr and never in stdout.
+
+        Probably unnoticed upstream because the line is suppressed for `stopReason == "end_turn"`
+        (dist/agent-command:454). Anthropic reports `end_turn`; every OpenAI-compatible provider
+        reports `stop`, so for us it is always printed.
+
+        The fix is deliberately NOT a local re-implementation of Harbor's parser. Removing the
+        trailing lines leaves Harbor's own scan -- container-side and host-side -- to run unmodified,
+        so any upstream improvement to it is still inherited.
+        """
+        try:
+            await self.exec_as_agent(
+                environment,
+                command="python3 -c " + shlex.quote(_OPENCLAW_TRIM_TRAILING_LOG),
+                env=env,
+            )
+        except Exception as exc:  # noqa: BLE001 - a missing trace must not fail a good rollout
+            # Loud, unlike Harbor's silent `sys.exit(0)`: losing the trajectory is the whole bug.
+            self.logger.warning(
+                "could not trim openclaw.txt (%s); ATIF trajectory will likely be missing",
+                str(exc)[:160],
+            )
+        await super()._copy_openclaw_session_file_to_agent_logs(environment, env)
 
 
 class InterceptCline(ClineCli):
@@ -351,6 +415,60 @@ class InterceptHermes(Hermes):
         # Compaction is incompatible with prefix stitching; see docs/HARNESS_NOTES.md.
         cfg.setdefault("compression", {})["enabled"] = False
         return yaml.safe_dump(cfg, sort_keys=False)
+
+    async def run(self, instruction, environment, context) -> None:  # type: ignore[override]
+        """Re-export the session without `--source cli`, which matches nothing.
+
+        UPSTREAM HARBOR BUG. Delete this override once Harbor drops the flag (hermes.py:446).
+
+        Harbor ends a hermes run with:
+
+            hermes sessions export /logs/agent/hermes-session.jsonl --source cli 2>/dev/null || true
+
+        That command does not fail -- it succeeds and exports NOTHING, leaving a 0-byte file, so
+        `populate_context_post_run` reads an empty session and writes no `trajectory.json`.
+
+        The flag is not the obvious suspect: the session's `source` really is `cli`
+        (`hermes sessions list` prints `Src=cli`). The actual mechanism is that in hermes-agent ANY
+        filter switches export off `db.export_all()` and onto `db.list_prune_candidates()`
+        (hermes_cli/sessions_cmd.py:329-379), whose WHERE clause opens with
+
+            clauses = ["s.ended_at IS NOT NULL"]      # hermes_state.py:7852
+
+        documented as "Only ended sessions are ever candidates ... so a live session is never
+        selected". And `hermes chat -q ... -Q` never finalizes its session, so `ended_at` stays NULL:
+
+            sqlite> SELECT id, source, ended_at FROM sessions;
+            20260803_074252_1a49f2|cli|
+
+        That second half is a hermes-agent behaviour we do not control (reproduced with a plain
+        `hermes chat -q` run, no custom provider involved). What Harbor controls is passing a filter
+        that provably selects zero rows for exactly the sessions it creates. Without the flag the
+        same export returns the session, and Harbor's own unmodified converter turns it into a
+        valid ATIF trajectory.
+
+        Re-running the export afterwards rather than editing Harbor's command is what keeps this an
+        override instead of a fork: Harbor's version runs first in its own `finally`, writes the
+        0-byte file, and this overwrites it before the logs are downloaded.
+        """
+        await super().run(instruction, environment, context)
+        try:
+            await self.exec_as_agent(
+                environment,
+                command=(
+                    'export PATH="$HOME/.local/bin:$PATH" && '
+                    "hermes sessions export /logs/agent/hermes-session.jsonl"
+                ),
+                env={"HERMES_HOME": "/tmp/hermes"},
+                timeout_sec=60,
+            )
+        except Exception as exc:  # noqa: BLE001 - a missing trace must not fail a good rollout
+            # Warned rather than swallowed: Harbor's `2>/dev/null || true` is what hid this for so
+            # long, and a silent second copy of that mistake would be worse than the first.
+            self.logger.warning(
+                "unfiltered hermes session export failed (%s); ATIF trajectory will be missing",
+                str(exc)[:160],
+            )
 
 
 class InterceptKimi(KimiCli):
