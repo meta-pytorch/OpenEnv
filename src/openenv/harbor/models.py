@@ -242,31 +242,40 @@ def turns_from_document(document: dict[str, Any]) -> list[HarborTurn]:
     for sequence in document.get("sequences", []):
         if sequence.get("role") != "agent":
             continue
-        cursor = 0
         input_ids = sequence["input_ids"]
-        mask = sequence["loss_mask"]
         logprobs = sequence["logprobs"]
-        for node_id, length in zip(sequence["node_ids"], sequence["turn_lengths"]):
+        for node_id in sequence["node_ids"]:
             node = by_node.get(node_id, {})
             response = node.get("response_message") or {}
-            sampled = [(i, m) for i, m in zip(input_ids, mask) if m]
-            span = sampled[cursor : cursor + length]
-            lp = [p for p, m in zip(logprobs, mask) if m][cursor : cursor + length]
+
+            # Each turn's own counts, not a walk over runs of the loss mask. A sequence is built as
+            # (context, sampled) per node, so the cumulative offset where a turn's sampled tokens
+            # begin is exactly the length of that turn's prompt, which the document already records.
+            #
+            # The previous version zipped `node_ids` against `turn_lengths`, where `turn_lengths`
+            # counts runs of mask-1. A turn whose logprobs were missing contributes mask-0 and so no
+            # run at all, which made the two lists different lengths: `zip` then stopped early and
+            # every turn after the bad one was dropped or attributed to the wrong node. Turns with
+            # no context between them merged into one run for the same reason.
+            n_prompt = int(node.get("n_prompt", 0))
+            n_sampled = int(node.get("n_sampled", 0))
+            end = n_prompt + n_sampled
+
             rows.append(
                 HarborTurn(
                     turn=index,
                     finish_reason=node.get("finish_reason"),
-                    prompt_token_ids=input_ids[: sequence["prompt_len"]]
-                    if index == 0
-                    else [],
-                    completion_token_ids=[i for i, _ in span],
-                    per_token_logps=lp,
+                    # Every turn, not just the first. This is the engine's own tokenisation of
+                    # everything the model saw before it generated, which is what the training
+                    # contract promises and what a per-turn trainer consumes.
+                    prompt_token_ids=input_ids[:n_prompt],
+                    completion_token_ids=input_ids[n_prompt:end],
+                    per_token_logps=logprobs[n_prompt:end],
                     n_tools=node.get("n_tools", 0),
                     discarded=bool(node.get("discarded")),
                     text=_assistant_text(response),
                     tool_calls=_tool_calls(response),
                 )
             )
-            cursor += length
             index += 1
     return rows

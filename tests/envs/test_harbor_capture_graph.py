@@ -133,13 +133,15 @@ def test_turn_lengths_match_what_each_turn_sampled():
 
 
 def test_turn_lengths_merge_when_a_turn_adds_no_context():
-    """A documented edge, not an endorsement.
+    """A property of `turn_lengths`, which no longer decides turn boundaries anywhere.
 
-    Turn boundaries are runs of mask-0 tokens, so two turns with nothing between them read as one.
-    Every real harness inserts at least the chat template's turn scaffolding, which is why this has
-    never been observed, but `turns_from_document` zips `node_ids` against `turn_lengths` and a
-    shorter list would silently drop turns rather than fail. Pinned so a future change to the
-    linking rule surfaces here instead of in training data.
+    Boundaries are runs of mask-1 tokens, so two turns with nothing between them read as one, and a
+    turn with unusable logprobs contributes no run at all. `turns_from_document` used to zip
+    `node_ids` against this, which dropped turns and misattributed the survivors; it now uses each
+    node's own recorded prompt and sampled counts, so this limitation is confined to the helper.
+
+    Kept because `turn_lengths` remains the join key when reconciling against an external trace,
+    where a merged run would show up as a per-call count mismatch.
     """
     g = RolloutGraph()
     turns = chain(g, 2, 3, context=0)
