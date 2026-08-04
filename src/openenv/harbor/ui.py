@@ -61,10 +61,13 @@ _CSS = """
 .hb-arrow { opacity: .5; margin-right: 6px; }
 .hb-tr    { margin-top: 4px; padding: 4px 8px; border-radius: 6px; border-left: 2px solid #38bdf8;
             background: var(--background-fill-secondary); }
-/* Tool output can be thousands of lines, so this one stays capped, but `contain` stops it
-   swallowing the page scroll once it reaches its own end. */
-.hb-tr pre{ margin: 0; font-size: 11.5px; opacity: .8; max-height: 220px;
-            overflow-y: auto; overscroll-behavior: contain; }
+/* No inner scroller here either, for the same reason as the conversation above, and the previous
+   version of this rule was the bug: `overscroll-behavior: contain` does not stop a box from
+   swallowing the page scroll, it is what *prevents* the wheel from chaining to the page once the
+   box reaches its own end. Tool output is clipped to 500 characters server side, but 500
+   characters of shell output is 25 short lines, which overflowed the 220px cap and left the page
+   feeling frozen wherever the pointer happened to be. Length is bounded by the clip, not by CSS. */
+.hb-tr pre{ margin: 0; font-size: 11.5px; opacity: .8; }
 
 /* A run in flight should look like one. */
 .hb-live  { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; }
