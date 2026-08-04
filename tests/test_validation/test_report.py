@@ -47,3 +47,22 @@ def test_report_round_trips_with_embedded_manifest():
     round_tripped = ValidationReport.model_validate_json(report.model_dump_json())
     assert round_tripped == report
     assert round_tripped.manifest == manifest
+
+
+def test_report_schema_version_is_pinned():
+    manifest = NormalizedManifest.model_validate(
+        load_fixture_manifest("served_min_pass")
+    )
+    with pytest.raises(ValidationError):
+        ValidationReport(
+            report_schema_version="999",
+            target="x",
+            source_digest="0" * 64,
+            signature=SignatureKind.OPENENV_SERVED,
+            manifest=manifest,
+            policy_version="v1",
+            lane=Lane.LOCAL,
+            levels_run=[Level.STATIC],
+            results=[],
+            verdict=Verdict.PASS,
+        )

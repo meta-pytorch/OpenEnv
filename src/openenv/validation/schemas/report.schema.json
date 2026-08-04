@@ -539,6 +539,7 @@
       "type": "string"
     },
     "report_schema_version": {
+      "const": "1",
       "title": "Report Schema Version",
       "type": "string"
     },

@@ -6,7 +6,7 @@ an author is never shown a check they cannot red-to-green. Hub and statistical c
 ids are reserved in this schema so operator reports and local reports share it.
 """
 
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -55,7 +55,7 @@ class ValidationReport(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    report_schema_version: str
+    report_schema_version: Literal["1"]
     target: str
     source_digest: str
     signature: SignatureKind
