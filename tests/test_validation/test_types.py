@@ -1,6 +1,14 @@
 """Contract tests for the core validation enums."""
 
-from openenv.validation.types import CheckStatus, Lane, Level, Severity, Verdict
+from openenv.validation.signature import WELL_KNOWN_FILES
+from openenv.validation.types import (
+    CheckStatus,
+    Lane,
+    Level,
+    Severity,
+    SignatureKind,
+    Verdict,
+)
 
 
 def test_levels_are_ordered_by_cost():
@@ -23,3 +31,9 @@ def test_verdicts():
 
 def test_lanes():
     assert {lane.value for lane in Lane} == {"local", "hub"}
+
+
+def test_every_signature_kind_has_a_well_known_file():
+    assert set(WELL_KNOWN_FILES) == set(SignatureKind)
+    for kind, filename in WELL_KNOWN_FILES.items():
+        assert kind.value == filename
