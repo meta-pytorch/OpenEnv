@@ -1,13 +1,12 @@
-"""Signature detection contracts: well-known files, never a guess.
+"""Signature detection: well-known files, never a guess."""
 
-`detect_signature` itself lands with the walking skeleton (slice 1); this module ships
-the detection rules and error contract so parsers, registries, and the CLI exit-code
-contract can be written against them.
-"""
+from pathlib import Path
 
 from .types import SignatureKind
 
-WELL_KNOWN_FILES: dict[SignatureKind, str] = {}
+WELL_KNOWN_FILES: dict[SignatureKind, str] = {
+    SignatureKind.OPENENV_SERVED: "openenv.yaml",
+}
 """Signature detection table: the formats THIS build can parse.
 
 Entries are added alongside their parsers (`openenv.yaml` with the served-env
@@ -62,3 +61,40 @@ class UnsupportedPackageError(Exception):
         super().__init__(f"unsupported package ({category}): {reason}")
         self.category = category
         self.reason = reason
+
+
+def detect_signature(package_root: Path) -> SignatureKind:
+    """
+    Detect a package's format from its well-known file. Never a guess.
+
+    Only formats with implemented parsers are recognized; anything else is
+    refused as unrecognized.
+
+    Args:
+        package_root (`Path`):
+            Directory to inspect.
+
+    Returns:
+        [`~openenv.validation.types.SignatureKind`]: the single matching signature.
+        Zero or two+ matches raise [`~openenv.validation.signature.SignatureError`].
+    """
+    if not package_root.is_dir():
+        raise SignatureError(f"not a package directory: {package_root}")
+    matches = [
+        kind
+        for kind, filename in WELL_KNOWN_FILES.items()
+        if (package_root / filename).is_file()
+    ]
+    if not matches:
+        expected = ", ".join(sorted(WELL_KNOWN_FILES.values()))
+        raise SignatureError(
+            f"unrecognized package: {package_root} contains none of the well-known "
+            f"files this build can parse ({expected})"
+        )
+    if len(matches) > 1:
+        found = ", ".join(sorted(WELL_KNOWN_FILES[m] for m in matches))
+        raise SignatureError(
+            f"ambiguous package: {package_root} matches multiple signatures ({found}); "
+            "a package must carry exactly one well-known file"
+        )
+    return matches[0]

@@ -51,6 +51,9 @@ class ValidationReport(BaseModel):
 
     Pin `policy_version` and a local run reproduces the hub verdict, modulo hub-lane
     checks.
+
+    `manifest` is `None` only when the package's declarations failed the manifest
+    schema — the report then carries the `static.manifest` FAIL explaining why.
     """
 
     model_config = ConfigDict(extra="forbid")
@@ -59,7 +62,7 @@ class ValidationReport(BaseModel):
     target: str
     source_digest: str
     signature: SignatureKind
-    manifest: NormalizedManifest
+    manifest: NormalizedManifest | None
     policy_version: str
     lane: Lane
     levels_run: list[Level]
