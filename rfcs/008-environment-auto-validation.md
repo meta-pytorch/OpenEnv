@@ -89,7 +89,8 @@ The four levels:
 1. **Static** — manifest schema, pinned dependencies, reproducible build, SBOM, OCI labels,
    resource/timeout/task-distribution declarations.
 2. **Runtime** — the subject starts; seed and episode determinism; declaration accuracy (tools,
-   tasks); reward well-formedness; denied egress; host/filesystem containment; resource bounds;
+   tasks); reward well-formedness; declared network policy enforced; host/filesystem containment;
+   resource bounds;
    episode isolation. **Security lives here.**
 3. **Semantic** — oracle replay reaches max reward; the measured do-nothing floor sits a margin
    below max; no solution leakage in observations; verifier determinism and portability; canary
@@ -102,7 +103,7 @@ The four levels:
 ```
 signature detection → parser → normalized manifest
     → static graders (L1, build optional)
-    → provider.start(deny_egress=True) → runtime graders (L2)
+    → provider.start(network=declared policy) → runtime graders (L2)
     → oracle/floor replay + semantic graders (L3)
     → severity policy → report (JSON) → exit code
 ```
@@ -141,7 +142,7 @@ task — same signature, so detection alone cannot select graders. The flow:
 ```
 SIGNATURE selects the parser
   → PARSER writes capability + type fields into ONE normalized manifest
-    → CAPABILITIES select contract graders (oracle replay, floor gap, determinism, egress …)
+    → CAPABILITIES select contract graders (oracle replay, floor gap, determinism, network policy …)
     → TYPE tags select domain graders (SWE compiles the test suite; browsing opens pages …)
 ```
 
@@ -234,12 +235,22 @@ package · `3` internal error.
 
 ### Providers
 
-Runtime and semantic checks need a sandbox with two capabilities beyond start/stop: **egress
-denial** (subjects start with default-deny networking) and **in-sandbox exec** (oracle scripts,
-containment probes). Validation defines its own provider protocol with declared capabilities and
-adapts the existing core providers rather than widening the core ABCs. v1 ships **Docker-local**
-and **HF Sandbox**. A check whose required provider capability is absent SKIPs with the capability
-named.
+Runtime and semantic checks need a sandbox with capabilities beyond start/stop: **network-policy
+enforcement** and **in-sandbox exec** (oracle scripts, containment probes). Validation defines its
+own provider protocol with declared capabilities and adapts the existing core providers rather
+than widening the core ABCs. v1 ships **Docker-local** and **HF Sandbox**. A check whose required
+provider capability is absent SKIPs with the capability named.
+
+Network posture follows the Harbor `task.toml` (schema 1.4) precedent: the manifest declares a
+network policy — mode `public` (the default; egress allowed), `no-network`, or `allowlist` with
+`allowed_hosts` (exact hostnames, CIDR ranges, wildcards) — and the subject starts under that
+declared policy. The `runtime.network_policy` check verifies the sandbox's effective network
+access matches the declaration. Verifier hermeticity (#40) is unchanged: that check runs the
+verifier with network denied regardless of the environment's declared policy.
+
+GPU is a provider capability, not a package property to reject: a package declaring GPU
+resources validates on a sandbox provider that offers GPUs (e.g. a remote sandbox); on a provider
+without them, runtime+ checks SKIP with the capability named.
 
 Provider selection is auto-detected from environment keys (e.g. an HF token suggests hf-sandbox),
 with a first-run remote-vs-local confirmation, an always-remote flag, and Docker-local as the
@@ -254,7 +265,6 @@ reason — recognized, never guessed at:
 | Category | Reason local validation cannot run it |
 |---|---|
 | `hosted-verifier` | The verifier calls an external service; the run cannot be hermetic, and verifier portability (#40) is unmeasurable locally. Operator-side validation with declared endpoints may support it. |
-| `gpu-only` | Build or episode requires GPU/TPU; outside the author laptop/CI budget that levels 1–3 are designed for. |
 | `multi-agent` | Multi-agent scenes need an orchestration harness local validation does not define. |
 | `simulated-user` | Requires a user-simulator policy; validating the simulator is its own problem and no local reference exists. |
 | `parser-not-implemented` | The signature is recognized (e.g. `task.md`) but no parser is registered in this build. The package is not guessed at. |
@@ -306,7 +316,7 @@ The measured envelope piggybacks the oracle-replay run, as #778 anticipates.
 
 | # | Check | Level | Lane | Severity | Check id |
 |---|---|---|---|---|---|
-| 18 | Network egress denied by default | 2 | local | fail | `runtime.egress_denied` |
+| 18 | Declared network policy enforced (public / no-network / allowlist) | 2 | local | fail | `runtime.network_policy` |
 | 19 | Filesystem / host containment | 2 | local | fail | `runtime.host_containment` |
 | 20 | Resource bounds per episode | 2 | local | fail | `runtime.resource_bounds` |
 | 21 | Cross-episode isolation | 2 | local | fail | `runtime.episode_isolation` |
