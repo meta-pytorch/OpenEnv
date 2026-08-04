@@ -171,3 +171,49 @@ def test_provider_start_returns_a_running_subject():
     running = FakeProvider().start("img:latest")
     assert isinstance(running, RunningSubject)
     assert running.exec(["true"], timeout_s=1.0).exit_code == 0
+
+
+def test_register_rejects_unknown_capability_names():
+    registry = GraderRegistry()
+    with pytest.raises(ValueError, match="telepathy"):
+        registry.register(FakeGrader(requires_capabilities=frozenset({"telepathy"})))
+
+
+def test_entry_point_grader_classes_are_instantiated(manifest, monkeypatch):
+    # The standard module:ClassName entry-point pattern: a grader CLASS already
+    # satisfies the runtime-checkable protocol (class attributes exist on the class
+    # object), so instantiation must key off isinstance(..., type), not the protocol.
+    class FakeEntryPoint:
+        name = "fake-class"
+
+        def load(self):
+            return FakeGrader
+
+    import openenv.validation.graders as graders_module
+
+    monkeypatch.setattr(
+        graders_module, "entry_points", lambda group: [FakeEntryPoint()]
+    )
+    registry = GraderRegistry()
+    assert registry.load_entry_points() == 1
+    (grader,) = registry.select(manifest, max_level=Level.SEMANTIC)
+    assert grader.run(None).status is CheckStatus.PASS
+
+
+def test_entry_point_grader_instances_register_as_is(manifest, monkeypatch):
+    instance = FakeGrader()
+
+    class FakeEntryPoint:
+        name = "fake-instance"
+
+        def load(self):
+            return instance
+
+    import openenv.validation.graders as graders_module
+
+    monkeypatch.setattr(
+        graders_module, "entry_points", lambda group: [FakeEntryPoint()]
+    )
+    registry = GraderRegistry()
+    assert registry.load_entry_points() == 1
+    assert registry.select(manifest, max_level=Level.SEMANTIC) == [instance]

@@ -10,7 +10,7 @@ from importlib.metadata import entry_points
 from pathlib import Path
 from typing import Protocol, runtime_checkable
 
-from ..manifest import NormalizedManifest
+from ..manifest import CapabilitiesSpec, NormalizedManifest
 from ..providers import RunningSubject
 from ..report import CheckResult
 from ..types import Level, ProviderCapability
@@ -92,11 +92,19 @@ class GraderRegistry:
 
         Args:
             grader ([`~openenv.validation.graders.Grader`]):
-                The grader to register.
+                The grader to register. Its `requires_capabilities` must name real
+                `CapabilitiesSpec` fields — a typo'd capability is rejected here
+                rather than crashing (or silently deselecting) at selection time.
         """
         if grader.check_id in self._graders:
             raise ValueError(
                 f"grader already registered for check id {grader.check_id!r}"
+            )
+        unknown = set(grader.requires_capabilities) - set(CapabilitiesSpec.model_fields)
+        if unknown:
+            raise ValueError(
+                f"grader {grader.check_id!r} requires unknown capabilities: "
+                f"{sorted(unknown)}; valid names are CapabilitiesSpec fields"
             )
         self._graders[grader.check_id] = grader
 
@@ -104,14 +112,18 @@ class GraderRegistry:
         """
         Register third-party graders from the entry-point group.
 
+        An entry point may name a grader instance or a zero-argument grader class;
+        classes are instantiated. (An `isinstance(..., Grader)` test cannot make the
+        distinction — a grader class with class-level attributes already satisfies
+        the runtime-checkable protocol.)
+
         Returns:
             `int`: the number of graders loaded.
         """
         loaded = 0
         for ep in entry_points(group=ENTRY_POINT_GROUP):
-            grader = ep.load()
-            if callable(grader) and not isinstance(grader, Grader):
-                grader = grader()
+            candidate = ep.load()
+            grader = candidate() if isinstance(candidate, type) else candidate
             self.register(grader)
             loaded += 1
         return loaded
