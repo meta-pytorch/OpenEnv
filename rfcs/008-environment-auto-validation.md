@@ -286,7 +286,7 @@ implemented or reported locally). Approved 2026-08-04.
 | 5 | Conversion clean (estargz/nydus) | — | out | — | dropped from v1 |
 | 6 | Time-to-first-useful-work | 2 | hub | warn | `hub.time_to_first_work` *(reserved)* |
 | 7 | Composition inspection | — | out | — | dropped from v1 |
-| 8 | Signature + SBOM | 1 | local (SBOM) / hub (cosign) | SBOM fail; cosign hub-side | `static.sbom`; `hub.cosign_signature` *(reserved)* |
+| 8 | Signature + SBOM | 1 | local (SBOM) / hub (cosign) | SBOM fail; cosign warn (hub) | `static.sbom`; `hub.cosign_signature` *(reserved)* |
 | 9 | OCI labels | 1 | local | fail | `static.oci_labels` |
 
 Signing is a publish-time act — an author cannot fail cosign before publishing, so it is hub-lane
@@ -370,8 +370,11 @@ check that underpins #10, #12, and #42 and is the pipeline's first grader.
 
 **Rollup:** local `openenv validate` covers 33 of 44 tests (levels 1–3); operators own 9 (all five
 learnable tests, adversarial floor, gameability gap, cross-host reproducibility, immutable
-versioning); 2 are dropped (estargz/nydus conversion — a step too far for v1). v1 severities:
-30 fail, 9 warn, 1 advisory.
+versioning); 2 are dropped (estargz/nydus conversion — a step too far for v1). v1 severities over
+the 44 tests: 32 fail, 9 warn, 1 advisory (plus the 2 dropped). As check ids, the committed
+severity policy carries 45 entries — 34 fail / 10 warn / 1 advisory — because test #25 splits into
+two fail ids, test #8 splits into a local fail (`static.sbom`) and a hub warn
+(`hub.cosign_signature`), and `static.manifest` carries no #778 number.
 
 ## Examples
 
