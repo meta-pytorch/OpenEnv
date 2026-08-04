@@ -408,6 +408,8 @@ validation:
     oracle:
       form: injected_state
       location: oracle/solved_state.json
+    verifier:
+      kind: reward_channel
     set_state: true
   types:
     tags: [swe]
