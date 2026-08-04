@@ -33,7 +33,9 @@ def test_lanes():
     assert {lane.value for lane in Lane} == {"local", "hub"}
 
 
-def test_every_signature_kind_has_a_well_known_file():
-    assert set(WELL_KNOWN_FILES) == set(SignatureKind)
+def test_well_known_files_track_implemented_parsers_only():
+    # The detection table only lists formats this build can parse; entries are
+    # added alongside their parsers. Every entry's filename is its enum value.
+    assert set(WELL_KNOWN_FILES) <= set(SignatureKind)
     for kind, filename in WELL_KNOWN_FILES.items():
         assert kind.value == filename

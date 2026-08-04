@@ -7,12 +7,14 @@ contract can be written against them.
 
 from .types import SignatureKind
 
-WELL_KNOWN_FILES: dict[SignatureKind, str] = {
-    SignatureKind.OPENENV_SERVED: "openenv.yaml",
-    SignatureKind.HARBOR_TASK: "task.toml",
-    SignatureKind.POSTTRAIN_TASK: "task.md",
-}
-"""Signature detection table. A `task.md` must also carry frontmatter to match."""
+WELL_KNOWN_FILES: dict[SignatureKind, str] = {}
+"""Signature detection table: the formats THIS build can parse.
+
+Entries are added alongside their parsers (`openenv.yaml` with the served-env
+parser, `task.toml` with the Harbor parser, `task.md` — frontmatter required —
+with the PostTrain parser). A format absent from this table is refused as
+unrecognized: validation never claims support for a format it cannot parse.
+"""
 
 UNSUPPORTED_CATEGORIES: dict[str, str] = {
     "hosted-verifier": (
@@ -26,7 +28,8 @@ UNSUPPORTED_CATEGORIES: dict[str, str] = {
         "requires a user-simulator policy; no local reference simulator exists"
     ),
     "parser-not-implemented": (
-        "the signature is recognized but no parser is registered in this build"
+        "defensive registry contract: a signature kind reached dispatch without a "
+        "registered parser; unreachable when detection tracks implemented parsers"
     ),
 }
 """The RFC 008 unsupported-categories list. Detection produces exit code 2, never a guess."""
