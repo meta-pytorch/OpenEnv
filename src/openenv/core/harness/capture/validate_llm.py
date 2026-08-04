@@ -8,11 +8,16 @@ return is token ids. Every row rebuilt downstream is then empty, training silent
 the first symptom is a loss curve that never moves days later. That failure has no loud edge, so the
 check has to be up front and fatal.
 
-Only vLLM implements the contract today. SGLang has none of the four capture knobs
-(`return_tokens_as_token_ids`, `logprobs_mode`, `processed_logprobs`, `return_token_ids` all match
-zero files in its tree) and its chat route returns token *text* only — see sgl-project/sglang#18378,
-which requests exactly this and is motivated by the same train/inference consistency problem. A
-hosted alternative exists but is narrow: fireworks-ai via the HF router honours vLLM's
+Two engines implement the contract. vLLM, served with
+`--return-tokens-as-token-ids --logprobs-mode processed_logprobs`. And SGLang built from `main`:
+sgl-project/sglang#30917 (merged 2026-07-23) added `return_token_ids` to the OpenAI-compatible
+routes, which is what sgl-project/sglang#18378 had asked for. Released SGLang is still unusable —
+v0.5.16 carries only `return_prompt_token_ids`, the prompt without the sampled ids — so the version
+matters and nothing but a live probe can tell the two apart, which is what this file does. SGLang
+also puts the prompt ids per choice rather than at the top level; `normalize_response` absorbs that,
+so the probe below runs its payload through it before grading.
+
+A hosted alternative exists but is narrow: fireworks-ai via the HF router honours vLLM's
 `return_token_ids`, though every one of its live models is a reasoning model whose reasoning tokens
 are dropped from history, so multi-turn stitching degrades to per-turn.
 """
@@ -24,7 +29,7 @@ import urllib.error
 import urllib.request
 from dataclasses import dataclass, field
 
-from .upstream import normalise_engine_base
+from .upstream import normalise_engine_base, normalize_response
 from .validate import check_upstream_response
 
 
@@ -135,6 +140,11 @@ def validate_llm(llm_url: str, model: str, *, timeout: float = 120.0) -> LLMRepo
             findings=[f"probe failed: {type(exc).__name__}: {str(exc)[:300]}"],
         )
 
+    # Grade the payload the same way the capture path will see it. `InferenceClient.completion`
+    # normalises every response before it reaches `_ingest`, so certifying the raw body instead would
+    # reject an SGLang endpoint (per-choice prompt ids) that the rollout path handles perfectly well
+    # — a false negative in the one check whose whole job is to be trusted.
+    payload = normalize_response(payload)
     report = check_upstream_response(payload)
     choice = (payload.get("choices") or [{}])[0]
     return LLMReport(
@@ -159,7 +169,9 @@ def require_llm(llm_url: str, model: str, *, timeout: float = 120.0) -> LLMRepor
             report.summary()
             + "\n\nA vLLM server must be started with:"
             + "\n  --return-tokens-as-token-ids --logprobs-mode processed_logprobs"
-            + "\nWithout them the engine returns text with no token ids, every rebuilt training row"
+            + "\nAn SGLang server must be built from git main (sgl-project/sglang#30917); no serving"
+            + " flag is needed, and its logprobs are already temperature-scaled."
+            + "\nWithout that the engine returns text with no token ids, every rebuilt training row"
             + " is empty, and nothing downstream reports an error."
         )
     return report

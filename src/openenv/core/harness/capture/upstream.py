@@ -1,10 +1,15 @@
-"""The upstream leg: one HTTP client to a vLLM OpenAI-compatible server.
+"""The upstream leg: one HTTP client to a vLLM- or SGLang-compatible OpenAI server.
 
-vLLM only, deliberately. SGLang cannot support this layer at all — none of
-`return_tokens_as_token_ids`, `logprobs_mode`, `processed_logprobs` or `return_token_ids` exist in
-its tree, and its chat route returns token *text* with no ids (sgl-project/sglang#18378 requests
-exactly this, for the same train/inference consistency reason). Carrying a two-engine abstraction for
-a backend that structurally cannot work would be pretending we have a choice.
+SGLang was excluded here because it genuinely could not do this: its chat route returned token
+*text* with no ids (sgl-project/sglang#18378 asked for exactly this, for the same train/inference
+consistency reason). That changed with sgl-project/sglang#30917, merged 2026-07-23, which added
+`return_token_ids` to the OpenAI-compatible routes. It is on `main` and NOT in v0.5.16 — that
+release has only `return_prompt_token_ids`, the prompt ids without the sampled ones — so an SGLang
+endpoint is usable here only when built from main.
+
+One shape difference, absorbed in `normalize_response` below: SGLang returns the prompt ids PER
+CHOICE (`choices[0].prompt_token_ids`); vLLM returns them at the TOP LEVEL of the response.
+Everything downstream reads the top-level field, so normalisation hoists SGLang's.
 
 Two request params do all the work, and both are easy to get subtly wrong:
 
@@ -108,10 +113,30 @@ def prepare_request(
 
 
 def normalize_response(response: dict[str, Any]) -> dict[str, Any]:
-    """Canonicalise vLLM's response shape in place."""
+    """Canonicalise the engine's response shape in place, so callers see one shape.
+
+    Two engines, two placements for the same field. vLLM puts the prompt ids at the top level of the
+    response; SGLang puts them on each choice (`ChatCompletionResponseChoice.prompt_token_ids`, added
+    by sgl-project/sglang#30917). Every reader downstream — `check_upstream_response`, the capture
+    server's `_ingest`, the UI — looks only at the top level, so hoist rather than teach each of them
+    both spellings.
+
+    Hoisted from `choices[0]` specifically, and only when the top level is empty: the prompt is a
+    property of the request, so with n>1 every choice carries the same list, and a top-level value
+    that is already present is the engine's own and must win.
+    """
     choices = response.get("choices")
     if not isinstance(choices, list):
         return response
+
+    if (
+        not response.get("prompt_token_ids")
+        and choices
+        and isinstance(choices[0], dict)
+    ):
+        hoisted = choices[0].get("prompt_token_ids")
+        if hoisted:
+            response["prompt_token_ids"] = hoisted
 
     for choice in choices:
         if not isinstance(choice, dict):

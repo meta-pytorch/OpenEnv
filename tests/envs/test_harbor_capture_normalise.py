@@ -76,3 +76,49 @@ def test_absent_tool_keys_are_not_invented():
     assert "tools" not in request
     assert "functions" not in request
     assert "tool_choice" not in request
+
+
+# --- engine shape differences -----------------------------------------------
+upstream = pytest.importorskip("openenv.core.harness.capture.upstream")
+normalize_response = upstream.normalize_response
+
+
+def test_sglang_per_choice_prompt_ids_are_hoisted():
+    """SGLang returns the prompt ids on the choice; vLLM returns them at the top level.
+
+    Every reader downstream (`check_upstream_response`, the capture server's `_ingest`, the UI) looks
+    only at the top level, so an un-hoisted SGLang response reads as "no prompt ids" and fails
+    validation even though the rollout path handles it perfectly well.
+    """
+    response = {
+        "choices": [
+            {
+                "prompt_token_ids": [1, 2, 3],
+                "token_ids": [4, 5],
+                "message": {"content": "hi"},
+            }
+        ]
+    }
+
+    out = normalize_response(response)
+
+    assert out["prompt_token_ids"] == [1, 2, 3]
+
+
+def test_an_engines_own_top_level_prompt_ids_win():
+    """vLLM's value must not be overwritten by a choice that also carries one."""
+    response = {
+        "prompt_token_ids": [9, 9, 9],
+        "choices": [{"prompt_token_ids": [1, 2, 3], "message": {"content": "hi"}}],
+    }
+
+    assert normalize_response(response)["prompt_token_ids"] == [9, 9, 9]
+
+
+def test_nothing_is_invented_when_no_choice_carries_prompt_ids():
+    response = {"choices": [{"message": {"content": "hi"}}]}
+    assert "prompt_token_ids" not in normalize_response(response)
+
+
+def test_hoisting_survives_a_response_with_no_choices():
+    assert normalize_response({}) == {}
