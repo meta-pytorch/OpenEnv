@@ -152,10 +152,13 @@ works with every format whose parser supplies the fields. `openenv.yaml` (served
 a parser; adding a check is only a grader. The manifest's `signature` field is provenance for the
 report and nothing else; no grader, core or third-party, may branch on it.
 
-Signature detection is well-known-file detection: `openenv.yaml` → served OpenEnv, `task.toml` →
-Harbor, `task.md` with frontmatter → PostTrain. Exactly one must match; zero or two+ is a hard
-"ambiguous/unrecognized package" failure — **never a guess**. Parsers are pure reads: they never
-import or execute package code.
+Signature detection is well-known-file detection **over the formats whose parsers ship in the
+build**: `openenv.yaml` → served OpenEnv, then `task.toml` → Harbor and `task.md` (with
+frontmatter) → PostTrain as their parsers land. The detection table lists only implemented
+parsers — validation never claims support for a format it cannot parse; a package carrying none
+of the supported well-known files is refused as unrecognized (exit 2). Exactly one entry must
+match; two+ is a hard "ambiguous package" failure — **never a guess**. Parsers are pure reads:
+they never import or execute package code.
 
 Type tags are multi-tag: bare tags are shared (`swe`), prefixed tags are hub-scoped
 (`hf:agentic-swe`); pass@k comparisons are valid only within a tag. The shared v1 tag set is
@@ -267,7 +270,7 @@ reason — recognized, never guessed at:
 | `hosted-verifier` | The verifier calls an external service; the run cannot be hermetic, and verifier portability (#40) is unmeasurable locally. Operator-side validation with declared endpoints may support it. |
 | `multi-agent` | Multi-agent scenes need an orchestration harness local validation does not define. |
 | `simulated-user` | Requires a user-simulator policy; validating the simulator is its own problem and no local reference exists. |
-| `parser-not-implemented` | The signature is recognized (e.g. `task.md`) but no parser is registered in this build. The package is not guessed at. |
+| `parser-not-implemented` | Defensive registry contract: a signature kind reaching dispatch without a registered parser is refused, never guessed at. Unreachable in normal operation, since detection only recognizes formats with implemented parsers. |
 
 ### The 44-test mapping
 
