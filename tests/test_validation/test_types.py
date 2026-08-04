@@ -1,12 +1,6 @@
 """Contract tests for the core validation enums."""
 
-from openenv.validation.types import (
-    CheckStatus,
-    Lane,
-    Level,
-    Severity,
-    Verdict,
-)
+from openenv.validation.types import CheckStatus, Lane, Level, Severity, Verdict
 
 
 def test_levels_are_ordered_by_cost():
