@@ -5,6 +5,7 @@ from pathlib import Path
 
 import pytest
 from openenv.validation.manifest import NormalizedManifest
+from openenv.validation.report import ValidationReport
 
 SCHEMAS_DIR = (
     Path(__file__).parent.parent.parent / "src" / "openenv" / "validation" / "schemas"
@@ -12,6 +13,7 @@ SCHEMAS_DIR = (
 
 EXPORTS = {
     "manifest.schema.json": NormalizedManifest,
+    "report.schema.json": ValidationReport,
 }
 
 
@@ -24,3 +26,14 @@ def test_committed_schema_matches_model(fname):
     assert committed == rendered, (
         f"{fname} is stale; run: PYTHONPATH=src python scripts/sync_validation_schemas.py --fix"
     )
+
+
+def test_report_schema_reserves_operator_check_ids():
+    # Operator reports and local reports share one schema: the reserved hub.* and
+    # statistical.* namespaces must be expressible as check ids.
+    schema = ValidationReport.model_json_schema()
+    pattern = schema["$defs"]["CheckResult"]["properties"]["check_id"]["pattern"]
+    import re
+
+    for reserved in ("hub.cross_host_determinism", "statistical.adversarial_floor"):
+        assert re.match(pattern, reserved), reserved
