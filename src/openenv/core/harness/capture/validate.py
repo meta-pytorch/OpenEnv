@@ -107,6 +107,39 @@ def check_turn(
     return report
 
 
+def check_turn_eval(response_message, *, finish_reason=None, index=0) -> Report:
+    """Validate one captured call on an endpoint that cannot return token ids.
+
+    `check_turn` is the wrong instrument here: every one of its FATALs (`no_prompt_ids`,
+    `no_logprobs`) is the *expected* condition for a hosted provider, so running it would fill a
+    perfectly good eval rollout with fatal findings and teach everyone to ignore the findings list.
+
+    What is still worth asserting is that the model actually said something. An empty completion with
+    no tool call is a turn the agent cannot act on, and it is the shape a content filter or a
+    truncated stream leaves behind.
+    """
+    report = Report()
+    tag = f"turn {index}"
+    message = response_message if isinstance(response_message, dict) else {}
+    text = message.get("content") or ""
+    has_output = bool(str(text).strip()) or bool(message.get("tool_calls"))
+
+    if not has_output:
+        report.add(
+            WARN,
+            "empty_completion",
+            f"{tag}: no text and no tool call (finish={finish_reason}). The agent has nothing "
+            "to act on; check for a content filter or a length cap.",
+        )
+    if finish_reason == "length":
+        report.add(
+            INFO,
+            "truncated_turn",
+            f"{tag}: stopped on the output-token cap, so the turn is cut mid-thought",
+        )
+    return report
+
+
 # --- per flattened sequence -------------------------------------------
 def check_sequence(seq, *, min_trainable: int = 1) -> Report:
     """Validate a flattened path. These are the invariants the trainer assumes and never re-checks."""
@@ -174,8 +207,17 @@ def check_sequence(seq, *, min_trainable: int = 1) -> Report:
 
 
 # --- per rollout -------------------------------------------------------
-def check_rollout(graph, *, expect_single_root: bool = False) -> Report:
-    """Validate graph structure. This is where harness-specific weirdness shows up first."""
+def check_rollout(
+    graph, *, expect_single_root: bool = False, capture_level: str = "tokens"
+) -> Report:
+    """Validate graph structure. This is where harness-specific weirdness shows up first.
+
+    `capture_level` below `tokens` changes what a root count MEANS. On the token path, one root per
+    turn diagnoses a harness that re-renders its prompt instead of appending. On an eval endpoint
+    there are no token ids to share a prefix with in the first place, so the same shape says nothing
+    about the harness — only that message-prefix linking could not match either, which is a property
+    of what the harness sends rather than a degradation of capture.
+    """
     report = Report()
     stats = graph.stats()
 
@@ -198,13 +240,23 @@ def check_rollout(graph, *, expect_single_root: bool = False) -> Report:
         # structure: the interstitial tool results are never masked-in as context, so credit cannot
         # flow across turns. Calling that unusable would throw away correct data; calling it clean
         # would hide a real degradation. So: trainable, and labelled.
-        report.add(
-            WARN,
-            "per_turn_capture_only",
-            f"every turn is its own root ({stats['n_turns']}). This harness re-renders its "
-            "prompt rather than appending, so rows are single-turn. Tokens and logprobs are "
-            "exact; multi-turn credit assignment is not available.",
-        )
+        if capture_level == "tokens":
+            report.add(
+                WARN,
+                "per_turn_capture_only",
+                f"every turn is its own root ({stats['n_turns']}). This harness re-renders its "
+                "prompt rather than appending, so rows are single-turn. Tokens and logprobs are "
+                "exact; multi-turn credit assignment is not available.",
+            )
+        else:
+            report.add(
+                INFO,
+                "per_turn_trace_only",
+                f"every turn is its own root ({stats['n_turns']}). With no token ids, turns are "
+                "linked by message prefix, and this harness's messages do not extend each other "
+                "exactly — so the trace is per-call rather than one thread. Nothing is lost that "
+                "an eval rollout carries.",
+            )
     elif stats["n_roots"] > 1:
         # Normal: aux calls (title generation), subagents, or a harness that rewrote its system
         # prompt partway (claude-code) and so continued under a second prefix family.
@@ -296,10 +348,30 @@ def check_upstream_response(payload: dict[str, Any]) -> Report:
             )
         token = (content[0] or {}).get("token", "")
         if not str(token).startswith("token_id:"):
+            # This says more than it looks like it says, and the mild reading of it is what makes the
+            # failure silent.
+            #
+            # `token_id:N` in this field is what --return-tokens-as-token-ids produces. Its absence
+            # means that flag was not passed, and its partner --logprobs-mode processed_logprobs
+            # almost certainly was not either, since the docs present them as a pair. That second
+            # flag is the one that matters here: without it vLLM returns RAW (pre-temperature)
+            # logprobs instead of the sampled distribution's.
+            #
+            # Measured on one vLLM 0.25.1, same prompt and token at temperature 0.7:
+            #     with both flags  -1.3292      without  -1.2546
+            # Both are plausible, both align to the sampled ids, and `token_ids` arrives either way
+            # because it comes from the REQUEST parameter rather than from either flag. So every
+            # other check in this file passes and the rollout grades as fully trainable while
+            # carrying a wrong importance ratio.
             report.add(
                 WARN,
                 "token_strings",
-                f"logprob tokens are strings ({token!r}) not 'token_id:N'. Ids are being "
-                "recovered from a side channel rather than the tokenizer's own numbering.",
+                f"logprob tokens are strings ({token!r}) not 'token_id:N', so "
+                "--return-tokens-as-token-ids was not passed. Its partner --logprobs-mode "
+                "processed_logprobs is then probably absent too, which means these logprobs are "
+                "RAW (pre-temperature) rather than the sampling distribution's. Token ids arrive "
+                "regardless (they come from the request parameter), so nothing else here can catch "
+                "it: the rollout will look perfectly trainable and train on a wrong importance "
+                "ratio. Restart the engine with both flags.",
             )
     return report
