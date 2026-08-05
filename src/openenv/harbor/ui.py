@@ -86,6 +86,33 @@ _CSS = """
 .hb-err   { white-space: pre-wrap; word-break: break-word; font-size: 12px; margin: 10px 0 0;
             padding: 8px 10px; border-radius: 6px; background: var(--background-fill-secondary); }
 
+/* A qualifier on the result: true, load-bearing, and not an error. Bordered rather than coloured
+   like a finding, so "this rollout is eval-only" does not read as "this rollout failed". */
+.hb-note  { font-size: 12.5px; line-height: 1.5; margin: 10px 0 0; padding: 8px 11px;
+            border-radius: 6px; border: 1px solid var(--border-color-primary);
+            background: var(--background-fill-secondary); }
+.hb-note code { font-size: 11.5px; }
+
+/* Hover explanations. `data-tip` rather than `title=` for the two long ones: the native tooltip
+   truncates, takes a second to appear, and cannot wrap a paragraph. Short hints use Gradio's own
+   `info=`, which renders under the label and needs no hover at all. */
+.hb-i     { display: inline-flex; align-items: center; justify-content: center; cursor: help;
+            width: 15px; height: 15px; margin-left: 6px; border-radius: 50%; font-size: 10px;
+            font-weight: 700; font-style: normal; vertical-align: 1px;
+            border: 1px solid var(--border-color-primary); opacity: .75; position: relative; }
+.hb-i:hover { opacity: 1; }
+.hb-i::after { content: attr(data-tip); position: absolute; left: 50%; bottom: 130%;
+            transform: translateX(-50%); width: max-content; max-width: 320px; padding: 8px 10px;
+            border-radius: 6px; border: 1px solid var(--border-color-primary);
+            background: var(--background-fill-primary); color: var(--body-text-color);
+            font-size: 11.5px; font-weight: 400; line-height: 1.5; text-align: left;
+            white-space: pre-line; opacity: 0; visibility: hidden; transition: opacity .12s;
+            z-index: 40; box-shadow: 0 4px 14px rgba(0,0,0,.18); }
+.hb-i:hover::after { opacity: 1; visibility: visible; }
+/* The label row the icon sits on, so the icon lines up with a Gradio label rather than floating. */
+.hb-lbl   { display: flex; align-items: center; font-size: 13px; font-weight: 600;
+            margin: 2px 0 -6px; }
+
 /* Findings carry severity: a FATAL means unusable, a WARN means read before training on it. */
 .hb-find  { font-size: 12.5px; margin: 5px 0; line-height: 1.45; }
 .hb-tag   { display: inline-block; min-width: 46px; margin-right: 8px; padding: 1px 6px;
@@ -150,6 +177,37 @@ _CSS = """
 
 footer { display: none !important; }
 """
+
+
+def _labelled(label: str, tip: str) -> str:
+    """A field label with a hover-explained `i` beside it.
+
+    For the explanations too long to sit under a Gradio label as `info=` text — which is where every
+    one-liner belongs instead, since it needs no hover to be seen.
+    """
+    return (
+        f'<div class="hb-lbl">{html.escape(label)}'
+        f'<span class="hb-i" data-tip="{html.escape(tip, quote=True)}">i</span></div>'
+    )
+
+
+_KEY_TIP = (
+    "Only needed for a hosted endpoint: OpenAI, Anthropic, HF Inference Providers.\n\n"
+    "It is sent to the inference endpoint by this server and nothing else. It is NOT the key the "
+    "agent receives — that one is a capture session id, minted per rollout, which is how one proxy "
+    "serves many rollouts and how an unregistered caller is rejected.\n\n"
+    "Leave empty for a local vLLM or SGLang."
+)
+
+_LEVEL_TIP = (
+    "There are two kinds of rollout, and the endpoint decides which you get.\n\n"
+    "TRAIN needs the engine to return token ids and per-token logprobs: vLLM started with "
+    "--return-tokens-as-token-ids --logprobs-mode processed_logprobs, or SGLang built from git "
+    "main. You get the reward, the trace, and the exact tokens and logprobs to train on.\n\n"
+    "EVAL is everything else, including a vLLM started without those flags. You get the reward and "
+    "the full trace; there are no token ids, so nothing is trainable. Logprobs alone do not help — "
+    "with no ids to pair them with there is nothing to align them to."
+)
 
 
 def _clip(text: Any, limit: int = 400) -> str:
@@ -437,8 +495,13 @@ def _result_html(r: dict[str, Any]) -> str:
     # Constant across turns, so it is a property of the rollout rather than a per-row column.
     context = len((turns[0].get("prompt_token_ids") or [])) if turns else 0
 
+    is_eval = r.get("rollout_type", "train") == "eval"
     kv = [
-        ("trainable tokens", f"{r.get('n_trainable_tokens', 0):,}", True),
+        # "trainable tokens: 0" on an eval rollout reads as a capture failure. It is not one, so the
+        # slot says what kind of rollout this is instead of reporting a zero that means nothing here.
+        ("rollout", f"EVAL · {r.get('capture_level', '?')}", True)
+        if is_eval
+        else ("trainable tokens", f"{r.get('n_trainable_tokens', 0):,}", True),
         ("context", f"{context:,}", False),
         ("trace check", atif, atif != "match"),
         ("model calls", r.get("n_turns", 0), False),
@@ -467,6 +530,21 @@ def _result_html(r: dict[str, Any]) -> str:
         )
         + "</div>",
     ]
+
+    if is_eval:
+        out.append(
+            '<div class="hb-note">This is an <b>eval rollout</b>. The endpoint returned '
+            f"{'logprobs but no token ids' if r.get('capture_level') == 'logprobs' else 'no token ids and no logprobs'}, "
+            "so you get the reward and the full trace below, but nothing trainable — there is no "
+            "<code>contract.json</code> and no per-token logprobs. Point the server at vLLM "
+            "(<code>--return-tokens-as-token-ids --logprobs-mode processed_logprobs</code>) or "
+            "SGLang built from main for trainable rollouts.</div>"
+        )
+    for fix in r.get("param_fixes") or []:
+        out.append(
+            f'<div class="hb-note hb-dim">upstream compatibility: {html.escape(fix)} — '
+            "the request differs from what the harness asked for.</div>"
+        )
 
     rewards = r.get("rewards") or {}
     if len(rewards) > 1:
@@ -640,12 +718,16 @@ def _write_contract(r: dict[str, Any]) -> str | None:
     behaviour policy's, recorded at sampling time, and cannot be recovered afterwards by re-running
     the prompt. Discarded turns are kept but flagged, because they were generated and billed and a
     trainer must be able to see them in order to exclude them deliberately.
+
+    Returns `None` for an eval rollout. Writing a file whose every `prompt_token_ids` is `[]` would
+    hand someone a download named `contract.json` containing no contract, and a file on disk is far
+    more convincing than an empty list in a JSON blob.
     """
     import tempfile
     from pathlib import Path as _Path
 
     turns = r.get("turns") or []
-    if not turns:
+    if not turns or r.get("rollout_type", "train") == "eval":
         return None
     contract = {
         "task_id": r.get("task_id", ""),
@@ -735,13 +817,15 @@ def harbor_gradio_builder(
 
     datasets = list(datasets or [])
 
-    def on_validate(url: str, model: str):
+    def on_validate(url: str, model: str, api_key: str):
         from openenv.core.harness.capture.validate_llm import list_models, validate_llm
 
         from .capabilities import capabilities
         from .seams import agent_facing_model
+        from .serving import HarborService
 
         url = (url or "").strip().rstrip("/")
+        api_key = (api_key or "").strip() or None
         if not url:
             return (
                 _UNVALIDATED,
@@ -752,11 +836,15 @@ def harbor_gradio_builder(
             )
 
         if not model:
-            served = list_models(url)
+            served = list_models(url, api_key=api_key)
             if len(served) != 1:
+                hint = (
+                    f"`{', '.join(served[:12])}`"
+                    if served
+                    else "nothing reachable — check the URL, and the API key if it needs one"
+                )
                 return (
-                    f"**Pick a model** — this endpoint serves "
-                    f"`{', '.join(served) or 'nothing reachable'}`.",
+                    f"**Pick a model** — this endpoint serves {hint}.",
                     gr.update(),
                     gr.update(),
                     {},
@@ -764,13 +852,14 @@ def harbor_gradio_builder(
                 )
             model = served[0]
 
-        report = validate_llm(url, model)
-        if not report.ok:
+        report = validate_llm(url, model, api_key=api_key)
+        if not report.reachable:
             why = "; ".join(report.findings) or "unreachable"
             return (
                 f"**Not usable** — {why}\n\n"
-                "Start vLLM with `--return-tokens-as-token-ids "
-                "--logprobs-mode processed_logprobs`.",
+                "Needs vLLM with `--return-tokens-as-token-ids --logprobs-mode "
+                "processed_logprobs`, SGLang built from git main, or any reachable OpenAI-spec "
+                "endpoint (with an API key) for eval rollouts.",
                 gr.update(),
                 gr.update(),
                 {},
@@ -778,7 +867,15 @@ def harbor_gradio_builder(
             )
 
         caps = capabilities(
-            datasets=datasets, llm={"url": url, "model": model, "ok": True}
+            datasets=datasets,
+            llm={
+                "url": url,
+                "model": model,
+                "ok": report.ok,
+                "capture_level": report.capture_level,
+                "reachable": True,
+                "authenticated": bool(api_key),
+            },
         )
         sandboxes = caps.available_sandboxes
         by_dialect: dict[str, list[str]] = {}
@@ -793,9 +890,41 @@ def harbor_gradio_builder(
         values = [v for _, v in choices]
 
         leaf = agent_facing_model(model)
-        lines = [f"**Ready** · `{model}` · logprobs + token ids ✓"]
+        if report.trainable:
+            lines = [f"**Ready — TRAIN** · `{model}` · token ids + logprobs ✓"]
+        else:
+            detail = (
+                "logprobs, no token ids"
+                if report.capture_level == "logprobs"
+                else "no token ids, no logprobs"
+            )
+            lines = [
+                f"**Ready — EVAL ONLY** · `{model}` · {detail}",
+                "Rollouts carry the reward and the full trace, but nothing trainable.",
+            ]
         if leaf != model:
             lines.append(f"Sent to agents as `{leaf}`, rewritten back on the way out.")
+        for fix in report.param_fixes:
+            lines.append(f"<span style='opacity:.7'>upstream compat: {fix}</span>")
+        # The one thing a user cannot discover by reading the endpoint's own docs: whether a model
+        # will actually sustain an agent loop here. Shown at Validate rather than after a rollout,
+        # because a rollout costs a sandbox and several minutes to learn the same thing.
+        for finding in report.findings:
+            if "behaviour_changed" in finding or "tool_call" in finding:
+                detail = finding.split(": ", 2)[-1]
+                lines.append(f"⚠️ {detail}")
+
+        # The Run button below uses the endpoint this SERVER was started with, not the one typed
+        # here — the capture proxy was built at boot and cannot be repointed from a browser. When
+        # the two differ, saying so is the difference between a confusing result and an obvious
+        # mistake.
+        service = HarborService.current()
+        if service is not None and service.llm_url.rstrip("/") != url:
+            lines.append(
+                f"⚠️ **Rollouts will not use this endpoint.** This server serves "
+                f"`{service.llm_url}` (`{service.model}`, {service.capture_level}); restart it "
+                "with `--llm-url` to change that. Validation above only describes the URL you typed."
+            )
         lines.append(
             f"Sandboxes: {', '.join(f'`{s}`' for s in sandboxes) or '**none usable**'}"
         )
@@ -814,8 +943,19 @@ def harbor_gradio_builder(
                 else (values[0] if values else None),
             ),
             gr.update(choices=sandboxes, value=sandboxes[0] if sandboxes else None),
-            {"url": url, "model": model, "ok": True},
-            gr.update(interactive=bool(sandboxes)),
+            # `ok` gates the Run button and now means "reachable", not "trainable": an eval endpoint
+            # is a perfectly good thing to press Run against.
+            {
+                "url": url,
+                "model": model,
+                "ok": True,
+                "capture_level": report.capture_level,
+                "trainable": report.trainable,
+            },
+            gr.update(
+                interactive=bool(sandboxes),
+                value="Run rollout" if report.trainable else "Run eval rollout",
+            ),
         )
 
     def on_dataset(spec: str):
@@ -895,6 +1035,11 @@ def harbor_gradio_builder(
                         model=service.model,
                         trials_dir=Path("/tmp/openenv-harbor-trials"),
                         dataset=spec,
+                        # From the service, not from the validated state: the proxy this rollout
+                        # actually goes through was built at boot, and the result must describe that
+                        # rather than whatever URL the box currently holds.
+                        capture_level=getattr(service, "capture_level", "tokens"),
+                        inference=service.capture.inference,
                     )
                 )
                 done.put(("ok", res.model_dump()))
@@ -986,8 +1131,9 @@ def harbor_gradio_builder(
 
         with gr.Column(elem_classes="hb-wrap"):
             gr.Markdown(
-                "## Harbor\nRun a coding agent on a Harbor task and capture every token "
-                "and logprob it produced."
+                "## Harbor\nRun a coding agent on a Harbor task. Against vLLM or SGLang you get "
+                "every token and logprob it produced, ready to train on; against any other "
+                "OpenAI-spec endpoint you get the reward and the full trace."
             )
 
             with gr.Row(equal_height=False):
@@ -999,16 +1145,38 @@ def harbor_gradio_builder(
                     # stale endpoint could be used without anyone noticing it was stale.
                     url_in = gr.Textbox(
                         label="LLM URL",
-                        placeholder="https://…  vLLM, OpenAI-compatible",
+                        placeholder="https://…  any OpenAI-spec endpoint",
+                        info="vLLM, SGLang, OpenAI, Anthropic, HF Inference Providers. "
+                        "Accepts a bare root or one ending in /v1.",
+                    )
+                    gr.HTML(_labelled("API key (optional)", _KEY_TIP))
+                    key_in = gr.Textbox(
+                        label="",
+                        type="password",
+                        placeholder="only for a hosted provider",
+                        show_label=False,
                     )
                     model_in = gr.Textbox(
-                        label="Model (optional)", placeholder="read from the endpoint"
+                        label="Model (optional)",
+                        placeholder="read from the endpoint",
+                        info="Required when the endpoint serves more than one model.",
                     )
                     validate_btn = gr.Button("Validate", variant="secondary")
+                    gr.HTML(_labelled("Capture level", _LEVEL_TIP))
                     engine_md = gr.Markdown(_UNVALIDATED)
                     gr.Markdown("### Agent")
-                    harness_in = gr.Dropdown(label="Agent", choices=[])
-                    sandbox_in = gr.Dropdown(label="Sandbox", choices=[])
+                    harness_in = gr.Dropdown(
+                        label="Agent",
+                        choices=[],
+                        info="The coding agent to run. Its dialect is shown in brackets; the "
+                        "proxy translates all four to one upstream call.",
+                    )
+                    sandbox_in = gr.Dropdown(
+                        label="Sandbox",
+                        choices=[],
+                        info="Where the agent executes. Harbor's backends, not OpenEnv's "
+                        "container providers — only those with working credentials are listed.",
+                    )
 
                 # right — the task. Everything but the picker is folded away: the instruction alone
                 # runs to a screenful, and it pushed the Run button below the fold.
@@ -1054,7 +1222,8 @@ def harbor_gradio_builder(
             # The training contract as a file: token ids and the behaviour-policy logprobs, which
             # are the part that cannot be reconstructed after the fact.
             contract_file = gr.File(
-                label="contract.json — token ids, logprobs and reward",
+                label="contract.json — token ids, logprobs and reward "
+                "(train rollouts only)",
                 interactive=False,
                 visible=True,
             )
@@ -1063,7 +1232,7 @@ def harbor_gradio_builder(
 
         validate_btn.click(
             on_validate,
-            [url_in, model_in],
+            [url_in, model_in, key_in],
             [engine_md, harness_in, sandbox_in, state, run_btn],
         )
         ds_in.change(on_dataset, [ds_in], [idx_in, count_md])
