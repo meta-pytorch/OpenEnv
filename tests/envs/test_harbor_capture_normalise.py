@@ -122,3 +122,38 @@ def test_nothing_is_invented_when_no_choice_carries_prompt_ids():
 
 def test_hoisting_survives_a_response_with_no_choices():
     assert normalize_response({}) == {}
+
+
+def test_parallel_tool_calls_goes_with_an_empty_tools_array():
+    """Found by the compatibility matrix: codex against OpenAI failed EVERY call with
+
+        Invalid value for 'parallel_tool_calls': 'parallel_tool_calls' is only allowed when
+        'tools' are specified.
+
+    It sends `tools: []` plus `parallel_tool_calls`; stripping only the empty list left the orphan.
+    vLLM ignores the orphan, which is why this survived until a hosted provider was tried.
+    """
+    server = pytest.importorskip("openenv.core.harness.capture.server")
+    body = {
+        "model": "m",
+        "tools": [],
+        "parallel_tool_calls": True,
+        "tool_choice": "auto",
+    }
+    server.normalise_for_capture(body)
+    assert "tools" not in body
+    assert "parallel_tool_calls" not in body
+    assert "tool_choice" not in body
+
+
+def test_parallel_tool_calls_survives_when_tools_are_real():
+    """It is only invalid without tools; a genuine manifest must keep its companions."""
+    server = pytest.importorskip("openenv.core.harness.capture.server")
+    body = {
+        "model": "m",
+        "tools": [{"type": "function", "function": {"name": "bash"}}],
+        "parallel_tool_calls": True,
+    }
+    server.normalise_for_capture(body)
+    assert body["parallel_tool_calls"] is True
+    assert len(body["tools"]) == 1

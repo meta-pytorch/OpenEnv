@@ -185,3 +185,174 @@ def test_empty_graph_is_not_an_error():
     g = RolloutGraph()
     assert g.nodes() == [] and g.roots() == [] and g.sequences() == []
     assert g.stats()["n_turns"] == 0
+
+
+# --- linking without token ids (an eval endpoint) ---------------------------
+#
+# A hosted provider returns no token ids at all, so `end_ids` is empty for every node and the token
+# rule can never find a parent: `len(end) <= best_len` holds for all candidates. The graph would
+# report a 20-turn conversation as 20 separate roots — not wrong exactly, but it reads as if the
+# agent restarted every turn, and every root-count heuristic downstream misfires.
+def eval_node(node_id: str, messages: list[dict], reply: str) -> TurnNode:
+    return TurnNode(
+        node_id=node_id,
+        prompt_ids=[],
+        sampled_ids=[],
+        sampled_logprobs=None,
+        request_messages=messages,
+        response_message={"role": "assistant", "content": reply},
+    )
+
+
+def test_message_prefix_links_an_eval_conversation_into_one_root():
+    graph = RolloutGraph()
+    first = [{"role": "system", "content": "sys"}, {"role": "user", "content": "go"}]
+    graph.add_turn(eval_node("a", first, "step 1"))
+    second = [
+        *first,
+        {"role": "assistant", "content": "step 1"},
+        {"role": "user", "content": "tool result"},
+    ]
+    graph.add_turn(eval_node("b", second, "step 2"))
+    third = [
+        *second,
+        {"role": "assistant", "content": "step 2"},
+        {"role": "user", "content": "tool result 2"},
+    ]
+    graph.add_turn(eval_node("c", third, "done"))
+
+    assert graph.stats()["n_roots"] == 1
+    assert graph.stats()["n_turns"] == 3
+    assert graph.get("b").parent_id == "a"
+    assert graph.get("c").parent_id == "b"
+
+
+def test_an_unrelated_eval_conversation_is_still_its_own_root():
+    """A subagent starts from a fresh system prompt and must not be grafted onto the main chain."""
+    graph = RolloutGraph()
+    graph.add_turn(eval_node("a", [{"role": "system", "content": "main"}], "working"))
+    graph.add_turn(
+        eval_node("b", [{"role": "system", "content": "subagent"}], "also working")
+    )
+    assert graph.stats()["n_roots"] == 2
+
+
+def test_provider_noise_on_the_assistant_message_does_not_break_linking():
+    """The message a provider returns and the one a harness echoes back are equal in meaning and
+    unequal as dicts: `refusal`, `annotations` and `audio: null` get added, `content` moves between
+    `null` and `""`. Comparing raw dicts would find no parent for any turn."""
+    graph = RolloutGraph()
+    first = [{"role": "user", "content": "go"}]
+    parent = TurnNode(
+        node_id="a",
+        prompt_ids=[],
+        sampled_ids=[],
+        request_messages=first,
+        response_message={
+            "role": "assistant",
+            "content": "step 1",
+            "refusal": None,
+            "annotations": [],
+            "audio": None,
+        },
+    )
+    graph.add_turn(parent)
+    graph.add_turn(
+        eval_node(
+            "b",
+            [
+                *first,
+                {"role": "assistant", "content": "step 1"},
+                {"role": "user", "content": "next"},
+            ],
+            "step 2",
+        )
+    )
+    assert graph.get("b").parent_id == "a"
+
+
+def test_token_linking_still_wins_when_ids_are_present():
+    """Messages are a weaker key — what the harness said it sent, not what the engine tokenised — so
+    they must never be consulted while ids are available."""
+    graph = RolloutGraph()
+    turns = chain(graph, 3, 4)
+    assert graph.get(turns[1].node_id).parent_id == turns[0].node_id
+    assert graph.stats()["n_roots"] == 1
+
+
+def test_tool_call_arguments_are_compared_as_json_not_as_bytes():
+    """The bug that made message linking inert on real data.
+
+    An eight-turn opencode rollout against the HF router came back as eight separate roots. The
+    arguments were identical; the *strings* were not, differing only in the space after the colon,
+    because the harness re-serialises what the provider sent:
+
+        {"command": "ls"}   provider
+        {"command":"ls"}    echoed back
+    """
+    graph = RolloutGraph()
+    first = [{"role": "user", "content": "go"}]
+    call = {"id": "call_1", "type": "function", "function": {"name": "bash"}}
+    graph.add_turn(
+        TurnNode(
+            node_id="a",
+            prompt_ids=[],
+            sampled_ids=[],
+            request_messages=first,
+            response_message={
+                "role": "assistant",
+                "content": None,
+                "tool_calls": [
+                    {
+                        **call,
+                        "function": {
+                            **call["function"],
+                            "arguments": '{"command": "ls"}',
+                        },
+                    }
+                ],
+            },
+        )
+    )
+    graph.add_turn(
+        eval_node(
+            "b",
+            [
+                *first,
+                {
+                    "role": "assistant",
+                    "content": "",
+                    "tool_calls": [
+                        {
+                            **call,
+                            "function": {
+                                **call["function"],
+                                "arguments": '{"command":"ls"}',
+                            },
+                        }
+                    ],
+                },
+                {"role": "tool", "content": "a.txt"},
+            ],
+            "done",
+        )
+    )
+    assert graph.get("b").parent_id == "a"
+    assert graph.stats()["n_roots"] == 1
+
+
+def test_reordered_argument_keys_are_still_the_same_call():
+    """Any harness that round-trips arguments through a dict can reorder the keys."""
+    from openenv.core.harness.capture.graph import _canonical_arguments
+
+    assert _canonical_arguments('{"b": 2, "a": 1}') == _canonical_arguments(
+        '{"a":1,"b":2}'
+    )
+
+
+def test_malformed_arguments_are_not_forced_to_match():
+    """Two different malformed strings are two different calls, not one."""
+    from openenv.core.harness.capture.graph import _canonical_arguments
+
+    assert _canonical_arguments("{not json") != _canonical_arguments("{also not json")
+    assert _canonical_arguments("{not json") == _canonical_arguments("  {not json  ")

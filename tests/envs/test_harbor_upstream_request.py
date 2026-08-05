@@ -143,3 +143,50 @@ def test_engine_base_is_the_root_whichever_form_is_given(given):
     """
     assert upstream.normalise_engine_base(given) == "http://host:8000"
     assert upstream.InferenceClient(given).base_url == "http://host:8000"
+
+
+# --- capture level: what a provider will actually accept --------------------
+#
+# Every case below was observed against a live endpoint. The `text` level exists because current
+# OpenAI models answer `logprobs` with a 400, and the `tokens` level cannot be sent to them at all:
+# `return_token_ids` is rejected outright, so injecting it unconditionally meant every single call
+# failed rather than merely losing its token ids.
+def test_tokens_level_is_the_existing_behaviour():
+    out = prepare_request({"messages": []}, capture_level="tokens")
+    assert out["logprobs"] is True
+    assert out["return_token_ids"] is True
+    assert out["top_logprobs"] == 0
+
+
+def test_logprobs_level_asks_for_logprobs_but_not_token_ids():
+    out = prepare_request({"messages": []}, capture_level="logprobs")
+    assert out["logprobs"] is True
+    assert out["top_logprobs"] == 0
+    assert "return_token_ids" not in out
+
+
+def test_text_level_injects_nothing():
+    out = prepare_request({"messages": [], "model": "m"}, capture_level="text")
+    assert out == {"messages": [], "model": "m"}
+
+
+def test_text_level_strips_prior_thinking_instead_of_renaming_it():
+    """`reasoning`/`reasoning_content` is a vLLM accommodation, and a non-standard message field is
+    the same 400 hazard as a non-standard top-level param."""
+    out = prepare_request(
+        {"messages": [{"role": "assistant", "reasoning_content": "thinking"}]},
+        capture_level="text",
+    )
+    message = out["messages"][0]
+    assert "reasoning_content" not in message
+    assert "reasoning" not in message
+
+
+def test_text_level_still_does_not_rewrite_the_callers_messages():
+    original = {"role": "assistant", "reasoning_content": "thinking"}
+    messages = [original]
+    prepare_request({"messages": messages}, capture_level="text")
+    assert original["reasoning_content"] == "thinking", (
+        "the caller's message objects are the ones the graph stores; rewriting them in place "
+        "means a captured turn no longer records what the harness sent"
+    )
