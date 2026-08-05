@@ -21,14 +21,63 @@ Two request params do all the work, and both are easy to get subtly wrong:
     top_logprobs=0          must be SET, not omitted. vLLM only populates `logprobs.content[]` when
                             `top_logprobs` is not None, even with `logprobs=True`. Zero returns just
                             the sampled token's logprob, which is all training needs.
+
+Neither is standard, so neither can be sent unconditionally. `capture_level` says how much this
+particular endpoint tolerates, and it is discovered by probing rather than configured (see
+`validate_llm`):
+
+    tokens      prompt ids + sampled ids + aligned logprobs. vLLM with the two serving flags, or
+                SGLang built from main. The only level that yields trainable rollouts.
+    logprobs    logprobs but no ids. Nothing trainable can be built from these — an unpaired
+                logprob has no token to attach to — so they are kept only as an eval diagnostic.
+    text        neither. OpenAI's current models reject `logprobs` outright; Anthropic never had it.
+
+Below `tokens` a rollout is an eval rollout: same path, same agents, reward and full trace, no token
+fields. What must never happen is *looking* trainable while carrying nothing, which is why the level
+travels with every response and no contract is written without it.
 """
 
 from __future__ import annotations
 
+import asyncio
 import json
+import logging
 from typing import Any
 
 import httpx
+
+from .compat import diagnose, MAX_FIXES, ParamFix
+
+logger = logging.getLogger(__name__)
+
+# Ordered weakest-last: `CAPTURE_LEVELS.index` is how callers compare two levels.
+CAPTURE_LEVELS = ("tokens", "logprobs", "text")
+
+
+def auth_headers(api_key: str | None, header: str = "Authorization") -> dict[str, str]:
+    """The one header that authenticates us to the upstream, or `{}` when there is no key.
+
+    `Authorization` gets the `Bearer ` prefix the OpenAI spec asks for; any other header name gets
+    the raw key, because the providers that use a custom header (`x-api-key`) want it bare. The
+    header name is configurable because the OpenResponses compliance suite treats it as
+    configuration, and because Anthropic's native route does not accept `Authorization`.
+
+    Args:
+        api_key (`str`, *optional*):
+            The upstream credential. This is never the agent-facing key: that one is a capture
+            session id and is minted per rollout (see `sessions`).
+        header (`str`, *optional*, defaults to `"Authorization"`):
+            Header to send it under.
+
+    Returns:
+        `dict[str, str]`: Headers to merge into the request.
+    """
+    if not api_key:
+        return {}
+    name = (header or "Authorization").strip()
+    if name.lower() == "authorization":
+        return {name: f"Bearer {api_key}"}
+    return {name: api_key}
 
 
 class UpstreamError(RuntimeError):
@@ -71,27 +120,51 @@ def normalise_engine_base(url: str) -> str:
 
 
 def prepare_request(
-    request: dict[str, Any], *, served_model: str | None = None
+    request: dict[str, Any],
+    *,
+    served_model: str | None = None,
+    capture_level: str = "tokens",
 ) -> dict[str, Any]:
     """Add the params that make a response capturable. Mutates and returns `request`.
 
     Only the top level of `request` is mutated. Nested message dicts are copied before they are
     rewritten, because the caller's messages are the same objects the graph stores: rewriting them
     in place would mean a captured turn no longer records what the harness actually sent.
+
+    Args:
+        request (`dict[str, Any]`):
+            The chat-completions body, already normalised by the dialect transformer.
+        served_model (`str`, *optional*):
+            Accepted for symmetry with the caller; the model name is set by the server.
+        capture_level (`str`, *optional*, defaults to `"tokens"`):
+            How much this endpoint tolerates. See the module docstring.
+
+    Returns:
+        `dict[str, Any]`: The same object, edited.
     """
-    request["logprobs"] = True
-    request["return_token_ids"] = True
+    if capture_level == "tokens":
+        request["logprobs"] = True
+        request["return_token_ids"] = True
+    elif capture_level == "logprobs":
+        request["logprobs"] = True
+    # At `text` nothing is injected at all. Current OpenAI models answer `logprobs` with a 400, and
+    # a rejected request is worse than a missing diagnostic: the agent's turn is simply lost.
+
     # Not `setdefault`: that keeps an explicitly-provided `None`, and vLLM only fills
     # `logprobs.content[]` when `top_logprobs` is not None. A harness that sends
     # `"top_logprobs": null` would then get a normal-looking response with no logprobs at all, so
     # every turn it produced would be silently untrainable.
-    if request.get("top_logprobs") is None:
+    if capture_level != "text" and request.get("top_logprobs") is None:
         request["top_logprobs"] = 0
 
     # vLLM reads a prior turn's thinking from `reasoning`, while the dialect transformers emit the
     # canonical `reasoning_content`. Without this rename an earlier turn's interleaved thinking
     # renders as an empty `<think></think>` and the prompt silently differs from what the model
     # actually produced — which breaks prefix matching for the turn after it.
+    #
+    # That rename is a vLLM accommodation, so at `text` the field is dropped instead: a non-standard
+    # key inside a message is the same 400 hazard as a non-standard top-level param, and there is no
+    # prefix matching at that level for it to protect.
     messages = request.get("messages")
     if isinstance(messages, list):
         rewritten: list[Any] = []
@@ -101,7 +174,10 @@ def prepare_request(
                 and message.get("reasoning_content") is not None
             ):
                 message = dict(message)
-                message["reasoning"] = message.pop("reasoning_content")
+                if capture_level == "text":
+                    message.pop("reasoning_content")
+                else:
+                    message["reasoning"] = message.pop("reasoning_content")
             rewritten.append(message)
         request["messages"] = rewritten
 
@@ -164,6 +240,21 @@ def normalize_response(response: dict[str, Any]) -> dict[str, Any]:
     return response
 
 
+def _retry_after_seconds(response: httpx.Response) -> float | None:
+    """The `Retry-After` delay a provider asked for, in seconds, if it gave a usable one.
+
+    Only the delta-seconds form is honoured. The HTTP-date form is legal but rare here, and parsing
+    it wrong would either sleep for hours or not at all.
+    """
+    raw = response.headers.get("retry-after")
+    if not raw:
+        return None
+    try:
+        return max(0.0, float(raw.strip()))
+    except ValueError:
+        return None
+
+
 class InferenceClient:
     """Async client to one engine. One instance per server, shared across sessions."""
 
@@ -172,9 +263,34 @@ class InferenceClient:
     _LIVENESS_TIMEOUT_S = 900.0
     _CONNECT_TIMEOUT_S = 30.0
 
-    def __init__(self, base_url: str, *, served_model: str | None = None) -> None:
+    # Hosted providers rate-limit; a local engine effectively never does. Without this a single 429
+    # became a 502 to the agent, which truncates its trajectory while leaving a graph that looks
+    # perfectly well-formed — the failure class ATIF reconciliation exists to catch.
+    _RETRY_STATUSES = frozenset({408, 409, 429, 500, 502, 503, 504})
+    _MAX_ATTEMPTS = 3
+    _BACKOFF_S = 2.0
+    # A `Retry-After` longer than this is not worth honouring inside one rollout; the sandbox has its
+    # own agent timeout and would be killed waiting.
+    _MAX_RETRY_AFTER_S = 60.0
+
+    def __init__(
+        self,
+        base_url: str,
+        *,
+        served_model: str | None = None,
+        api_key: str | None = None,
+        auth_header: str = "Authorization",
+        capture_level: str = "tokens",
+    ) -> None:
         self.base_url = normalise_engine_base(base_url)
         self.served_model = served_model
+        self.api_key = api_key or None
+        self.auth_header = auth_header or "Authorization"
+        self.capture_level = capture_level
+        # Fixes discovered from the provider's own 400s, applied to every later request. Cached
+        # because they are a property of the endpoint and the model, not of one call: rediscovering
+        # them per request would double the call count for the life of the server.
+        self.param_fixes: list[ParamFix] = []
         self._client: httpx.AsyncClient | None = None
 
     async def _get_client(self) -> httpx.AsyncClient:
@@ -184,6 +300,7 @@ class InferenceClient:
                 timeout=httpx.Timeout(
                     self._LIVENESS_TIMEOUT_S, connect=self._CONNECT_TIMEOUT_S
                 ),
+                headers=auth_headers(self.api_key, self.auth_header),
             )
         return self._client
 
@@ -194,7 +311,11 @@ class InferenceClient:
 
     async def completion(self, request: dict[str, Any]) -> dict[str, Any]:
         """One non-streaming chat completion, prepared for capture and normalised on the way back."""
-        body = prepare_request(dict(request), served_model=self.served_model)
+        body = prepare_request(
+            dict(request),
+            served_model=self.served_model,
+            capture_level=self.capture_level,
+        )
         payload = await self._post("/v1/chat/completions", body)
         return normalize_response(payload)
 
@@ -208,13 +329,67 @@ class InferenceClient:
         return response.json()
 
     async def _post(self, path: str, body: dict[str, Any]) -> dict[str, Any]:
+        """POST with two independent recovery paths: transient status, and a rejected parameter.
+
+        They are separate because they mean different things. A 429 means "the same request, later";
+        a 400 naming a parameter means "a different request, now". Conflating them would either sleep
+        through a permanent failure or hammer a provider that asked us to slow down.
+        """
+        for fix in self.param_fixes:
+            fix.apply(body)
+
+        while True:
+            try:
+                return await self._post_with_retries(path, body)
+            except UpstreamHTTPError as exc:
+                if exc.status_code != 400 or len(self.param_fixes) >= MAX_FIXES:
+                    raise
+                fix = diagnose(exc.body)
+                # `apply` returning False means the parameter it named is not in this body, so
+                # retrying would send the identical request and get the identical 400.
+                if fix is None or fix in self.param_fixes or not fix.apply(body):
+                    raise
+                self.param_fixes.append(fix)
+                logger.info(
+                    "upstream rejected a parameter; %s and retrying (this endpoint now carries "
+                    "%d fix(es))",
+                    fix,
+                    len(self.param_fixes),
+                )
+
+    async def _post_with_retries(
+        self, path: str, body: dict[str, Any]
+    ) -> dict[str, Any]:
         client = await self._get_client()
-        try:
-            response = await client.post(path, json=body)
-        except httpx.RequestError as exc:
-            raise self._transport_error(exc) from exc
-        await self._raise_for_status(response)
-        return response.json()
+        for attempt in range(1, self._MAX_ATTEMPTS + 1):
+            try:
+                response = await client.post(path, json=body)
+            except httpx.RequestError as exc:
+                raise self._transport_error(exc) from exc
+            if response.is_success:
+                return response.json()
+
+            retry_after = _retry_after_seconds(response)
+            if (
+                response.status_code not in self._RETRY_STATUSES
+                or attempt == self._MAX_ATTEMPTS
+            ):
+                await self._raise_for_status(response)
+            delay = (
+                retry_after
+                if retry_after is not None
+                else self._BACKOFF_S * (2 ** (attempt - 1))
+            )
+            logger.info(
+                "upstream returned %d; retrying in %.1fs (attempt %d/%d)",
+                response.status_code,
+                delay,
+                attempt,
+                self._MAX_ATTEMPTS,
+            )
+            await response.aclose()
+            await asyncio.sleep(min(delay, self._MAX_RETRY_AFTER_S))
+        raise AssertionError("unreachable: the final attempt always raises or returns")
 
     async def _raise_for_status(self, response: httpx.Response) -> None:
         if response.is_success:
