@@ -47,8 +47,9 @@ The reference script trains on competitive-coding problems from
 the verifier runs it against held-out tests, returning the fraction passed. It
 is self-contained, runs the agent in a local subprocess sandbox (no container
 setup needed), needs two GPUs (one serving the policy with vLLM, one
-training), and has been validated end to end on Qwen3 (see
-[huggingface/trl#6420](https://github.com/huggingface/trl/pull/6420)).
+training), and has been validated end to end on Qwen3. To scale
+rollouts beyond a single node, a sibling script runs each rollout in its own
+remote Hugging Face sandbox instead of a local subprocess.
 Installation, the exact vLLM serving flags, and the run commands live next to
 the recipe in TRL:
 
@@ -57,6 +58,9 @@ the recipe in TRL:
   and the trace contract.
 - [`examples/scripts/openenv/opencode.py`](https://github.com/huggingface/trl/blob/main/examples/scripts/openenv/opencode.py)
   in TRL: the complete, runnable script.
+- [`examples/scripts/openenv/opencode_hf_sandbox.py`](https://github.com/huggingface/trl/blob/main/examples/scripts/openenv/opencode_hf_sandbox.py)
+  in TRL: the same recipe, but each rollout runs in its own remote Hugging Face
+  sandbox, so rollouts scale out beyond one node.
 - [`envs/opencode_env`](https://github.com/huggingface/OpenEnv/tree/main/envs/opencode_env):
   the OpenEnv side, including the session factory, sandbox backends, and the
   transparent interception proxy.
