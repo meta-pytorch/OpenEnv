@@ -35,7 +35,10 @@ surface: dataset discovery over the Task API, one `run_rollout` MCP tool, a capt
 
 ### What you get back
 
-Per model call:
+Every rollout carries the reward from the task's verifier and the full trace: each conversation with
+its messages, and per turn the text, tool calls and finish reason.
+
+Against vLLM or SGLang you also get the training contract, per model call:
 
 ```python
 turn.prompt_token_ids       # the engine's own tokenisation of everything before this turn
@@ -43,7 +46,10 @@ turn.completion_token_ids   # what it sampled
 turn.per_token_logps        # the behaviour-policy logprob of each sampled token
 ```
 
-plus `result.reward` from the task's verifier. That tuple is the whole training contract.
+Which of the two you got is on the result as `rollout_type` (`"train"` or `"eval"`) and
+`capture_level`, decided by probing the endpoint before the server starts. Against a hosted provider
+the token fields are empty and `rollout_type == "eval"`; nothing pretends otherwise, and
+`to_turn_records` raises rather than handing a trainer empty lists.
 
 ## The intercept
 
@@ -55,11 +61,12 @@ model, and every call is recorded as it passes.
 agent in a sandbox
    |  base URL points at the proxy, API key IS the capture session id
    v
-capture proxy  --normalise to chat, force token ids on-->  your endpoint
+capture proxy  --normalise to chat, ask for token ids-->  your endpoint
    ^                                                            |
    |  replay in the agent's own dialect  <----------------------+
    |
    +-- every call becomes a node in a rollout graph, linked by token prefix
+       (by message prefix when the endpoint returns no token ids)
 ```
 
 Three properties make this work across agents rather than for one:
@@ -86,15 +93,106 @@ trained with the reward the main path earned.
 
 ## Prerequisites
 
-You need an OpenAI-compatible endpoint, and it **must** be started with two flags:
+You need an OpenAI-compatible endpoint. Which *kind* of rollout you get depends on what it can
+return, and that is probed at startup rather than configured:
+
+| | eval | train |
+|---|---|---|
+| reward, `rewards` dict, step results | yes | yes |
+| full trace: conversations, per-turn text, tool calls | yes | yes |
+| `prompt_token_ids`, `completion_token_ids`, `per_token_logps` | no | yes |
+| `contract.json`, TRL rollout func | no | yes |
+
+**For trainable rollouts** the endpoint must return token ids *and* the sampling distribution's
+logprobs. Both are checked by probing, because both fail silently:
 
 ```bash
 vllm serve <model> --return-tokens-as-token-ids --logprobs-mode processed_logprobs
+# or SGLang built from git main (sgl-project/sglang#30917); no serving flag needed
 ```
 
-Without them the endpoint answers every request normally and returns no token ids. Rollouts look
-perfect and contain nothing trainable. That failure has no loud edge, so the server checks for it at
-startup and refuses to run rather than let it through.
+Without them the endpoint answers every request normally and returns no token ids. Rollouts would
+look perfect and contain nothing trainable, and that failure has no loud edge — so the level is
+probed before the server binds a port, printed as `[EVAL ONLY]`, stamped on every result, and no
+training contract is ever built from it.
+
+**For eval rollouts** any reachable OpenAI-spec endpoint works, including hosted ones:
+
+```bash
+openenv harbor serve --llm-url https://api.openai.com/v1        --api-key $OPENAI_API_KEY    --model gpt-5.6-sol
+openenv harbor serve --llm-url https://router.huggingface.co/v1 --api-key $HF_API_KEY        --model Qwen/Qwen3.6-35B-A3B
+openenv harbor serve --llm-url https://api.anthropic.com/v1     --api-key $ANTHROPIC_API_KEY --model claude-sonnet-5
+```
+
+Anthropic needs no `--auth-header`: its OpenAI-compatible `/v1/chat/completions` accepts
+`Authorization: Bearer`. Its `/v1/models` does not — that route wants `x-api-key` *and*
+`anthropic-version` — so the model list comes back empty and `--model` is required. An endpoint that
+publishes no usable model list is not treated as unreachable for exactly this reason; the completion
+probe is what decides.
+
+`--api-key` (or `$OPENENV_LLM_API_KEY`) authenticates the proxy to the endpoint; `--auth-header`
+changes the header name when a provider wants something other than `Authorization: Bearer`. This is
+not the key the agent receives — that one is a capture session id, minted per rollout — and it never
+leaves the server process.
+
+A hosted provider also rejects parameters a local vLLM accepts, per model rather than per endpoint.
+Every current OpenAI model refuses `max_tokens` (wants `max_completion_tokens`), any `temperature`
+other than 1, and `logprobs` outright, while opencode, codex and qwen-coder all send the first two.
+`gpt-5.6` additionally refuses **function tools** on `/v1/chat/completions` unless
+`reasoning_effort` is `"none"` — which for a coding agent is every call that matters; left unhandled
+it presents as a rollout that makes one model call and then idles until the agent timeout.
+
+The proxy reads each such 400, applies the one edit the provider names, retries, and caches the fix —
+so the agents work unchanged. Every applied fix is reported on the result, at startup and in the UI,
+because these are changed experiments rather than cosmetic rewrites: dropping `temperature` alters
+the sampling distribution, and `reasoning_effort: "none"` turns reasoning off. For `gpt-5.6` the
+better answer is the Responses route the error message itself recommends.
+
+### What startup checks about *agents*, not just capture
+
+The capture probe sends no tools. Every validated harness sends a tool manifest on every call, so a
+second, non-fatal probe asks the way a harness asks and reports:
+
+| finding | meaning |
+|---|---|
+| `tools: ok` | a tool call came back; agents can work here |
+| `no_tool_calling` (FATAL) | the endpoint refuses a manifest outright; no agent rollout is possible |
+| `no_tool_call_emitted` (WARN) | manifest accepted, but it answered in prose |
+| `behaviour_changed` (WARN) | a compat fix changed how the MODEL behaves, not just a field name |
+
+The last one is the reason this probe exists. `gpt-5.6` accepts function tools on
+`/v1/chat/completions` only if `reasoning_effort` is `"none"`, and with reasoning off it emits one
+valid tool call and then agentic loops die: goose and codex each managed a single model call and 0/3
+tasks, while both scored 3/3 against a non-reasoning model on the same endpoint. Without a tool in the
+probe body that demand is never made, so `harbor info` looked healthy and the failure only appeared
+minutes into a rollout. Now it is reported before a sandbox is booted.
+
+Truncation is deliberately treated as inconclusive rather than a failure: a reasoning model spends
+output tokens thinking before it calls anything, and a small cap made `Qwen3.6-35B-A3B` look
+tool-incapable when it in fact worked with all 16 harnesses.
+
+### Why `--logprobs-mode processed_logprobs` is not optional
+
+`token_ids` comes from the `return_token_ids` **request** parameter, not from either serving flag, so
+a vLLM started with neither flag still returns aligned, negative, correctly-counted logprobs and would
+grade as fully trainable. But vLLM's `logprobs_mode` defaults to `raw_logprobs` — the values *before*
+temperature and top-k/top-p are applied — and GRPO's importance ratio needs the logprob under the
+policy that actually sampled the token.
+
+Startup measures which you have, rather than inferring it: the gap between the top two logprobs is
+requested at temperature 1.0 and 2.0. Processed logprobs are `logsoftmax(logits / T)`, so the gap
+scales by `1/T` while the normalising constant cancels; raw logprobs cannot move at all. Measured on
+two live Qwen3.5-4B servers:
+
+| | gap @T=1.0 | gap @T=2.0 | verdict |
+|---|---|---|---|
+| `--logprobs-mode processed_logprobs` | 6.7500 | 3.3750 | `processed` |
+| default | 6.7500 | 6.7500 | `raw` |
+
+A measured `raw` endpoint is downgraded to EVAL rather than refused — it is still a perfectly good
+eval backend — and `OPENENV_ALLOW_RAW_LOGPROBS=1` overrides that if you know better than the probe.
+The gap is compared rather than the values themselves because a data-parallel engine answers
+consecutive calls from different replicas; comparing values directly misread one such engine.
 
 Install the extra, which brings Harbor and every sandbox backend:
 
@@ -259,7 +357,10 @@ Start the env server: Task API for discovery, one long-running `run_rollout` MCP
 | `--expose` | str | `gradio` | How the sandbox reaches the proxy |
 | `--env-file` | path | `""` | dotenv with provider credentials |
 
-Refuses to start if the endpoint cannot return token ids.
+| `--api-key` | str | `$OPENENV_LLM_API_KEY` | Credential for the endpoint, for a hosted provider |
+| `--auth-header` | str | `Authorization` | Header to send it under, e.g. `x-api-key` |
+
+Refuses to start only if the endpoint is unreachable. One that cannot return token ids starts as an eval deployment and says so.
 
 ### `openenv harbor push`
 
@@ -427,8 +528,19 @@ relay.
 URL is wrong, the model name did not resolve, or auth was rejected. Check the `findings` field,
 which names the likely cause.
 
-**`llm ... [FAILED]` at startup.** The endpoint cannot return token ids. Restart it with
-`--return-tokens-as-token-ids --logprobs-mode processed_logprobs`.
+**`llm ... [FAILED]` at startup.** The endpoint is unreachable — wrong URL, wrong model name, or
+a missing `--api-key` for a provider that needs one. The findings name which.
+
+**`llm ... [EVAL ONLY]` at startup.** The endpoint answers but returns no token ids, so rollouts
+carry the reward and the trace and nothing trainable. Expected for OpenAI, Anthropic and HF
+Inference Providers. If you meant to train, restart the engine with
+`--return-tokens-as-token-ids --logprobs-mode processed_logprobs`, or build SGLang from git main —
+released SGLang carries only `return_prompt_token_ids`, which is not enough.
+
+**`contract.json` is missing after a rollout.** The rollout was an eval rollout; check
+`rollout_type` and `capture_level` on the result. There is deliberately no all-zero contract to
+download, because a file named `contract.json` containing no contract is more convincing than an
+empty list.
 
 **A sandbox shows `[--]` in `info`.** The detail column says why, and it is usually a missing
 credential or a missing SDK. Install everything with `pip install "openenv[harbor]"`.
