@@ -247,6 +247,12 @@ SEAMS: dict[str, Seam] = {
         # Key goes ONLY through agent_env: in the process env it would overwrite the grader's
         # OPENAI_API_KEY and silently disable the LLM-judge tier.
         agent_env={"OPENAI_BASE_URL": "{base_url}/v1", "OPENAI_API_KEY": "{session}"},
+        # codex prefers a Responses WEBSOCKET transport, which the capture proxy does not serve, and
+        # only falls back to HTTPS after five failed upgrades — by which point it has abandoned the
+        # task. Not worked around here: `supports_websockets=false` needs a CUSTOM provider, since
+        # codex refuses to override a built-in one ("model_providers contains reserved built-in
+        # provider IDs: `openai`"), and a custom provider needs its base_url threaded through six
+        # chained -c overrides. Affects hosted OpenAI only; every other upstream is fine.
         notes="Responses dialect: exercises a different transform than chat-completions.",
     ),
     "gemini-cli": Seam(

@@ -30,8 +30,7 @@ from harbor.environments.base import BaseEnvironment
 class InterceptGeminiCli(GeminiCli):
     """gemini-cli, with `bash` guaranteed before nvm runs.
 
-    Harbor's `GeminiCli.install` declares only `("curl",)` as a system dependency
-    (gemini_cli.py:111), but `nvm_node_install_snippet()` pipes the installer into **bash**:
+    `nvm_node_install_snippet()` pipes the installer into **bash**:
 
         curl -o- .../install.sh | env -u NODE_VERSION bash
 
@@ -39,13 +38,26 @@ class InterceptGeminiCli(GeminiCli):
 
         Error: NVM failed to load
 
-    which reads like an nvm problem rather than a missing shell. opencode does the same nvm install
-    successfully in the same image because it declares `("curl", "bash")` (opencode.py:91). So this
-    is simply a missing dependency in gemini-cli's declaration.
+    which reads like an nvm problem rather than a missing shell. Harbor 0.20.0's own
+    `GeminiCli.install` apt-installs `curl` and nothing else (gemini_cli.py:110-115), so `bash` is
+    still the gap this closes.
+
+    Installed directly with `exec_as_root` rather than through a dependency helper: the
+    `ensure_system_dependencies(environment, (...))` this used to call does not exist in Harbor
+    0.20.0, and calling it failed the install outright with
+
+        'InterceptGeminiCli' object has no attribute 'ensure_system_dependencies'
+
+    — which surfaced as `Agent install failed` and zero model calls, i.e. a harness that could not run
+    at all. Mirrors Harbor's own apt invocation in the same file so the two cannot drift again.
     """
 
     async def install(self, environment: BaseEnvironment) -> None:
-        await self.ensure_system_dependencies(environment, ("curl", "bash"))
+        await self.exec_as_root(
+            environment,
+            command="apt-get update && apt-get install -y curl bash",
+            env={"DEBIAN_FRONTEND": "noninteractive"},
+        )
         await super().install(environment)
 
 
@@ -497,16 +509,36 @@ class InterceptKimi(KimiCli):
     and answer are on disk and the trial can be graded normally. Swallowing it here is the same
     judgement Harbor already made for exit 143, applied to the other half of the same teardown.
 
-    Deliberately narrow: ONLY httpcore/httpx RemoteProtocolError. Any other failure still raises,
-    because a rollout that broke for an unknown reason must not be quietly graded.
+    The same teardown has more than one spelling, which is what `_TEARDOWN_ERRORS` is for. Against
+    Harbor 0.20.0 every kimi rollout instead raised
+
+        httpx.ConnectError: Error reading content
+
+    so the original `RemoteProtocolError`-only guard no longer matched and all 15 cells of a
+    compatibility matrix failed — each one AFTER capturing real work (up to 12 turns and 1320
+    trainable tokens, `atif=match` throughout). One transport layer's way of saying "the stream you
+    were reading went away" is not stable across versions, so the guard lists the ways rather than
+    assuming one.
+
+    Still deliberately narrow, and the safety net is downstream rather than here: if the sandbox had
+    genuinely been unreachable, the agent would have made no model calls, and `check_rollout`'s
+    `no_turns` FATAL fails the rollout anyway. So swallowing a transport error cannot promote a
+    never-ran rollout to a graded one. Anything outside this list still raises.
     """
+
+    # (exception class name, substring that identifies it as the exec stream dying)
+    _TEARDOWN_ERRORS = (
+        ("RemoteProtocolError", "StreamReset"),
+        ("ConnectError", "Error reading content"),
+    )
 
     async def run(self, instruction, environment, context) -> None:  # type: ignore[override]
         try:
             await super().run(instruction, environment, context)
         except Exception as exc:  # noqa: BLE001 - re-raised below unless it is the known teardown
-            if type(exc).__name__ != "RemoteProtocolError" or "StreamReset" not in str(
-                exc
+            name, text = type(exc).__name__, str(exc)
+            if not any(
+                name == cls and marker in text for cls, marker in self._TEARDOWN_ERRORS
             ):
                 raise
             # Expected: `kill 0` took the exec stream down with the process group.
