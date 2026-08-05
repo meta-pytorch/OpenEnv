@@ -84,17 +84,44 @@ def _assign_roles(graph, sequences) -> list[str]:
 
 
 def export_session(
-    session, *, include_discarded: bool = False, include_messages: bool = False
+    session,
+    *,
+    include_discarded: bool = False,
+    include_messages: bool = False,
+    capture_level: str = "tokens",
 ) -> dict[str, Any]:
-    """Build the training document for one rollout.
+    """Build the document for one rollout: training rows when there are any, the trace always.
 
-    `include_messages` adds each turn's request messages, tools and response message. Off by default
-    because it multiplies payload size by the full conversation text, on when you need to feed TRL's
-    `TraceEntry` contract or measure re-tokenization skew.
+    Args:
+        session:
+            The live capture session.
+        include_discarded (`bool`, *optional*, defaults to `False`):
+            Keep paths that led nowhere (retries, resamples) as labelled rows.
+        include_messages (`bool`, *optional*, defaults to `False`):
+            Add each turn's request messages, tools and response message. Off by default because it
+            multiplies payload size by the full conversation text, on when you need to feed TRL's
+            `TraceEntry` contract or measure re-tokenization skew.
+        capture_level (`str`, *optional*, defaults to `"tokens"`):
+            What the upstream could return. Below `tokens` this is an eval rollout: the trace and the
+            graph structure are complete, no row is trainable, and the token arrays are empty — by
+            construction rather than by accident.
+
+    Returns:
+        `dict[str, Any]`: The rollout document.
     """
     graph = session.graph
-    rollout_report = check_rollout(graph)
+    rollout_report = check_rollout(graph, capture_level=capture_level)
+    trainable_capture = capture_level == "tokens"
 
+    # Sequences are built at every level, because they are the rollout's STRUCTURE — which calls
+    # belong to which conversation, which path is the agent working, which branches died — and that
+    # structure is real whether or not token ids came back. Everything that reads a rollout as a
+    # trace (`conversations_from_document`, `turns_from_document`, the UI transcript) walks these
+    # rows, so dropping them on an eval rollout deletes exactly the payload an eval rollout is for.
+    #
+    # What is withheld at a lower level is the *training* claim: `check_sequence` is skipped, since
+    # every one of its findings is about token arrays that are empty by design, and no row is ever
+    # marked trainable. The token fields stay as the empty lists the graph produced.
     sequences = graph.sequences()
     roles = _assign_roles(graph, sequences)
 
@@ -102,7 +129,7 @@ def export_session(
     for seq, role in zip(sequences, roles):
         if role == DISCARDED and not include_discarded:
             continue
-        report = check_sequence(seq)
+        report = check_sequence(seq) if trainable_capture else None
         rows.append(
             {
                 "role": role,
@@ -115,8 +142,8 @@ def export_session(
                 "input_ids": seq.input_ids,
                 "loss_mask": seq.loss_mask,
                 "logprobs": seq.logprobs,
-                "trainable": report.ok and role == AGENT,
-                "validation": [str(f) for f in report.findings],
+                "trainable": bool(report and report.ok and role == AGENT),
+                "validation": [str(f) for f in report.findings] if report else [],
             }
         )
 
@@ -162,6 +189,11 @@ def export_session(
         "sequences": rows,
         "validation": [str(f) for f in rollout_report.findings] + session.findings,
         "trainable": bool(trainable_rows) and rollout_report.ok,
+        # Why this rollout is or is not trainable, travelling with the data rather than living only
+        # in the server's log. A consumer that reads `trainable` alone is safe; one that wants to
+        # explain an empty `sequences` list to a human needs these two.
+        "capture_level": capture_level,
+        "rollout_type": "train" if trainable_capture else "eval",
     }
 
 
@@ -169,7 +201,9 @@ def summarise(document: dict[str, Any]) -> str:
     """One screen of text. What you actually read after a rollout."""
     stats = document["stats"]
     lines = [
-        f"session {document['session_id']}  trainable={document['trainable']}",
+        f"session {document['session_id']}  "
+        f"{document.get('rollout_type', 'train')}  "
+        f"trainable={document['trainable']}",
         f"  graph: {stats['n_turns']} turns, {stats['n_roots']} roots, "
         f"{stats['n_forks']} forks, {stats['n_discarded']} discarded",
         f"  training: {stats['n_trainable_sequences']} sequence(s), "

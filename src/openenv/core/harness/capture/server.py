@@ -38,6 +38,7 @@ from __future__ import annotations
 
 import argparse
 import logging
+import os
 import uuid
 from typing import Any
 
@@ -51,7 +52,7 @@ from .export import export_session
 from .graph import TurnNode
 from .sessions import extract_harness_session, SessionRegistry
 from .upstream import InferenceClient, UpstreamError
-from .validate import check_turn
+from .validate import check_turn, check_turn_eval
 
 logger = logging.getLogger("intercept")
 
@@ -192,15 +193,27 @@ def normalise_for_capture(chat_request: dict[str, Any]) -> None:
     kimi-cli sends `tools: []` once its agent loop has no tools left to offer, which 400s the call.
     The two forms mean the same thing to the model, so dropping the key is lossless and keeps the
     rollout alive rather than truncating it mid-trajectory.
+
+    Everything that only makes sense ALONGSIDE `tools` has to go with it. Dropping the list and
+    leaving its companions behind trades one provider's 400 for another's:
+
+        Invalid value for 'parallel_tool_calls': 'parallel_tool_calls' is only allowed when
+        'tools' are specified.
+
+    That is codex against OpenAI, every call, for the whole rollout — it sends `tools: []` plus
+    `parallel_tool_calls`, so stripping only the list left the orphan behind. vLLM ignores the orphan,
+    which is why this survived until a hosted provider was tried.
     """
     chat_request["stream"] = False
     chat_request.pop("stream_options", None)
     for key in ("tools", "functions"):
         if key in chat_request and not chat_request[key]:
             chat_request.pop(key)
-    # `tool_choice` without `tools` is equally invalid, and is meaningless once the list is gone.
+    # `tool_choice` and `parallel_tool_calls` are equally invalid without `tools`, and meaningless
+    # once the list is gone.
     if "tools" not in chat_request:
         chat_request.pop("tool_choice", None)
+        chat_request.pop("parallel_tool_calls", None)
 
 
 def normalise_response(response: dict[str, Any]) -> None:
@@ -270,10 +283,38 @@ def create_app(
     *,
     llm_url: str,
     model: str | None = None,
-    engine: str = "vllm",
+    engine: str = "",
     require_registered: bool = True,
     max_output_tokens: int | None = 8192,
+    api_key: str | None = None,
+    auth_header: str = "Authorization",
+    capture_level: str = "tokens",
 ) -> FastAPI:
+    """The capture proxy as an ASGI app.
+
+    Args:
+        llm_url (`str`):
+            The OpenAI-spec endpoint to forward to.
+        model (`str`, *optional*):
+            Served model id to send upstream, overriding whatever the agent asked for.
+        engine (`str`, *optional*):
+            What is on the other end, for `/health` only. Defaults to `"unknown"` there rather than
+            to `"vllm"`: the proxy cannot tell, nothing passes it on the harbor path, and a hosted
+            endpoint reported as vLLM reads as a claim about capture that `capture_level` then
+            contradicts.
+        require_registered (`bool`, *optional*, defaults to `True`):
+            Reject callers whose API key is not a minted session id. This port may be public.
+        max_output_tokens (`int`, *optional*, defaults to `8192`):
+            Cap on requested completion length; `0` or `None` disables.
+        api_key (`str`, *optional*):
+            Credential for the *upstream*. Never the agent-facing key — that one is the session id,
+            and the sandbox never sees this value.
+        auth_header (`str`, *optional*, defaults to `"Authorization"`):
+            Header to send `api_key` under.
+        capture_level (`str`, *optional*, defaults to `"tokens"`):
+            What the upstream can return, as decided by `validate_llm`. Below `tokens` every rollout
+            from this app is an eval rollout.
+    """
     app = FastAPI(title="openenv-capture")
 
     # Identifies this app instance on /health. A caller that binds a port cannot tell "my server is
@@ -282,13 +323,18 @@ def create_app(
     # the rollout reports no model calls.
     app.state.instance_id = uuid.uuid4().hex
     app.state.inference = InferenceClient(
-        base_url=llm_url.rstrip("/"), served_model=model
+        base_url=llm_url.rstrip("/"),
+        served_model=model,
+        api_key=api_key,
+        auth_header=auth_header,
+        capture_level=capture_level,
     )
     app.state.transforms = TransformManager()
     app.state.registry = SessionRegistry(require_registered=require_registered)
     app.state.model = model
     app.state.llm_url = llm_url
     app.state.max_output_tokens = max_output_tokens
+    app.state.capture_level = capture_level
 
     @app.get("/health")
     async def health() -> dict[str, Any]:
@@ -296,10 +342,17 @@ def create_app(
             "status": "ok",
             "instance": app.state.instance_id,
             "upstream": llm_url,
-            "engine": engine,
+            "engine": engine or "unknown",
             "model": app.state.model,
             "sessions": len(app.state.registry.list_ids()),
             "require_registered": app.state.registry.require_registered,
+            # What this proxy can actually produce, so a caller never has to infer it from the
+            # engine name. `upstream_auth` is a boolean on purpose: the key itself must not be
+            # readable from an endpoint that, on a Space, is public.
+            "capture_level": app.state.capture_level,
+            "rollout_type": "train" if app.state.capture_level == "tokens" else "eval",
+            "upstream_auth": bool(app.state.inference.api_key),
+            "param_fixes": [str(f) for f in app.state.inference.param_fixes],
         }
 
     @app.post("/sessions")
@@ -340,6 +393,7 @@ def create_app(
             session,
             include_discarded=include_discarded,
             include_messages=include_messages,
+            capture_level=app.state.capture_level,
         )
 
     @app.delete("/sessions/{session_id}")
@@ -448,24 +502,40 @@ def create_app(
             prompt_ids = response.get("prompt_token_ids") or []
             index = session.graph.stats()["n_turns"]
 
-            report = check_turn(
-                prompt_ids,
-                sampled_ids,
-                logprobs,
-                finish_reason=choice.get("finish_reason"),
-                index=index,
-            )
-            session.findings.extend(str(f) for f in report.findings)
-            if not report.ok:
-                logger.warning(
-                    "[%s] turn %d rejected: %s",
-                    session.session_id,
-                    index,
-                    "; ".join(str(f) for f in report.fatal),
+            if app.state.capture_level != "tokens":
+                # An eval turn. Grade what an eval turn can be graded on and keep going: running
+                # `check_turn` here would report `no_prompt_ids` and `no_logprobs` as FATAL on every
+                # single turn, which is true and useless — it is the known, accepted property of the
+                # endpoint, decided before the server started.
+                #
+                # Any logprobs that did come back are kept on the node for the confidence readout,
+                # but they are not a training signal: with no token ids there is nothing to align
+                # them to, so `export` never promotes them to `per_token_logps`.
+                report = check_turn_eval(
+                    choice.get("message"),
+                    finish_reason=choice.get("finish_reason"),
+                    index=index,
                 )
-                # Still recorded, with logprobs dropped: the tokens are real context for later turns,
-                # and `sequence_for` masks a turn whose logprobs it cannot trust.
-                logprobs = None
+                session.findings.extend(str(f) for f in report.findings)
+            else:
+                report = check_turn(
+                    prompt_ids,
+                    sampled_ids,
+                    logprobs,
+                    finish_reason=choice.get("finish_reason"),
+                    index=index,
+                )
+                session.findings.extend(str(f) for f in report.findings)
+                if not report.ok:
+                    logger.warning(
+                        "[%s] turn %d rejected: %s",
+                        session.session_id,
+                        index,
+                        "; ".join(str(f) for f in report.fatal),
+                    )
+                    # Still recorded, with logprobs dropped: the tokens are real context for later
+                    # turns, and `sequence_for` masks a turn whose logprobs it cannot trust.
+                    logprobs = None
 
             session.graph.add_turn(
                 TurnNode(
@@ -501,7 +571,14 @@ def main() -> None:
     parser.add_argument(
         "--model", default=None, help="served model name to send upstream"
     )
-    parser.add_argument("--engine", default="vllm", choices=["vllm", "sglang"])
+    parser.add_argument(
+        "--engine",
+        default="",
+        choices=["", "vllm", "sglang"],
+        help="what is on the other end, for /health only. Left unset by default because the "
+        "upstream may be a hosted provider, and reporting one of these two when it is not says "
+        "something untrue about capture.",
+    )
     parser.add_argument("--host", default="0.0.0.0")
     parser.add_argument("--port", type=int, default=8100)
     parser.add_argument(
@@ -515,6 +592,25 @@ def main() -> None:
         action="store_true",
         help="serve unknown API keys (local debugging only; this port may be public)",
     )
+    parser.add_argument(
+        "--api-key",
+        default=os.environ.get("OPENENV_LLM_API_KEY", ""),
+        help="credential for the UPSTREAM endpoint (defaults to $OPENENV_LLM_API_KEY). Not the "
+        "agent-facing key: that is a capture session id, minted per rollout.",
+    )
+    parser.add_argument(
+        "--auth-header",
+        default="Authorization",
+        help="header to send --api-key under; `Authorization` gets a Bearer prefix, anything else "
+        "(e.g. x-api-key) gets the raw key",
+    )
+    parser.add_argument(
+        "--capture-level",
+        default="",
+        choices=["", "tokens", "logprobs", "text"],
+        help="what the upstream can return. Probed from the endpoint when omitted, which is the "
+        "recommended path; pass it only to force a level.",
+    )
     args = parser.parse_args()
 
     import uvicorn
@@ -522,6 +618,24 @@ def main() -> None:
     logging.basicConfig(
         level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s"
     )
+
+    level = args.capture_level
+    if not level:
+        from .validate_llm import validate_llm
+
+        report = validate_llm(
+            args.llm_url,
+            args.model or "",
+            api_key=args.api_key or None,
+            auth_header=args.auth_header,
+        )
+        if not report.reachable:
+            raise SystemExit(report.summary())
+        level = report.capture_level
+        print(f"capture level: {level} ({report.rollout_type} rollouts)")
+        for fix in report.param_fixes:
+            print(f"  upstream compat: {fix}")
+
     uvicorn.run(
         create_app(
             llm_url=args.llm_url,
@@ -529,6 +643,9 @@ def main() -> None:
             engine=args.engine,
             require_registered=not args.allow_unregistered,
             max_output_tokens=args.max_output_tokens or None,
+            api_key=args.api_key or None,
+            auth_header=args.auth_header,
+            capture_level=level,
         ),
         host=args.host,
         port=args.port,

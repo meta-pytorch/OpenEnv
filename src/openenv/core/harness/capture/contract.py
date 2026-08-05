@@ -29,6 +29,27 @@ from typing import Any
 from .graph import RolloutGraph, TurnNode
 
 
+def _require_trainable(document: dict[str, Any]) -> None:
+    """Refuse to build a training contract out of an eval rollout.
+
+    An eval document has an empty `sequences` list, so every converter here would return `[]` and the
+    caller would receive a well-formed, empty contract — the exact silent-nothing failure this whole
+    layer exists to prevent. Raising is the only honest answer: the data a trainer is asking for was
+    never captured, and no amount of downstream care can reconstruct it.
+
+    Raises:
+        ValueError: If the document came from an endpoint that could not return token ids.
+    """
+    if document.get("rollout_type", "train") == "eval":
+        level = document.get("capture_level") or "unknown"
+        raise ValueError(
+            f"this is an EVAL rollout (capture_level={level!r}): it carries the reward and the full "
+            "trace, but no token ids or logprobs, so there is no training contract to build. Point "
+            "the capture proxy at vLLM (--return-tokens-as-token-ids --logprobs-mode "
+            "processed_logprobs) or SGLang built from main to get trainable rollouts."
+        )
+
+
 def _agent_nodes(graph: RolloutGraph, document: dict[str, Any]) -> list[TurnNode]:
     """Every agent turn, in arrival order, excluding auxiliary calls and discarded retries.
 
@@ -57,7 +78,11 @@ def to_trace_entries(
     Auxiliary roots and discarded retries are already excluded here, so the caller does not need an
     `agent_turn_fn`. That hook exists because a flat trace cannot tell an aux call from an agent
     turn; a graph can, structurally.
+
+    Raises:
+        ValueError: If `document` is an eval rollout. See `_require_trainable`.
     """
+    _require_trainable(document)
     entries = []
     for node in _agent_nodes(graph, document):
         entries.append(
@@ -88,7 +113,11 @@ def to_turn_records(
 
     Maps 1:1 onto TRL's `TurnRecord`, using the engine's own prompt tokenization. Returned as plain
     tuples so this module stays importable without TRL on the path.
+
+    Raises:
+        ValueError: If `document` is an eval rollout. See `_require_trainable`.
     """
+    _require_trainable(document)
     return [
         (node.prompt_ids, node.sampled_ids, node.sampled_logprobs or [])
         for node in _agent_nodes(graph, document)

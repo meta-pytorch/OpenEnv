@@ -36,6 +36,7 @@ through a local chat template, which is the single largest source of silent trai
 
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass, field
 from typing import Any, Iterator
 
@@ -47,6 +48,83 @@ def common_prefix_len(a: list[int], b: list[int]) -> int:
     while i < limit and a[i] == b[i]:
         i += 1
     return i
+
+
+def _canonical_arguments(arguments: Any) -> str:
+    """Tool-call arguments in a form that survives a harness re-serialising them.
+
+    `arguments` travels the wire as a JSON *string*, and the string an agent sends back is not the
+    string the provider produced. Observed on a real opencode rollout against the HF router, the same
+    `bash` call arrived as
+
+        {"command": "python3 -c ..."}      from the provider
+        {"command":"python3 -c ..."}       echoed back by the harness
+
+    — identical arguments, different bytes, differing only in the space after the colon. Comparing
+    the raw strings made the message fallback in `_find_parent_by_messages` inert on the very case it
+    was written for: an eight-turn rollout came back as eight separate roots. Key ordering is the same
+    hazard from any harness that round-trips through a dict.
+
+    Falls back to the raw string when it is not JSON, which is the honest answer for a model that
+    emitted malformed arguments: two different malformed strings are two different calls.
+    """
+    if arguments is None:
+        return ""
+    if not isinstance(arguments, str):
+        # Some harnesses hand back an already-decoded object rather than a string.
+        try:
+            return json.dumps(arguments, sort_keys=True)
+        except (TypeError, ValueError):
+            return str(arguments)
+    try:
+        return json.dumps(json.loads(arguments), sort_keys=True)
+    except (json.JSONDecodeError, TypeError, ValueError):
+        return arguments.strip()
+
+
+def _message_identity(message: Any) -> tuple:
+    """The part of a message that decides whether two messages are the same turn.
+
+    Compared instead of the raw dicts because the assistant message a provider returns and the one a
+    harness sends back in its next request are equal in meaning and unequal as dicts: providers add
+    `refusal`, `annotations` and `audio: null`, harnesses drop them, and `content` moves between
+    `null` and `""`. Comparing dicts directly would find no parent for any turn and report every call
+    as its own root — the exact failure the message fallback exists to avoid.
+
+    Tool calls are reduced to name and arguments: the `id` is provider-generated and does survive a
+    round trip, but keying on it would make the comparison fail for any harness that rewrites ids.
+    The arguments are compared as PARSED JSON, not as the string the wire carried — see
+    `_canonical_arguments`.
+    """
+    if not isinstance(message, dict):
+        return ("", str(message), ())
+    content = message.get("content")
+    if isinstance(content, list):
+        # Multimodal content: keep only the text parts, in order. Image bytes are large and their
+        # encoding is not stable across a round trip.
+        content = "".join(
+            str(part.get("text", ""))
+            for part in content
+            if isinstance(part, dict) and part.get("type") in {"text", "input_text"}
+        )
+    calls = tuple(
+        (
+            str((call.get("function") or {}).get("name", "")),
+            _canonical_arguments((call.get("function") or {}).get("arguments")),
+        )
+        for call in (message.get("tool_calls") or [])
+        if isinstance(call, dict)
+    )
+    return (
+        str(message.get("role") or ""),
+        (str(content) if content is not None else "").strip(),
+        calls,
+    )
+
+
+def _same_message(a: Any, b: Any) -> bool:
+    """Whether two messages are the same conversational turn. See `_message_identity`."""
+    return _message_identity(a) == _message_identity(b)
 
 
 @dataclass
@@ -157,7 +235,13 @@ class RolloutGraph:
         harness that mutates its history has genuinely produced a different sequence, and quietly
         attaching it would fabricate a trajectory the model never saw. Such a call becomes a new root
         instead, which `roots()` surfaces rather than hides.
+
+        Falls back to message prefixes when there are no token ids to compare. See `_find_parent_by_
+        messages`.
         """
+        if not node.prompt_ids:
+            return self._find_parent_by_messages(node)
+
         best_id, best_len = None, 0
         for candidate_id in self._order:
             candidate = self._nodes[candidate_id]
@@ -165,6 +249,41 @@ class RolloutGraph:
             if len(end) > len(node.prompt_ids) or len(end) <= best_len:
                 continue
             if common_prefix_len(end, node.prompt_ids) == len(end):
+                best_id, best_len = candidate_id, len(end)
+        return best_id
+
+    def _find_parent_by_messages(self, node: TurnNode) -> str | None:
+        """Same longest-exact-prefix rule, keyed on the message list instead of token ids.
+
+        Only reachable on an eval endpoint, where the upstream returns no token ids at all. Without
+        this the token path degenerates silently rather than wrongly: every `end_ids` is empty, so
+        `len(end) <= best_len` is true for every candidate, no parent is ever found, and a 20-turn
+        conversation is reported as 20 separate roots. The rollout is not wrong, but it reads as if
+        the agent restarted on every turn, and `check_rollout`'s root-count heuristics all misfire.
+
+        Messages are a weaker key than tokens — they are what the harness *said* it sent rather than
+        what the engine tokenised — which is exactly why they are not used when ids are available.
+        For a trace they are sufficient: the question is only which conversation a call continues.
+        """
+        best_id, best_len = None, 0
+        for candidate_id in self._order:
+            candidate = self._nodes[candidate_id]
+            # The parent's own turn is its request plus the message it produced, and that whole
+            # thing has to be a prefix of ours — the same "prompt + completion" span `end_ids` is.
+            #
+            # The role is defaulted rather than required: a response message is by definition the
+            # assistant's, but not every producer spells it out (an engine may omit it, and the SSE
+            # replay path reassembles the message itself), while the harness always names the role
+            # when it echoes the turn back. Without the default that asymmetry alone breaks every
+            # link and the whole conversation reads as one root per turn.
+            reply = candidate.response_message
+            end = [
+                *candidate.request_messages,
+                *([{"role": "assistant", **reply}] if reply else []),
+            ]
+            if not end or len(end) > len(node.request_messages) or len(end) <= best_len:
+                continue
+            if all(_same_message(a, b) for a, b in zip(end, node.request_messages)):
                 best_id, best_len = candidate_id, len(end)
         return best_id
 
