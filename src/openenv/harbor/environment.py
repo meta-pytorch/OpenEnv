@@ -226,6 +226,11 @@ class HarborEnvironment(MCPEnvironment):
                 reward_key=reward_key,
                 keep_sandbox=keep_sandbox,
                 force_build=force_build,
+                # Read from the live service rather than class config: it is the same value the
+                # capture proxy was built with, so the result cannot claim a level the proxy is not
+                # actually running at.
+                capture_level=getattr(service, "capture_level", "tokens"),
+                inference=service.capture.inference,
             )
         )
 

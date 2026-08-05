@@ -2,10 +2,13 @@
 
 Four checks, in the order that fails cheapest first:
 
-1. **LLM** — can it return token ids at all? A vLLM without
+1. **LLM** — is it reachable, and what can it return? A vLLM without
    `--return-tokens-as-token-ids --logprobs-mode processed_logprobs` answers every request perfectly
-   well and returns no ids, so every rebuilt training row is empty and nothing reports an error. This
-   is the one failure with no loud edge, so it is checked first and is fatal by default.
+   well and returns no ids, so every rebuilt training row would be empty with nothing reporting an
+   error. That failure has no loud edge, so the endpoint is probed first and the answer — the capture
+   level — is attached to everything this server later produces. Only an *unreachable* endpoint is
+   fatal: one that cannot return token ids is an eval backend, and saying so loudly beats refusing to
+   start, since every hosted provider lands in that category.
 2. **sandbox credentials** — via Harbor's own `preflight()`, so the message names the exact missing
    variable rather than us guessing at one.
 3. **datasets** — resolved and downloaded up front. A 2000-task repo takes real time to fetch, and a
@@ -21,6 +24,8 @@ from __future__ import annotations
 import os
 from pathlib import Path
 from typing import Any
+
+from openenv.core.harness.capture.validate_llm import ENGINE_HINT
 
 from .capabilities import Capabilities, capabilities
 
@@ -71,6 +76,8 @@ def prepare(
     env_file: str | Path | None = None,
     require_llm: bool = True,
     quiet: bool = False,
+    api_key: str | None = None,
+    auth_header: str = "Authorization",
 ) -> Capabilities:
     """Run every startup check and return what this server can do.
 
@@ -86,19 +93,27 @@ def prepare(
         env_file (`str` or `Path`, *optional*):
             Dotenv file to load before checking credentials.
         require_llm (`bool`, *optional*, defaults to `True`):
-            Raise if the LLM cannot support capture. Set `False` to report and continue.
+            Require a reachable endpoint. This no longer means "must be trainable": an endpoint that
+            cannot return token ids is an eval backend, and refusing it would rule out every hosted
+            provider. It must still answer.
         quiet (`bool`, *optional*, defaults to `False`):
             Suppress the printed report.
+        api_key (`str`, *optional*):
+            Upstream credential. Defaults to `$OPENENV_LLM_API_KEY`.
+        auth_header (`str`, *optional*, defaults to `"Authorization"`):
+            Header to send `api_key` under.
 
     Returns:
-        [`Capabilities`]: Harnesses, sandboxes, datasets and LLM status.
+        [`Capabilities`]: Harnesses, sandboxes, datasets and LLM status, including `capture_level`.
 
     Raises:
-        RuntimeError: If `require_llm` and no URL was given, or the LLM cannot return token ids.
+        RuntimeError: If `require_llm` and no URL was given, or the endpoint is unreachable.
     """
     load_env_file(env_file)
 
     model = model or os.environ.get("OPENENV_MODEL", "")
+    # Read after `load_env_file`, so a key in the dotenv is picked up like every other credential.
+    api_key = api_key or os.environ.get("OPENENV_LLM_API_KEY", "") or None
     if datasets is None:
         raw = os.environ.get("OPENENV_DATASETS", "")
         datasets = [d.strip() for d in raw.split(",") if d.strip()]
@@ -122,16 +137,23 @@ def prepare(
         # commonest startup mistake: guessing a short alias for a server that publishes its full
         # repo id.
         if not model:
-            served = list_models(llm_url)
+            served = list_models(llm_url, api_key=api_key, auth_header=auth_header)
             model = served[0] if len(served) == 1 else ""
 
-        report = validate_llm(llm_url, model) if model else None
+        report = (
+            validate_llm(llm_url, model, api_key=api_key, auth_header=auth_header)
+            if model
+            else None
+        )
         if report is None:
             llm = {
                 "url": llm_url,
                 "model": "",
                 "ok": False,
-                "findings": ["no model given and the LLM does not serve exactly one"],
+                "findings": [
+                    "no model given and the endpoint does not serve exactly one; pass --model"
+                ],
+                "authenticated": bool(api_key),
             }
         else:
             llm = {
@@ -140,6 +162,16 @@ def prepare(
                 "ok": report.ok,
                 "findings": report.findings,
                 "served_models": report.served_models,
+                "capture_level": report.capture_level,
+                "rollout_type": report.rollout_type,
+                "trainable": report.trainable,
+                "reachable": report.reachable,
+                "param_fixes": report.param_fixes,
+                "logprobs_mode": report.logprobs_mode,
+                "tool_support": report.tool_support,
+                # A boolean, never the key: `Capabilities` is rendered to stdout and served over the
+                # wire by `/metadata`.
+                "authenticated": bool(api_key),
             }
 
     kwargs: dict[str, Any] = {"datasets": datasets, "llm": llm}
@@ -150,10 +182,15 @@ def prepare(
     if not quiet:
         print(caps.render())
 
-    if require_llm and llm and not llm.get("ok"):
+    # Only unreachability is fatal now. An endpoint that answers but cannot return token ids is an
+    # eval backend, which is a supported way to run this server — the tier is stamped on `caps`, on
+    # `/health` and on every result, and no training contract is ever built from it. Refusing here
+    # instead would mean OpenAI, Anthropic and HF Inference Providers could not be used at all.
+    if require_llm and llm and not llm.get("reachable"):
         raise RuntimeError(
-            "LLM cannot support token capture:\n  "
+            "inference endpoint is not usable:\n  "
             + "\n  ".join(llm.get("findings") or ["unreachable"])
-            + "\n\nStart vLLM with: --return-tokens-as-token-ids --logprobs-mode processed_logprobs"
+            + "\n\n"
+            + ENGINE_HINT
         )
     return caps

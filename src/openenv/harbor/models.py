@@ -100,6 +100,20 @@ class HarborRolloutResult(BaseModel):
     reward_key: str = ""
     step_results: list[HarborStepResult] = Field(default_factory=list)
 
+    # What kind of rollout this is, and why. `train` carries the token fields below; `eval` carries
+    # everything except them. This is not a flag anyone sets: it is decided by what the inference
+    # endpoint could return, probed before the server started, and it travels with the result so that
+    # no consumer has to infer trainability from the emptiness of a list.
+    rollout_type: str = "train"
+    capture_level: str = "tokens"
+    # Params the upstream rejected and how the proxy worked around them. A dropped `temperature`
+    # changes the sampling distribution, which makes an eval number irreproducible if unrecorded.
+    param_fixes: list[str] = Field(default_factory=list)
+
+    @property
+    def trainable(self) -> bool:
+        return self.rollout_type == "train"
+
     # capture
     turns: list[HarborTurn] = Field(default_factory=list)
     conversations: list[HarborConversation] = Field(default_factory=list)

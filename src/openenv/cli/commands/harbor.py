@@ -53,8 +53,18 @@ _DATASET_HELP = (
 )
 _LLM_HELP = "OpenAI-spec inference endpoint (vLLM). Required: there is no default, because a\nwrong or stale endpoint produces rollouts that look fine and carry no token ids."
 _LLM_HELP_OPTIONAL = (
-    "OpenAI-spec inference endpoint (vLLM). Optional here: without it, `info` "
+    "OpenAI-spec inference endpoint. Optional here: without it, `info` "
     "still reports sandboxes, datasets and harnesses."
+)
+_KEY_HELP = (
+    "Credential for the inference endpoint, for a hosted provider (OpenAI, Anthropic, HF "
+    "Inference Providers). Defaults to $OPENENV_LLM_API_KEY. This is NOT the key the agent "
+    "gets: that one is a capture session id, minted per rollout, and this value never leaves "
+    "the server process."
+)
+_AUTH_HEADER_HELP = (
+    "Header to send --api-key under. `Authorization` gets a `Bearer ` prefix; anything else "
+    "(e.g. x-api-key) gets the raw key."
 )
 
 
@@ -79,6 +89,10 @@ def info(
     dataset: Annotated[
         Optional[list[str]], typer.Option("--dataset", help=_DATASET_HELP)
     ] = None,
+    api_key: Annotated[str, typer.Option("--api-key", help=_KEY_HELP)] = "",
+    auth_header: Annotated[
+        str, typer.Option("--auth-header", help=_AUTH_HEADER_HELP)
+    ] = "Authorization",
     env_file: Annotated[
         str, typer.Option("--env-file", help="dotenv file with provider credentials.")
     ] = "",
@@ -100,6 +114,8 @@ def info(
         env_file=env_file or None,
         require_llm=False,
         quiet=True,
+        api_key=api_key or None,
+        auth_header=auth_header,
     )
     print(
         json.dumps(caps.to_dict(), indent=2)
@@ -158,6 +174,10 @@ def rollout(
             help="Rebuild the sandbox image, bypassing the content-hash cache. Needed when a task pins deps loosely and its cached image has drifted.",
         ),
     ] = False,
+    api_key: Annotated[str, typer.Option("--api-key", help=_KEY_HELP)] = "",
+    auth_header: Annotated[
+        str, typer.Option("--auth-header", help=_AUTH_HEADER_HELP)
+    ] = "Authorization",
     env_file: Annotated[
         str, typer.Option("--env-file", help="dotenv file with provider credentials.")
     ] = "",
@@ -185,6 +205,8 @@ def rollout(
             keep_sandbox=keep_sandbox,
             force_build=force_build,
             env_file=env_file or None,
+            api_key=api_key or None,
+            auth_header=auth_header,
         )
     )
 
@@ -216,6 +238,10 @@ def serve(
             help="How the sandbox reaches the capture proxy: gradio | cloudflare | direct.",
         ),
     ] = "gradio",
+    api_key: Annotated[str, typer.Option("--api-key", help=_KEY_HELP)] = "",
+    auth_header: Annotated[
+        str, typer.Option("--auth-header", help=_AUTH_HEADER_HELP)
+    ] = "Authorization",
     env_file: Annotated[str, typer.Option("--env-file")] = "",
 ) -> None:
     """Serve Harbor tasks over the OpenEnv Task API and MCP.
@@ -235,6 +261,8 @@ def serve(
         capture_port=capture_port,
         expose=expose,
         env_file=env_file or None,
+        api_key=api_key or None,
+        auth_header=auth_header,
     )
 
 
@@ -258,6 +286,10 @@ def push(
     hardware: Annotated[
         str, typer.Option("--hardware", help="Space hardware, e.g. cpu-basic.")
     ] = "",
+    api_key: Annotated[str, typer.Option("--api-key", help=_KEY_HELP)] = "",
+    auth_header: Annotated[
+        str, typer.Option("--auth-header", help=_AUTH_HEADER_HELP)
+    ] = "Authorization",
     env_file: Annotated[
         str,
         typer.Option(
@@ -333,6 +365,9 @@ def push(
         variables["OPENENV_DATASETS"] = ",".join(datasets)
     if model:
         variables["OPENENV_MODEL"] = model
+    # The header NAME is configuration, not a credential, so it belongs here. Its value never is.
+    if auth_header and auth_header != "Authorization":
+        variables["OPENENV_LLM_AUTH_HEADER"] = auth_header
 
     # Provider credentials travel as secrets. Only the keys the sandboxes need — never the whole
     # dotenv, which usually holds unrelated tokens.
@@ -351,8 +386,14 @@ def push(
         "OPENAI_API_KEY",
         "ANTHROPIC_API_KEY",
         "GEMINI_API_KEY",
+        # The upstream inference credential. A SECRET rather than a variable: Space variables are
+        # readable from the repo page, and this one buys inference against a paid endpoint.
+        "OPENENV_LLM_API_KEY",
     )
     secrets = {k: os.environ[k] for k in wanted if os.environ.get(k)}
+    # An --api-key passed on the command line outranks the dotenv, matching every other command.
+    if api_key:
+        secrets["OPENENV_LLM_API_KEY"] = api_key
 
     # src/openenv/cli/commands/harbor.py -> repo root is parents[4].
     # An installed wheel has no sibling envs/ dir, so fall back to $OPENENV_HARBOR_ENV_DIR.

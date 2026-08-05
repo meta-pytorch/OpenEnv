@@ -19,6 +19,7 @@ had to be individually wrapped. Behind a result object that failure mode cannot 
 
 from __future__ import annotations
 
+import asyncio
 import contextlib
 import os
 import threading
@@ -50,9 +51,16 @@ _NO_HARBOR_RETRY = 0
 # wrapper decides there which credentials to forward. For those, `agent_env` alone is too late, so
 # the seam also carries a process-env channel.
 #
-# That channel is global, so two concurrent rollouts of the same harness would overwrite each
-# other's session key. The lock is held only across agent construction (`Trial.create`), which is
-# brief; the rollout itself then runs unserialised.
+# Others read it at RUN time instead: Harbor's goose wrapper does so inside its own `run`
+# (goose.py:653). So the override is held across `Trial.create` AND `trial.run()` whenever a seam
+# carries `proc_env`, because restoring it in between handed goose the operator's real provider key
+# and earned a 401 from our own proxy on every call.
+#
+# That channel is global, so two concurrent rollouts of a proc-env harness would overwrite each
+# other's session key, and holding it across the whole trial means those rollouts serialise. That is
+# not an implementation shortcut but a property of the agent: it reads a process-global variable at
+# run time, so per-rollout isolation is impossible without a process per rollout. Seams that pass
+# credentials through `agent_env` — most of them — neither take the lock nor wait on it.
 #
 # A `threading.Lock`, not an `asyncio.Lock`. What is being protected is `os.environ`, which is global
 # to the PROCESS, not to an event loop, and rollouts arrive on several loops: the env server answers
@@ -204,6 +212,8 @@ async def run_rollout(
     agent_timeout_sec: float | None = None,
     force_build: bool = False,
     session_prefix: str = "oe",
+    capture_level: str = "tokens",
+    inference: Any = None,
 ) -> HarborRolloutResult:
     """Run one rollout end to end. Never raises.
 
@@ -226,6 +236,12 @@ async def run_rollout(
             Which reward key is the training signal, for multi-reward tasks.
         keep_sandbox (`bool`, *optional*, defaults to `False`):
             Leave the sandbox alive after the run, for debugging.
+        capture_level (`str`, *optional*, defaults to `"tokens"`):
+            What the inference endpoint can return, as probed at startup. Below `tokens` this is an
+            eval rollout: reward and full trace, no token fields.
+        inference (`InferenceClient`, *optional*):
+            The proxy's upstream client, read at the end for the parameter workarounds it had to
+            apply. Passed rather than looked up so this function keeps no handle on the server.
 
     Returns:
         [`HarborRolloutResult`]: Reward, per-turn token ids and logprobs, and validation findings.
@@ -248,6 +264,8 @@ async def run_rollout(
         sandbox=sandbox,
         trial_name=trial_name,
         session_id=session.session_id,
+        capture_level=capture_level,
+        rollout_type="train" if capture_level == "tokens" else "eval",
     )
 
     trial_result = None
@@ -278,10 +296,37 @@ async def run_rollout(
         *_, proc_env = seam.resolve(
             base_url=intercept_url, session=session.session_id, model=model
         )
-        with _PROC_ENV_LOCK, process_env(seam.name, proc_env):
+        if not proc_env:
             config = build_trial_config(**config_kwargs)
             trial = await Trial.create(config)
-        trial_result = await trial.run()
+            trial_result = await trial.run()
+        else:
+            # The override has to span `run()`, not just construction. Harbor's goose wrapper reads
+            # `os.environ["OPENAI_API_KEY"]` inside its own `run` (goose.py:653), long after
+            # construction is done — so restoring the env before `run()` handed it the operator's REAL
+            # provider key instead of the capture session id, and our own proxy correctly answered
+            #
+            #     401 unknown API key; register a session via POST /sessions
+            #
+            # on every call. It failed identically against all five upstreams in a compatibility
+            # matrix, which is what identified it as the key rather than any endpoint.
+            #
+            # The cost is real and unavoidable: `os.environ` is process-global, so two concurrent
+            # rollouts of a proc-env seam genuinely cannot each have their own key. Those rollouts
+            # serialise. Seams that carry no `proc_env` — the large majority, which pass credentials
+            # through `agent_env` — take neither the lock nor the wait.
+            #
+            # Acquired via `to_thread` so a blocking `acquire()` cannot stall the event loop while
+            # another rollout holds the lock for the length of a full trial. A bare `acquire()` here
+            # would deadlock the server the first time two goose rollouts overlapped on one loop.
+            await asyncio.to_thread(_PROC_ENV_LOCK.acquire)
+            try:
+                with process_env(seam.name, proc_env):
+                    config = build_trial_config(**config_kwargs)
+                    trial = await Trial.create(config)
+                    trial_result = await trial.run()
+            finally:
+                _PROC_ENV_LOCK.release()
     except Exception as exc:  # noqa: BLE001 - a rollout failure is a RESULT, never an exception
         result.ok = False
         result.error = str(exc)[:600]
@@ -320,7 +365,9 @@ async def run_rollout(
         # `include_messages` is what puts the assistant's own output in the result.
         # Only the response side is kept downstream (see `turns_from_document`), so
         # the payload grows by the completion text, not by the whole conversation.
-        document = export_session(session, include_messages=True)
+        document = export_session(
+            session, include_messages=True, capture_level=capture_level
+        )
         stats = document.get("stats", {})
         result.n_turns = stats.get("n_turns", 0)
         result.n_roots = stats.get("n_roots", 0)
@@ -377,6 +424,12 @@ async def run_rollout(
         )
     finally:
         registry.delete(session.session_id)
+
+    # Read after the rollout, not before: the fixes are discovered from the provider's own 400s as
+    # calls are made. A rewritten request is a changed experiment — dropping `temperature` alters the
+    # sampling distribution — so it travels with the result rather than living only in a log.
+    if inference is not None:
+        result.param_fixes = [str(f) for f in getattr(inference, "param_fixes", [])]
 
     # A rollout that produced no reward is not a zero: the verifier never ran. Keeping the two
     # distinct is what stops a dead sandbox being scored as a wrong answer.

@@ -66,11 +66,22 @@ class HarborService:
         datasets: list[str],
         capture_port: int = 8100,
         expose: str = "gradio",
+        api_key: str | None = None,
+        auth_header: str = "Authorization",
+        capture_level: str = "tokens",
     ) -> None:
         self.llm_url = llm_url
         self.model = model
         self.datasets = datasets
-        self.capture = CaptureServer(llm_url=llm_url, model=model, port=capture_port)
+        self.capture_level = capture_level
+        self.capture = CaptureServer(
+            llm_url=llm_url,
+            model=model,
+            port=capture_port,
+            api_key=api_key,
+            auth_header=auth_header,
+            capture_level=capture_level,
+        )
         self._expose_kind = expose
         self.public_url = ""
         self.mounted = False
@@ -135,6 +146,8 @@ def serve_harbor(
     capture_port: int = 8100,
     expose: str = "gradio",
     env_file: str | None = None,
+    api_key: str | None = None,
+    auth_header: str = "Authorization",
 ) -> None:
     """Boot the capture proxy, then serve the env server with the UI mounted.
 
@@ -150,6 +163,11 @@ def serve_harbor(
             platform, where the proxy is mounted on the env server's own app instead.
         expose (`str`, *optional*, defaults to `"gradio"`):
             How the sandbox reaches the capture proxy locally: `gradio`, `cloudflare` or `direct`.
+        api_key (`str`, *optional*):
+            Credential for the inference endpoint. Defaults to `$OPENENV_LLM_API_KEY`. Never reaches
+            the sandbox: the agent's key is a capture session id.
+        auth_header (`str`, *optional*, defaults to `"Authorization"`):
+            Header to send `api_key` under.
     """
     import uvicorn
 
@@ -162,8 +180,13 @@ def serve_harbor(
         env_file=env_file,
         require_llm=True,
         quiet=False,
+        api_key=api_key,
+        auth_header=auth_header,
     )
     model = caps.llm.get("model") or model or ""
+    capture_level = caps.llm.get("capture_level") or "tokens"
+    # `prepare` has loaded the dotenv by now, so a key that lives only in --env-file is visible.
+    api_key = api_key or os.environ.get("OPENENV_LLM_API_KEY") or None
 
     service = HarborService(
         llm_url=llm_url,
@@ -171,12 +194,22 @@ def serve_harbor(
         datasets=datasets,
         capture_port=capture_port,
         expose=expose,
+        api_key=api_key,
+        auth_header=auth_header,
+        capture_level=capture_level,
     )
     public = service.start()
     HarborService.set_current(service)
 
     where = "mounted on this app" if service.mounted else f":{capture_port}"
     print(f"\ncapture   {where} -> {public}")
+    if capture_level != "tokens":
+        # Repeated after the capabilities report, because this is the last line before the server
+        # starts serving and it changes what every rollout from it is worth.
+        print(
+            f"mode      EVAL ONLY (capture_level={capture_level}) — rollouts carry reward and "
+            "trace, nothing trainable"
+        )
     print(
         f"server    http://{host}:{port}    (UI at /web, Task API at /{{env}}/splits)"
     )

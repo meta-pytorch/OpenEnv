@@ -9,6 +9,7 @@ not, the problem is the serving layer and nothing below it.
 from __future__ import annotations
 
 import contextlib
+import os
 import socket
 import threading
 import time
@@ -79,10 +80,19 @@ class CaptureServer:
         model: str,
         port: int = 8100,
         max_output_tokens: int = 8192,
+        api_key: str | None = None,
+        auth_header: str = "Authorization",
+        capture_level: str = "tokens",
     ) -> None:
         self.app = create_app(
-            llm_url=llm_url, model=model, max_output_tokens=max_output_tokens
+            llm_url=llm_url,
+            model=model,
+            max_output_tokens=max_output_tokens,
+            api_key=api_key,
+            auth_header=auth_header,
+            capture_level=capture_level,
         )
+        self.capture_level = capture_level
         self.port = port
         self._thread: threading.Thread | None = None
         self._server: Any = None
@@ -90,6 +100,11 @@ class CaptureServer:
     @property
     def registry(self) -> Any:
         return self.app.state.registry
+
+    @property
+    def inference(self) -> Any:
+        """The upstream client, for reading back what it had to work around. See `param_fixes`."""
+        return self.app.state.inference
 
     def start(self, timeout_s: float = 30.0) -> None:
         """Bind the port and confirm that the process answering on it is *this* one.
@@ -158,6 +173,8 @@ async def run_batch(
     keep_sandbox: bool = False,
     force_build: bool = False,
     env_file: str | None = None,
+    api_key: str | None = None,
+    auth_header: str = "Authorization",
 ) -> list[HarborRolloutResult]:
     """Run `task_indices` from `dataset` and print a per-rollout report.
 
@@ -192,8 +209,13 @@ async def run_batch(
         env_file=env_file,
         require_llm=True,
         quiet=False,
+        api_key=api_key,
+        auth_header=auth_header,
     )
     model = caps.llm.get("model") or model or ""
+    capture_level = caps.llm.get("capture_level") or "tokens"
+    # `prepare` already read the dotenv, so a key that lives only in --env-file is visible now.
+    api_key = api_key or os.environ.get("OPENENV_LLM_API_KEY") or None
 
     if sandbox not in caps.available_sandboxes:
         detail = next(
@@ -205,7 +227,14 @@ async def run_batch(
     trials_dir = trials_dir or Path("/tmp/openenv-harbor-trials")
     trials_dir.mkdir(parents=True, exist_ok=True)
 
-    capture = CaptureServer(llm_url=llm_url, model=model, port=port)
+    capture = CaptureServer(
+        llm_url=llm_url,
+        model=model,
+        port=port,
+        api_key=api_key,
+        auth_header=auth_header,
+        capture_level=capture_level,
+    )
     capture.start()
     forwarder = make_forwarder(expose)
     public_url = forwarder.start(port)
@@ -232,6 +261,8 @@ async def run_batch(
                 reward_key=reward_key,
                 keep_sandbox=keep_sandbox,
                 force_build=force_build,
+                capture_level=capture_level,
+                inference=capture.inference,
             )
             results.append(result)
             print("   " + _summarise(result))
@@ -249,9 +280,16 @@ def _summarise(r: HarborRolloutResult) -> str:
     reward = "None" if r.reward is None else f"{r.reward:.2f}"
     mode = "multi-turn" if r.multi_turn else "per-turn"
     status = "ok" if r.ok else f"FAILED ({r.exception_type or 'error'})"
+    # An eval rollout has no trainable tokens by construction, so printing `tokens=0` next to a
+    # healthy reward invites the reading that capture broke. Name the rollout type instead.
+    detail = (
+        f"tokens={r.n_trainable_tokens:<6}"
+        if r.rollout_type == "train"
+        else f"EVAL/{r.capture_level:<7}"
+    )
     return (
         f"{status:<26} reward={reward:<6} turns={r.n_turns:<3} roots={r.n_roots:<3} "
-        f"{mode:<11} tokens={r.n_trainable_tokens:<6} atif={r.atif:<9} {r.wall_s:.0f}s"
+        f"{mode:<11} {detail} atif={r.atif:<9} {r.wall_s:.0f}s"
         + (f"\n      {r.error[:180]}" if r.error else "")
     )
 
@@ -271,9 +309,17 @@ def _report(results: list[HarborRolloutResult]) -> str:
             if len(graded) != len(results)
             else ""
         ),
-        f"tokens    {sum(r.n_trainable_tokens for r in results)} trainable across "
-        f"{sum(r.n_turns for r in results)} turns",
     ]
+    if all(r.rollout_type == "eval" for r in results):
+        lines.append(
+            f"tokens    none — these are EVAL rollouts ({results[0].capture_level}); "
+            f"{sum(r.n_turns for r in results)} turns captured as trace only"
+        )
+    else:
+        lines.append(
+            f"tokens    {sum(r.n_trainable_tokens for r in results)} trainable across "
+            f"{sum(r.n_turns for r in results)} turns"
+        )
     # Capture quality and task success are independent, and conflating them has burned us before:
     # a perfectly captured rollout can score 0 because the model was wrong.
     lines.append("NOTE: capture and reward are independent measurements.")

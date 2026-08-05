@@ -91,10 +91,56 @@ class Capabilities:
         if self.llm:
             model = self.llm.get("model", "?")
             ok = self.llm.get("ok")
-            mark = "ok" if ok else ("FAILED" if ok is False else "unchecked")
+            level = self.llm.get("capture_level") or ""
+            if ok:
+                mark = "TRAIN"
+            elif self.llm.get("reachable"):
+                # Loud, and in the same column as a failure, because this is the line that decides
+                # whether anything this server produces can be trained on. It is not an error, and it
+                # must not read as a success either.
+                mark = "EVAL ONLY"
+            elif ok is False:
+                mark = "FAILED"
+            else:
+                mark = "unchecked"
             out.append(f"llm       {model}  [{mark}]")
             if self.llm.get("url"):
-                out.append(f"          {self.llm['url']}")
+                auth = " (authenticated)" if self.llm.get("authenticated") else ""
+                out.append(f"          {self.llm['url']}{auth}")
+            if mark == "TRAIN" and self.llm.get("logprobs_mode"):
+                # Worth a line even when everything is fine: it is the one property of a trainable
+                # endpoint that is invisible in the data and wrong by default.
+                out.append(
+                    f"          logprobs: {self.llm['logprobs_mode']}"
+                    + (
+                        "  (temperature-scaled, as training needs)"
+                        if self.llm["logprobs_mode"] == "processed"
+                        else ""
+                    )
+                )
+            if mark == "EVAL ONLY":
+                if self.llm.get("logprobs_mode") == "raw":
+                    # Demoted for a different reason than the tier name suggests: this endpoint has
+                    # token ids, and saying "no token ids" about it would be simply untrue.
+                    detail = "token ids present but logprobs are RAW (pre-temperature)"
+                elif level == "logprobs":
+                    detail = "logprobs, no token ids"
+                else:
+                    detail = "no token ids, no logprobs"
+                out.append(
+                    f"          {detail} — rollouts carry reward and trace but are NOT trainable"
+                )
+            for fix in self.llm.get("param_fixes") or []:
+                # A rewritten request is a changed experiment: dropping `temperature` alters the
+                # sampling distribution, so it cannot be a silent accommodation.
+                out.append(f"          upstream compat: {fix}")
+            # Anything the probe flagged. A `[TRAIN]` endpoint can still carry a warning worth
+            # reading — raw rather than processed logprobs being the one that looks perfect and
+            # trains on the wrong importance ratio — so these print at every level, not just on
+            # failure. INFO is dropped; it is detail, not a decision.
+            for finding in self.llm.get("findings") or []:
+                if not str(finding).startswith("[INFO]"):
+                    out.append(f"          {_wrap_finding(str(finding))}")
 
         usable = [s for s in self.sandboxes if s.available]
         out.append(f"\nsandboxes {len(usable)} of {len(self.sandboxes)} usable")
@@ -133,6 +179,17 @@ class Capabilities:
                 "\nWARNING: no sandbox has working credentials; every rollout will fail."
             )
         return "\n".join(out)
+
+
+def _wrap_finding(text: str, width: int = 92, indent: str = " " * 10) -> str:
+    """Wrap one finding to the terminal, keeping the continuation under the same column.
+
+    The long ones matter most and are the ones a single line truncates into uselessness.
+    """
+    import textwrap
+
+    lines = textwrap.wrap(text, width=width) or [text]
+    return ("\n" + indent).join(lines)
 
 
 def _missing_sdk(environment_class: Any) -> str:

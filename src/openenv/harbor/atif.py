@@ -141,6 +141,56 @@ def _subsequence_gap(needle: list[int], haystack: list[int]) -> list[int] | None
     return skipped if j == len(needle) else None
 
 
+def _reconcile_eval(
+    document: dict[str, Any], atif: dict[str, Any], report: Report
+) -> Report:
+    """Cross-check an eval rollout against ATIF on call COUNT, since token counts do not exist.
+
+    The main path compares per-call completion token counts, which an eval endpoint never returns —
+    every captured turn has `n_sampled == 0`, so that comparison would report a mismatch on every
+    rollout and `no_agent_sequence` would fire first anyway, `sequences` being empty by design.
+
+    Counts are still worth comparing, and this is not a consolation prize: the one real bug ATIF
+    reconciliation has caught was a harness whose trajectory was TRUNCATED (an empty `tools` array
+    drew a 400 from vLLM) while the graph stayed well-formed. That is a count disagreement, and it is
+    just as visible here.
+
+    A mismatch is a WARN rather than FATAL. On the training path a disagreement means data we cannot
+    corroborate and must not learn from; here there is nothing to learn from in the first place, and
+    the trace is still the honest record of what happened.
+    """
+    ours = len(document.get("turns") or [])
+    theirs = len(atif_turn_lengths(atif))
+    if not theirs:
+        report.add(
+            INFO,
+            "atif_no_agent_steps",
+            f"ATIF logged no agent steps; {ours} captured call(s) stand unverified",
+        )
+        return report
+
+    report.add(
+        INFO,
+        "eval_reconcile_counts_only",
+        "eval rollout: compared call counts only, since the endpoint returns no token counts",
+    )
+    if ours < theirs:
+        report.add(
+            WARN,
+            "atif_calls_missing",
+            f"ATIF logged {theirs} agent step(s) but only {ours} were captured. Calls the harness "
+            "made did not reach the proxy, so the trace is incomplete.",
+        )
+    elif ours > theirs:
+        report.add(
+            INFO,
+            "atif_extra_calls",
+            f"captured {ours} call(s) against {theirs} ATIF agent step(s); the extra ones are "
+            "auxiliary (token counting, title generation, a 'next speaker' check)",
+        )
+    return report
+
+
 def reconcile(document: dict[str, Any], atif: dict[str, Any] | None) -> Report:
     """Compare the exported rollout against ATIF. Disagreement is the signal.
 
@@ -161,6 +211,9 @@ def reconcile(document: dict[str, Any], atif: dict[str, Any] | None) -> Report:
         f"schema {atif.get('schema_version')} "
         f"agent {(atif.get('agent') or {}).get('name')}",
     )
+
+    if document.get("rollout_type", "train") == "eval":
+        return _reconcile_eval(document, atif, report)
 
     agent_rows = [r for r in document["sequences"] if r["role"] == "agent"]
     if not agent_rows:
