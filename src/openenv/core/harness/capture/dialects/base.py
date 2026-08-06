@@ -87,9 +87,18 @@ class BaseTransformer(ABC):
         non_system: list[Any] = []
         for msg in normalized:
             if isinstance(msg, dict) and msg.get("role") == "system":
-                text = cls._content_to_text(msg.get("content", ""))
+                content = msg.get("content", "")
+                text = cls._content_to_text(content)
                 if text:
                     system_parts.append(text)
+                elif content:
+                    # A system message whose content is not reducible to text — an image part, an
+                    # unfamiliar content type — used to vanish here: `_content_to_text` returned "",
+                    # the falsy check skipped it, and the merged system prompt silently lost it. The
+                    # prompt then differs from what the harness sent, which for a captured turn means
+                    # the recorded prompt is not the one the model saw. Kept as its own message
+                    # instead of merged, since it cannot be concatenated into the text block.
+                    non_system.append(msg)
             else:
                 non_system.append(msg)
 

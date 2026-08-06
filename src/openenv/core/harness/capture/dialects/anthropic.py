@@ -245,7 +245,8 @@ class AnthropicStreamState:
         tool_state = self.tool_calls.get(tool_index)
         if tool_state is None:
             tool_state = _AnthropicToolCallState(
-                id=tool_call_delta.get("id", f"toolu_{uuid.uuid4().hex[:24]}"),
+                # `or`, not a get() default: a present-but-null id returns None and defeats the fallback.
+                id=tool_call_delta.get("id") or f"toolu_{uuid.uuid4().hex[:24]}",
             )
             self.tool_calls[tool_index] = tool_state
         elif tool_call_delta.get("id"):

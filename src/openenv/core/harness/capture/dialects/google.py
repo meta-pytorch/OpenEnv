@@ -242,9 +242,6 @@ class GoogleTransformer(BaseTransformer):
         if response_format is not None:
             result["response_format"] = response_format
 
-        if body.get("_streaming", False):
-            result["stream"] = True
-
         # Gemini `thinkingConfig.includeThoughts: true` → enable_thinking.
         thinking_cfg = gen_config.get("thinkingConfig") or config_section.get(
             "thinkingConfig"
@@ -459,7 +456,15 @@ class GoogleTransformer(BaseTransformer):
         return _GoogleStreamState(self)
 
     def is_streaming_request(self, body: dict[str, Any]) -> bool:
-        return body.get("_streaming", False)
+        """Part of the transformer interface, but NOT how the proxy decides.
+
+        Google signals streaming in the URL (`:streamGenerateContent`, `?alt=sse`) rather than the
+        body, so `server.wants_stream` inspects the target path and this never sees the information it
+        would need. It returns False rather than guessing, and the dead `_streaming` body flag it used
+        to read was removed: nothing set it, and `normalise_for_capture` forces `stream=False` on every
+        upstream call regardless, so the branch could not have taken effect even if something had.
+        """
+        return False
 
     def _convert_content_to_messages(self, content: Any) -> list[dict[str, Any]]:
         if not isinstance(content, dict):

@@ -226,18 +226,59 @@ def normalize_response(response: dict[str, Any]) -> dict[str, Any]:
             ):
                 message["reasoning_content"] = message.pop("reasoning")
 
-        # Copy each token id onto its logprob entry. Not load-bearing — capture reads
-        # `choice.token_ids` and the per-entry `logprob` — but it keeps a stored trace one shape,
-        # so a consumer never has to know which engine produced it. Guarded on equal length because
-        # a mismatch means the two lists are not describing the same tokens, and pairing them anyway
-        # would silently attach the wrong id to every logprob.
+        # Copy each token id onto its logprob entry, and CHECK the pairing while doing it.
+        #
+        # The ids and the logprobs arrive on two separate channels and are joined by index. Equal
+        # length was the only guard, which an equal-length-but-SHIFTED pairing passes — a stop or EOS
+        # token present in one channel and not the other is enough — after which every logprob is
+        # attributed to its neighbour's token and training proceeds silently on the misattribution.
+        #
+        # When the engine runs with --return-tokens-as-token-ids the check is free and exact: each
+        # entry's `token` field literally reads `token_id:{id}`, so it can be compared against
+        # `token_ids[i]` at every position rather than inspected once for a warning. A disagreement
+        # drops the logprobs, which is what every other unusable-logprob path already does — the ids
+        # stay as real context and `sequence_for` masks the turn out of training.
         token_ids = choice.get("token_ids")
         entries = ((choice.get("logprobs") or {}).get("content")) or []
         if isinstance(token_ids, list) and len(token_ids) == len(entries):
-            for token_id, entry in zip(token_ids, entries):
-                if isinstance(entry, dict):
-                    entry.setdefault("token_id", token_id)
+            mismatch = _pairing_mismatch(token_ids, entries)
+            if mismatch is not None:
+                position, declared, actual = mismatch
+                logger.warning(
+                    "token id / logprob channels disagree at position %d (ids say %s, logprobs say "
+                    "%s); dropping the logprobs for this turn rather than training on a shifted "
+                    "pairing",
+                    position,
+                    declared,
+                    actual,
+                )
+                choice["logprobs"] = None
+            else:
+                for token_id, entry in zip(token_ids, entries):
+                    if isinstance(entry, dict):
+                        entry.setdefault("token_id", token_id)
     return response
+
+
+def _pairing_mismatch(
+    token_ids: list[Any], entries: list[Any]
+) -> tuple[int, Any, Any] | None:
+    """The first position where the two channels disagree, or `None`.
+
+    Only positions whose `token` field is in the `token_id:{id}` form can be checked; a server without
+    `--return-tokens-as-token-ids` emits token TEXT and is skipped, since decoding text back to an id
+    would need the tokenizer this design deliberately does not load.
+    """
+    for position, (token_id, entry) in enumerate(zip(token_ids, entries)):
+        if not isinstance(entry, dict):
+            continue
+        token = entry.get("token")
+        if not isinstance(token, str) or not token.startswith("token_id:"):
+            continue
+        declared = token[len("token_id:") :]
+        if declared != str(token_id):
+            return position, token_id, declared
+    return None
 
 
 def _retry_after_seconds(response: httpx.Response) -> float | None:

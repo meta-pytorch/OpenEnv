@@ -185,7 +185,9 @@ class ResponsesStreamState:
             tool_state = self.tool_calls.get(tool_index)
             if tool_state is None:
                 tool_state = _ResponsesToolCallState(
-                    call_id=tool_call.get("id", f"call_{uuid.uuid4().hex[:24]}"),
+                    # `or`, not a get() default: a tool call whose "id" is present but null returns None from
+                    # get(), which defeats the fallback and emits an item with no call_id.
+                    call_id=tool_call.get("id") or f"call_{uuid.uuid4().hex[:24]}",
                 )
                 self.tool_calls[tool_index] = tool_state
             elif tool_call.get("id"):
@@ -528,10 +530,17 @@ class OpenAIResponsesTransformer(BaseTransformer):
                 }
             )
 
+        # Only replay a call as `local_shell_call` when the REQUEST actually declared a local_shell
+        # tool. The name alone is not evidence: a user-defined function called `execute` or
+        # `run_command` was being rewritten to a shell call, which diverged the replay from what was
+        # sampled — turn k recorded `name="execute"`, turn k+1 replayed `name="shell"`, the exact
+        # token prefix no longer matched, and the turn was orphaned into a new root. codex would also
+        # have run the caller's own function as a shell command.
+        shell_declared = self._declares_local_shell(original_request)
         for tc in message.get("tool_calls") or []:
             func = tc.get("function", {})
             name = func.get("name", "")
-            if name in ("shell", "execute", "run_command"):
+            if shell_declared and name in ("shell", "execute", "run_command"):
                 output_items.append(self._local_shell_call_from_tool_call(tc))
             else:
                 output_items.append(
@@ -831,6 +840,20 @@ class OpenAIResponsesTransformer(BaseTransformer):
 
         args = {key: value for key, value in action.items() if key != "type"}
         return json.dumps(args) if args else "{}"
+
+    @staticmethod
+    def _declares_local_shell(original_request: dict[str, Any]) -> bool:
+        """Whether the request offered a local_shell tool, in either spelling.
+
+        codex declares `{"type": "local_shell"}` among its Responses tools. Absent that, a shell-named
+        function is an ordinary function and has to be replayed as one.
+        """
+        for tool in original_request.get("tools") or []:
+            if not isinstance(tool, dict):
+                continue
+            if tool.get("type") in {"local_shell", "shell"}:
+                return True
+        return False
 
     def _local_shell_call_from_tool_call(
         self, tool_call: dict[str, Any]

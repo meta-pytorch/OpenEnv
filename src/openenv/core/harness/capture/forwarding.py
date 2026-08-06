@@ -35,6 +35,7 @@ from __future__ import annotations
 
 import re
 import secrets
+import select
 import shutil
 import subprocess
 import time
@@ -235,20 +236,33 @@ class CloudflareForwarder(PortForwarder):
         return url
 
     def _await_url(self) -> str | None:
-        """Read stderr until the URL appears, the process dies, or we run out of patience."""
+        """Read stderr until the URL appears, the process dies, or we run out of patience.
+
+        `select` before `readline`, because `readline` BLOCKS until a newline arrives. A cloudflared
+        that starts and then goes quiet — no URL, no crash — held the loop inside that call forever,
+        so `startup_timeout_s` was advisory and `start()` could hang indefinitely instead of failing
+        cleanly. Waiting on readability first means the deadline is honoured whatever the child does.
+        """
         assert self._proc is not None and self._proc.stdout is not None
+        stream = self._proc.stdout
         deadline = time.monotonic() + self._startup_timeout_s
-        while time.monotonic() < deadline:
+        while True:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                return None
             if self._proc.poll() is not None:
                 return None  # died during startup
-            line = self._proc.stdout.readline()
-            if not line:
-                time.sleep(0.05)
+            # Capped so process death is noticed promptly even while the pipe stays silent.
+            ready, _, _ = select.select([stream], [], [], min(remaining, 0.2))
+            if not ready:
                 continue
+            line = stream.readline()
+            if not line:
+                # EOF: the pipe closed, so nothing further will arrive on it.
+                return None
             match = self._URL_RE.search(line)
             if match:
                 return match.group(0)
-        return None
 
     def stop(self) -> None:
         proc, self._proc, self._url = self._proc, None, None
