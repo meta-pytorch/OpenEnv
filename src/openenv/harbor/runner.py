@@ -239,8 +239,17 @@ async def run_batch(
         capture_level=capture_level,
     )
     capture.start()
-    forwarder = make_forwarder(expose)
-    public_url = forwarder.start(port)
+    # The capture proxy is already listening on a bound port in a background thread, so an exception
+    # between here and the `try` below would leave that thread up and the port held — and the next
+    # attempt would then die on "port already in use" rather than on the real error. Forwarder setup
+    # is the risky part (cloudflared spawns a binary, gradio opens a tunnel), so it goes under its own
+    # guard. `HarborService.start` guards the same pair the same way.
+    try:
+        forwarder = make_forwarder(expose)
+        public_url = forwarder.start(port)
+    except BaseException:
+        capture.stop()
+        raise
     print(f"\ncapture  :{port} -> {public_url}  ({forwarder.name})")
     print(f"trials   {trials_dir}\n")
 
@@ -272,8 +281,12 @@ async def run_batch(
             for finding in result.findings[:3]:
                 print(f"      {finding[:150]}")
     finally:
-        forwarder.stop()
-        capture.stop()
+        # `capture.stop()` releases the port, so it must run even if the forwarder's own teardown
+        # throws — otherwise a failing tunnel shutdown strands the proxy for the rest of the process.
+        try:
+            forwarder.stop()
+        finally:
+            capture.stop()
 
     print("\n" + _report(results))
     return results
