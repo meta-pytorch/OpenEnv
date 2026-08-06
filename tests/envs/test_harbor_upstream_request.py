@@ -190,3 +190,93 @@ def test_text_level_still_does_not_rewrite_the_callers_messages():
         "the caller's message objects are the ones the graph stores; rewriting them in place "
         "means a captured turn no longer records what the harness sent"
     )
+
+
+# --- sampling knobs that bias a processed logprob -------------------------------------------------
+#
+# vLLM masks the top-p/top-k tail to -inf and takes the log-softmax afterwards, so under
+# `--logprobs-mode processed_logprobs` a captured logprob is renormalised over the surviving set:
+# `log p_full(t) - log(kept_mass)`. A trainer recomputing over the full vocabulary gets
+# `log p_full(t)`, so GRPO's step-0 importance ratio lands on `kept_mass` instead of 1 — a silent,
+# systematic bias that grows with how aggressive the truncation is. Penalties are worse still, since
+# they reorder rather than merely shift.
+#
+# At the train tier these are therefore neutralised: an on-policy rollout has to sample from the
+# distribution being trained. At the eval tiers they are left alone — eval should score exactly the
+# configuration the harness asked for.
+
+
+def test_the_train_tier_neutralises_truncation():
+    body = upstream.prepare_request(
+        {"model": "m", "messages": [], "top_p": 0.95, "top_k": 40, "min_p": 0.05},
+        capture_level="tokens",
+    )
+    assert body["top_p"] == 1.0
+    assert body["top_k"] == -1
+    assert body["min_p"] == 0.0
+
+
+def test_the_train_tier_neutralises_penalties():
+    body = upstream.prepare_request(
+        {
+            "model": "m",
+            "messages": [],
+            "frequency_penalty": 0.5,
+            "presence_penalty": 0.3,
+            "repetition_penalty": 1.1,
+        },
+        capture_level="tokens",
+    )
+    assert body["frequency_penalty"] == 0.0
+    assert body["presence_penalty"] == 0.0
+    assert body["repetition_penalty"] == 1.0
+
+
+def test_temperature_survives_the_train_tier():
+    """Temperature scales the whole distribution without truncating it, so a processed logprob under
+    it is still the sampling distribution's own — and it is the policy the trainer means to learn."""
+    body = upstream.prepare_request(
+        {"model": "m", "messages": [], "temperature": 0.7}, capture_level="tokens"
+    )
+    assert body["temperature"] == 0.7
+
+
+@pytest.mark.parametrize("level", ["logprobs", "text"])
+def test_the_eval_tiers_honour_what_the_harness_asked_for(level):
+    body = upstream.prepare_request(
+        {"model": "m", "messages": [], "top_p": 0.8, "frequency_penalty": 0.5},
+        capture_level=level,
+    )
+    assert body["top_p"] == 0.8, (
+        "an eval rollout must score the requested configuration"
+    )
+    assert body["frequency_penalty"] == 0.5
+
+
+def test_the_callers_dict_is_not_edited():
+    """The graph stores the harness's own request objects; overriding a copy is what keeps the trace
+    honest about what was asked for."""
+    original = {"model": "m", "messages": [], "top_p": 0.95}
+    upstream.prepare_request(dict(original), capture_level="tokens")
+    assert original["top_p"] == 0.95
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        {},
+        {"top_p": 1.0, "top_k": -1, "min_p": 0.0},
+        {"top_k": 0},  # 0 and -1 both mean "off", depending on engine
+        {"top_p": None, "frequency_penalty": None},
+        {
+            "top_p": "0.9"
+        },  # a string cannot be compared numerically; leave it to the engine
+    ],
+)
+def test_nothing_is_flagged_when_nothing_truncates(body):
+    assert upstream.truncating_params(body) == {}
+
+
+def test_what_was_requested_is_reported_verbatim():
+    found = upstream.truncating_params({"top_p": 0.95, "temperature": 0.7, "top_k": 40})
+    assert found == {"top_p": 0.95, "top_k": 40}

@@ -119,6 +119,63 @@ def normalise_engine_base(url: str) -> str:
     return base[: -len("/v1")] if base.endswith("/v1") else base
 
 
+# Sampling knobs that make a *processed* logprob incomparable to a full-vocab recompute, mapped to the
+# value that disables each one.
+#
+# vLLM's sampler masks the truncated tail to `-inf` and only then takes the log-softmax
+# (`v1/sample/ops/topk_topp_sampler.py`: `apply_top_k_top_p` at line 135, `compute_logprobs` at 139,
+# which is `logits.log_softmax(...)`). So under `--logprobs-mode processed_logprobs` with `top_p=0.95`,
+# every captured logprob is the *renormalised* one — `log p_full(token) - log(kept_mass)` — while a
+# trainer recomputing over the full vocabulary gets `log p_full(token)`. The captured number is
+# uniformly too high, so GRPO's step-0 importance ratio `exp(recompute - captured)` comes out at
+# `kept_mass` rather than 1, and the penalties are worse than a uniform shift because they reorder.
+#
+# For a training rollout the sampling distribution must BE the policy distribution — that is what makes
+# the data on-policy — so truncation is not a feature to preserve here, it is the bug. TRL's own
+# GRPOConfig defaults `top_p` to 1.0 for the same reason. At the `tokens` tier these are therefore set
+# to their no-op values; at `logprobs`/`text` they are left exactly as the harness sent them, because an
+# eval rollout should score the model the harness actually asked for.
+#
+# What the harness requested is still recorded per turn (`server.SAMPLING_KEYS` ->
+# `TurnNode.sampling_params`), read from the caller's dict before this copy is edited, so overriding
+# here does not hide the original request from the trace.
+NON_POLICY_SAMPLING: dict[str, float | int] = {
+    "top_p": 1.0,
+    "top_k": -1,
+    "min_p": 0.0,
+    "frequency_penalty": 0.0,
+    "presence_penalty": 0.0,
+    "repetition_penalty": 1.0,
+}
+
+
+def truncating_params(request: dict[str, Any]) -> dict[str, Any]:
+    """The entries of `request` that would narrow or distort the sampling distribution.
+
+    Args:
+        request (`dict[str, Any]`):
+            A chat-completions body.
+
+    Returns:
+        `dict[str, Any]`: Requested key -> value, for each knob set to something other than its no-op.
+    """
+    found: dict[str, Any] = {}
+    for key, neutral in NON_POLICY_SAMPLING.items():
+        value = request.get(key)
+        if (
+            value is None
+            or not isinstance(value, (int, float))
+            or isinstance(value, bool)
+        ):
+            continue
+        # `top_k` is disabled by -1 in vLLM and by 0 elsewhere; neither truncates.
+        if key == "top_k" and value in (-1, 0):
+            continue
+        if float(value) != float(neutral):
+            found[key] = value
+    return found
+
+
 def prepare_request(
     request: dict[str, Any],
     *,
@@ -145,6 +202,10 @@ def prepare_request(
     if capture_level == "tokens":
         request["logprobs"] = True
         request["return_token_ids"] = True
+        # See `NON_POLICY_SAMPLING`: a processed logprob is taken after these are applied, so leaving
+        # them on would silently bias every importance ratio computed from this rollout.
+        for key in truncating_params(request):
+            request[key] = NON_POLICY_SAMPLING[key]
     elif capture_level == "logprobs":
         request["logprobs"] = True
     # At `text` nothing is injected at all. Current OpenAI models answer `logprobs` with a 400, and
