@@ -105,6 +105,28 @@ def process_env(seam_name: str, env: dict[str, str]):
                 os.environ[key] = was
 
 
+def _finite_reward(key: str, value: Any) -> float:
+    """A verifier's value as a real float, or raise.
+
+    Args:
+        key (`str`):
+            Reward name, for the error message — a caller needs to know WHICH key was unusable.
+        value:
+            Whatever the task's verifier put in its reward dict.
+
+    Returns:
+        `float`: The coerced value.
+
+    Raises:
+        TypeError: If the value cannot be a float at all.
+        ValueError: If it coerces to inf or nan.
+    """
+    number = float(value)  # raises TypeError/ValueError, caught by the caller
+    if number != number or number in (float("inf"), float("-inf")):
+        raise ValueError(f"{key}={value!r} is not finite")
+    return number
+
+
 def _pick_reward(
     rewards: dict[str, float], reward_key: str = ""
 ) -> tuple[float | None, str]:
@@ -338,7 +360,20 @@ async def run_rollout(
     if trial_result is not None:
         verifier = getattr(trial_result, "verifier_result", None)
         rewards = dict(getattr(verifier, "rewards", None) or {}) if verifier else {}
-        result.rewards = {k: float(v) for k, v in rewards.items()}
+        # Inside a try, and finite-checked. A verifier is task-supplied code that can put anything in
+        # this dict, and this line sits between the trial's try/except and `_pick_reward`'s, so a
+        # value like None, "N/A" or a nested dict used to raise straight out of `run_rollout`, through
+        # the MCP tool, and into the trainer — which is the every-rank-hangs-on-the-NCCL-barrier
+        # failure this whole HTTP boundary exists to make impossible.
+        #
+        # inf and nan are rejected too, though they coerce fine: inf reads as solved downstream, and
+        # nan poisons any average computed over a batch of rewards.
+        try:
+            result.rewards = {k: _finite_reward(k, v) for k, v in rewards.items()}
+        except (TypeError, ValueError) as exc:
+            result.ok = False
+            result.error = f"verifier returned an unusable reward: {exc}"
+            result.rewards = {}
         try:
             result.reward, result.reward_key = _pick_reward(result.rewards, reward_key)
         except ValueError as exc:
@@ -348,10 +383,16 @@ async def run_rollout(
             step_rewards = dict(
                 getattr(getattr(step, "verifier_result", None), "rewards", None) or {}
             )
+            try:
+                coerced = {k: _finite_reward(k, v) for k, v in step_rewards.items()}
+            except (TypeError, ValueError):
+                # A bad per-step reward is worth dropping, not worth failing the rollout: the
+                # headline reward above is what trains, and gating on it is already handled.
+                coerced = {}
             result.step_results.append(
                 HarborStepResult(
                     name=getattr(step, "name", "") or "",
-                    rewards={k: float(v) for k, v in step_rewards.items()},
+                    rewards=coerced,
                 )
             )
         info = getattr(trial_result, "exception_info", None)
@@ -376,6 +417,16 @@ async def run_rollout(
         result.findings = [
             f for f in document.get("validation", []) if not f.startswith("[INFO]")
         ]
+        # Sequence-level findings were never surfaced. `check_sequence` FATALs — a positive logprob, a
+        # length mismatch, nothing trainable — live on the row rather than in the document's own
+        # validation list, so a rollout carrying one of them came back with a clean `findings` list and
+        # `ok=True`. The row is already marked untrainable; this makes the reason visible.
+        for row in document.get("sequences", []):
+            for finding in row.get("validation", []):
+                if not finding.startswith("[INFO]"):
+                    result.findings.append(
+                        f"[sequence {row.get('root_id', '?')}] {finding}"
+                    )
 
         trial_dir = _trial_dir(trial_result, trials_dir, trial_name)
         # Not every harness writes ATIF. Three of the sixteen (hermes, openclaw, pi) emit no
@@ -396,8 +447,23 @@ async def run_rollout(
         if report.aux_node_ids:
             aux = set(report.aux_node_ids)
             for sequence in document["sequences"]:
-                if sequence["role"] == "agent" and set(sequence["node_ids"]) <= aux:
+                if sequence["role"] != "agent":
+                    continue
+                nodes = set(sequence["node_ids"])
+                if nodes <= aux:
                     sequence["role"] = "auxiliary"
+                elif nodes & aux:
+                    # Detection is per node; demotion was per sequence, so a sequence MIXING an
+                    # auxiliary node with real agent turns stayed `agent` in full and shipped the aux
+                    # node as a training turn credited with the task's reward. That worked only under
+                    # the unstated assumption that aux calls always form their own single-node root,
+                    # and it erred unsafe when they did not.
+                    #
+                    # Masked at token level rather than dropped, because the rest of the sequence is
+                    # genuine agent work: the aux node's sampled tokens stop being targets while
+                    # remaining context, which is exactly how `sequence_for` treats a turn it cannot
+                    # trust. Anything else would either discard real turns or train on an aux call.
+                    _mask_out_nodes(document, sequence, nodes & aux)
 
         result.turns = turns_from_document(document)
         # Every conversation, not only the trainable ones: an auxiliary call that
@@ -413,10 +479,25 @@ async def run_rollout(
         # back `ok=True` with zero trainable tokens, and reconciliation agreed because both sides
         # were empty. One such rollout even carried reward=1.0, which is the worst shape available:
         # a trainer filtering on `ok` would accept a row with nothing in it and a positive reward.
-        fatal = [f for f in result.findings if f.startswith("[FATAL")]
+        fatal = [f for f in result.findings if "[FATAL" in f]
         if fatal:
             result.ok = False
             result.error = result.error or fatal[0]
+
+        # A train rollout that produced no trainable sequence is a failed train rollout, however
+        # healthy it looks: every row was masked out, or auxiliary, or discarded. Checked only on the
+        # train path, since having nothing trainable is the defining property of an eval rollout.
+        if (
+            result.rollout_type == "train"
+            and result.ok
+            and not document.get("trainable")
+        ):
+            result.ok = False
+            result.error = (
+                result.error
+                or "no trainable sequence survived: every captured path was masked out, "
+                "auxiliary or discarded"
+            )
     except Exception as exc:  # noqa: BLE001
         result.ok = False
         result.error = (
@@ -438,6 +519,36 @@ async def run_rollout(
             "[WARN] ungraded: the verifier produced no reward for this trial"
         )
     return result
+
+
+def _mask_out_nodes(
+    document: dict[str, Any], sequence: dict[str, Any], node_ids: set[str]
+) -> None:
+    """Zero the loss mask over the given nodes' sampled spans, in place.
+
+    Their tokens stay in `input_ids` as context — the model did condition on them — but stop being
+    targets, and the sequence's trainable count is corrected to match.
+    """
+    by_node = {t["node_id"]: t for t in document.get("turns", [])}
+    mask = sequence.get("loss_mask")
+    if not mask:
+        return
+    offset = 0
+    for node_id in sequence["node_ids"]:
+        node = by_node.get(node_id, {})
+        n_prompt = int(node.get("n_prompt", 0))
+        n_sampled = int(node.get("n_sampled", 0))
+        # The first turn contributes its whole prompt; later ones only the interstitial context, which
+        # is why the running offset is tracked rather than recomputed from n_prompt each time.
+        start = n_prompt if offset == 0 else offset
+        if node_id in node_ids:
+            for i in range(start, min(start + n_sampled, len(mask))):
+                mask[i] = 0
+        offset = start + n_sampled
+    sequence["n_trainable"] = sum(mask)
+    sequence["trainable"] = bool(sequence["n_trainable"]) and sequence.get(
+        "trainable", True
+    )
 
 
 def _trial_dir(
