@@ -225,7 +225,38 @@ class RolloutGraph:
         self._children.setdefault(node.node_id, [])
         if node.parent_id is not None:
             self._children[node.parent_id].append(node.node_id)
+        self._adopt_orphaned_roots(node)
         return node
+
+    def _adopt_orphaned_roots(self, node: TurnNode) -> None:
+        """Re-parent existing roots that this node turns out to precede.
+
+        `_find_parent` only looks backwards, and it skips any candidate whose `end_ids` is longer than
+        the new node's prompt. So a turn that arrives BEFORE its own ancestor was permanently orphaned:
+        ingesting `[1,2,3,4] -> [5]` and then `[1,2] -> [3]` produced two roots and split one genuine
+        two-turn trajectory in half.
+
+        That contradicts the guarantee this class documents — arrival order is not meaningful, because
+        harnesses issue concurrent requests — and the existing arrival-order test only covered the
+        ancestor-first direction. Linking is symmetric now: on insert, look forwards too.
+
+        Only roots are considered. A node that already has a parent was matched against a longer, more
+        specific prefix, and stealing it would move a turn away from its immediate predecessor.
+        """
+        end = node.end_ids
+        if not end:
+            return
+        for candidate_id in self._order:
+            if candidate_id == node.node_id:
+                continue
+            candidate = self._nodes[candidate_id]
+            if candidate.parent_id is not None:
+                continue
+            if len(end) > len(candidate.prompt_ids):
+                continue
+            if common_prefix_len(end, candidate.prompt_ids) == len(end):
+                candidate.parent_id = node.node_id
+                self._children[node.node_id].append(candidate_id)
 
     def _find_parent(self, node: TurnNode) -> str | None:
         """The existing node whose prompt+completion is the LONGEST exact prefix of this prompt.
@@ -337,9 +368,24 @@ class RolloutGraph:
 
         The final turn of a real trajectory is also childless, so a sibling is only called discarded
         when at least one of its siblings continued.
+
+        Siblings come in two shapes, and only one of them is a fork. Retrying a MID-conversation call
+        gives the attempts a shared parent, so `forks()` finds them. Retrying the FIRST call — resampled
+        before any tool result exists, so both attempts carry the identical prompt — gives two roots
+        with `parent_id=None`, which is not a fork at all: the abandoned attempt was exported as a full
+        agent sequence and trained with the rollout's reward. Roots are therefore grouped by their exact
+        prompt, which is precise rather than heuristic — a subagent or an auxiliary call starts from a
+        different prompt and never groups with the real first turn.
         """
         discarded: list[TurnNode] = []
-        for _, kids in self.forks():
+        sibling_groups: list[list[str]] = [kids for _, kids in self.forks()]
+
+        by_prompt: dict[tuple[int, ...], list[str]] = {}
+        for node in self.roots():
+            by_prompt.setdefault(tuple(node.prompt_ids), []).append(node.node_id)
+        sibling_groups.extend(group for group in by_prompt.values() if len(group) > 1)
+
+        for kids in sibling_groups:
             continued = [k for k in kids if self._children.get(k)]
             if not continued:
                 continue  # all siblings are terminal: ambiguous, keep them all
