@@ -153,6 +153,19 @@ class TurnNode:
     # manifest is part of the rendered prompt, so a re-tokenization without it does not match what
     # the engine actually saw.
     request_tools: list[dict[str, Any]] | None = None
+    # The sampling parameters the harness actually asked for, recorded because they change what the
+    # captured logprob MEANS.
+    #
+    # With `--logprobs-mode processed_logprobs` vLLM applies log_softmax after every logit processor,
+    # so a harness sampling with top_p<1, top_k, or a repetition penalty yields logprobs over a
+    # truncated and renormalised distribution — while a trainer recomputing over the full vocabulary
+    # gets different numbers for the same tokens. Neither side is wrong; they are answers to different
+    # questions, and the mismatch is invisible unless the parameters travel with the turn.
+    #
+    # Not stripped: they are the policy that produced these tokens, and removing them would change
+    # what was sampled. Recorded instead, so a recompute can reproduce the same processors — and so a
+    # rollout using them is at least identifiable after the fact.
+    sampling_params: dict[str, Any] = field(default_factory=dict)
     response_message: dict[str, Any] = field(default_factory=dict)
 
     @property

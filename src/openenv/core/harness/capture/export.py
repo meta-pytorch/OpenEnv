@@ -170,6 +170,9 @@ def export_session(
             "n_tools": node.n_tools,
             "finish_reason": node.finish_reason,
             "harness_session_id": node.harness_session_id,
+            # Travels with the turn because it decides whether a trainer's recompute is comparable to
+            # the captured logprob at all. See `TurnNode.sampling_params`.
+            "sampling_params": node.sampling_params,
             "discarded": node.node_id in discarded_ids,
             **(
                 {

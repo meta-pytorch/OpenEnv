@@ -50,6 +50,10 @@ class HarborTurn(BaseModel):
     # flag those zeros are indistinguishable from a genuine logprob of 0.0, i.e. a p=1.0 token, and a
     # per-turn trainer would take them at face value.
     trainable: bool = True
+    # What the harness asked for when this turn was sampled. A processed logprob is taken over the
+    # distribution AFTER these are applied, so a trainer recomputing over the full vocabulary will not
+    # match unless it applies them too.
+    sampling_params: dict[str, Any] = Field(default_factory=dict)
 
     # What the model actually produced, in readable form. Only the assistant's own output is kept,
     # never the prompt side: the prompt is already present as token ids and repeating it as text
@@ -308,6 +312,7 @@ def turns_from_document(document: dict[str, Any]) -> list[HarborTurn]:
                     n_tools=node.get("n_tools", 0),
                     discarded=bool(node.get("discarded")),
                     trainable=trainable,
+                    sampling_params=node.get("sampling_params") or {},
                     text=_assistant_text(response),
                     tool_calls=_tool_calls(response),
                 )

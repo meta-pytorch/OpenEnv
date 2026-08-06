@@ -179,6 +179,18 @@ def wants_stream(path: str, body: dict[str, Any]) -> bool:
 
 _MAX_TOKENS_KEYS = ("max_tokens", "max_completion_tokens", "max_output_tokens")
 
+# Sampling knobs that alter the distribution a processed logprob is taken over. Recorded per turn so a
+# trainer can tell whether its own recompute is comparable; see `TurnNode.sampling_params`.
+SAMPLING_KEYS = (
+    "temperature",
+    "top_p",
+    "top_k",
+    "min_p",
+    "frequency_penalty",
+    "presence_penalty",
+    "repetition_penalty",
+)
+
 
 def clamp_output_tokens(chat_request: dict[str, Any], cap: int | None) -> int | None:
     """Cap the requested output length so prompt + completion fits the served context window.
@@ -664,6 +676,11 @@ def create_app(
                     n_tools=len(chat_request.get("tools") or []),
                     request_messages=chat_request.get("messages") or [],
                     request_tools=chat_request.get("tools"),
+                    sampling_params={
+                        key: chat_request[key]
+                        for key in SAMPLING_KEYS
+                        if chat_request.get(key) is not None
+                    },
                     response_message=choice.get("message") or {},
                 )
             )
