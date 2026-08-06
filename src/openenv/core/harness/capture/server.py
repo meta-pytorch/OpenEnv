@@ -52,7 +52,7 @@ from .dialects import TransformManager
 from .export import export_session
 from .graph import TurnNode
 from .sessions import extract_api_key, extract_harness_session, SessionRegistry
-from .upstream import InferenceClient, UpstreamError
+from .upstream import InferenceClient, truncating_params, UpstreamError
 from .validate import check_turn, check_turn_eval
 
 logger = logging.getLogger("intercept")
@@ -148,6 +148,29 @@ def approximate_token_count(body: dict[str, Any]) -> int:
         text_len += sum(
             len(str(p.get("text", ""))) for p in system if isinstance(p, dict)
         )
+
+    # Google puts the conversation in `contents` with `parts`, and the system prompt in
+    # `systemInstruction` — neither of which the OpenAI/Anthropic branches above look at. Without this
+    # a `:countTokens` call collapsed to the `max(1, ...)` floor and answered 1 on every request, so
+    # gemini-cli got a useless context-budget signal and could mismanage compaction mid-rollout. The
+    # aux route answers Google now, so the estimator has to speak Google too.
+    for content in body.get("contents") or []:
+        if not isinstance(content, dict):
+            continue
+        for part in content.get("parts") or []:
+            if isinstance(part, dict):
+                text_len += len(str(part.get("text") or ""))
+            elif isinstance(part, str):
+                text_len += len(part)
+    instruction = body.get("systemInstruction") or body.get("system_instruction")
+    if isinstance(instruction, dict):
+        for part in instruction.get("parts") or []:
+            if isinstance(part, dict):
+                text_len += len(str(part.get("text") or ""))
+    elif isinstance(instruction, str):
+        text_len += len(instruction)
+
+    # Tool manifests count too, under each dialect's own spelling.
     text_len += len(str(body.get("tools") or ""))
     return max(1, text_len // 4)
 
@@ -662,6 +685,20 @@ def create_app(
                     # Still recorded, with logprobs dropped: the tokens are real context for later
                     # turns, and `sequence_for` masks a turn whose logprobs it cannot trust.
                     logprobs = None
+
+            # A rewritten request is how an eval number becomes unreproducible, so say so — once per
+            # session, since every turn of a given harness sends the same knobs.
+            if capture_level == "tokens":
+                overridden = truncating_params(chat_request)
+                if overridden and not session.metadata.get("sampling_overridden"):
+                    session.metadata["sampling_overridden"] = overridden
+                    session.findings.append(
+                        "WARN sampling_neutralised: the harness asked for "
+                        + ", ".join(f"{k}={v}" for k, v in sorted(overridden.items()))
+                        + "; these were sent upstream at their no-op values because a processed "
+                        "logprob is taken after they are applied, which would bias a full-vocab "
+                        "recompute. Trace records the request as sent by the harness."
+                    )
 
             session.graph.add_turn(
                 TurnNode(
