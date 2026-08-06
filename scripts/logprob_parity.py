@@ -58,8 +58,16 @@ import argparse
 import json
 import sys
 import urllib.request
+from pathlib import Path
 
-sys.path.insert(0, "/fsx/adithyaskolavi/projects/trl_prod/OpenEnv/src")
+# Resolved from this file's own location, so the script runs from any checkout. It used to carry an
+# absolute path from the machine it was written on, which meant it could not run anywhere else — and
+# a check nobody can run is not a check. Prepended only when `openenv` is not already importable, so
+# an installed package still wins over the working tree.
+try:  # noqa: SIM105
+    import openenv  # noqa: F401
+except ImportError:
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from openenv.core.harness.capture.contract import to_turn_records  # noqa: E402
 from openenv.core.harness.capture.export import export_session  # noqa: E402

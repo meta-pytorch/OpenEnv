@@ -33,7 +33,12 @@ _MODEL = os.environ.get("OPENENV_MODEL", "")
 _API_KEY = os.environ.get("OPENENV_LLM_API_KEY", "") or None
 _AUTH_HEADER = os.environ.get("OPENENV_LLM_AUTH_HEADER", "") or "Authorization"
 _LLM: dict = {}
-_CAPTURE_LEVEL = "tokens"
+# "text", not "tokens". This is the value used when the probe never ran or never finished — an
+# ambiguous model list, an unset model, an endpoint that raised — and defaulting it optimistically
+# meant a Space in exactly that state built its proxy at token level and stamped every rollout it
+# produced as trainable. Which is the one failure this whole capture level exists to prevent, so the
+# unknown case has to assume the weaker tier and be corrected upward only by evidence.
+_CAPTURE_LEVEL = "text"
 
 # Ask the endpoint what it serves when `OPENENV_MODEL` was not set, the same way `harbor serve` does.
 # Without this the proxy has no served model id and stops rewriting `model` on the way upstream, so
@@ -71,10 +76,28 @@ if _LLM_URL:
             "url": _LLM_URL,
             "model": _MODEL,
             "ok": False,
+            "reachable": False,
+            "capture_level": _CAPTURE_LEVEL,
             "findings": [
                 f"could not reach the LLM at startup: {type(exc).__name__}: {exc}"
             ],
         }
+
+    if not _MODEL:
+        # Reached when the endpoint serves several models and none was named. The proxy then cannot
+        # rewrite `model` upstream, so nothing will work anyway — but it must not claim to be
+        # trainable while failing.
+        _LLM.setdefault("url", _LLM_URL)
+        _LLM.setdefault("ok", False)
+        _LLM.setdefault("reachable", False)
+        _LLM.setdefault(
+            "findings",
+            [
+                "no model resolved: set OPENENV_MODEL, or point at an endpoint that serves "
+                "exactly one model"
+            ],
+        )
+        _LLM["capture_level"] = _CAPTURE_LEVEL
 
 # Resolve capture before the app is built. A Space gives no separate boot hook, the UI needs the
 # proxy's public URL to exist by the time anyone presses Run, and `build_app` has to see the service
