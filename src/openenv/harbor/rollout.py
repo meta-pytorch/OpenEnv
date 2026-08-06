@@ -533,18 +533,27 @@ def _mask_out_nodes(
     mask = sequence.get("loss_mask")
     if not mask:
         return
-    offset = 0
     for node_id in sequence["node_ids"]:
+        if node_id not in node_ids:
+            continue
         node = by_node.get(node_id, {})
         n_prompt = int(node.get("n_prompt", 0))
         n_sampled = int(node.get("n_sampled", 0))
-        # The first turn contributes its whole prompt; later ones only the interstitial context, which
-        # is why the running offset is tracked rather than recomputed from n_prompt each time.
-        start = n_prompt if offset == 0 else offset
-        if node_id in node_ids:
-            for i in range(start, min(start + n_sampled, len(mask))):
-                mask[i] = 0
-        offset = start + n_sampled
+        # `n_prompt` IS the sequence-coordinate start of this turn's sampled span — no running offset
+        # is needed, and tracking one was wrong.
+        #
+        # A node's `prompt_ids` is the whole conversation prefix, and `sequence_for` lays a child out as
+        # (interstitial context, sampled) where the context is `prompt_ids[len(parent.end_ids):]`. The
+        # two cancel: cumulative-before-sampled for turn k is
+        #     n_prompt(k-1) + n_sampled(k-1) + (n_prompt(k) - n_prompt(k-1) - n_sampled(k-1)) = n_prompt(k)
+        # The first version advanced an offset as if each turn were only prompt-plus-sampled, so from
+        # the second turn on `start` landed on the interstitial context: it zeroed positions that were
+        # already 0 and left the aux node's real completion tokens at mask 1, which meant this function
+        # silently did nothing and aux calls kept being credited with the task's reward.
+        #
+        # `turns_from_document` slices the same way, so the two cannot disagree.
+        for i in range(n_prompt, min(n_prompt + n_sampled, len(mask))):
+            mask[i] = 0
     sequence["n_trainable"] = sum(mask)
     sequence["trainable"] = bool(sequence["n_trainable"]) and sequence.get(
         "trainable", True
