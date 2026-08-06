@@ -83,6 +83,7 @@ class CaptureServer:
         api_key: str | None = None,
         auth_header: str = "Authorization",
         capture_level: str = "tokens",
+        admin_key: str | None = None,
     ) -> None:
         self.app = create_app(
             llm_url=llm_url,
@@ -91,8 +92,10 @@ class CaptureServer:
             api_key=api_key,
             auth_header=auth_header,
             capture_level=capture_level,
+            admin_key=admin_key,
         )
         self.capture_level = capture_level
+        self.admin_key = admin_key
         self.port = port
         self._thread: threading.Thread | None = None
         self._server: Any = None

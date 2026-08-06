@@ -19,6 +19,7 @@ open relay.
 from __future__ import annotations
 
 import os
+import secrets
 import threading
 from typing import Any
 
@@ -70,6 +71,16 @@ class HarborService:
         auth_header: str = "Authorization",
         capture_level: str = "tokens",
     ) -> None:
+        # The management routes are the trainer's control plane; the proxy route is the agent's data
+        # plane. Published or mounted, both are reachable by anyone who has the URL, so the control
+        # plane gets its own key — minted here rather than configured, because nothing outside this
+        # process needs to know it and an operator who has to invent one will skip it.
+        # Honours $OPENENV_CAPTURE_ADMIN_KEY so an operator who wants to call the management routes
+        # can choose the key; otherwise a random one, which locks the routes without putting a secret
+        # nobody asked for into the logs.
+        self.admin_key = os.environ.get(
+            "OPENENV_CAPTURE_ADMIN_KEY"
+        ) or secrets.token_urlsafe(24)
         self.llm_url = llm_url
         self.model = model
         self.datasets = datasets
@@ -81,6 +92,7 @@ class HarborService:
             api_key=api_key,
             auth_header=auth_header,
             capture_level=capture_level,
+            admin_key=self.admin_key,
         )
         self._expose_kind = expose
         self.public_url = ""
@@ -203,6 +215,9 @@ def serve_harbor(
 
     where = "mounted on this app" if service.mounted else f":{capture_port}"
     print(f"\ncapture   {where} -> {public}")
+    print(
+        "          session routes are gated; set OPENENV_CAPTURE_ADMIN_KEY to call them yourself"
+    )
     if capture_level != "tokens":
         # Repeated after the capabilities report, because this is the last line before the server
         # starts serving and it changes what every rollout from it is worth.

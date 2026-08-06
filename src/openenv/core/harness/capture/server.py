@@ -39,6 +39,7 @@ from __future__ import annotations
 import argparse
 import logging
 import os
+import secrets
 import uuid
 from typing import Any
 
@@ -50,7 +51,7 @@ from .detection import APIType, detect
 from .dialects import TransformManager
 from .export import export_session
 from .graph import TurnNode
-from .sessions import extract_harness_session, SessionRegistry
+from .sessions import extract_api_key, extract_harness_session, SessionRegistry
 from .upstream import InferenceClient, UpstreamError
 from .validate import check_turn, check_turn_eval
 
@@ -80,12 +81,46 @@ def _system_digest(messages: list[dict[str, Any]]) -> str | None:
 # (v1/dialects/anthropic.py:273, "relayed as native JSON, never recorded on the trace").
 # claude-code calls count_tokens before sending a turn; without this the catch-all would hand it to
 # `transform_request`, forward nonsense upstream, and file the result as a model call.
-AUX_ROUTES: tuple[str, ...] = ("/v1/messages/count_tokens",)
+# Each entry maps a route suffix to the DIALECT whose reply shape the caller expects. Answering an
+# aux route in the wrong shape is its own bug: gemini-cli's `:countTokens` used to fall through to the
+# catch-all, get detected as GOOGLE, turn into a real chat completion, land in the graph as a bogus
+# root that inflated n_turns, and hand the caller a `{"candidates": [...]}` envelope where it wanted
+# `{"totalTokens": N}`.
+AUX_ROUTES: dict[str, str] = {
+    "/v1/messages/count_tokens": "anthropic",
+    ":counttokens": "google",
+}
+
+
+def aux_dialect(path: str) -> str | None:
+    """Which dialect's token-count reply this path expects, or `None` if it is not an aux route.
+
+    Google puts the method after a colon on the model path
+    (`/v1beta/models/gemini-2.5-pro:countTokens`), so suffix matching has to be case-insensitive
+    rather than an exact path compare.
+    """
+    normalised = ("/" + path.lstrip("/")).lower()
+    for route, dialect in AUX_ROUTES.items():
+        if normalised.endswith(route):
+            return dialect
+    return None
 
 
 def is_aux_route(path: str) -> bool:
-    normalised = "/" + path.lstrip("/")
-    return any(normalised.endswith(route) for route in AUX_ROUTES)
+    return aux_dialect(path) is not None
+
+
+def aux_token_count_response(dialect: str, count: int) -> dict[str, Any]:
+    """The token-count reply in the shape the calling dialect expects."""
+    if dialect == "google":
+        # gemini-cli reads `totalTokens`; the other two fields are part of the documented response and
+        # cheap to include rather than have a client guess at their absence.
+        return {
+            "totalTokens": count,
+            "totalBillableCharacters": count * 4,
+            "promptTokensDetails": [{"modality": "TEXT", "tokenCount": count}],
+        }
+    return {"input_tokens": count}
 
 
 def approximate_token_count(body: dict[str, Any]) -> int:
@@ -289,6 +324,7 @@ def create_app(
     api_key: str | None = None,
     auth_header: str = "Authorization",
     capture_level: str = "tokens",
+    admin_key: str | None = None,
 ) -> FastAPI:
     """The capture proxy as an ASGI app.
 
@@ -314,6 +350,9 @@ def create_app(
         capture_level (`str`, *optional*, defaults to `"tokens"`):
             What the upstream can return, as decided by `validate_llm`. Below `tokens` every rollout
             from this app is an eval rollout.
+        admin_key (`str`, *optional*):
+            Required by the session-management routes when set. Leave unset for a private port; set it
+            whenever this app is reachable from outside, which `serve` does automatically.
     """
     app = FastAPI(title="openenv-capture")
 
@@ -335,6 +374,7 @@ def create_app(
     app.state.llm_url = llm_url
     app.state.max_output_tokens = max_output_tokens
     app.state.capture_level = capture_level
+    app.state.admin_key = admin_key or None
 
     @app.get("/health")
     async def health() -> dict[str, Any]:
@@ -355,9 +395,47 @@ def create_app(
             "param_fixes": [str(f) for f in app.state.inference.param_fixes],
         }
 
+    def _admin_ok(request: Request) -> bool:
+        """Whether a caller may use the session-management routes.
+
+        The registered-session check guards the catch-all proxy route and nothing else, which is fine
+        while this app owns a private port and wrong once it is mounted at `/capture` on a public
+        Space: `GET /sessions` enumerated every live rollout, `GET /sessions/{id}/rollout` returned its
+        full token-level training data, `DELETE` ended it, and `POST /sessions` let anyone mint a key
+        that the proxy would then honour — turning the endpoint into the open relay the 401 exists to
+        prevent.
+
+        Gated on the ADMIN key rather than a session id, because these routes are the trainer's
+        control plane, not the agent's data plane. `admin_key` defaults to unset, which keeps a
+        local run on a private port exactly as convenient as before; `serve`/`push` set it whenever
+        the proxy is reachable from outside.
+        """
+        expected = app.state.admin_key
+        if not expected:
+            return True
+        offered = extract_api_key(dict(request.headers)) or ""
+        # Constant-time: these are short strings and the comparison is cheap, but a timing oracle on a
+        # public endpoint is free to exploit and free to close.
+        return secrets.compare_digest(offered, expected)
+
+    def _forbidden() -> JSONResponse:
+        return JSONResponse(
+            {
+                "error": {
+                    "message": "this route requires the capture admin key",
+                    "type": "invalid_request_error",
+                }
+            },
+            status_code=401,
+        )
+
     @app.post("/sessions")
-    async def create_session(payload: dict[str, Any] | None = None) -> dict[str, Any]:
+    async def create_session(
+        request: Request, payload: dict[str, Any] | None = None
+    ) -> Any:
         """Mint a rollout id. Hand it to the agent as its API key; that is the whole integration."""
+        if not _admin_ok(request):
+            return _forbidden()
         payload = payload or {}
         session = app.state.registry.create(
             payload.get("session_id"), **(payload.get("metadata") or {})
@@ -365,11 +443,15 @@ def create_app(
         return {"session_id": session.session_id}
 
     @app.get("/sessions")
-    async def list_sessions() -> dict[str, Any]:
+    async def list_sessions(request: Request) -> Any:
+        if not _admin_ok(request):
+            return _forbidden()
         return {"sessions": app.state.registry.summary()}
 
     @app.get("/sessions/{session_id}")
-    async def session_status(session_id: str) -> Any:
+    async def session_status(session_id: str, request: Request) -> Any:
+        if not _admin_ok(request):
+            return _forbidden()
         """Live progress. `idle_s` is the cheapest wedge detector: turns arriving means progress."""
         session = app.state.registry.get(session_id)
         if session is None:
@@ -383,9 +465,14 @@ def create_app(
 
     @app.get("/sessions/{session_id}/rollout")
     async def rollout(
-        session_id: str, include_discarded: bool = False, include_messages: bool = False
+        session_id: str,
+        request: Request,
+        include_discarded: bool = False,
+        include_messages: bool = False,
     ) -> Any:
         """THE training endpoint: stitched, masked, logprob-aligned, validated."""
+        if not _admin_ok(request):
+            return _forbidden()
         session = app.state.registry.get(session_id)
         if session is None:
             return JSONResponse({"error": "unknown session"}, status_code=404)
@@ -397,7 +484,9 @@ def create_app(
         )
 
     @app.delete("/sessions/{session_id}")
-    async def delete_session(session_id: str) -> dict[str, Any]:
+    async def delete_session(session_id: str, request: Request) -> Any:
+        if not _admin_ok(request):
+            return _forbidden()
         return {"deleted": app.state.registry.delete(session_id)}
 
     @app.get("/v1/models")
@@ -417,9 +506,12 @@ def create_app(
 
         # Answered, never recorded. Must come before session routing and dialect handling: an aux
         # route is not a model turn, so it has no business creating a node or a session.
-        if is_aux_route(path):
-            logger.info("aux route %s (answered, not recorded)", path)
-            return JSONResponse({"input_tokens": approximate_token_count(body)})
+        aux = aux_dialect(path)
+        if aux is not None:
+            logger.info("aux route %s (answered as %s, not recorded)", path, aux)
+            return JSONResponse(
+                aux_token_count_response(aux, approximate_token_count(body))
+            )
 
         session = app.state.registry.resolve(headers, body)
         if session is None:
@@ -495,9 +587,31 @@ def create_app(
         producing usable data, and certainly not take down the server serving every other rollout.
         """
         try:
-            choice = (response.get("choices") or [{}])[0]
+            choices = response.get("choices") or []
+            if not choices:
+                # A 200 with no choices is not a turn. Recording it produced a node with no prompt and
+                # no completion, which inflated n_turns and n_roots and could push a worthless rollout
+                # past the `degenerate_rollout` FATAL that exists to catch exactly that.
+                logger.warning(
+                    "[%s] upstream returned 200 with no choices; not recording a turn",
+                    session.session_id,
+                )
+                session.upstream_errors += 1
+                return
+            choice = choices[0] or {}
             logprob_entries = (choice.get("logprobs") or {}).get("content") or []
             logprobs = [e.get("logprob") for e in logprob_entries] or None
+            # A None inside the list passes the length check and then crashes export on `None > 0.0`,
+            # turning `GET /sessions/{id}/rollout` into a 500. Missing values mean the turn cannot be
+            # trained on, which is what dropping them to None already signals.
+            if logprobs is not None and any(lp is None for lp in logprobs):
+                logger.warning(
+                    "[%s] %d of %d logprobs are null; treating the turn as untrainable",
+                    session.session_id,
+                    sum(1 for lp in logprobs if lp is None),
+                    len(logprobs),
+                )
+                logprobs = None
             sampled_ids = choice.get("token_ids") or []
             prompt_ids = response.get("prompt_token_ids") or []
             index = session.graph.stats()["n_turns"]
