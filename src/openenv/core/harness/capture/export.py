@@ -35,7 +35,7 @@ from .validate import check_rollout, check_sequence
 AGENT, AUXILIARY, DISCARDED = "agent", "auxiliary", "discarded"
 
 
-def _assign_roles(graph, sequences) -> list[str]:
+def _assign_roles(graph, sequences, *, trainable_capture: bool = True) -> list[str]:
     """Label each flattened path. Purely structural.
 
     - a path ending in a discarded node (a sibling that never continued) is a retry
@@ -76,7 +76,16 @@ def _assign_roles(graph, sequences) -> list[str]:
             roles.append(DISCARDED)
             continue
         if not any_tools:
-            roles.append(AGENT if seq.n_trainable else AUXILIARY)
+            # `n_trainable` is the tiebreak only where it can mean something. On an eval endpoint it
+            # is 0 for every sequence by construction, so using it there labelled EVERY path auxiliary
+            # for a harness that sends no tool manifest — terminus-2 parses tool calls out of raw text
+            # — which emptied `result.turns` and mistagged the conversations, on a rollout that had
+            # captured perfectly well. With neither tools nor token counts to discriminate on, a live
+            # path is the agent working: that is the same conclusion the tool rule reaches, and the
+            # cost of being wrong is a mislabelled trace rather than a mistrained token, since nothing
+            # here is trainable anyway.
+            usable = seq.n_trainable if trainable_capture else bool(seq.node_ids)
+            roles.append(AGENT if usable else AUXILIARY)
             continue
         has_tools = any(graph.get(nid).n_tools > 0 for nid in seq.node_ids)
         roles.append(AGENT if has_tools else AUXILIARY)
@@ -123,7 +132,7 @@ def export_session(
     # every one of its findings is about token arrays that are empty by design, and no row is ever
     # marked trainable. The token fields stay as the empty lists the graph produced.
     sequences = graph.sequences()
-    roles = _assign_roles(graph, sequences)
+    roles = _assign_roles(graph, sequences, trainable_capture=trainable_capture)
 
     rows: list[dict[str, Any]] = []
     for seq, role in zip(sequences, roles):

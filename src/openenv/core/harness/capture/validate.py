@@ -97,7 +97,19 @@ def check_turn(
                 "logprobs. GRPO's importance ratio needs the behaviour-policy logprob for "
                 "every trainable token; without them the turn can only be context.",
             )
-    elif len(logprobs) != len(sampled_ids):
+    if finish_reason == "length":
+        # WARN rather than FATAL: the tokens and their logprobs are genuine, so the turn is real
+        # training data. What is not real is its ENDING — the model was cut off by the output cap
+        # mid-thought, and nothing downstream distinguished that from a turn that chose to stop. A
+        # trajectory made of truncated turns teaches the policy to stop early.
+        report.add(
+            WARN,
+            "truncated_turn",
+            f"{tag}: stopped on the output-token cap ({len(sampled_ids)} tokens), so this turn was "
+            "cut off rather than finished. Its tokens are valid; its ending is an artefact of the cap.",
+        )
+
+    if logprobs is not None and len(logprobs) != len(sampled_ids):
         report.add(
             FATAL,
             "logprob_misalign",

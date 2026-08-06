@@ -44,6 +44,12 @@ class HarborTurn(BaseModel):
     per_token_logps: list[float] = Field(default_factory=list)
     n_tools: int = 0
     discarded: bool = False
+    # Whether THIS turn's logprobs may be trained on. False when ingest rejected them (`check_turn`
+    # drops `sampled_logprobs` but keeps the sampled ids, so the tokens remain valid context for later
+    # turns) — after which `sequence_for` masks the turn out and zero-fills its logprobs. Without this
+    # flag those zeros are indistinguishable from a genuine logprob of 0.0, i.e. a p=1.0 token, and a
+    # per-turn trainer would take them at face value.
+    trainable: bool = True
 
     # What the model actually produced, in readable form. Only the assistant's own output is kept,
     # never the prompt side: the prompt is already present as token ids and repeating it as text
@@ -282,6 +288,13 @@ def turns_from_document(document: dict[str, Any]) -> list[HarborTurn]:
             n_sampled = int(node.get("n_sampled", 0))
             end = n_prompt + n_sampled
 
+            # `sequence_for` masks a whole turn in or out, so the mask over a turn's sampled span is
+            # uniform and one boolean carries it. Read from the mask rather than recomputed, so this
+            # cannot drift from the decision the flattener already made.
+            mask = sequence.get("loss_mask") or []
+            span = mask[n_prompt:end]
+            trainable = bool(span) and all(m == 1 for m in span)
+
             rows.append(
                 HarborTurn(
                     turn=index,
@@ -294,6 +307,7 @@ def turns_from_document(document: dict[str, Any]) -> list[HarborTurn]:
                     per_token_logps=logprobs[n_prompt:end],
                     n_tools=node.get("n_tools", 0),
                     discarded=bool(node.get("discarded")),
+                    trainable=trainable,
                     text=_assistant_text(response),
                     tool_calls=_tool_calls(response),
                 )

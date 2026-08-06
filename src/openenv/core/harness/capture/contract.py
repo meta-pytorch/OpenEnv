@@ -24,9 +24,32 @@ model + harness pair instead of guessing.
 
 from __future__ import annotations
 
+import logging
 from typing import Any
 
 from .graph import RolloutGraph, TurnNode
+
+logger = logging.getLogger(__name__)
+
+
+def _usable(node: TurnNode) -> bool:
+    """Whether this turn's sampled ids and logprobs describe the same tokens.
+
+    The same guard `sequence_for` applies before masking a turn in, applied here too. These adapters
+    walk the graph directly, so they used to emit `completion_token_ids` with every sampled id and
+    `per_token_logps` as `[]` whenever ingest had rejected the logprobs — an unequal pair with no
+    assertion anywhere, which a consumer zipping the two silently misattributes across every token of
+    the turn.
+
+    A turn that fails this is skipped rather than emitted short, and the caller logs how many, because
+    `n_trainable_tokens` already excludes them and dropping them keeps the two counts consistent.
+    """
+    logprobs = node.sampled_logprobs
+    return (
+        bool(node.sampled_ids)
+        and bool(logprobs)
+        and len(logprobs) == len(node.sampled_ids)
+    )
 
 
 def _require_trainable(document: dict[str, Any]) -> None:
@@ -47,6 +70,19 @@ def _require_trainable(document: dict[str, Any]) -> None:
             "trace, but no token ids or logprobs, so there is no training contract to build. Point "
             "the capture proxy at vLLM (--return-tokens-as-token-ids --logprobs-mode "
             "processed_logprobs) or SGLang built from main to get trainable rollouts."
+        )
+
+
+def _warn_skipped(nodes: list[TurnNode]) -> None:
+    """Say out loud how many turns are being left out, and why."""
+    skipped = [n.node_id for n in nodes if not _usable(n)]
+    if skipped:
+        logger.warning(
+            "omitting %d of %d agent turn(s) from the training contract: their logprobs were "
+            "rejected on ingest, so ids and logprobs do not describe the same tokens (%s)",
+            len(skipped),
+            len(nodes),
+            ", ".join(skipped[:5]),
         )
 
 
@@ -84,7 +120,11 @@ def to_trace_entries(
     """
     _require_trainable(document)
     entries = []
-    for node in _agent_nodes(graph, document):
+    nodes = _agent_nodes(graph, document)
+    _warn_skipped(nodes)
+    for node in nodes:
+        if not _usable(node):
+            continue
         entries.append(
             {
                 "request": {
@@ -118,9 +158,12 @@ def to_turn_records(
         ValueError: If `document` is an eval rollout. See `_require_trainable`.
     """
     _require_trainable(document)
+    nodes = _agent_nodes(graph, document)
+    _warn_skipped(nodes)
     return [
         (node.prompt_ids, node.sampled_ids, node.sampled_logprobs or [])
-        for node in _agent_nodes(graph, document)
+        for node in nodes
+        if _usable(node)
     ]
 
 
