@@ -772,3 +772,60 @@ def test_reasoning_forced_off_warns_at_validate_time(monkeypatch):
         "reasoning_effort" in f and "behaviour_changed" in f for f in report.findings
     )
     assert any("single model call" in f for f in report.findings)
+
+
+# --- roles must not depend on token counts that eval endpoints never have ----
+def test_a_toolless_harness_is_still_the_agent_on_an_eval_endpoint():
+    """terminus-2 parses tool calls out of raw text, so it sends no manifest. Role assignment used
+    `n_trainable` as the tiebreak when nothing had tools, and on an eval endpoint that is 0 for every
+    sequence — so every path was labelled auxiliary, `result.turns` came back empty and the
+    conversations were mistagged, on a rollout that had captured perfectly well."""
+    models = pytest.importorskip("openenv.harbor.models")
+    graph = graph_mod.RolloutGraph()
+    first = [{"role": "user", "content": "go"}]
+    graph.add_turn(
+        graph_mod.TurnNode(
+            node_id="a",
+            prompt_ids=[],
+            sampled_ids=[],
+            n_tools=0,
+            request_messages=first,
+            response_message={"role": "assistant", "content": "step 1"},
+        )
+    )
+    graph.add_turn(
+        graph_mod.TurnNode(
+            node_id="b",
+            prompt_ids=[],
+            sampled_ids=[],
+            n_tools=0,
+            request_messages=[
+                *first,
+                {"role": "assistant", "content": "step 1"},
+                {"role": "user", "content": "result"},
+            ],
+            response_message={"role": "assistant", "content": "done"},
+        )
+    )
+    document = export_mod.export_session(
+        FakeSession(graph), include_messages=True, capture_level="logprobs"
+    )
+    assert [r["role"] for r in document["sequences"]] == ["agent"]
+    assert len(models.turns_from_document(document)) == 2
+    assert len(models.conversations_from_document(document)) == 1
+
+
+def test_the_train_path_still_uses_trainable_tokens_as_the_tiebreak():
+    """Where token counts DO mean something, a toolless sequence with nothing trainable is auxiliary."""
+    graph = graph_mod.RolloutGraph()
+    graph.add_turn(
+        graph_mod.TurnNode(
+            node_id="a",
+            prompt_ids=[1, 2],
+            sampled_ids=[3],
+            sampled_logprobs=None,  # rejected on ingest -> masked out -> nothing trainable
+            n_tools=0,
+        )
+    )
+    document = export_mod.export_session(FakeSession(graph), capture_level="tokens")
+    assert [r["role"] for r in document["sequences"]] == ["auxiliary"]

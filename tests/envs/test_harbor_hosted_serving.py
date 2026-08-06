@@ -130,3 +130,51 @@ def test_a_failed_forwarder_does_not_leave_the_capture_server_running(monkeypatc
 
     assert stopped == [True], "the capture server was left holding its port"
     assert service.public_url in (None, "")
+
+
+def test_a_space_that_cannot_probe_does_not_claim_to_be_trainable(
+    monkeypatch, tmp_path
+):
+    """The Space entry point defaulted `_CAPTURE_LEVEL` to "tokens" and only corrected it when a model
+    resolved AND the probe succeeded. An ambiguous model list, an unset model or a raising probe left
+    it at token level, so the proxy was built for capture and every rollout was stamped trainable —
+    the exact mislabelling the capture level exists to prevent. Unknown must mean the weaker tier.
+    """
+    import runpy
+
+    monkeypatch.setenv("OPENENV_LLM_URL", "http://127.0.0.1:9/v1")
+    monkeypatch.delenv("OPENENV_MODEL", raising=False)
+    monkeypatch.delenv("SPACE_HOST", raising=False)
+    monkeypatch.delenv("SPACE_ID", raising=False)
+    # Serves two models and names neither, so nothing resolves and the probe never runs.
+    #
+    # Patched through the module OBJECT, not the dotted string: the package re-exports a function
+    # called `validate_llm` which shadows the same-named submodule, so the string form resolves to the
+    # function and monkeypatch fails with "'function' object has no attribute 'list_models'".
+    import importlib
+
+    validate_llm_mod = importlib.import_module(
+        "openenv.core.harness.capture.validate_llm"
+    )
+    monkeypatch.setattr(validate_llm_mod, "list_models", lambda *a, **k: ["one", "two"])
+    # The service must not be started for real; capture the level it would have been built with.
+    built: dict = {}
+
+    class FakeService:
+        def __init__(self, **kwargs):
+            built.update(kwargs)
+
+        def start(self):
+            return ""
+
+        @classmethod
+        def set_current(cls, _service):
+            pass
+
+    monkeypatch.setattr(serving, "HarborService", FakeService)
+    monkeypatch.setattr(serving, "build_app", lambda **kwargs: kwargs)
+
+    runpy.run_module("harbor_env.server.app", run_name="not_main")
+    assert built.get("capture_level") == "text", (
+        "an unprobed endpoint must default to the weakest tier, never to tokens"
+    )
