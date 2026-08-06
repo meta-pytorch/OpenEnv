@@ -103,7 +103,9 @@ def post(url: str, body: dict, timeout: float = 300.0) -> dict:
         return json.loads(r.read())
 
 
-def capture_conversation(base: str, model: str, n_turns: int) -> RolloutGraph:
+def capture_conversation(
+    base: str, model: str, n_turns: int, top_p: float | None = None
+) -> RolloutGraph:
     """Drive a multi-turn tool conversation and build the graph exactly as the proxy would.
 
     The conversation grows the way a real agent's does — assistant reply, tool result, next call —
@@ -130,6 +132,14 @@ def capture_conversation(base: str, model: str, n_turns: int) -> RolloutGraph:
             "top_logprobs": 0,
             "return_token_ids": True,
         }
+        # Sampling with top_p<1 is what a harness does by default, and under
+        # `--logprobs-mode processed_logprobs` it changes what a captured logprob MEANS: vLLM masks
+        # the truncated tail to -inf and takes the log-softmax afterwards
+        # (`v1/sample/ops/topk_topp_sampler.py`, `apply_top_k_top_p` then `compute_logprobs`), so the
+        # captured value is renormalised over the surviving set. `rescore` below scores over the full
+        # vocabulary, which is what a trainer does, so the residual between them is the bias itself.
+        if top_p is not None:
+            body["top_p"] = top_p
         payload = normalize_response(post(f"{base}/v1/chat/completions", body))
         choice = (payload.get("choices") or [{}])[0]
         entries = ((choice.get("logprobs") or {}).get("content")) or []
@@ -241,6 +251,15 @@ def main() -> None:
     ap.add_argument("--model", required=True)
     ap.add_argument("--turns", type=int, default=3)
     ap.add_argument(
+        "--top-p",
+        type=float,
+        default=None,
+        help="sample with this top_p instead of the engine default. Use it to measure the "
+        "truncation bias directly: a processed logprob is taken after top_p masks the tail, so "
+        "the captured value is renormalised over the kept set while a trainer's recompute is not. "
+        "Expect a systematic residual of about -log(kept_mass) at p<1, and none at p=1.0.",
+    )
+    ap.add_argument(
         "--margin",
         type=float,
         default=3.0,
@@ -251,8 +270,11 @@ def main() -> None:
     args = ap.parse_args()
     base = normalise_engine_base(args.llm_url)
 
-    print(f"capturing a {args.turns}-turn tool conversation at temperature 1.0 ...")
-    graph = capture_conversation(base, args.model, args.turns)
+    knob = "engine default" if args.top_p is None else f"top_p={args.top_p}"
+    print(
+        f"capturing a {args.turns}-turn tool conversation at temperature 1.0, {knob} ..."
+    )
+    graph = capture_conversation(base, args.model, args.turns, top_p=args.top_p)
 
     class Session:
         session_id = "parity"
@@ -270,12 +292,19 @@ def main() -> None:
         f"captured {len(records)} turns, {sum(len(c) for _, c, _ in records)} sampled tokens\n"
     )
 
+    signed: list[float] = []
+
     def compare(prompt_ids, completion_ids, captured):
         recomputed = rescore(base, args.model, prompt_ids, completion_ids)
         pairs = [(a, b) for a, b in zip(captured, recomputed) if b is not None]
         diffs = [abs(a - b) for a, b in pairs]
         # exp(new - old) is literally what GRPO multiplies by.
         ratios = [pow(2.718281828459045, b - a) for a, b in pairs]
+        # Kept separately because a truncation bias and a misalignment look different: truncation is
+        # systematic and one-directional (captured always too high, so `captured - recomputed > 0`),
+        # while a misalignment is large and randomly signed. The max would report both; only the mean
+        # of the signed residual distinguishes them.
+        signed.extend(a - b for a, b in pairs)
         return max(diffs), max(ratios, key=lambda r: abs(r - 1.0)), len(pairs)
 
     worst = 0.0
@@ -295,6 +324,8 @@ def main() -> None:
             f"max|diff|={d:.6f}  worst ratio={r:.6f}"
         )
 
+    aligned_signed = list(signed)  # before the negative controls pollute it
+
     # Negative control on the longest turn: the same comparison against a knowingly wrong alignment.
     # Without this the residual above is uninterpretable — it could mean "faithful" or "quietly off".
     longest = max(records, key=lambda rec: len(rec[1]))
@@ -304,6 +335,12 @@ def main() -> None:
 
     print()
     print(f"tokens compared              {total}")
+    if aligned_signed:
+        mean = sum(aligned_signed) / len(aligned_signed)
+        print(
+            f"mean signed residual         {mean:+.6f} nats  -> mean ratio "
+            f"{pow(2.718281828459045, -mean):.4f}   ({knob})"
+        )
     print(
         f"aligned, as captured         {worst:.6f} nats   worst ratio {worst_ratio:.4f}"
     )
