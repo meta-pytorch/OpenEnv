@@ -11,20 +11,55 @@ that is wrong, so we inherit every future upstream fix instead of forking the in
 
 from __future__ import annotations
 
+import importlib
 import json
+import logging
 import shlex
 from pathlib import Path
 from typing import Any
 
-from harbor.agents.installed.cline.cline import ClineCli, ExecInput
-from harbor.agents.installed.gemini_cli import GeminiCli
-from harbor.agents.installed.hermes import Hermes
-from harbor.agents.installed.kimi_cli import KimiCli
-from harbor.agents.installed.openclaw import OpenClaw
-from harbor.agents.installed.openhands import OpenHands
-from harbor.agents.installed.pi import Pi
-from harbor.agents.installed.swe_agent import SweAgent
-from harbor.environments.base import BaseEnvironment
+
+def _harbor(module: str, name: str) -> Any:
+    """Import one Harbor internal, or return a stub that fails only when that agent is used.
+
+    Every subclass below is fitted to a specific upstream wrapper, so this module unavoidably reaches
+    into Harbor's internals. What is avoidable is the blast radius: as plain module-top imports, one
+    upstream rename raised ImportError for the whole module and took out every seam routed through
+    `import_path` — eight agents at once, none of them related to the rename.
+
+    A failed import now yields a placeholder that is still subclassable, so the module imports and the
+    other seven agents keep working. Instantiating the affected one raises, naming what moved.
+    """
+    try:
+        return getattr(importlib.import_module(module), name)
+    except Exception as exc:  # noqa: BLE001 - degrade one agent, not the whole module
+        reason = f"{module}.{name} is not available in this Harbor build ({exc})"
+        logging.getLogger(__name__).warning(
+            "%s; the seam that depends on it will fail if used", reason
+        )
+
+        class _MissingHarborBase:
+            _reason = reason
+
+            def __init__(self, *_args: Any, **_kwargs: Any) -> None:
+                raise RuntimeError(
+                    f"this harness cannot run: {type(self)._reason}. Harbor's wrapper moved or was "
+                    "renamed; update the subclass in openenv/harbor/install_fixes.py."
+                )
+
+        return _MissingHarborBase
+
+
+ClineCli = _harbor("harbor.agents.installed.cline.cline", "ClineCli")
+ExecInput = _harbor("harbor.agents.installed.cline.cline", "ExecInput")
+GeminiCli = _harbor("harbor.agents.installed.gemini_cli", "GeminiCli")
+Hermes = _harbor("harbor.agents.installed.hermes", "Hermes")
+KimiCli = _harbor("harbor.agents.installed.kimi_cli", "KimiCli")
+OpenClaw = _harbor("harbor.agents.installed.openclaw", "OpenClaw")
+OpenHands = _harbor("harbor.agents.installed.openhands", "OpenHands")
+Pi = _harbor("harbor.agents.installed.pi", "Pi")
+SweAgent = _harbor("harbor.agents.installed.swe_agent", "SweAgent")
+BaseEnvironment = _harbor("harbor.environments.base", "BaseEnvironment")
 
 
 class InterceptGeminiCli(GeminiCli):
