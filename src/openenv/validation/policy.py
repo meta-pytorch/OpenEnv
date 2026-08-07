@@ -103,9 +103,9 @@ def apply_policy(
     """
     Map check results to the run verdict. The only severity-assigning code path.
 
-    FAIL if any policy-fail check FAILed; ERROR results fail closed; WARN if the only
-    findings carry warn/advisory severity. Results with ids unknown to the policy (or
-    outside the run's lane) are an internal error.
+    FAIL if any policy-fail check FAILed; ERROR results fail closed; WARN if the run
+    contains a SKIP or the only findings carry warn/advisory severity. Results with
+    ids unknown to the policy (or outside the run's lane) are an internal error.
 
     Args:
         results (`list` of [`~openenv.validation.report.CheckResult`]):
@@ -119,7 +119,7 @@ def apply_policy(
         [`~openenv.validation.types.Verdict`]: the overall verdict.
     """
     entries = policy.entries_for_lane(lane)
-    verdict = Verdict.PASS
+    classified_results = []
     for result in results:
         entry = entries.get(result.check_id)
         if entry is None:
@@ -127,10 +127,16 @@ def apply_policy(
                 f"check id {result.check_id!r} is unknown to policy "
                 f"{policy.policy_version!r} in lane {lane.value!r}"
             )
+        classified_results.append((result, entry))
+
+    verdict = Verdict.PASS
+    for result, entry in classified_results:
         if result.status is CheckStatus.ERROR:
             return Verdict.FAIL
         if result.status is CheckStatus.FAIL:
             if entry.severity is Severity.FAIL:
                 return Verdict.FAIL
+            verdict = Verdict.WARN
+        if result.status is CheckStatus.SKIP:
             verdict = Verdict.WARN
     return verdict
