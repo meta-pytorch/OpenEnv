@@ -86,9 +86,9 @@ def test_error_fails_closed(policy):
     assert apply_policy(results, policy, Lane.LOCAL) is Verdict.FAIL
 
 
-def test_skip_does_not_affect_verdict(policy):
+def test_skip_marks_the_run_incomplete(policy):
     results = [result("semantic.oracle_max", CheckStatus.SKIP)]
-    assert apply_policy(results, policy, Lane.LOCAL) is Verdict.PASS
+    assert apply_policy(results, policy, Lane.LOCAL) is Verdict.WARN
 
 
 def test_unknown_check_id_is_an_internal_error(policy):
@@ -102,6 +102,21 @@ def test_hub_id_in_a_local_run_is_an_internal_error(policy):
     # policy application is a pipeline bug, not a gradable result.
     results = [result("hub.cross_host_determinism", CheckStatus.PASS)]
     with pytest.raises(PolicyError, match="cross_host"):
+        apply_policy(results, policy, Lane.LOCAL)
+
+
+@pytest.mark.parametrize(
+    "invalid_check_id", ["static.no_such_check", "hub.cross_host_determinism"]
+)
+@pytest.mark.parametrize("status", [CheckStatus.ERROR, CheckStatus.FAIL])
+def test_invalid_check_id_is_not_masked_by_an_earlier_terminal_result(
+    policy, invalid_check_id, status
+):
+    results = [
+        result("semantic.oracle_max", status),
+        result(invalid_check_id, CheckStatus.PASS),
+    ]
+    with pytest.raises(PolicyError, match=invalid_check_id.split(".")[-1]):
         apply_policy(results, policy, Lane.LOCAL)
 
 
