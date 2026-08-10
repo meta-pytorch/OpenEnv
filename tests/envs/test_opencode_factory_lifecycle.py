@@ -16,6 +16,7 @@ for _p in (_REPO_ROOT, os.path.join(_REPO_ROOT, "envs")):
 
 from opencode_env.config import OpenCodeConfig  # noqa: E402
 from opencode_env.harness import OpenCodeSessionFactory  # noqa: E402
+from opencode_env.opencode_runtime import build_install_cmd  # noqa: E402
 from opencode_env.sandbox.base import ExecResult  # noqa: E402
 from opencode_env.task import OpenCodeTask  # noqa: E402
 
@@ -173,3 +174,20 @@ def test_bootstrap_install_rate_limit_raises_actionable_error(monkeypatch):
         )
     # one echo-ok probe + exactly one install attempt, no retries
     assert len([c for c in sandbox.exec_calls if c != "echo ok"]) == 1
+
+
+class TestBuildInstallCmdVersionPin:
+    """The pin must reach the installer, which reads args/VERSION in the bash
+    side of the ``curl | bash`` pipe — an env prefix on curl never gets there."""
+
+    def test_pinned_version_is_passed_as_installer_argument(self):
+        cmd = build_install_cmd(
+            OpenCodeConfig(base_url="http://proxy:8000/v1", opencode_version="1.0.180")
+        )
+        assert "| bash -s -- --version 1.0.180" in cmd
+        assert "OPENCODE_VERSION" not in cmd
+
+    def test_latest_omits_version_argument(self):
+        cmd = build_install_cmd(OpenCodeConfig(base_url="http://proxy:8000/v1"))
+        assert "| bash &&" in cmd
+        assert "--version 1" not in cmd
