@@ -1,36 +1,57 @@
-# RFC: Agentic RL through Harness Interception — token-faithful traces for TRL
+# RFC: Agentic RL through Harness Interception — the token capture contract
 
-**Status**: Draft
+**Status**: In Review
 **Created**: 2026-07-11
+**Revised**: 2026-08-12 — rescoped against [#1036](https://github.com/huggingface/OpenEnv/pull/1036)
 **Authors**: @rycerzes, @sergiopaniego
 **RFC ID**: 006
 
 ## Summary
 
-This RFC defines how OpenEnv trains the policy driving a **black-box agent harness** (Pi, OpenCode, Claude Code, …) without modifying the harness. The harness issues LLM calls at an OpenAI-compatible HTTP boundary; OpenEnv hosts an **interception server** that fronts a trainer-controlled inference engine and records, per call, the engine's **canonical token IDs** — `prompt_token_ids` and sampled `token_ids` — with their generation-time logprobs. That recording is sufficient to assemble a token-faithful training sample `(prompt_ids, response_ids, loss_mask, response_logprobs, reward)` with no re-tokenization anywhere, which is the property this design exists to guarantee.
+This RFC defines how OpenEnv trains the policy driving a **black-box agent harness** (opencode, Pi, Claude Code, codex, …) without modifying the harness. The harness issues LLM calls at an OpenAI-compatible HTTP boundary; OpenEnv hosts a **capture proxy** that fronts a trainer-controlled inference engine and records, per call, the engine's **canonical token ids** — `prompt_token_ids` and sampled `token_ids` — with their generation-time logprobs. That recording is sufficient to produce a token-faithful training sample `(input_ids, loss_mask, logprobs, reward)` with no re-tokenization anywhere, which is the property this design exists to guarantee.
 
-OpenEnv is a **recorder, not an assembler**: it keeps no token buffer, imports no tokenizer, and renders no chat template. Sample assembly belongs to the consuming trainer — the split every reference implementation of this pattern uses (see [Cross-framework evidence](#cross-framework-evidence-where-assembly-happens)).
+### What changed in this revision
 
-The trace is consumed by TRL through the **loop-owning path of `AsyncGRPOTrainer`**: a `HarnessRolloutWorker` ([trl#6420](https://github.com/huggingface/trl/pull/6420), merged) drives an OpenEnv `ResourceSessionFactory`, reads the recorded trace, and reconciles it into training rows. This is the **installed-agent** training path — the counterpart to the **external-agent** pattern that TRL's Harbor integration already covers, where installed CLI agents cannot be trained because the trainer does not own tokens/logprobs.
+The original revision of this RFC argued for a capture layer OpenEnv did not have, and specified it in the abstract. **[#1036](https://github.com/huggingface/OpenEnv/pull/1036) builds it** — `src/openenv/core/harness/capture/`, a dialect-agnostic capture proxy with a rollout graph, ingest validation and LLM certification, consumed by `src/openenv/harbor/` to serve Harbor's task datasets as trainable environments.
 
-The same worker also supports the **white-box** path (`harness_adapter=...` → `HarnessAdapter.run_white_box` with TRL sampling each turn through `ModelStep`), so RFC 005's `run_white_box` seam stays live; it is the secondary mode. `GRPOTrainer.rollout_func` / `build_harness_rollout_func` remain a valid synchronous bridge but are **not** the path this RFC targets.
+So this document is no longer a proposal for a component. It is **the design rationale and the contract spec for a component that now exists**, plus the list of what remains open. Four decisions were settled by the implementation, and settled *against* what this RFC previously argued:
 
-The design is checked against independent implementations of the same pattern — NVIDIA Polar/ProRL, Prime Intellect verifiers, TRL itself, plus AReaL, Agent Lightning and rLLM — which converged on the same trace contract and, on inspection, on the same recorder/assembler split.
+| | Previous revision | Settled by #1036 |
+|---|---|---|
+| **D3** assembly placement | OpenEnv is a "recorder, not an assembler"; TRL assembles | OpenEnv assembles, **without a tokenizer**. The dependency argument that motivated the split never applies. |
+| **D4** chain grouping | compare `prompt_ids` to `prompt_ids`, keep chains | compare **`prompt_ids + sampled_ids`** to the next `prompt_ids`, keep a **graph** |
+| **D17** aux-call classification | tag `call_kind` from boundary heuristics | **structural** role assignment from graph shape, cross-checked against the harness's own ATIF trajectory |
+| **D18** remote transport | prefer trainer-dials-in over `Sandbox.proxy_url_for` | **sandbox dials out** to a published trainer-side intercept, with measured reliability data |
+
+Each is discussed in place below. The rest of the RFC — the ownership boundary with TRL, the failure modes it exists to prevent, and the reference-implementation evidence — stands.
+
+### What is still true
+
+OpenEnv fronts a trainer-controlled engine and never relays to an external provider (D2). Rewards come from the environment (D7). Weight sync, advantages and importance-sampling correction stay TRL's (D12). The trace is consumed by TRL through the **loop-owning path of `AsyncGRPOTrainer`**: a `HarnessRolloutWorker` ([trl#6420](https://github.com/huggingface/trl/pull/6420), merged) drives an OpenEnv session factory and reconciles the trace into training rows. This is the **installed-agent** training path — the counterpart to the external-agent pattern TRL's Harbor integration already covers, where installed CLI agents cannot be trained because the trainer does not own tokens and logprobs.
+
+The design is checked against independent implementations of the same pattern — NVIDIA Polar/ProRL, Prime Intellect verifiers, TRL itself, plus AReaL, Agent Lightning and rLLM.
 
 ## Motivation
 
-### Problem 1: OpenEnv has no interception server, so token capture is per-env and in-sandbox
+### Problem 1: token capture was per-env and in-sandbox — now it is both
 
-RFC 005 (Agentic Harness Integration) defined the wrapping pattern — a harness runs inside an OpenEnv container, MCP tools are injected, and in simulation mode the training loop retains episode control. Two gaps remain in core:
+RFC 005 (Agentic Harness Integration) defined the wrapping pattern. The gap this RFC opened against was that the only working token capture lived inside one environment: [`envs/opencode_env/sandbox/interception.py`](../envs/opencode_env/sandbox/interception.py) forwards `/v1/chat/completions` upstream with `logprobs=true` injected and writes JSON-lines `TurnRecord`s inside the sandbox, which the trainer reads back afterwards.
 
-- [`CLIHarnessAdapter.run_white_box`](../src/openenv/core/harness/__init__.py) raises `NotImplementedError`, so opaque CLI harnesses have no white-box seam at all.
-- The only working token capture today is a **per-env, in-sandbox proxy**: [`envs/opencode_env/sandbox/interception.py`](../envs/opencode_env/sandbox/interception.py) forwards `/v1/chat/completions` upstream with `logprobs=true` injected and writes JSON-lines `TurnRecord`s inside the sandbox, which the trainer reads back after the rollout. It works — validated end to end on E2B and HF sandboxes ([#998](https://github.com/huggingface/OpenEnv/pull/998)) — and its in-sandbox placement is the direction HF Jobs supports natively, so that is a legitimate topology, not a defect (see [Interception topology](#interception-topology-local-and-remote-sandboxes)). The gaps are that it is one env's private code, it never requests `return_token_ids` so it records no prompt token IDs and recovers completion ids from `"token_id:{id}"` logprob strings, and its record shape is duplicated in TRL rather than exported from core.
+**#1036 does not close this gap; it forks it.** The new `core/harness/capture/` is a strictly better implementation — four wire dialects instead of one, canonical `prompt_token_ids` instead of `"token_id:{id}"` string recovery, graph stitching, ingest validation — but it touches **no file** under `envs/opencode_env/` or `envs/pi_env/`. The repository would therefore ship two independent interception proxies, and the older one is load-bearing:
 
-Neither is a reusable core primitive. This RFC promotes interception + recording into `openenv.core` and defines what it must guarantee.
+| Site | What |
+|---|---|
+| `envs/pi_env/harness.py:70` | reads `opencode_env/sandbox/interception.py` off disk and uploads it into the Pi sandbox |
+| `envs/pi_env/__init__.py:24` | re-exports `HFSandboxBackend` / `SandboxBackend` / `SandboxHandle` from `opencode_env.sandbox` as part of `pi_env`'s own public API |
+| `docs/source/tutorials/opencode-agent-grpo.md`, `pi-agent-grpo.md` | document that path as public surface |
+
+`envs/pi_env/pyproject.toml` also declares `opencode_env` only as a **comment**, not a dependency, so `pip install openenv-pi-env` yields a broken package unless `openenv-opencode-env` is installed separately.
+
+This is not an argument against #1036. It is the statement that **consolidation is now a scheduled obligation rather than an aspiration**: `opencode_env` and `pi_env` should become thin adapters over `core.harness.capture`, and the RFC's original Problem 1 is only closed when they are. See [What remains open](#what-remains-open).
 
 ### Problem 2: the installed-agent training gap
 
-TRL's [Harbor integration](https://huggingface.co/docs/trl/harbor) supports the *external-agent* pattern only: installed agents (Claude Code, Codex, Pi as opaque CLIs) **cannot** be trained through it because the trainer must own tokens and logprobs. Harbor's own RL docs name "vLLM interception" as the alternative token-capture strategy but ship no general implementation. This is the gap OpenEnv fills.
+TRL's [Harbor integration](https://huggingface.co/docs/trl/harbor) supports the *external-agent* pattern only: installed agents (Claude Code, Codex, Pi as opaque CLIs) **cannot** be trained through it, because the trainer must own tokens and logprobs. Harbor's own RL docs name "vLLM interception" as the alternative token-capture strategy but ship no general implementation. This is the gap OpenEnv fills, and #1036 fills it for ~16 validated harnesses at once rather than one environment package per agent.
 
 ### Problem 3: the naive approaches silently corrupt training
 
@@ -39,21 +60,23 @@ Two failure modes are established in the literature and were present in the prio
 - **Retokenization drift.** Re-rendering full message history through `apply_chat_template` each turn while splicing raw sampled tokens into the training stream makes the trained sequence differ from what the policy conditioned on. [vLLM added `return_token_ids`](https://blog.vllm.ai/2025/10/22/agent-lightning.html) specifically to end this debate.
 - **Silent, KL-invisible collapse.** Infrastructure-level logprob mismatch alone collapses training *even fully on-policy*, and recomputed-logprob KL stays flat for ~700 steps while reward degrades ([TIM, arXiv:2605.14220](https://arxiv.org/abs/2605.14220)). Rollout-side logprobs recorded at generation time are therefore a required primitive, not hygiene.
 
+**#1036 adds a third, and it is the one that motivates the whole validation layer.** Every capture bug found during its bring-up returned a well-formed payload and reported success: a missing `--return-tokens-as-token-ids` yields text with no ids and trains on nothing; an SSE client handed a JSON body yields zero tokens and no error anywhere; a harness sending an empty `tools` array got a 400 that truncated its trajectory while leaving a graph that looked perfectly well-formed. **None of these raise.** That is why validation is graded and runs on ingest rather than export (D15), and why `check_rollout` treats a one-call agentic rollout as FATAL — four harnesses passed every other check while solving 0/5 tasks.
+
 ### Goals
 
-1. Give `AsyncGRPOTrainer`'s loop-owning path (`HarnessRolloutWorker`) a core interception server and trace recorder to consume, replacing the per-env in-sandbox proxy.
-2. Guarantee token fidelity as an OpenEnv-enforced property, not a hope about the trainer: record generation-time prompt **and** completion IDs so no reconstruction step is needed downstream.
-3. Keep a clean ownership boundary with TRL (below), and keep `openenv.core` free of both trainer imports and a tokenizer dependency.
-4. Front any trainer-controlled OpenAI-compatible engine; never relay to an external provider.
-5. Work unchanged for local-subprocess and network-isolated remote sandboxes (HF Sandbox, E2B).
-6. Turn `run_white_box` into a working seam for opaque CLI harnesses (secondary mode).
+1. Give `AsyncGRPOTrainer`'s loop-owning path a core capture layer to consume, replacing the per-env in-sandbox proxy. **(#1036 — built; consolidation outstanding.)**
+2. Guarantee token fidelity as an OpenEnv-enforced property, not a hope about the trainer: record generation-time prompt **and** completion ids so no reconstruction step is needed downstream. **(#1036 — built.)**
+3. Keep a clean ownership boundary with TRL, and keep `openenv.core` free of both trainer imports and a tokenizer dependency. **(#1036 — held; see D3.)**
+4. Front any trainer-controlled OpenAI-compatible engine; never relay to an external provider. **(#1036 — built, with graded degradation to eval.)**
+5. Work unchanged for local-subprocess and network-isolated remote sandboxes. **(#1036 — built; see D18.)**
+6. Turn `run_white_box` into a working seam for opaque CLI harnesses (secondary mode). **(open.)**
 
 ### Non-goals
 
 - Owning generation, weight sync, advantages, or importance-sampling correction — those are TRL's.
-- Owning training-row assembly, turn-selection policy, or reward shaping — TRL's `_chain_to_sequences` and its `rollout_reward_fn`/`train_turn_fn`/`agent_turn_fn` hooks (D17).
-- Per-model chat-template renderers (see Decision 3).
-- The `swe_rl_env` task environment itself — a separate deliverable that works black-box without this seam.
+- Owning turn-selection policy or reward shaping — the trainer's, via `rollout_reward_fn` / `train_turn_fn` / `agent_turn_fn` (D17).
+- Per-model chat-template renderers (D3).
+- Sandbox implementation. On the Harbor path this is Harbor's entirely — a `TrialConfig` names an environment type and Harbor supplies ~23 backends. OpenEnv adds no provider SDK imports and no image building.
 
 ## Design
 
@@ -61,343 +84,428 @@ Two failure modes are established in the literature and were present in the prio
 
 | Concern | Owner | Mechanism |
 |---|---|---|
-| Interception of the harness's LLM calls | **OpenEnv core** | interception server, session-ID-as-API-key auth (D5) |
+| Interception of the harness's LLM calls | **OpenEnv core** | capture proxy, session-id-as-API-key auth (D5) |
+| Wire-dialect translation | **OpenEnv core** | four dialects normalised to chat-completions (D19) |
 | Token-faithful recording | **OpenEnv core** | `return_token_ids` injection; canonical `prompt_token_ids` + sampled ids + logprobs per call (D3) |
-| Served-template == training-template invariant | **OpenEnv core** | template hash in provenance, fail loudly on mismatch (D3, D11) |
-| Token buffer / chain assembly | **TRL** | `_chain_to_sequences`; OpenEnv keeps no buffer (D3, D4) |
-| Trace record shape | **OpenEnv core** | `TraceEntry` / `HarnessTrace`, exported for any trainer (D16) |
-| Connecting a remote sandbox to the server | **OpenEnv core** | `Sandbox.proxy_url_for` WebSocket relay, or an outbound tunnel (D18) |
-| Reward / grading | **OpenEnv env** | `verify()` — tests run in sandbox, reward never leaves the env |
+| **Graph structure and row assembly** | **OpenEnv core** | `RolloutGraph` → `TrainingSequence`; no tokenizer (D3, D4) |
+| **Role assignment (agent / auxiliary / discarded)** | **OpenEnv core** | structural, cross-checked against ATIF (D17) |
+| Ingest and export validation | **OpenEnv core** | graded `check_turn` / `check_sequence` / `check_rollout` (D15) |
+| Connecting a remote sandbox to the proxy | **OpenEnv core** | `PortForwarder` strategies (D18) |
+| Sandboxing the agent | **Harbor** | `TrialConfig` environment type; ~23 backends |
+| Reward / grading | **OpenEnv env / Harbor verifier** | reward never synthesised by the recorder (D7) |
 | Generation (inference engine) | **TRL** | `vllm serve` in `VLLM_SERVER_DEV_MODE=1`; `return_token_ids`, logprobs at generation |
-| Chat-template *authoring* correctness | **TRL / transformers** | [`chat_template_utils`](https://github.com/huggingface/trl/blob/main/trl/chat_template_utils.py), template audits |
 | Weight sync + its fence | **TRL** | NCCL transfer bracketed by `WeightTransferClient.pause()` / `.resume()` (D12) |
 | Advantages, GRPO, IS correction | **TRL** | `AsyncGRPOTrainer` |
-| Training-row assembly from the trace | **TRL** | `_chain_to_sequences` → `TrainingSequence(input_ids, completion_mask, old_log_probs)` |
 | Turn selection / reward shaping policy | **TRL caller** | `agent_turn_fn`, `train_turn_fn`, `rollout_reward_fn` (D17) |
 | Integration seam | **both** | `AsyncGRPOTrainer(rollout_worker=HarnessRolloutWorker(...))` |
 
-Interception living in framework core (not the trainer) is the field-consistent placement: verifiers/prime-rl run the trainer, the environment/orchestrator, and vLLM as disaggregated components; Agent Lightning's `LLMProxy`, rLLM's model gateway, Polar's `gateway/proxy.py`, and AReaL's `experimental/openai/proxy/` are all framework-side. Code ownership (OpenEnv core) is separate from runtime placement — the server process is colocated with the trainer so weight-sync fencing stays a local call (D12, D18).
+Three rows moved from TRL to OpenEnv relative to the previous revision. The justification is D3.
 
-The boundary is drawn to keep OpenEnv a **recorder, not an assembler**: it owns what can only be observed at the interception point (canonical ids, auth, budgets, provenance, fencing) and owns none of the tokenization or row-building. See D3 and the evidence below.
+Interception living in framework core (not the trainer) is the field-consistent placement: verifiers/prime-rl run the trainer, the environment/orchestrator, and vLLM as disaggregated components; Agent Lightning's `LLMProxy`, rLLM's model gateway, Polar's `gateway/proxy.py`, and AReaL's `experimental/openai/proxy/` are all framework-side.
 
 ### Cross-framework evidence: where assembly happens
 
-Three independent implementations of harness interception have shipped. Reading their source, they agree on the recorder/assembler split and differ only on who renders messages into tokens:
+Three independent implementations of harness interception have shipped. Reading their source, they agree on *what* is recorded and differ on who renders messages into tokens:
 
 | | Who renders messages → tokens | Where ids come from | Where samples are assembled | How divergence is detected |
 |---|---|---|---|---|
-| **Polar** | the **engine** (harness posts OpenAI chat) | gateway injects `return_token_ids` (vLLM) / `return_prompt_token_ids` (SGLang), normalizes to canonical `prompt_token_ids` + `token_ids` + logprobs | **post-hoc** — `PrefixMergingBuilder.build(session)` over the finished session | canonical prompt-prefix test; break → truncate |
-| **verifiers** | the **train client** (HF chat template, then `/inference/v1/generate`) | engine returns `prompt_ids` / `completion_ids` / `completion_logprobs` into `TurnTokens` | **post-hoc** — `graph.py` `_commit_turn` / `prepare_turn`; the interception server only does retry dedup and in-flight coalescing | message **content hash** matching; commits a new branch at first divergence |
-| **TRL** | the **rollout worker** (`apply_chat_template`, then `/v1/completions` with `"prompt": prompt_ids`) | `return_token_ids: True`; reads `choice["token_ids"]` + `token_logprobs` | **post-hoc** — `_chain_to_sequences` / `_SampleBuilder` | token-prefix drift classified `CLEAN` / `REALIGN` / `FORK` |
+| **Polar** | the **engine** (harness posts OpenAI chat) | gateway injects `return_token_ids` (vLLM) / `return_prompt_token_ids` (SGLang) | **post-hoc** — `PrefixMergingBuilder.build(session)` | canonical prompt-prefix test; break → truncate |
+| **verifiers** | the **train client** (HF chat template) | engine returns `prompt_ids` / `completion_ids` / `completion_logprobs` | **post-hoc** — `graph.py` `_commit_turn`; its interception server only does retry dedup | message **content hash** matching; new branch at first divergence |
+| **TRL** | the **rollout worker** (`apply_chat_template` → `/v1/completions`) | `return_token_ids: True` | **post-hoc** — `_chain_to_sequences` / `_SampleBuilder` | token-prefix drift classified `CLEAN` / `REALIGN` / `FORK` |
+| **OpenEnv (#1036)** | the **engine** (harness posts its own dialect) | proxy injects `return_token_ids`, normalises four dialects | **post-hoc, inside OpenEnv** — `RolloutGraph.sequences()` | token-prefix; break → **new root**, kept |
 
-Two conclusions. First, **no implementation keeps a live token buffer in the proxy** — recording and assembly are separate stages everywhere. Second, only Polar's rendering topology matches ours: a black-box harness posts OpenAI-dialect messages, so the engine renders and the proxy can only observe. verifiers and TRL both render client-side because they own the message list, which a black-box harness does not give us. Polar is therefore the applicable precedent, and its canonical-id recording plus post-hoc merging is what D3 adopts.
+Two conclusions, and the second one is where this revision departs from the previous.
+
+First, **no implementation keeps a live token buffer in the proxy.** Recording and assembly are separate *stages* everywhere, including #1036: `add_turn` records, `sequences()` walks the finished graph. That property is preserved.
+
+Second — and this is the correction — **"assembly is post-hoc" and "assembly is the trainer's job" are different claims, and the previous revision conflated them.** Polar assembles post-hoc *inside Polar*. verifiers assembles post-hoc *inside verifiers*. Neither hands a raw call log to its trainer and asks it to reconstruct the structure. What they share with #1036 is the staging, not the ownership. The evidence table never supported a framework-side/trainer-side split; it supported a record-then-assemble split, which #1036 implements.
+
+Only Polar's *rendering* topology matches ours: a black-box harness posts its own dialect, so the engine renders and the proxy can only observe. Polar remains the applicable precedent.
 
 ### Architecture overview
 
 ```mermaid
 flowchart TD
-    subgraph sandbox["sandbox / container (per rollout) — local subprocess or remote HF / E2B"]
-        H["black-box harness<br/>Pi / OpenCode / Claude Code<br/>OPENAI_BASE_URL → tunnel/rollout/&lt;sid&gt;/v1<br/>OPENAI_API_KEY → per-rollout bearer"]
+    subgraph sandbox["Harbor sandbox (per rollout) — ~23 backends"]
+        H["black-box harness<br/>opencode / codex / claude-code / gemini-cli / …<br/>base URL → published intercept<br/>API key → the rollout's session id"]
     end
     subgraph host["trainer host"]
-        subgraph core["OpenEnv core (colocated with the trainer)"]
-            S["interception server<br/>auth + routing by session secret<br/>inject return_token_ids · budgets<br/>provenance + template-hash check"]
-            R["trace recorder<br/>canonical prompt_token_ids,<br/>sampled token_ids, logprobs"]
-            S --> R
+        subgraph core["OpenEnv core — openenv/core/harness/capture/"]
+            S["capture proxy (server.py)<br/>detect dialect · normalise to chat<br/>inject return_token_ids + logprobs<br/>auth + route by session id"]
+            R["rollout graph (graph.py)<br/>canonical prompt_token_ids,<br/>sampled token_ids, logprobs<br/>linked by token prefix"]
+            X["export (export.py, contract.py)<br/>roles · validation · training rows"]
+            S --> R --> X
         end
         subgraph trl["TRL"]
-            V["TRL-controlled vLLM<br/>vllm serve, DEV_MODE=1<br/>return_token_ids + logprobs"]
-            W["HarnessRolloutWorker<br/>assembles: _chain_to_sequences<br/>→ TrainingSequence"]
+            V["TRL-controlled vLLM<br/>--return-tokens-as-token-ids<br/>--logprobs-mode processed_logprobs"]
+            W["HarnessRolloutWorker"]
             G["AsyncGRPOTrainer<br/>advantages · weight sync · IS"]
             W --> G
         end
     end
-    H -->|"/v1/chat/completions over the sandbox port proxy"| S
+    H -->|"its own dialect, over a PortForwarder [D18]"| S
     S -->|"generate (localhost)"| V
     V --> S
-    R -.->|"fetch_proxy_trace()"| W
+    X -.->|"training rows + reward"| W
     G -.->|"pause/resume around weight sync [D12]"| V
+    A["Harbor verifier"] -.->|"reward dict [D7]"| X
 ```
 
-Only the base-URL host differs between the local and remote cases; nothing OpenEnv writes runs inside the sandbox.
+Nothing OpenEnv writes runs inside the sandbox. Only the base-URL host differs between local and remote.
 
 ### Core abstractions
 
-Two record shapes, at two levels.
-
-**Per intercepted call — `TraceEntry`.** What the recorder writes, one entry per LLM call. This shape exists today, split across [`envs/opencode_env/sandbox/interception.py`](../envs/opencode_env/sandbox/interception.py) (`TurnRecord`, the writer) and TRL's `openenv_harness.py` (`TraceEntry`, the reader, carrying a `TODO(@openenv)` that OpenEnv should own it). This RFC moves it to `openenv.core.harness` as the single definition and adds the fields marked **new**:
-
-```python
-class TraceEntry(TypedDict, total=False):
-    request: dict                    # forwarded chat body: {"messages": [...], "tools": [...] | None}
-    response: dict                   # upstream reply: {"choices": [{"message": {...}}]}
-    prompt_token_ids: list[int]      # NEW — generation-time prompt ids from the engine
-    completion_token_ids: list[int]  # verbatim sampled completion ids
-    completion_tokens: list[str]     # fallback "token_id:{id}" strings when ids are absent
-    per_token_logps: list[float]     # rollout-engine logprobs for the generated tokens
-    call_kind: str                   # NEW — "agent" | "aux" (D17)
-    provenance: dict                 # NEW — sampling params, engine/harness versions, config hashes (D11)
-    limits: dict                     # NEW — budget state and stop condition when capped (D13)
-```
-
-`prompt_token_ids` is the load-bearing addition: with it, no consumer needs `apply_chat_template` to recover what the policy conditioned on, and interstitial tokens are recoverable by slicing the next call's canonical prompt after the end-of-turn token (D3). **This is the only shape OpenEnv produces.**
-
-**Per training sample — `HarnessTrace`.** One sample per prefix-consistent chain. OpenEnv does **not** build this; the consumer does (TRL's `_chain_to_sequences`, Polar's `PrefixMergingBuilder`). It is specified here as the target the recording must be sufficient for — if a trainer cannot construct this from a stream of `TraceEntry`s, the recorder is missing something:
+**Per model call — `TurnNode`** (`capture/graph.py`). What the proxy records, one node per call.
 
 ```python
 @dataclass
-class HarnessTrace:
-    prompt_ids: list[int]           # verbatim, generation-time
-    response_ids: list[int]         # verbatim sampled completion IDs
-    loss_mask: list[int]            # 1 = agent-generated, 0 = env/template output
-    response_logprobs: list[float]  # rollout-engine logprobs, aligned to response_ids
-    reward: float                   # from the env's verify(), never the harness
-    metadata: dict                  # provenance (D11), δ diagnostics (D10),
-                                    # stop condition (D13), message-level record (D15)
+class TurnNode:
+    node_id: str
+    prompt_ids: list[int]              # canonical, from the engine — never re-rendered
+    sampled_ids: list[int]
+    sampled_logprobs: list[float] | None
+    parent_id: str | None              # the call this one extends, by token prefix (D4)
+    # provenance; never used in token math
+    index: int; model: str | None; finish_reason: str | None
+    harness_session_id: str | None     # the harness's OWN id, kept but never used for routing
+    n_tools: int                       # tool manifest size — the role signal (D17)
+    request_messages: list[dict]; request_tools: list[dict] | None
+    sampling_params: dict              # what the harness asked for (D11)
+    response_message: dict
 ```
 
-This is the shape Polar and Prime converged on. Polar's `Trace` is `prompt_ids, response_ids, loss_mask, prompt_messages, response_messages, tools, finish_reason, response_logprobs, reward, metadata`, with model validators asserting `len(loss_mask) == len(response_ids)` and `len(response_logprobs) == len(response_ids)` — independent confirmation of both the shape and D15's alignment check. It maps 1:1 onto TRL's `TrainingSequence(input_ids, completion_mask, old_log_probs, rollout_id)` plus the reward, and onto verifiers' per-message `MessageNode(token_ids, mask, logprobs, is_content)`.
+**Per training sample — `TrainingSequence`.** One root-to-leaf path through the graph, flattened.
 
-It is **not** what OpenEnv core has today: [`HarnessRolloutResult`](../src/openenv/core/harness/__init__.py) carries `prompt_ids`, `completion_ids`, and `logprobs` only — no `loss_mask`, no `reward` (reward is resolved separately by `_resolve_env_reward` from `verify()`). Whether `HarnessRolloutResult` should grow toward this shape is path-dependent: on the white-box path OpenEnv does assemble per-turn records, so a `loss_mask` there is coherent; on the loop-owning path it should not, since assembly is the consumer's. Either way these are proposed changes, not descriptions of current state.
+```python
+@dataclass
+class TrainingSequence:
+    input_ids: list[int]
+    loss_mask: list[int]      # 1 = agent-generated, 0 = context (env output, template glue)
+    logprobs: list[float]     # aligned to input_ids; 0.0 filler at mask=0
+    node_ids: list[str]
+    prompt_len: int
+    root_id: str
+    n_turns: int
+```
 
-The three parallel arrays stay index-aligned; the mask gates both loss and advantage (D9), and every masked-in position carries a real logprob (D15). Columns are token positions in one turn:
+This maps 1:1 onto TRL's `TrainingSequence(input_ids, completion_mask, old_log_probs)` plus the reward, and onto verifiers' `MessageNode(token_ids, mask, logprobs, is_content)`. Polar's `Trace` carries the same arrays with model validators asserting `len(loss_mask) == len(response_ids)` — independent confirmation of both the shape and D15's alignment check.
 
-| array | agent-generated | env output | agent-generated |
-|---|---|---|---|
-| `response_ids` | `c c c c c` | `o o o` | `c c` |
-| `loss_mask` | `1 1 1 1 1` | `0 0 0` | `1 1` |
-| `response_logprobs` | `lp lp lp lp lp` | `0. 0. 0.` | `lp lp` |
+**Per rollout — the export document** (`capture/export.py`). One JSON document per rollout: `stats`, `turns` (every call in arrival order), `sequences` (one row per path, each labelled `agent` / `auxiliary` / `discarded` with its own `validation` findings), rollout-level `validation`, and a single `trainable` gate.
 
-(mask `0` = env/template output only, D9; `0.0` logprob filler at mask=0, D15)
-
-**The seam.** Primary path (loop-owning): the env's session factory starts the harness pointed at the interception server; TRL's `HarnessRolloutWorker` blocks on `wait_for_completion()`, reads `fetch_proxy_trace()`, and reconciles the entries into `TrainingSequence` rows. These two methods are the *loop-owning session* extension to `ResourceSession` — currently declared as a `LoopOwningSession` Protocol inside TRL with a `TODO(@openenv)`; this RFC moves it to `openenv.core.harness` (D16).
-
-Secondary path (white-box): `HarnessAdapter.run_white_box(model_step, session, limits)` drives the tool loop while TRL samples each turn via `ModelStep`; `CLIHarnessAdapter.run_white_box` goes from `NotImplementedError` to a real implementation for opaque CLI harnesses.
-
-Synchronous bridge (unchanged, not this RFC's target): [`build_harness_rollout_func`](../src/openenv/core/harness/__init__.py) returns `prompt_ids`, `completion_ids`, `logprobs`, `env_reward` (key configurable via `reward_key`), and `verify_metrics`. It emits **no** mask field today; adding `env_mask` alongside `loss_mask` support is a proposed follow-up, not current behavior.
+Rows are **labelled, never filtered**. A caller that silently drops rows cannot be distinguished from one that had none to drop, and "the group quietly shrank" is far harder to diagnose than "three rows were labelled auxiliary."
 
 ### Key design decisions
 
-**D1 — Token-level trace contract, not a message-level seam.** Return `(prompt_ids, response_ids, loss_mask, response_logprobs, reward)` per sample. *Rationale:* token fidelity becomes an enforced guarantee; TRL's reconciler consumes it directly. *Trade-off:* richer than a message log, but the message record is kept alongside (D15). Supersedes draft [#864](https://github.com/huggingface/OpenEnv/pull/864)'s message-level `RolloutMessages` design — the two seams there (`generate(rollout_id, turn, …) -> completion_text` plus a message log) put messages-to-tokens on the trainer with no ids crossing the boundary; the merged worker instead reads ids from the trace, which is this contract.
+**D1 — Token-level contract, not a message-level seam.** Return `(input_ids, loss_mask, logprobs, reward)` per sample. *Rationale:* token fidelity becomes an enforced guarantee. *Trade-off:* richer than a message log, but the message record is kept alongside (D15). Supersedes draft [#864](https://github.com/huggingface/OpenEnv/pull/864)'s message-level `RolloutMessages` design.
 
-**D2 — Trainer owns generation; the proxy re-generates, never relays.** The harness is black-box; the interception server fronts a trainer-controlled vLLM with `return_token_ids` and logprobs at generation time. *Rationale:* a relay to an external provider has no token identity, uses the provider's logprobs, and forces retokenization for training — it cannot even *measure* the δ diagnostic (D10). *Trade-off:* requires a trainer-controlled engine; that is the point.
+**D2 — Trainer owns generation; the proxy re-generates, never relays.** The capture proxy fronts a trainer-controlled vLLM with `return_token_ids` and logprobs at generation time. *Rationale:* a relay to an external provider has no token identity and uses the provider's logprobs. *Trade-off:* requires a trainer-controlled engine; that is the point.
 
-**D3 — OpenEnv records canonical ids and never tokenizes; assembly stays framework-side.** The interception server injects `return_token_ids` into every forwarded call and records what the engine reports: canonical `prompt_token_ids` (the input ids *after* the engine's chat-template processing), the sampled `token_ids`, and their real logprobs. It keeps **no token buffer**, imports no tokenizer, and renders no chat template. Assembling those records into training rows is the consumer's job — TRL's `_chain_to_sequences`, Polar's `PrefixMergingBuilder`, verifiers' graph commit.
+*Settled by #1036:* the degradation is **graded and named**, not binary. `capture/upstream.py` defines three `CAPTURE_LEVELS`:
 
-*Rationale.* Every reference implementation records at the boundary and assembles **post-hoc**; none keeps a live token buffer in the proxy ([Cross-framework evidence](#cross-framework-evidence-where-assembly-happens)). Three properties make that the right split here too:
+| level | injected | what you get |
+|---|---|---|
+| `tokens` | `return_token_ids`, `logprobs`, `top_logprobs`, sampling neutralised | trainable rollouts |
+| `logprobs` | `logprobs`, `top_logprobs` | confidence readout, not trainable |
+| `text` | nothing | trace only; current OpenAI models 400 on `logprobs`, and a rejected request loses the agent's turn entirely |
 
-1. **No tokenizer is needed at all.** Interstitial tokens (tool results, chat-template glue, intermediate user turns) are recoverable by slicing the *next* call's canonical `prompt_ids` after the first end-of-turn token, with assistant bodies taken from the raw sampled `response_ids` — so nothing is ever decoded and re-encoded. This is what Polar's builder does; the only configuration it needs is the EOT token id, auto-detectable from the last token of the first natural-stop completion. A recorder that ships canonical ids therefore needs no chat-template delta machinery of any kind.
-2. **A rendering buffer in core would need `transformers`, which core's dependency policy reserves.** `pyproject.toml` is explicit: core carries a minimal dependency set and *"heavy dependencies (torch, numpy, smolagents, etc.) should be in individual environment pyproject.toml files."* Core has no tokenizer today, and every env would inherit one.
-3. **The delta-tokenize machinery is not reusable at any placement.** TRL's is `GRPOTrainer._get_tool_suffix_ids`, a private *method* bound to `self.processing_class` / `self.chat_template` / `self._is_vlm`, carrying template-specific fixes (Qwen3/Qwen3.5 `<|im_end|>\n` EOS-boundary alignment, GPT-OSS deriving tool headers from the assistant's tool-call name, VLM unbatching, a `transformers#45290` workaround). Any OpenEnv-side buffer would have to reimplement that knowledge and track it indefinitely. Recording canonical ids avoids needing it.
+`capture/validate_llm.py` certifies the endpoint **before a sandbox is spent** and `openenv harbor serve` refuses to start below `tokens`. The document carries `capture_level` and `rollout_type` so a consumer never has to infer why `sequences` is empty, and `contract.py` raises rather than returning a well-formed empty contract from an eval rollout.
 
-A note on the obvious alternative, since it is *not* blocked by dependency concerns: `trl.chat_template_utils` is a public TRL module (`_import_structure` exports `add_response_schema`, `clone_chat_template`, `get_training_chat_template`, `supports_tool_calling`) depending only on `transformers`/`jinja2`/`packaging`, so importing it pulls in no training stack. The two functions relevant here — `is_chat_template_prefix_preserving` and `parse_response` — are simply not exported. If OpenEnv ever does need the prefix-preservation predicate, the right move is a one-line TRL PR adding it to `_import_structure` (TRL already imports it across modules), not vendoring it. Under this decision neither is needed.
+**D3 — OpenEnv records canonical ids, assembles without a tokenizer, and renders no chat template.** The proxy injects `return_token_ids` into every forwarded call and records what the engine reports: canonical `prompt_token_ids` (input ids *after* the engine's chat-template processing), the sampled `token_ids`, and their real logprobs. It **imports no tokenizer and renders no chat template**. It *does* assemble those records into training rows.
 
-*Residual obligation.* Recording canonical ids is faithful only if the engine that served the harness rendered with the same template the trainer trains under. TRL substitutes one when the model's own template is not prefix-preserving (`async_rollout_worker.py`: `if self.tools and not is_chat_template_prefix_preserving(...): self.chat_template = get_training_chat_template(...)`). The interception server therefore records a hash of the served chat template in provenance (D11) and fails loudly on mismatch. That is an assertion, not a tokenization job, so core stays dependency-free.
+> **This reverses the previous revision**, which held that OpenEnv is "a recorder, not an assembler" and that assembly belongs to TRL. @sergiopaniego's position in [#941](https://github.com/huggingface/OpenEnv/pull/941#issuecomment-5069908703) — keep the buffer framework-side to preserve OpenEnv's framework-agnosticism — was accepted on the record. #1036 chose otherwise, and the reasoning below is why that is the better call rather than a drift.
 
-*Alternatives rejected.* PrimeIntellect [renderers](https://www.primeintellect.ai/blog/renderers) (per-model renderer objects) — rejected for the ~3× re-render compute and because canonical-id recording obtains the same invariant for free. Recording only `(messages, completion_token_ids, logprobs)` and reconstructing prompts downstream with `apply_chat_template`, as TRL's `_turns_from_trace` does today — works for prefix-preserving templates, but stays *conditionally* faithful when recording `prompt_token_ids` makes it unconditional for one extra request field. Note the existing proxy ([`envs/opencode_env/sandbox/interception.py`](../envs/opencode_env/sandbox/interception.py)) does not request `return_token_ids` at all, which is why ids are currently recovered from `"token_id:{id}"` logprob strings via vLLM's `--return-tokens-as-token-ids` server flag; that hack goes away with this decision.
+*Rationale.* The previous revision gave three arguments for framework-side assembly. The first two do not survive contact with the implementation:
 
-**D4 — Chain grouping compares canonical prompts only; a break forks rather than truncates.** Group each recorded call into the chain it append-extends by testing **`prompt_ids` against `prompt_ids`**: call `C_{k+1}` joins the chain whose last call's `prompt_ids` is a token prefix of it. On a break, fork and keep both sides.
+1. **"A rendering buffer in core would need `transformers`, which core's dependency policy reserves."** This assumed assembly means rendering. It does not. Assembly here is **pure prefix arithmetic over ids the engine already returned**: `context_ids = prompt_ids[len(parent.end_ids):]`, then concatenate along a path. No decode, no encode, no template, no vocabulary. `capture/` imports no tokenizer and adds no dependency. The argument that forced the split never applies.
+2. **"The delta-tokenize machinery is not reusable at any placement."** True of TRL's `_get_tool_suffix_ids`, and irrelevant: recording canonical ids means that machinery is never needed by anyone. This was already stated in the previous revision as the reason no tokenizer is required — it just was not followed to its conclusion, which is that the assembler needs no tokenizer either, and so has no reason to live where the tokenizer lives.
+3. **"Every reference implementation assembles post-hoc."** True, and preserved — see the [evidence table](#cross-framework-evidence-where-assembly-happens). Post-hoc is a claim about *staging*, not about *which repository*. Polar and verifiers both assemble inside themselves.
 
-*The comparison must never involve sampled `response_ids`.* Sampled tokens can re-tokenize when they reappear inside the next canonical prompt — Polar's own example is `[fish, ing]` → `[fishing]` — so testing an accumulated `prompt · c0 · obs · c1` stream against the next prompt produces spurious breaks. Comparing canonical-to-canonical is stable because both sides are the same engine's tokenization of the same message prefix, including across the special-token generation-prompt boundary.
+What actually decides placement is **where the information is**. The structure a trainer needs — which calls are retries, which are subagents, which branch died, which conversation a call continues — is only observable across *all* the calls of a rollout, which is exactly and only what the capture point holds. A flat trace handed to a trainer has already destroyed it, which is why TRL's `_turns_from_trace` has to re-derive it with an `agent_turn_fn` heuristic and a `TODO(@openenv)` saying the proxy knew all along. Framework-agnosticism is preserved by the *contract being importable without a trainer*, not by refusing to compute — and `capture/contract.py` ships converters (`to_trace_entries`, `to_turn_records`) so any consumer, TRL included, reads the shape it wants.
 
-Prompt-prefix grouping also handles interleaved parallel sub-agents for free — each has a distinct prompt prefix, so their calls route to distinct chains without any sub-agent-aware logic.
+*Residual obligation.* Recording canonical ids is faithful only if the engine that served the harness rendered with the same template the trainer trains under. TRL substitutes one when the model's own template is not prefix-preserving. **Still open** — the served-template hash and mismatch check (D11) are not in #1036.
 
-*Fork, don't truncate.* Polar breaks out of the merge loop on a prefix break and counts the rollout as `chains_reconstructed_truncated`, discarding the captured suffix. Keeping both sides as separate samples is strictly more sample-efficient and is what [verifiers](https://github.com/PrimeIntellect-ai/verifiers) does (its graph commits a new branch at the first divergence). This remains the one place this design deliberately improves on Polar. *Rationale for merging at all:* Polar reports per-request samples with outcome-reward broadcast caused "significant reward hacking" and 20.4% vs 87.7% GPU utilization; prefix-merged chains win.
+*A hazard #1036 found that this RFC had not anticipated.* `--logprobs-mode processed_logprobs` applies `log_softmax` *after* every logit processor, so a harness sampling with `top_p<1`, `top_k` or a repetition penalty yields logprobs over a truncated, renormalised distribution — while a trainer recomputing over the full vocabulary gets different numbers for the same tokens. Neither side is wrong; they answer different questions, and the mismatch is invisible. `upstream.py` therefore sends the distribution-narrowing knobs at their **no-op values** at `tokens` level, records what the harness actually asked for on the node, and emits a `sampling_neutralised` finding. At `logprobs`/`text` they are passed through, because an eval should score the model the harness asked for. Measured on vLLM 0.25.1, same prompt and token at temperature 0.7: `-1.3292` with both flags, `-1.2546` without — both plausible, both aligned, one wrong.
+
+**D4 — Calls form a graph, linked by prompt+completion prefix; a break opens a new root.**
+
+> **Corrected.** The previous revision specified comparing **`prompt_ids` against `prompt_ids`** and keeping *chains*. Both halves were wrong.
+
+The parent of a call is the existing node whose **`prompt_ids + sampled_ids`** (`end_ids`) is the longest exact prefix of this call's `prompt_ids`. Comparing prompt-to-prompt would attach a call to its grandparent as readily as its parent and could not recover the interstitial span at all; the span between a parent's end and a child's start *is* the tool results and template glue the harness inserted, and it is obtained by slicing `prompt_ids[len(parent.end_ids):]`. Longest-match wins so a deep chain attaches to its immediate predecessor.
+
+*The comparison must never involve an accumulated stream of sampled tokens re-tokenized.* That hazard — Polar's `[fish, ing]` → `[fishing]` — is why the comparison is against the **engine's own** `prompt_ids` on the child side. Both sides are the same engine's tokenization of the same message prefix, so the test is stable across the generation-prompt boundary.
+
+*Why a graph and not merged chains.* Three things fall out that a chain cannot express:
+
+- **Retries become visible.** A retried turn is a sibling that never continued: same parent, no children. A proxy cannot ask the harness what it discarded; the shape shows it. Training a discarded branch with the rollout's reward credits work that never happened.
+- **Subagents separate themselves.** A subagent has its own system prompt, so its first call extends nothing and starts its own root. No system-prompt keyword matching.
+- **Compaction is representable.** A rewritten history is not a prefix extension, so it opens a new root instead of corrupting the chain it came from.
+
+*Fork, don't truncate.* Polar breaks out of its merge loop on a prefix break and discards the captured suffix as `chains_reconstructed_truncated`. Keeping both sides is strictly more sample-efficient and is what verifiers does. #1036 goes further: a break opens a **root**, and `_assign_roles` treats multiple agent roots as normal and all of them trainable. claude-code swaps a 12118-char system prompt for a 12541-char one at call 6 while its message list grows 2 → 26 unbroken; an earlier "keep the single longest tool-using path" rule silently discarded 6 genuine agent turns there.
+
+*Arrival order is not meaningful*, because harnesses issue concurrent requests. Linking is symmetric: on insert, `_adopt_orphaned_roots` also looks *forwards* and re-parents existing roots the new node turns out to precede.
 
 ```mermaid
 flowchart TD
-    A["chain so far: calls C_0..C_k<br/>(canonical prompt_ids of C_k)"]
-    A --> B{"is C_k.prompt_ids a token prefix<br/>of C_k+1.prompt_ids?"}
-    B -->|"yes"| C["C_k+1 extends this chain"]
-    B -->|"no — prior messages were rewritten"| D["fork at the divergence point"]
-    D --> E["sample A: chain C_0..C_k (kept)"]
-    D --> F["sample B: new chain from C_k+1 (kept)"]
+  R["root: system + first user turn"] --> T1["turn 1"]
+  T1 --> T2["turn 2"]
+  T2 --> T3["turn 3"]
+  T2 -.->|"same parent, never continued"| T3b["turn 3′ — discarded retry"]
+  S["second root: subagent or rewritten prompt<br/>(extends nothing)"] --> S1["turn 1"]
 ```
 
-Compaction and sub-agent hand-offs surface as prompt-prefix breaks and fork naturally; never splice across a break.
+**D5 — Session-id-as-API-key.** A random per-rollout bearer is both auth and routing; the key that arrives *is* the rollout identifier, so one proxy serves a whole GRPO group without per-rollout ports. Strict model: unknown key → reject. *Settled by #1036, with two rules learned the hard way:* a registered key **beats every other hint** (opencode sends its own `x-session-id` from the AI SDK; letting that win files the trajectory under an id the caller never sees, which reads as "the agent made no model calls" while every turn was captured), and the harness's own session id is **kept** on the node as ground truth for separating subagents. `require_registered` defaults to True because the proxy sits behind a public forward in front of a GPU.
 
-**Division of labour with TRL's reconciler.** TRL's `_chain_to_sequences` / `_SampleBuilder` classifies each turn's drift as `CLEAN` (new prompt starts with the held tokens → append), `REALIGN` (small tail change inside the last response → overwrite as context), or `FORK`, with a `fork_threshold_tokens` knob. Since D3 makes OpenEnv the recorder and TRL the assembler, that reconciler is the primary assembler on the TRL path — OpenEnv does not duplicate it. What OpenEnv contributes is the *input* that makes it behave well: when the recorded ids are canonical, every turn inside one chain should classify `CLEAN`. A `REALIGN` or `FORK` becomes a *signal that fidelity broke* rather than routine bookkeeping, so counts of both are exported as trace metrics next to the δ diagnostic (D10). That turns "are the recorded ids faithful?" into a number visible in a training run.
+**D6 — Synthetic SSE replay.** Capture non-streaming, reply in whatever the client asked for. *Rationale:* one complete response carries ids and logprobs whole; reassembling them from deltas is error-prone in exactly the way that silently corrupts training data. But a harness that requested SSE and receives a JSON body **does not error** — opencode reports `step-finish reason:"unknown"`, zero tokens, no message, having been handed a perfectly valid tool call. *Settled by #1036*, with a per-dialect detail the RFC had not: the typed-event dialects (Anthropic, Responses) need their full lifecycle event sequence and their own terminal event, and only chat-completions takes `[DONE]`; emitting only the first event silently truncated gemini-cli's stream into `Incomplete JSON segment at the end`.
 
-**D5 — Session-ID-as-API-key.** A random per-rollout bearer token is both auth and routing; every endpoint authenticated, including exit. *Rationale:* fixes #694's shared-secret + unauthenticated `/exit` hole. Strict verifiers model (unknown key → 401) — not Polar's permissive variant, where an unknown key silently mints an orphan session and admin endpoints are open.
+**D7 — Rewards inside the env; TRL keeps IS correction.** Reward comes from the environment's verifier; weight sync, advantages and IS correction stay in TRL. Keep truncated IS on even with captured logprobs — Polar trains with TIS enabled (paper Table 4); captured logprobs *enable* the correction, they do not replace it.
 
-**D6 — Synthetic SSE replay.** For a non-streaming upstream call, synthesize the SSE stream if the harness streams (which CLI agents do by default). *Rationale:* accepted practice, confirmed in Polar's code.
+*Extended by #1036:* Harbor's verifier produces a `dict[str, float]` and OpenEnv wants a scalar. The dict travels verbatim; the scalar is chosen by an explicit rule — one key, or one named `reward`, otherwise **fail and require `--reward-key`**. Combining keys automatically would be inventing reward semantics. And **`reward=None` is not zero**: it means the verifier never ran, and conflating the two makes a dead sandbox look like a wrong answer.
 
-**D7 — Rewards inside the env; TRL keeps IS correction.** Reward comes from the env's `verify()`; weight sync, advantages, and IS correction stay in TRL. The worker already calls `session.verify(completion)` and reads `env_reward` from it; a caller-supplied `rollout_reward_fn` may map the outcome to the training reward or return `None` to drop an unscorable rollout from the group baseline, but it cannot synthesize task correctness — that stays in `verify()` (D17). Keep truncated IS on even with captured logprobs — Polar itself trains with TIS enabled (paper Table 4); captured logprobs *enable* the correction, they don't replace it.
+**D8 — Reconcile with RFC 005, don't parallel it.** `ModelStep` stays the trainer-side generate hook; `HarnessRolloutWorker._sample_turn` is already a `ModelStep` implementation. `CLIHarnessAdapter.run_white_box` goes from `NotImplementedError` to a real implementation on the same signature. No RFC 005 abstraction is rewritten. **Still open.**
 
-**D8 — Reconcile with RFC 005, don't parallel it.** The trainer-side generate hook is `ModelStep` — already wired: `HarnessRolloutWorker._sample_turn` *is* a `ModelStep` implementation returning `ModelStepResult(response, prompt_ids, completion_ids, logprobs)`. `CLIHarnessAdapter.run_white_box` goes from `NotImplementedError` to a real implementation on the same signature. No RFC 005 abstraction is rewritten.
+**D9 — Loss-mask invariant.** Mask environment-*output* tokens only; never mask agent-*generated* tokens, including inspection commands. *Rationale:* supervising observation generation is where much of the signal lives ([arXiv:2606.03461](https://arxiv.org/abs/2606.03461)); the mask must gate advantage estimation too, not just the loss (SAO, [arXiv:2607.07508](https://arxiv.org/abs/2607.07508)).
 
-**D9 — Loss-mask invariant.** Mask environment-*output* tokens only; never mask agent-*generated* tokens (including inspection commands). *Rationale:* supervising observation generation is where much of the signal lives ([arXiv:2606.03461](https://arxiv.org/abs/2606.03461)); the mask must gate advantage estimation too, not just the loss (SAO, [arXiv:2607.07508](https://arxiv.org/abs/2607.07508)).
+*Strengthened by #1036, in a direction this RFC did not specify.* `sequence_for` enforces a second invariant: **a turn whose logprobs are missing or misaligned contributes its tokens as context (mask 0), never as targets.** A trainable token without a real behaviour-policy logprob would make GRPO's importance ratio `exp(new − old)` a ratio against a number we invented. The tokens are still real context for later turns, so they are kept — masked, not dropped.
 
-**D10 — δ diagnostics as a standard trace metric.** Per-token δ = |log π_train − log π_rollout| (max and mean). *Rationale:* KL alone misses early collapse (TIM). Trace stays algorithm-agnostic: `(ids, mask, logprobs, reward)` also serves value-based methods.
+**D10 — δ diagnostics as a standard trace metric.** Per-token δ = |log π_train − log π_rollout| (max and mean). *Rationale:* KL alone misses early collapse (TIM). **Partially open.** #1036 ships [`scripts/logprob_parity.py`](https://github.com/huggingface/OpenEnv/pull/1036/files), which checks captured logprobs against engine rescoring and measures the top_p truncation bias — the right measurement, as a script rather than a trace field.
 
-**D11 — Provenance in traces.** Record sampling params, engine/kernel versions, agent-harness version, and **hashes of the agent's config files** per intercepted call. *Rationale:* a sandboxed agent can rewrite its own prompts mid-episode ([arXiv:2607.03935](https://arxiv.org/abs/2607.03935)) and the reported score is always model-plus-harness ([arXiv:2605.26112](https://arxiv.org/abs/2605.26112)). Neither Polar nor verifiers hashes config files — this and D10 are where this design is ahead of both.
+**D11 — Provenance in traces.** Record sampling params, engine/harness versions, and **hashes of the agent's config files** per call. *Rationale:* a sandboxed agent can rewrite its own prompts mid-episode ([arXiv:2607.03935](https://arxiv.org/abs/2607.03935)) and the reported score is always model-plus-harness ([arXiv:2605.26112](https://arxiv.org/abs/2605.26112)). **Partially open:** #1036 records `sampling_params` per turn — for a sharper reason than this RFC gave, see D3 — plus `finish_reason`, `harness_session_id` and `model`. Config-file hashing and the served-template hash are not implemented.
 
-Operational requirements both reference implementations handle that v1 must too:
+**D12 — Don't break TRL's existing weight-sync fence; record the policy version.** The fence **already exists and is TRL's**: `WeightTransferClient.pause()` / `.resume()` drive `POST /pause?mode=keep` and `/resume` on the vLLM server around the NCCL transfer, requiring `VLLM_SERVER_DEV_MODE=1` — already the documented `AsyncGRPOTrainer` launch. (`trl/scripts/vllm_serve.py` exposes no such endpoint; it serves `GRPOTrainer`, not this path.)
 
-**D12 — Don't break TRL's existing weight-sync fence; record the policy version.** In-flight generations must be quiesced before each policy update, or one trace mixes policy versions. On the target path this fence **already exists and is TRL's**: `WeightTransferClient.pause()` / `.resume()` (`trl/experimental/async_grpo/weight_transfer.py`) drive `POST /pause?mode=keep` and `POST /resume` on the vLLM server via `vllm_client.py`, around the NCCL transfer. It requires a vLLM server started with `VLLM_SERVER_DEV_MODE=1`, which is already the documented launch for `AsyncGRPOTrainer`. Note `trl/scripts/vllm_serve.py` exposes no such endpoint — that script serves `GRPOTrainer`, not this path.
+OpenEnv asks for no new fencing primitive. Its obligations are complementary: (a) a harness call in flight across a pause must block until resume or fail retryably (D14) rather than surfacing a torn generation; (b) each recorded call carries the policy version that served it, so a trace spanning a sync is detectable rather than silently mixed; (c) the proxy is colocated with the trainer (D18) so pause/resume stays a localhost concern. **(b) is open** — no policy-version field exists yet.
 
-So OpenEnv asks for no new fencing primitive. Its obligations are the complementary ones: (a) a harness call in flight across a pause must either block until resume or fail with a retryable status (D14) rather than surfacing a torn generation; (b) each recorded call carries the policy version/step that served it, so a trace spanning a sync is detectable rather than silently mixed; (c) the interception server is colocated with the trainer (D18) so pause/resume stays a localhost concern instead of a distributed one. *Rationale:* Polar gates the same way with `/admin/inference/pause`.
+**D13 — Proxy-enforced rollout budgets.** Check max turns / tokens / wall-clock *before* serving each turn, recording the cap as the stop condition — a black-box harness never stops on its own. **Open.** #1036 has the observability half (`GET /sessions` reports per-session turn count, root count and idle seconds) but no enforcement.
 
-**D13 — Proxy-enforced rollout budgets.** Check max turns / tokens / wall-clock *before* serving each turn, recording the cap on the trace as its stop condition (verifiers `RolloutLimits`) — a black-box harness never stops on its own.
+**D14 — Error relay semantics.** Map engine failures to status codes the agent SDK handles; stash the original error so the rollout reports the real cause. **Partially settled:** #1036 adds provider-400 auto-fixes (`install_fixes.py`), an `upstream_errors` counter per session, and a rule this RFC should have stated — **ingest never raises.** A capture problem degrades one turn, not a rollout, and never the server multiplexing every other rollout. A 200 with no choices is explicitly *not* recorded as a turn, because doing so inflated `n_roots` and could push a worthless rollout past the `degenerate_rollout` check that exists to catch it.
 
-**D14 — Error relay semantics.** Map engine failures to status codes the agent SDK handles (retry 5xx/429, fail fast on 4xx); stash the original error so the rollout reports the real cause. Never emit the terminal SSE / `[DONE]` until the turn is durably recorded (verifiers defers it until `commit()` succeeds).
+**D15 — Trace hygiene and graded validation.** Keep the message-level record alongside token ids; logprob arrays aligned to `input_ids` with `0.0` filler at mask=0; every mask=1 slot carries a real logprob; one server multiplexes many rollouts.
 
-**D15 — Trace hygiene.** Keep the message-level record alongside token IDs (debugging/SFT); logprob arrays same-length-aligned to `response_ids` with `0.0` filler at mask=0 positions, plus a validation that every mask=1 slot has a real logprob; one server multiplexes many rollouts keyed by session secret.
+*Substantially expanded by #1036, and this is the part worth adopting as doctrine.* Validation is **graded** (FATAL = drop the row, WARN = trainable but understand it, INFO = recorded) and runs at four points: `check_upstream_response` before a rollout is spent, `check_turn` per call, `check_sequence` on the flattened output, `check_rollout` on graph shape. It runs **on ingest, not on export**, because a turn whose logprobs are misaligned must be caught while we still know which turn it was. Three checks earn their place by catching things nothing else can:
 
-**D16 — OpenEnv owns and exports the trace contract.** `TraceEntry` and the loop-owning session protocol (`wait_for_completion`, `fetch_proxy_trace`) live in `openenv.core.harness` and are exported. *Rationale:* they are OpenEnv's record shape and OpenEnv's session extension; TRL currently declares both locally with explicit `TODO(@openenv)` markers, which makes every trainer that wants to consume an OpenEnv trace re-declare them. Framework-neutrality is only real if the contract is importable without importing a trainer. *Trade-off:* it pins a public API OpenEnv must then keep stable — accepted; that is the point of a contract.
+- `token_strings` — logprob tokens arriving as strings rather than `token_id:N` means `--return-tokens-as-token-ids` was not passed, which means its partner `--logprobs-mode processed_logprobs` probably was not either, which means the logprobs are **raw pre-temperature** rather than the sampling distribution's. `token_ids` arrive regardless (they come from the request parameter), so every other check passes and the rollout grades fully trainable while carrying a wrong importance ratio.
+- `degenerate_rollout` — exactly one model call for a whole agentic task is FATAL. Capture is trivially self-consistent with nothing to stitch, so every other check passes. swe-agent, trae-agent, nemo-agent and antigravity-sdk each passed 5/5 while producing one turn per task and solving 0/5, for four unrelated harness-side reasons.
+- `positive_logprob` / `masked_has_logprob` — a context position carrying a logprob means context was scored; a trainable position without one means a target was invented. Silent corruption in opposite directions.
 
-**D17 — Trace records enough to classify calls; the trainer keeps the policy.** A real harness fires LLM calls that must never be trained on — title generators, context summarizers, sub-agent scaffolding. The recorder tags each entry with `call_kind` ("agent" / "aux") from what it can observe at the boundary (endpoint, declared model, sampling shape, harness-specific markers). *Rationale:* today TRL's default `agent_turn_fn` has to guess this from trace structure; the interception point has strictly more information. *Trade-off:* the tag is a hint, not a verdict — the decision stays the caller's, via TRL's existing `agent_turn_fn` (which entries are real agent turns), `train_turn_fn` (which turns to reinforce, e.g. `has_tool_call` for action-only agents), and `rollout_reward_fn` (outcome → training reward). OpenEnv must not bake a training policy into a recorder.
+**D16 — OpenEnv owns and exports the contract.** *Reshaped by #1036.* Rather than OpenEnv declaring `TraceEntry` for TRL to import, `capture/contract.py` ships **converters** into the consumer's shape (`to_trace_entries` → TRL's `TraceEntry`; `to_turn_records`), and refuses to build one from an eval rollout. This is the better factoring: it decouples OpenEnv's record shape from any one trainer's, and it lets the converter apply the graph's knowledge — auxiliary roots and discarded retries are excluded *before* TRL sees them, so `agent_turn_fn` is not needed on this path. The `TODO(@openenv)` markers in TRL at `openenv_harness.py:44` and `:53` are still open; the resolution is now "import the converter", not "import the type".
 
-**D18 — Remote sandboxes connect to a trainer-side server; `huggingface_hub.Sandbox`'s port proxy covers it.** The server stays colocated with the trainer, and the harness receives only `OPENAI_BASE_URL = <host>/rollout/<sid>/v1` plus the per-rollout bearer (D5).
+**D17 — Roles are assigned structurally, not heuristically; the trainer keeps the policy.**
 
-*The platform primitive.* `huggingface_hub.Sandbox` (first-class since 1.22.0, with an `hf sandbox` CLI) exposes a general port proxy: [`Sandbox.proxy_url_for(port, path, scheme=...)`](https://github.com/huggingface/huggingface_hub/blob/main/src/huggingface_hub/_sandbox.py) returns `https://<job_id>--49983.hf.jobs/…/proxy/<port><path>`, and the in-job server forwards to whatever listens on that port inside the sandbox — **including WebSocket upgrades and streamed responses**, the proxy being protocol-agnostic (pass `scheme="wss://"`). Auth is `Sandbox.proxy_headers`: the HF bearer plus the per-sandbox `X-Sandbox-Token`. A dedicated sandbox binds `127.0.0.1:<port>`; a pooled one binds a unix socket at `$SBX_PROXY_DIR/<port>.sock` (Landlock blocks TCP there), e.g. `uvicorn app:app --uds $SBX_PROXY_DIR/8000.sock`.
+> **Superseded.** The previous revision proposed tagging each entry `call_kind` ("agent"/"aux") from what is observable at the boundary — endpoint, declared model, sampling shape, harness-specific markers. #1036 tried the harness-marker family of approaches and rejected it: matching known system-prompt strings "needed a new entry per harness and failed silently on the harnesses nobody had profiled yet."
 
-*So there are two workable routes to a trainer-side recorder, both platform-native:*
+A real harness fires LLM calls that must never be trained on: title generators, summarisers, sub-agent scaffolding. The replacement rule is **structural first**:
 
-1. **Sandbox dials out.** The harness posts to a tunnel hostname that fronts the trainer's server. Needs the trainer side to be reachable, which the Jobs proxy does not arrange — this is the extra machinery.
-2. **Trainer dials in, over the port proxy.** A minimal shim in the sandbox accepts the harness's HTTP calls and multiplexes them to the trainer over a WebSocket the *trainer* opened via `proxy_url_for(port, scheme="wss://")`. No public trainer address, no external tunnel service, and streaming works because the proxy carries it. The cost is that a shim does run in the sandbox, which is a weaker form of "nothing OpenEnv writes runs inside the sandbox" — it relays, it does not record.
+- a path ending in a **discarded** node (a sibling that never continued) is a retry;
+- a path whose turns carry a **tool manifest** is the agent working;
+- anything else is auxiliary.
 
-Route 2 is the one to prefer where a reverse tunnel is inconvenient, since it needs nothing beyond `huggingface_hub`. Either way the harness sees only `OPENAI_BASE_URL` and the per-rollout bearer, and the token-faithful data stays trainer-side. @sergiopaniego validated a working trainer-side shape on OpenCode and Pi (local subprocess and remote HF sandboxes); recording which of these two it used will settle the default.
+with one guard that matters more than it looks: tools only *discriminate* when some paths have them and others do not. terminus-2 parses tool calls out of raw model text, so every one of its paths has `n_tools == 0`; applying the tool rule there labelled the entire rollout auxiliary, and a "keep the longest" fallback then kept 1 of its 13 turns. So if nothing in the rollout uses tools, tools carry no signal and every live path is agent work.
 
-### Interception topology (local and remote sandboxes)
+*The cross-check is the part with no analogue in the previous revision.* Harbor agents write `agent/trajectory.json` in **ATIF** (Agent Trajectory Interchange Format v1.7), independently of anything OpenEnv does. `harbor/atif.py` reconciles the two call by call — turn count, per-call completion token counts, and which calls the harness considers real agent steps — and a rollout comes back `atif="match"`, `"MISMATCH"` or `"none"`. This is **the only check that is not self-referential**: every internal check shares our own assumptions. Validated on opencode + Qwen3.5-4B over 8 agent steps, ATIF `completion_tokens` and intercept `turn_lengths` agreed exactly ([37, 36, 104, 264, 255, 119, 32, 27], total 874), and ATIF's step-1 `prompt_tokens` 7990 equalled the intercept's `prompt_len`. A mismatch has already caught a real bug: one harness sending an empty `tools` array got a 400 from vLLM, truncating its trajectory while leaving a well-formed graph. Calls ATIF marks auxiliary are demoted so they cannot be credited with the reward earned by solving the task.
 
-Where the recorder runs is not an implementation detail — it decides what crosses the network and whether the recorder can observe the weight-sync fence.
+ATIF also carries three things a proxy structurally cannot see: `llm_call_count > 1` (the harness retried), `subagent_trajectories` (ground truth for subagents rather than inference from roots), and `tool_call_id ↔ source_call_id`. Since ATIF's `Metrics` has optional `logprobs` and `completion_token_ids` fields that harnesses leave empty, the end state is not two formats to reconcile but **ATIF with our token fields filled in** — one artifact that is trace, SFT dataset and RL data at once (`merge_into_atif`).
+
+*Trade-off unchanged:* the label is a hint, not a verdict. Rows are labelled and exported, never filtered, and the decision stays the caller's via `agent_turn_fn` / `train_turn_fn` / `rollout_reward_fn`. OpenEnv must not bake a training policy into a recorder.
+
+**D18 — The sandbox dials out to a published trainer-side proxy.**
+
+> **Settled, against the previous revision's preference.** It proposed two routes and preferred **trainer-dials-in**: a thin in-sandbox shim multiplexing to the trainer over a WebSocket the trainer opened via `Sandbox.proxy_url_for(port, scheme="wss://")`, on the grounds that it needs nothing beyond `huggingface_hub`. The open question left for @sergiopaniego was which of the two he had validated. **His #941 comment described the outbound tunnel, and #1036 implements exactly that** — so the question is answered by both, in agreement.
+
+The proxy stays colocated with the trainer and is published at a URL the sandbox can reach. Exactly one hop is forwarded; the engine itself never needs exposing, staying on localhost behind the proxy. `capture/forwarding.py` makes the hop a swappable `PortForwarder` strategy, chosen by what the sandbox *is* rather than by preference:
+
+| strategy | when |
+|---|---|
+| `DirectExposure` | the sandbox can already route to us (local docker, same VPC). No third party, no expiry, no throughput ceiling. Prefer whenever true. |
+| `GradioForwarder` | frpc via `gradio.networking.setup_tunnel` |
+| `CloudflareForwarder` | cloudflared quick or named forwards |
+
+*Measured, not assumed*, over a full day of harness bring-up on one intercept: gradio/frpc served 521 POSTs with **zero** forwarding errors in the server log, ~370ms health round trip, still up after 24h; cloudflared produced 10765 log lines on the sibling experiment with repeated `failed to accept QUIC stream: timeout` and `lookup region1.v2.argotunnel.com: i/o timeout` — always reconnecting, so churn rather than outage, but churn. **gradio is the better default at eval scale**; cloudflared named forwards earn their place where a stable hostname and real access policies matter, since gradio.live URLs expire at 72h and are a single frpc hop that becomes a bottleneck at GRPO group width.
+
+Two properties this RFC claimed for trainer-side placement hold: weight-sync fencing (D12) stays a local call, and the token-faithful data — ids, logprobs — is produced and recorded on the trainer host and **never enters the sandbox**. Only the OpenAI-dialect request and completion text traverse the hop.
+
+*Share tokens are not auth.* A forwarder's `share_token` identifies the forward to the share server; the resulting URL is public either way. What protects the GPU behind it is the proxy's own key check (D5), which is why `require_registered` defaults to True. The same reasoning governs the hosted topology: a Space has one port and one URL, so the proxy is mounted on the env server's app at `/capture` with nothing forwarded, and the Space must be **public** because a private one requires an auth header the agent inside the sandbox does not send. That is safe only because the proxy rejects any caller without a registered session id — the mount is not an open relay.
+
+*A forwarder must never return a half-open forward.* `ForwardingError` is raised instead, because a stale URL that still looks valid produces a rollout that silently captures nothing.
+
+**D19 — Four wire dialects, normalised to chat-completions. (new)**
+
+Coding agents did not converge on one wire format, and supporting only chat-completions would cost the four most interesting harnesses:
+
+| dialect | agents |
+|---|---|
+| chat-completions | opencode, goose, qwen-coder, swe-agent, mini-swe-agent, openhands-sdk, openclaw, hermes, kimi-cli, pi, vibe, terminus-2 |
+| OpenAI Responses | codex, trae-agent |
+| Anthropic Messages | claude-code |
+| Google `generateContent` | gemini-cli |
+
+Requests are detected by **path first, then headers, then body shape** — strongest signal to weakest. Getting this wrong is not subtle: a Google request parsed as chat-completions produces a 400 and the agent silently does nothing, which reads as "captured nothing" rather than as a routing bug. trae-agent looked like a chat harness for a full night because its config says `provider: openai`, while the access log showed exactly one `POST /v1/responses` against 465 chat calls. Google's streaming route capitalises the G in `:streamGenerateContent`, so the path test must be case-insensitive or every streaming call is misrouted.
+
+The dialect transformers are adapted from the **Polar** gateway (Apache-2.0) and vendored into `capture/dialects/` rather than depended on, because the PyPI package named `polar` is unrelated; provenance is in `dialects/README.md`. Polar's engine and proxy layers are *not* vendored — they target SGLang, which cannot return token ids at all ([sgl-project/sglang#18378](https://github.com/sgl-project/sglang/issues/18378)) — so a ~160-line vLLM-only `upstream.py` replaces them. verifiers' `Dialect` ABC informed two cases that are easy to get wrong: auxiliary routes (claude-code's `count_tokens` must be answered without becoming a model turn) and per-dialect streaming detection (Google signals streaming in the URL, not the body).
+
+### Interception topology
 
 ```
-In-sandbox (what ships today):
+Previously shipped, still shipping (opencode_env, pi_env):
   [sandbox]  agent → in-sandbox proxy →(HTTPS egress)→ vLLM  [trainer host]
-             the proxy records inside the sandbox; the trainer reads the trace back
-             afterwards through Sandbox.proxy_url_for / files
+             records inside the sandbox; the trainer reads the trace back afterwards
 
-Trainer-side (this RFC):
-  [sandbox]  agent → thin relay →(Sandbox.proxy_url_for, wss)→ interception server → vLLM
-             the server records canonical ids on the trainer host, live; the trainer assembles
-             (or: agent →(outbound tunnel)→ interception server, where one is available)
+This RFC, implemented by #1036:
+  [sandbox]  agent →(PortForwarder)→ capture proxy → vLLM   [trainer host]
+             records canonical ids on the trainer host, live; OpenEnv assembles
 ```
 
-Two properties follow from the trainer-side placement:
-
-1. **Weight-sync fencing (D12) stays a local call.** TRL's `pause()`/`resume()` and the generations they fence sit on the trainer host. An in-sandbox recorder does not itself break this — the fence is on the vLLM server either way — but it does mean the recorder cannot observe the fence, so attributing a policy version to each recorded turn becomes a cross-host bookkeeping problem rather than a local one.
-2. **Less crosses the wire, and nothing sensitive does.** The token-faithful data — prompt/completion ids, logprobs — is produced and recorded on the trainer host and never enters the sandbox. Only the OpenAI-dialect request and the completion text traverse the tunnel. The agent's environment holds a per-rollout bearer scoped to one session and no model internals.
-
-Because only the base-URL host differs between the local-subprocess and remote-sandbox cases, one code path covers both: local runs point at `http://127.0.0.1:<port>/rollout/<sid>/v1`, remote runs at the tunnel hostname.
-
-The in-sandbox proxy stays a supported mode rather than a legacy one — it is the simpler deployment and the right default when neither D18 transport is set up. Both modes share the recorder implementation and the `TraceEntry` shape (D16), differing only in where the process runs and which end opens the connection. The properties above are about *where the recorder sits*, not about which end dials: an in-sandbox recorder that ships canonical ids back is still token-faithful, it just carries the ids over the wire and cannot observe the fence.
+The in-sandbox proxy remains a *supported* mode rather than a legacy one — it is the simpler deployment — but it is no longer the *recommended* one, and Problem 1 is not closed until both shipped harness envs are adapters over `core.harness.capture`. Both modes can share the graph and the export contract, differing only in where the process runs.
 
 ### Request lifecycle
-
-The harness launches with `OPENAI_BASE_URL` → interception server and a per-rollout bearer token as API key (D5). One intercepted call:
 
 ```mermaid
 sequenceDiagram
     participant H as Harness
-    participant S as Interception server
+    participant S as Capture proxy
     participant V as TRL vLLM
-    participant R as Trace recorder
-    H->>S: POST /v1/chat/completions, Bearer session secret
-    Note over S: authenticate + route by session [D5]<br/>enforce turn/token/wall-clock budget [D13]<br/>inject return_token_ids, forward messages verbatim [D3]<br/>check served-template hash, tag call_kind [D11, D17]
-    S->>V: generate with return_token_ids + logprobs [D2]
+    participant G as Rollout graph
+    H->>S: POST in its own dialect, API key = session id
+    Note over S: detect dialect [D19] · authenticate + route [D5]<br/>normalise to chat · inject return_token_ids + logprobs<br/>neutralise distribution-narrowing sampling knobs [D3]
+    S->>V: generate (localhost) [D2]
     V-->>S: prompt_token_ids + token_ids + logprobs
-    S->>R: append the call record (durable)
-    S-->>H: 200 OpenAI dialect, synth SSE if streaming [D6]
-    Note over H,S: reply only after the turn is durably recorded [D14]
+    S->>G: check_turn, then add_turn — link by token prefix [D4, D15]
+    S-->>H: 200 in the harness's dialect, synthetic SSE if it streamed [D6]
 ```
 
-Per call: forward the harness's messages to the engine unmodified except for `return_token_ids` and budget-derived caps; record the canonical `prompt_token_ids` the engine reports alongside the sampled `token_ids` and their logprobs (D3); generate on the trainer-controlled vLLM (D2); reply in OpenAI dialect, synthesizing SSE if the harness streams (D6); append the record. Chain grouping and sample assembly happen afterwards, on the consumer side (D4) — the server never holds a token buffer.
+Role assignment, flattening and validation happen afterwards over the finished graph — the proxy holds no token buffer during the rollout.
 
 ### Reconciliation with RFC 005
 
-RFC 005 owns the wrapping pattern, MCP injection, session isolation, and episode control. This RFC only adds the interception server + trace recorder to core and fills the white-box seam. `ModelStep` stays the generate hook, `ResourceSession` / `ResourceSessionFactory` stay the session contract (extended, not replaced, by the loop-owning protocol in D16), and `run_white_box` stays the white-box entry point. No RFC 005 abstraction is rewritten.
+RFC 005 owns the wrapping pattern, MCP injection, session isolation and episode control. This RFC adds the capture layer to core and (still) fills the white-box seam. `ModelStep` stays the generate hook, `ResourceSession` / `ResourceSessionFactory` stay the session contract, and `run_white_box` stays the white-box entry point. No RFC 005 abstraction is rewritten.
 
-### What OpenEnv must land
+## Implementation status
 
-The merged TRL worker names its OpenEnv-side dependencies directly. Current state:
+Landed in [#1036](https://github.com/huggingface/OpenEnv/pull/1036):
 
-| Item | Status |
+| Item | Where |
 |---|---|
-| `ResourceSessionFactory` generic over its session type | **done** — [#1007](https://github.com/huggingface/OpenEnv/pull/1007) |
-| Session `create()` retry with backoff (external processes are the flakiest step) | **done** — [#1009](https://github.com/huggingface/OpenEnv/pull/1009) |
-| Export `TraceEntry` from `openenv.core.harness` (D16) | open — removes a `TODO(@openenv)` |
-| Export the loop-owning session protocol (D16) | open — removes a `TODO(@openenv)` |
-| Async harness layer (`_generate_one` currently runs whole sessions on a thread pool) | open — `TODO(@openenv)`, performance |
-| Sandbox protocol + E2B/HF/Docker backends into `core/harness/sandbox/` | open — deferred follow-up to [#998](https://github.com/huggingface/OpenEnv/pull/998); track `huggingface_hub.Sandbox` / `hf sandbox` now that it is first-class in 1.22.0 |
-| Pick the D18 transport: sandbox-dials-out tunnel vs trainer-dials-in over `Sandbox.proxy_url_for` WebSocket | open — both viable; the latter needs only `huggingface_hub` |
-| Interception server + trace recorder in core (this RFC) | open |
-| Inject `return_token_ids` and record `prompt_token_ids` (D3) | open — one request field; retires the `--return-tokens-as-token-ids` / `"token_id:{id}"` workaround |
-| End-of-turn token id (config or auto-detect) so consumers can slice interstitials (D3) | open |
-| Served-template hash in provenance + mismatch check (D3, D11) | open |
+| Capture proxy, session-as-API-key auth (D5) | `core/harness/capture/server.py`, `sessions.py` |
+| Four-dialect detection + translation (D19) | `capture/detection.py`, `capture/dialects/` |
+| Canonical id recording, sampling neutralisation (D3) | `capture/upstream.py` |
+| Rollout graph, prefix linking, discard detection (D4) | `capture/graph.py` |
+| Row assembly, structural roles, export document (D3, D17) | `capture/export.py` |
+| Graded ingest/export validation (D15) | `capture/validate.py` |
+| Endpoint certification before a rollout is spent (D2) | `capture/validate_llm.py` |
+| Synthetic SSE replay (D6) | `capture/sse.py` |
+| PortForwarder strategies (D18) | `capture/forwarding.py` |
+| Consumer converters (D16) | `capture/contract.py` |
+| ATIF reconciliation, aux demotion, merge (D17) | `harbor/atif.py` |
+| Reward-key resolution, `None` ≠ 0 (D7) | `harbor/models.py`, `harbor/rollout.py` |
+| δ measurement as a script (D10) | `scripts/logprob_parity.py` |
+
+### What remains open
+
+| Item | Decision | Note |
+|---|---|---|
+| Consolidate `opencode_env` / `pi_env` onto `core.harness.capture` | Problem 1 | two proxies ship today; `pi_env` reads the older one off disk and re-exports its sandbox types |
+| Declare `opencode_env` as a real dependency of `pi_env` | Problem 1 | currently a comment in `pyproject.toml`; the package is broken without it |
+| Sandbox protocol + E2B/HF/Docker backends into `core/harness/sandbox/` | — | deferred follow-up to [#998](https://github.com/huggingface/OpenEnv/pull/998); orthogonal to Harbor, which brings its own |
+| Served-template hash in provenance + mismatch check | D3, D11 | the one remaining fidelity assertion; not an assembly job |
+| Config-file hashing per call | D11 | agents can rewrite their own prompts mid-episode |
+| Policy version / step on each recorded call | D12 | makes a trace spanning a weight sync detectable |
+| Proxy-enforced turn / token / wall-clock budgets | D13 | observability exists, enforcement does not |
+| δ as a trace field rather than a script | D10 | |
+| `CLIHarnessAdapter.run_white_box` | D8, Goal 6 | still `NotImplementedError` |
+| Async harness layer | — | `TODO(@openenv)` in TRL; performance, not correctness |
+| Eval-path role assignment: roots with empty `prompt_ids` all group under one key | D4, D17 | `discarded_nodes()` mislabels auxiliary conversations as discarded when no token ids exist; fix identified, landing separately |
+
+### The TRL-side ask
+
+Two `TODO(@openenv)` markers in `trl/experimental/async_grpo/openenv_harness.py` are already stale — `:187` (factory `create()` retry with backoff) is satisfied by [#1009](https://github.com/huggingface/OpenEnv/pull/1009) and `:210` (generic `ResourceSessionFactory`) by [#1007](https://github.com/huggingface/OpenEnv/pull/1007).
+
+The substantive one is `_turns_from_trace` (`:314`), which reconstructs each turn's prompt with `apply_chat_template` rather than reading recorded ids. Three divergence paths make this a correctness issue rather than a cleanup: `chat_template_kwargs` are dropped; the training-template substitution is skipped on this path (`_sample_turn` at `:253` passes `chat_template=self.chat_template, **self.chat_template_kwargs`, `_turns_from_trace` at `:331` passes **neither** — a TRL-internal inconsistency independent of anything OpenEnv does); and serving-side differences the messages do not capture. When prompts diverge, `_chain_to_sequences` classifies every turn `FORK`, prefix merging is lost, and `input_ids` end up paired with logprobs from a different rendering.
+
+Under D3 the ask is smaller than the previous revision's: consume `capture/contract.py`'s converters, which already exclude auxiliary and discarded turns, rather than re-deriving structure from a flat trace.
 
 ## Examples
 
-Loop-owning wiring against the merged TRL path (lives in `examples/`, never as infrastructure in `envs/`):
+The Harbor path, end to end. `--llm-url` is required and has no default and no environment fallback, because an unset endpoint produces rollouts that look completely normal and carry no token ids.
+
+```bash
+LLM=http://127.0.0.1:8000/v1
+
+# What can this machine actually run? Read-only, boots nothing.
+openenv harbor info --llm-url $LLM \
+  --dataset AdithyaSK/data_agent_rl_environment_train,AdithyaSK/data_agent_rl_environment_eval
+
+# Rollouts with no env server involved — also the debugging path:
+# if this works and `serve` does not, the fault is in the serving layer.
+openenv harbor rollout --llm-url $LLM \
+  --dataset AdithyaSK/data_agent_rl_environment_train \
+  --task-index 0 -n 5 --harness opencode --sandbox modal
+
+# The env server: Task API for discovery, one long-running run_rollout MCP tool, and a web UI.
+# Refuses to start if the LLM cannot return token ids.
+openenv harbor serve --llm-url $LLM \
+  --dataset AdithyaSK/data_agent_rl_environment_train,AdithyaSK/data_agent_rl_environment_eval
+```
+
+Training against the merged TRL path (lives in `examples/`, never as infrastructure in `envs/`):
 
 ```python
 from trl.experimental.async_grpo import AsyncGRPOTrainer, HarnessRolloutWorker, has_tool_call
-from swe_rl_env import SWERLSessionFactory
-
-factory = SWERLSessionFactory(...)  # starts the harness pointed at the interception server
 
 worker = HarnessRolloutWorker(
-    harness_session_factory=factory,
+    harness_session_factory=factory,   # starts the harness pointed at the capture proxy
     # harness_adapter=None → loop-owning: the agent runs its own loop and we read its trace.
-    # Pass an adapter instead to take the white-box path (TRL samples each turn via ModelStep).
-    train_turn_fn=has_tool_call,   # reinforce action-taking turns only (caller policy, D17)
-    ...,                           # the usual AsyncRolloutWorker kwargs
+    train_turn_fn=has_tool_call,       # reinforce action-taking turns only (caller policy, D17)
+    ...,
 )
 
 trainer = AsyncGRPOTrainer(
     model=policy,
-    rollout_worker=worker,   # TRL owns vLLM (return_token_ids), weight sync, advantages, IS
+    rollout_worker=worker,   # TRL owns vLLM, weight sync, advantages, IS
     ...,
 )
 trainer.train()
 ```
 
-Property tests runnable without GPUs, none of which need a tokenizer in core: canonical ids recorded for every call (D3), served-template hash mismatch is fatal (D3), prompt-prefix chain grouping never consults sampled `response_ids` (D4), `CLEAN`-classification of in-chain turns on the TRL side (D4), logprob alignment (D15), auth rejection (D5), `call_kind` tagging (D17), local-vs-tunnel base-URL parity (D18).
+Property tests runnable without GPUs, none of which need a tokenizer in core: canonical ids recorded for every call (D3), prefix linking is symmetric under arrival order (D4), a discarded sibling never enters a training path (D4), role assignment survives a toolless harness (D17), logprob alignment and the mask/logprob invariants (D9, D15), auth rejection of an unregistered key (D5), dialect detection for the streaming Google route (D19), local-vs-forwarded base-URL parity (D18).
 
 ## References
 
 ### OpenEnv seams and prior art
-- RFC 005 — Agentic Harness Integration: [`rfcs/005-agentic-harnesses.md`](./005-agentic-harnesses.md); runtime in [`src/openenv/core/harness/__init__.py`](../src/openenv/core/harness/__init__.py) (`ModelStep`, `run_white_box` stub, `build_harness_rollout_func`), landed via [#652](https://github.com/huggingface/OpenEnv/pull/652)/[#903](https://github.com/huggingface/OpenEnv/pull/903)
-- Tracking issue [#940](https://github.com/huggingface/OpenEnv/issues/940) — `swe_rl_env`, `swe_rl_agent`, sandbox backends in core, interception + trace, this RFC
-- Existing in-sandbox proxy: [`envs/opencode_env/sandbox/interception.py`](../envs/opencode_env/sandbox/interception.py) (`TurnRecord`, logprob capture)
-- PR [#998](https://github.com/huggingface/OpenEnv/pull/998) — `HFSandboxBackend` + `sandbox_home` fix (merged); consolidating `SandboxBackend`/`SandboxHandle`/`BgJob` + E2B/HF into `core/harness/sandbox/` is its deferred follow-up
-- **`huggingface_hub.Sandbox`** (the mechanism behind D18, first-class since 1.22.0 — the floor [#998](https://github.com/huggingface/OpenEnv/pull/998) already requires — plus an `hf sandbox` CLI): [`src/huggingface_hub/_sandbox.py`](https://github.com/huggingface/huggingface_hub/blob/main/src/huggingface_hub/_sandbox.py) (`proxy_url_for`, `proxy_headers`, `SANDBOX_SERVER_PORT`, `$SBX_PROXY_DIR/<port>.sock`), [`cli/sandbox.py`](https://github.com/huggingface/huggingface_hub/blob/main/src/huggingface_hub/cli/sandbox.py), [guide](https://huggingface.co/docs/huggingface_hub/main/en/guides/sandbox)
-- PR [#1007](https://github.com/huggingface/OpenEnv/pull/1007) — `ResourceSessionFactory` generic over its session type (merged)
-- PR [#1009](https://github.com/huggingface/OpenEnv/pull/1009) — session `create()` retry with backoff (merged)
-- PR [#694](https://github.com/huggingface/OpenEnv/pull/694) / [#695](https://github.com/huggingface/OpenEnv/pull/695) — prior attempt (both closed)
-- PR [#864](https://github.com/huggingface/OpenEnv/pull/864) — minimal message-level contract (superseded by D1)
+- **PR [#1036](https://github.com/huggingface/OpenEnv/pull/1036) — the implementation this revision is written against**: `src/openenv/core/harness/capture/` (proxy, graph, export, contract, validation, dialects, forwarding), `src/openenv/harbor/` (seams, tasks, rollout, ATIF, serving, UI), `envs/harbor_env/`, `openenv harbor` CLI
+- RFC 005 — Agentic Harness Integration: [`rfcs/005-agentic-harnesses.md`](./005-agentic-harnesses.md); runtime in [`src/openenv/core/harness/__init__.py`](../src/openenv/core/harness/__init__.py), landed via [#652](https://github.com/huggingface/OpenEnv/pull/652)/[#903](https://github.com/huggingface/OpenEnv/pull/903)
+- Tracking issue [#940](https://github.com/huggingface/OpenEnv/issues/940)
+- Existing in-sandbox proxy: [`envs/opencode_env/sandbox/interception.py`](../envs/opencode_env/sandbox/interception.py); second consumer [`envs/pi_env/harness.py`](../envs/pi_env/harness.py) ([#999](https://github.com/huggingface/OpenEnv/pull/999))
+- Tutorials documenting the in-sandbox path: [`docs/source/tutorials/opencode-agent-grpo.md`](../docs/source/tutorials/opencode-agent-grpo.md) ([#1028](https://github.com/huggingface/OpenEnv/pull/1028)), [`pi-agent-grpo.md`](../docs/source/tutorials/pi-agent-grpo.md) ([#1023](https://github.com/huggingface/OpenEnv/pull/1023))
+- PR [#998](https://github.com/huggingface/OpenEnv/pull/998) — `HFSandboxBackend` + `sandbox_home` fix (merged); sandbox consolidation is its deferred follow-up
+- **`huggingface_hub.Sandbox`** (first-class since 1.22.0, plus an `hf sandbox` CLI): [`src/huggingface_hub/_sandbox.py`](https://github.com/huggingface/huggingface_hub/blob/main/src/huggingface_hub/_sandbox.py) (`proxy_url_for`, `proxy_headers`, `$SBX_PROXY_DIR/<port>.sock`), [guide](https://huggingface.co/docs/huggingface_hub/main/en/guides/sandbox) — the trainer-dials-in route D18 considered and did not take
+- PRs [#1007](https://github.com/huggingface/OpenEnv/pull/1007), [#1009](https://github.com/huggingface/OpenEnv/pull/1009) — merged, satisfying two TRL `TODO(@openenv)`s
+- PRs [#694](https://github.com/huggingface/OpenEnv/pull/694) / [#695](https://github.com/huggingface/OpenEnv/pull/695) — prior attempt (closed); [#864](https://github.com/huggingface/OpenEnv/pull/864) — message-level contract (superseded by D1)
 
 ### Reference implementations of the interception pattern
-- **Polar / ProRL-Agent-Server** (NVIDIA NeMo, Apache-2.0): [github.com/NVIDIA-NeMo/ProRL-Agent-Server](https://github.com/NVIDIA-NeMo/ProRL-Agent-Server) · Polar paper [arXiv:2605.24220](https://arxiv.org/abs/2605.24220) · ProRL Agent [arXiv:2603.18815](https://arxiv.org/abs/2603.18815). Verified for the evidence table: `src/polar/gateway/engine.py` (per-engine `prepare_request` / `normalize_response`), `src/polar/gateway/server.py` + `storage.py` (live recording), `src/polar/trajectory/builder/prefix_merging.py` (post-hoc grouping + canonical-interstitial slicing; the `[fish, ing]` → `[fishing]` hazard is documented in its module docstring), `src/polar/trajectory/models.py` (`Trace` + length validators), `agent/presets/{pi,claude_code}.py`
-- **verifiers** (Prime Intellect): [github.com/PrimeIntellect-ai/verifiers](https://github.com/PrimeIntellect-ai/verifiers) — `v1/clients/train.py` (`response_from_generate` → `TurnTokens`), `v1/graph.py` (`prepare_turn` / `_commit_turn`, message-hash matching, `MessageNode`), `v1/interception/server.py` (retry dedup / in-flight coalescing only), `v1/trace.py` · trainer: [prime-rl](https://github.com/PrimeIntellect-ai/prime-rl) (`trainer/batch.py` consumes `token_ids` / `mask` without re-tokenizing)
-- **AReaL** (inclusionAI): [github.com/inclusionAI/AReaL](https://github.com/inclusionAI/AReaL) · [arXiv:2505.24298](https://arxiv.org/abs/2505.24298) · AReaL2.0 position paper [arXiv:2607.01120](https://arxiv.org/abs/2607.01120)
+- **Polar / ProRL-Agent-Server** (NVIDIA NeMo, Apache-2.0): [github.com/NVIDIA-NeMo/ProRL-Agent-Server](https://github.com/NVIDIA-NeMo/ProRL-Agent-Server) · Polar paper [arXiv:2605.24220](https://arxiv.org/abs/2605.24220) · ProRL Agent [arXiv:2603.18815](https://arxiv.org/abs/2603.18815). Verified for the evidence table: `src/polar/gateway/engine.py`, `gateway/server.py` + `storage.py`, `trajectory/builder/prefix_merging.py` (the `[fish, ing]` → `[fishing]` hazard is in its module docstring), `trajectory/models.py` (`Trace` + length validators). Its transformers are vendored into `capture/dialects/` (D19)
+- **verifiers** (Prime Intellect): [github.com/PrimeIntellect-ai/verifiers](https://github.com/PrimeIntellect-ai/verifiers) — `v1/graph.py`, `v1/interception/server.py`, `v1/trace.py`, and the `Dialect` ABC that informed D19 · trainer: [prime-rl](https://github.com/PrimeIntellect-ai/prime-rl)
+- **AReaL** (inclusionAI): [github.com/inclusionAI/AReaL](https://github.com/inclusionAI/AReaL) · [arXiv:2505.24298](https://arxiv.org/abs/2505.24298) · [arXiv:2607.01120](https://arxiv.org/abs/2607.01120)
 - **Agent Lightning** (Microsoft): [arXiv:2508.03680](https://arxiv.org/abs/2508.03680) · [LLM Proxy docs](https://microsoft.github.io/agent-lightning/latest/deep-dive/serving-llm/)
-- **rLLM** (Agentica): [rllm-project.readthedocs.io](https://rllm-project.readthedocs.io/en/stable/core-concepts/sdk/)
-- **SkyRL** (NovaSky): [github.com/NovaSky-AI/SkyRL](https://github.com/NovaSky-AI/SkyRL) · [arXiv:2511.16108](https://arxiv.org/abs/2511.16108)
+- **rLLM** (Agentica): [rllm-project.readthedocs.io](https://rllm-project.readthedocs.io/en/stable/core-concepts/sdk/) · **SkyRL** (NovaSky): [github.com/NovaSky-AI/SkyRL](https://github.com/NovaSky-AI/SkyRL) · [arXiv:2511.16108](https://arxiv.org/abs/2511.16108)
+- **ATIF** — Agent Trajectory Interchange Format v1.7, the independent cross-check behind D17; ~27 Harbor agents emit it
+- **SGLang cannot return token ids**: [sgl-project/sglang#18378](https://github.com/sgl-project/sglang/issues/18378) — why Polar's engine layer is not vendored
 
 ### Token fidelity (TITO / retokenization drift)
 - **TITO** (Q. Gallouédec, TRL): [huggingface.co/spaces/qgallouedec/tito](https://huggingface.co/spaces/qgallouedec/tito)
 - TRL productionization: [`trl/chat_template_utils.py`](https://github.com/huggingface/trl/blob/main/trl/chat_template_utils.py) · chat-template audit [trl#5460](https://github.com/huggingface/trl/issues/5460) · rollout decoupling [trl#5121](https://github.com/huggingface/trl/issues/5121)
-- **vLLM `return_token_ids`**: [blog](https://vllm.ai/blog/2025-10-22-agent-lightning) · [OpenAI-compatible server docs](https://docs.vllm.ai/en/latest/serving/online_serving/openai_compatible_server/) — since v0.10.2, returns `prompt_token_ids` (post-chat-template input ids) and `token_ids` (generated); added in [vllm#22587](https://github.com/vllm-project/vllm/pull/22587). Known limits checked for D3: streaming tool-call runs dropped intermediate ids ([vllm#27482](https://github.com/vllm-project/vllm/issues/27482), **fixed** by [vllm#29074](https://github.com/vllm-project/vllm/pull/29074)); GPT-OSS-120b returns `token_ids: null` while `prompt_token_ids` is populated ([vllm#28246](https://github.com/vllm-project/vllm/issues/28246), closed as not-planned) — so a completion-id fallback stays necessary, but prompt ids are reliable
-- **PrimeIntellect renderers**: [github.com/PrimeIntellect-ai/renderers](https://github.com/PrimeIntellect-ai/renderers) · [blog](https://www.primeintellect.ai/blog/renderers)
-- LMSYS "No Token Left Behind": [lmsys.org/blog/2026-05-13-no-token-left-behind](https://www.lmsys.org/blog/2026-05-13-no-token-left-behind/)
-- Numeric mismatch fixes: [verl#2953](https://github.com/verl-project/verl/pull/2953) · [trl#4159](https://github.com/huggingface/trl/issues/4159)
+- **vLLM `return_token_ids`**: [blog](https://vllm.ai/blog/2025-10-22-agent-lightning) · [server docs](https://docs.vllm.ai/en/latest/serving/online_serving/openai_compatible_server/) — since v0.10.2, added in [vllm#22587](https://github.com/vllm-project/vllm/pull/22587). Known limits: streaming tool-call runs dropped intermediate ids ([vllm#27482](https://github.com/vllm-project/vllm/issues/27482), **fixed** by [vllm#29074](https://github.com/vllm-project/vllm/pull/29074)); GPT-OSS-120b returns `token_ids: null` while `prompt_token_ids` is populated ([vllm#28246](https://github.com/vllm-project/vllm/issues/28246), closed not-planned) — so a completion-id fallback stays necessary, prompt ids are reliable
+- **PrimeIntellect renderers**: [github.com/PrimeIntellect-ai/renderers](https://github.com/PrimeIntellect-ai/renderers) · [blog](https://www.primeintellect.ai/blog/renderers) — rejected for ~3× re-render compute; canonical-id recording obtains the same invariant for free
+- LMSYS "No Token Left Behind": [lmsys.org/blog/2026-05-13-no-token-left-behind](https://www.lmsys.org/blog/2026-05-13-no-token-left-behind/) · numeric mismatch fixes: [verl#2953](https://github.com/verl-project/verl/pull/2953) · [trl#4159](https://github.com/huggingface/trl/issues/4159)
 
 ### TRL integration surface
-- **The target seam** — [trl#6420](https://github.com/huggingface/trl/pull/6420) (merged 2026-07-24): `AsyncGRPOTrainer` loop-owning path. [`trl/experimental/async_grpo/openenv_harness.py`](https://github.com/huggingface/trl/blob/main/trl/experimental/async_grpo/openenv_harness.py) (`HarnessRolloutWorker`, `TraceEntry`, `LoopOwningSession`, `HarnessRolloutOutcome`, `HarnessTurn`, `_turns_from_trace`, `has_tool_call`) · example [`examples/scripts/openenv/opencode.py`](https://github.com/huggingface/trl/blob/main/examples/scripts/openenv/opencode.py)
-- Drift reconciler (D4): [`trl/experimental/async_grpo/async_rollout_worker.py`](https://github.com/huggingface/trl/blob/main/trl/experimental/async_grpo/async_rollout_worker.py) — `TurnRecord`, `TrainingSequence`, `DriftKind{CLEAN,REALIGN,FORK}`, `_SampleBuilder`, `_chain_to_sequences`
-- OpenEnv integration doc ("Training on harnesses"): [huggingface.co/docs/trl/main/openenv](https://huggingface.co/docs/trl/main/openenv)
-- Synchronous bridge (not the target path): `rollout_func` + `env_mask`→`tool_mask` in [`trl/trainer/grpo_trainer.py`](https://github.com/huggingface/trl/blob/main/trl/trainer/grpo_trainer.py)
-- Weight sync + fencing on the target path (D12): [`trl/experimental/async_grpo/weight_transfer.py`](https://github.com/huggingface/trl/blob/main/trl/experimental/async_grpo/weight_transfer.py) (`pause`/`resume`) and [`vllm_client.py`](https://github.com/huggingface/trl/blob/main/trl/experimental/async_grpo/vllm_client.py) (`POST /pause?mode=keep`, `/resume`, `/init_weight_transfer_engine`, `/update_weights`); launch documented in [`docs/source/async_grpo_trainer.md`](https://github.com/huggingface/trl/blob/main/docs/source/async_grpo_trainer.md) as `VLLM_SERVER_DEV_MODE=1 vllm serve …`
-- `trl vllm-serve` ([`trl/scripts/vllm_serve.py`](https://github.com/huggingface/trl/blob/main/trl/scripts/vllm_serve.py)) serves `GRPOTrainer`, not this path — its routes are `/generate/`, `/chat/`, `/init_communicator/`, `/update_named_param/`, `/reset_prefix_cache/`, with no pause endpoint
-- Harbor integration (external-agent pattern only): [huggingface.co/docs/trl/harbor](https://huggingface.co/docs/trl/harbor)
+- **The target seam** — [trl#6420](https://github.com/huggingface/trl/pull/6420) (merged 2026-07-24): [`trl/experimental/async_grpo/openenv_harness.py`](https://github.com/huggingface/trl/blob/main/trl/experimental/async_grpo/openenv_harness.py) (`HarnessRolloutWorker`, `TraceEntry`, `LoopOwningSession`, `_turns_from_trace`, `has_tool_call`) · example [`examples/scripts/openenv/opencode.py`](https://github.com/huggingface/trl/blob/main/examples/scripts/openenv/opencode.py)
+- Drift reconciler: [`async_rollout_worker.py`](https://github.com/huggingface/trl/blob/main/trl/experimental/async_grpo/async_rollout_worker.py) — `TrainingSequence`, `DriftKind{CLEAN,REALIGN,FORK}`, `_chain_to_sequences`
+- Weight sync + fencing (D12): [`weight_transfer.py`](https://github.com/huggingface/trl/blob/main/trl/experimental/async_grpo/weight_transfer.py), [`vllm_client.py`](https://github.com/huggingface/trl/blob/main/trl/experimental/async_grpo/vllm_client.py); launch documented as `VLLM_SERVER_DEV_MODE=1 vllm serve …`. `trl vllm-serve` serves `GRPOTrainer`, not this path, and has no pause endpoint
+- OpenEnv integration doc: [huggingface.co/docs/trl/main/openenv](https://huggingface.co/docs/trl/main/openenv) · Harbor integration (external-agent only): [huggingface.co/docs/trl/harbor](https://huggingface.co/docs/trl/harbor)
 
 ### Recent literature
 - TIM — training/inference mismatch, KL-invisible collapse: [arXiv:2605.14220](https://arxiv.org/abs/2605.14220)
 - SAO — single-rollout async, double-sided token-level clipping: [arXiv:2607.07508](https://arxiv.org/abs/2607.07508)
 - Loss-mask invariant: [arXiv:2606.03461](https://arxiv.org/abs/2606.03461)
 - Rollout survey (Generate–Filter–Control–Replay): [arXiv:2605.02913](https://arxiv.org/abs/2605.02913)
-- Model-plus-harness confound: [arXiv:2605.26112](https://arxiv.org/abs/2605.26112)
-- HASE — co-evolving harness, immutable-oracle reward: [arXiv:2607.03935](https://arxiv.org/abs/2607.03935)
+- Model-plus-harness confound: [arXiv:2605.26112](https://arxiv.org/abs/2605.26112) · HASE — co-evolving harness: [arXiv:2607.03935](https://arxiv.org/abs/2607.03935)
 - Agentic Monte Carlo — test-time SMC alternative: [arXiv:2606.05296](https://arxiv.org/abs/2606.05296)
