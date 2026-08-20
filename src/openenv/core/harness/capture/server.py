@@ -557,6 +557,22 @@ def create_app(
             return await app.state.upstreams.resolve(session.upstream)
         return app.state.upstreams.default
 
+    def _model_of(session) -> str:
+        """The model name to send upstream for this session.
+
+        The proxy rewrites `model` because harnesses mangle it: opencode is configured with
+        `intercepted/<model>` and the provider layer forwards only the last path segment, so what
+        arrives is `Qwen3.5-2B` where the engine serves `Qwen/Qwen3.5-2B` and answers 404. Rewriting
+        it is therefore not a nicety, it is what makes the call work at all.
+
+        With the engine per session, the name has to come from the SESSION's engine. Reading the
+        server default here is what broke an engineless server: `app.state.model` was empty, the
+        rewrite was skipped, and the agent's mangled name went upstream untouched.
+        """
+        if session is not None and session.upstream is not None and session.upstream.model:
+            return session.upstream.model
+        return app.state.model or ""
+
     def _level_of(session) -> str:
         """A session's capture level without touching the network.
 
@@ -781,11 +797,12 @@ def create_app(
         # as the upstream client used to, meant the transformers never saw it (so the Qwen3.5
         # thinking fix silently never applied) and the marker travelled on to the engine unused.
         incoming = dict(body)
-        if app.state.model:
-            incoming["_served_model"] = app.state.model
+        served_model = _model_of(session)
+        if served_model:
+            incoming["_served_model"] = served_model
         chat_request = transformer.transform_request(incoming)
-        if app.state.model:
-            chat_request["model"] = app.state.model
+        if served_model:
+            chat_request["model"] = served_model
         normalise_for_capture(chat_request)
         clamped = clamp_output_tokens(chat_request, app.state.max_output_tokens)
         if clamped:

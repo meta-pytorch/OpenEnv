@@ -149,3 +149,41 @@ def test_the_credential_is_not_part_of_the_cache_key():
     b = sessions.Upstream(llm_url="http://x/v1", model="m", api_key="secret-b")
     assert a.cache_key == b.cache_key
     assert "secret-a" not in str(a.cache_key)
+
+
+def test_the_outgoing_model_comes_from_the_session_engine(monkeypatch):
+    """The engine 404s on a mangled model name, and an engineless server used to send one.
+
+    Harnesses rewrite the model: opencode is configured with `intercepted/<model>` and its provider
+    layer forwards only the last path segment, so `Qwen/Qwen3.5-2B` arrives as `Qwen3.5-2B` and the
+    engine answers `404 The model does not exist`. The proxy rewriting `model` is what makes the call
+    work. Reading the SERVER's model to do it meant an engineless server skipped the rewrite entirely
+    and every agent call 404'd — captured live before this test existed.
+    """
+    app, _ = app_with(monkeypatch)
+    sent: dict = {}
+
+    class FakeClient:
+        served_model = "Qwen/Qwen3.5-2B"
+
+        async def completion(self, request):
+            sent.update(request)
+            raise server.UpstreamError("stop here; the request is what matters")
+
+    with TestClient(app) as client:
+        body = client.post(
+            "/sessions",
+            json={"llm_url": "http://train:8000", "model": "Qwen/Qwen3.5-2B"},
+        ).json()
+        # Swap in a client that records what it was asked to send.
+        key = ("http://train:8000", "Qwen/Qwen3.5-2B", "Authorization")
+        app.state.upstreams._by_engine[key] = (FakeClient(), "tokens")
+        client.post(
+            "/v1/chat/completions",
+            json={"model": "Qwen3.5-2B", "messages": [{"role": "user", "content": "hi"}]},
+            headers={"Authorization": f"Bearer {body['session_id']}"},
+        )
+
+    assert sent.get("model") == "Qwen/Qwen3.5-2B", (
+        f"the mangled name reached the engine: {sent.get('model')!r}"
+    )
