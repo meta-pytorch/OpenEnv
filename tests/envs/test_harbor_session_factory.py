@@ -1,0 +1,216 @@
+# Copyright (c) Meta Platforms, Inc. and affiliates.
+# All rights reserved.
+#
+# This source code is licensed under the BSD-style license found in the
+# LICENSE file in the root directory of this source tree.
+
+"""`HarborSession` is what lets a stock TRL rollout worker train on a hosted Harbor server.
+
+TRL's loop-owning path calls `create()` -> `wait_for_completion()` -> `fetch_proxy_trace()` ->
+`verify()`, and knows nothing else. Satisfying that contract is what makes the training script the
+stock one, with nothing added to TRL. These tests pin the parts where getting it subtly wrong would
+look like a working run:
+
+  * an EVAL rollout must yield NO trainable turns, not rows of zeros
+  * a failed rollout must return non-zero rather than raise, because an exception in the rollout loop
+    takes down every training rank waiting on the next batch
+  * an ungraded rollout must report `None`, never 0 — a crashed rollout is not a wrong answer
+  * a prompt must map back to the task the server actually has
+"""
+
+from __future__ import annotations
+
+import pytest
+
+harness = pytest.importorskip("harbor_env.harness")
+models = pytest.importorskip("openenv.harbor.models")
+
+
+def turn(**kw):
+    defaults = dict(
+        turn=0,
+        prompt_token_ids=[1, 2, 3],
+        completion_token_ids=[10, 11],
+        per_token_logps=[-0.5, -0.25],
+        request_messages=[{"role": "user", "content": "do the thing"}],
+        text="done",
+        trainable=True,
+        discarded=False,
+    )
+    defaults.update(kw)
+    return models.HarborTurn(**defaults)
+
+
+def result(**kw):
+    defaults = dict(
+        ok=True,
+        rollout_type="train",
+        capture_level="tokens",
+        reward=1.0,
+        turns=[turn()],
+    )
+    defaults.update(kw)
+    return models.HarborRolloutResult(**defaults)
+
+
+class FakeEnv:
+    """Stands in for a deployed server. Records what it was asked for."""
+
+    def __init__(self, outcome=None, tasks=None, raises=None):
+        self._outcome = outcome
+        self._raises = raises
+        self._tasks = tasks or [
+            {"index": 0, "task_name": "t0", "instruction": "first task"},
+            {"index": 1, "task_name": "t1", "instruction": "second task"},
+        ]
+        self.calls: list[dict] = []
+
+    def splits(self):
+        return [{"name": "train-split", "num_tasks": len(self._tasks)}]
+
+    def num_tasks(self, split=""):
+        return len(self._tasks)
+
+    def get_task_range(self, split, start=None, stop=None):
+        return self._tasks[start:stop]
+
+    def run_rollout(self, **kwargs):
+        self.calls.append(kwargs)
+        if self._raises:
+            raise self._raises
+        return self._outcome
+
+
+def factory_with(env, **kw):
+    f = harness.HarborSessionFactory("http://server:8000", split="train-split", **kw)
+    f._env = env
+    return f
+
+
+def test_a_train_rollout_becomes_trace_entries():
+    env = FakeEnv(result())
+    session = factory_with(env).create([{"role": "user", "content": "first task"}])
+    assert session.wait_for_completion() == 0
+    trace = session.fetch_proxy_trace()
+    assert len(trace) == 1
+    entry = trace[0]
+    assert entry["completion_token_ids"] == [10, 11]
+    assert entry["per_token_logps"] == [-0.5, -0.25]
+    assert entry["request"]["messages"][0]["content"] == "do the thing", (
+        "request_messages is what makes a TraceEntry buildable at all"
+    )
+
+
+def test_an_eval_rollout_yields_nothing_trainable():
+    """It has a reward and a readable trace; what it has no business producing is training rows."""
+    env = FakeEnv(result(rollout_type="eval", capture_level="text", turns=[]))
+    session = factory_with(env).create([{"role": "user", "content": "first task"}])
+    session.wait_for_completion()
+    assert session.fetch_proxy_trace() == []
+    assert session.verify([]).env_reward == 1.0, "the reward still stands"
+
+
+def test_an_eval_rollout_that_somehow_carries_turns_still_yields_nothing():
+    """Guards the tier, not the emptiness: trusting turns present on an eval result would train on
+    whatever the endpoint happened to return."""
+    env = FakeEnv(result(rollout_type="eval", capture_level="logprobs", turns=[turn()]))
+    session = factory_with(env).create([{"role": "user", "content": "first task"}])
+    session.wait_for_completion()
+    assert session.fetch_proxy_trace() == []
+
+
+def test_untrainable_and_discarded_turns_are_dropped():
+    env = FakeEnv(
+        result(
+            turns=[
+                turn(turn=0),
+                turn(turn=1, trainable=False),
+                turn(turn=2, discarded=True),
+                turn(turn=3, completion_token_ids=[]),
+            ]
+        )
+    )
+    session = factory_with(env).create([{"role": "user", "content": "first task"}])
+    session.wait_for_completion()
+    assert len(session.fetch_proxy_trace()) == 1
+
+
+def test_a_server_error_is_returned_not_raised():
+    """An exception here kills the rollout loop, and a dead loop hangs every training rank."""
+    env = FakeEnv(raises=RuntimeError("websocket closed"))
+    session = factory_with(env).create([{"role": "user", "content": "first task"}])
+    assert session.wait_for_completion() == 1
+    assert session.fetch_proxy_trace() == []
+    assert session.verify([]).env_reward is None, "no grade is None, never 0"
+
+
+def test_a_not_ok_rollout_reports_non_zero():
+    env = FakeEnv(result(ok=False, error="sandbox died", reward=None))
+    session = factory_with(env).create([{"role": "user", "content": "first task"}])
+    assert session.wait_for_completion() == 1
+    assert session.verify([]).env_reward is None
+
+
+def test_the_prompt_selects_the_right_task():
+    env = FakeEnv(result())
+    session = factory_with(env).create([{"role": "user", "content": "second task"}])
+    session.wait_for_completion()
+    assert env.calls[0]["task_index"] == 1
+
+
+def test_an_unknown_prompt_is_a_loud_error():
+    """Silently defaulting to task 0 would train a whole run on one task and look like convergence."""
+    env = FakeEnv(result())
+    with pytest.raises(KeyError, match="does not match any task"):
+        factory_with(env).create(
+            [{"role": "user", "content": "not a task on this server"}]
+        )
+
+
+def test_the_engine_and_bounds_reach_the_server():
+    env = FakeEnv(result())
+    f = factory_with(
+        env, llm_url="http://vllm:8000", model="Qwen/Qwen3.5-2B", agent_timeout_sec=300
+    )
+    f.create([{"role": "user", "content": "first task"}]).wait_for_completion()
+    call = env.calls[0]
+    assert call["llm_url"] == "http://vllm:8000"
+    assert call["model"] == "Qwen/Qwen3.5-2B"
+    assert call["agent_timeout_sec"] == 300
+
+
+def test_prompt_rows_round_trip_through_create():
+    """The dataset a trainer builds must be the one the factory can resolve."""
+    env = FakeEnv(result())
+    f = factory_with(env)
+    rows = f.prompt_rows()
+    assert [r["task_index"] for r in rows] == [0, 1]
+    for row in rows:
+        assert f.create(row["prompt"])._task_index == row["task_index"]
+
+
+def test_the_agent_owns_its_loop_so_no_tools_are_exposed():
+    session = factory_with(FakeEnv(result())).create(
+        [{"role": "user", "content": "first task"}]
+    )
+    assert session.list_tools() == []
+    assert session.call_tool("bash", {}).error
+
+
+def test_prompt_skew_measures_against_the_engines_own_ids():
+    """The point of the measurement: an exact re-render scores 1.0, a wrong one does not."""
+
+    class ExactTokenizer:
+        def apply_chat_template(self, messages, **kw):
+            return [1, 2, 3]
+
+    class DriftingTokenizer:
+        def apply_chat_template(self, messages, **kw):
+            return [1, 2, 99, 100]
+
+    res = result()
+    assert harness.measure_prompt_skew(res, ExactTokenizer())["exact_match_frac"] == 1.0
+    drifted = harness.measure_prompt_skew(res, DriftingTokenizer())
+    assert drifted["exact_match_frac"] == 0.0
+    assert drifted["worst_common_prefix"] == 2
+    assert drifted["length_deltas"] == [1]
