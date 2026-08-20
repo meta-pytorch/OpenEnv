@@ -4,13 +4,22 @@ Everything is read from the environment so the same image serves any dataset and
 a rebuild — which is what makes this deployable to a Space:
 
     OPENENV_DATASETS     comma-separated dataset specs (HF repo id, local dir, harbor name@version)
-    OPENENV_LLM_URL   OpenAI-spec inference endpoint
+    OPENENV_LLM_URL      DEFAULT OpenAI-spec endpoint; optional, since rollouts may name their own
+    OPENENV_MAX_OUTPUT_TOKENS  cap on what an agent may request per turn (default 8192)
     OPENENV_MODEL        served model id; read from the engine when it serves exactly one
     OPENENV_LLM_API_KEY  credential for a hosted endpoint; a Space SECRET, never a variable
     OPENENV_LLM_AUTH_HEADER  header to send it under, when not `Authorization`
     E2B_API_KEY / MODAL_TOKEN_ID+MODAL_TOKEN_SECRET   whichever sandboxes you want offered
 
-An endpoint that cannot return token ids is not a boot failure: the Space comes up as an EVAL
+OPENENV_LLM_URL is OPTIONAL. With no engine the server still comes up serving its datasets, and each
+rollout names the engine it wants (`run_rollout(llm_url=...)`), which is probed once and cached. That
+is the useful way round: a dataset tree is thousands of files and prebuilt sandbox templates, while an
+engine restarts every training run — and a train-tier engine and an eval-tier one are usually both
+wanted against the same task suite.
+
+Naming an engine here still works and makes it the default for rollouts that name none.
+
+An endpoint that cannot return token ids is not a boot failure either: the Space comes up as an EVAL
 deployment, which is what a hosted provider can honestly offer. `capture_level` says which it is, and
 the UI shows it.
 
@@ -49,9 +58,7 @@ if _LLM_URL:
         from openenv.core.harness.capture.validate_llm import list_models, validate_llm
 
         if not _MODEL:
-            served = list_models(
-                _LLM_URL, api_key=_API_KEY, auth_header=_AUTH_HEADER
-            )
+            served = list_models(_LLM_URL, api_key=_API_KEY, auth_header=_AUTH_HEADER)
             _MODEL = served[0] if len(served) == 1 else ""
         if _MODEL:
             _report = validate_llm(
@@ -102,21 +109,25 @@ if _LLM_URL:
 # Resolve capture before the app is built. A Space gives no separate boot hook, the UI needs the
 # proxy's public URL to exist by the time anyone presses Run, and `build_app` has to see the service
 # in order to mount it.
-if _LLM_URL:
-    _service = HarborService(
-        llm_url=_LLM_URL,
-        model=_MODEL,
-        datasets=_DATASETS,
-        capture_port=int(os.environ.get("OPENENV_CAPTURE_PORT", "8100")),
-        expose=os.environ.get("OPENENV_EXPOSE", "gradio"),
-        api_key=_API_KEY,
-        auth_header=_AUTH_HEADER,
-        capture_level=_CAPTURE_LEVEL,
-    )
-    # On a Space this only computes the public URL and flags the app for mounting; off one it
-    # publishes the capture port the usual way.
-    _service.start()
-    HarborService.set_current(_service)
+#
+# Started unconditionally: the proxy has to be listening and publicly reachable before any rollout
+# can name an engine, and it is the SESSION that carries the engine. Gating this on OPENENV_LLM_URL
+# was what made an engineless server useless — every rollout answered "server not initialised".
+_service = HarborService(
+    llm_url=_LLM_URL,
+    model=_MODEL,
+    datasets=_DATASETS,
+    capture_port=int(os.environ.get("OPENENV_CAPTURE_PORT", "8100")),
+    expose=os.environ.get("OPENENV_EXPOSE", "gradio"),
+    api_key=_API_KEY,
+    auth_header=_AUTH_HEADER,
+    capture_level=_CAPTURE_LEVEL,
+    max_output_tokens=int(os.environ.get("OPENENV_MAX_OUTPUT_TOKENS", "8192")) or None,
+)
+# On a Space this only computes the public URL and flags the app for mounting; off one it
+# publishes the capture port the usual way.
+_service.start()
+HarborService.set_current(_service)
 
 os.environ.setdefault("ENABLE_WEB_INTERFACE", "true")
 

@@ -218,11 +218,22 @@ def rollout(
 
 @app.command("serve")
 def serve(
-    llm_url: Annotated[str, typer.Option("--llm-url", help=_LLM_HELP)],
+    llm_url: Annotated[str, typer.Option("--llm-url", help=_LLM_HELP)] = "",
     model: Annotated[str, typer.Option("--model", help="Served model id.")] = "",
     dataset: Annotated[
         Optional[list[str]], typer.Option("--dataset", help=_DATASET_HELP)
     ] = None,
+    max_output_tokens: Annotated[
+        int,
+        typer.Option(
+            "--max-output-tokens",
+            help=(
+                "Cap what an AGENT may request per turn. The default of 8192 is exactly what some "
+                "harnesses ask for (opencode), so the clamp does nothing for them and their first "
+                "call can exceed a small context window. A real agent turn is short; 4096 is ample."
+            ),
+        ),
+    ] = 8192,
     host: Annotated[str, typer.Option("--host")] = "0.0.0.0",
     port: Annotated[
         int, typer.Option("--port", help="Env server port (faces the trainer).")
@@ -255,6 +266,7 @@ def serve(
     serve_harbor(
         llm_url=llm_url,
         model=model or None,
+        max_output_tokens=max_output_tokens or None,
         datasets=_split(dataset),
         host=host,
         port=port,
