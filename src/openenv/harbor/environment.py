@@ -74,11 +74,15 @@ class HarborEnvironment(MCPEnvironment):
             model: str = "",
             api_key: str = "",
             auth_header: str = "",
+            agent_timeout_sec: float = 0.0,
         ) -> str:
             """Run one Harbor rollout and return a JSON `HarborRolloutResult`.
 
             `harness`, `sandbox` AND the engine are all per-call, so consecutive rollouts can use
             different agents, different backends and different engines against the same server.
+
+            `agent_timeout_sec` bounds the whole rollout from the caller's side; 0 defers to the
+            task file.
 
             Naming `llm_url` probes that engine (once per engine, then cached) and decides this
             rollout's tier from what it can actually return: token ids and processed logprobs mean
@@ -98,6 +102,7 @@ class HarborEnvironment(MCPEnvironment):
                 model,
                 api_key,
                 auth_header,
+                agent_timeout_sec,
             )
 
         @mcp.tool
@@ -203,6 +208,7 @@ class HarborEnvironment(MCPEnvironment):
         model: str = "",
         api_key: str = "",
         auth_header: str = "",
+        agent_timeout_sec: float = 0.0,
     ) -> str:
         from pathlib import Path
 
@@ -272,6 +278,12 @@ class HarborEnvironment(MCPEnvironment):
                 capture_level=level,
                 upstream=upstream,
                 inference=client,
+                # 0 means "whatever the task file says". A caller that needs a harder bound can set
+                # one: a trainer holds a rollout slot for the whole call, and the task's own timeout
+                # covers the AGENT run only — a sandbox that wedges during setup is outside it, which
+                # is how a rollout ran past 30 minutes and was killed by the client's socket timeout
+                # rather than by anything that knew what it was waiting for.
+                agent_timeout_sec=agent_timeout_sec or None,
             )
 
         result = run_async_safely(_resolve_and_run())
