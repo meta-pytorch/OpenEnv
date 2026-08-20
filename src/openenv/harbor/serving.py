@@ -193,13 +193,19 @@ def serve_harbor(
         model=model,
         datasets=datasets,
         env_file=env_file,
-        require_llm=True,
+        # A served deployment does not need an engine to be useful: rollouts name their own, and it
+        # is probed per engine when the session is created. Demanding one here coupled a server whose
+        # real cost is its dataset tree to the boot order of a vLLM that restarts every run.
+        require_llm=bool(llm_url),
         quiet=False,
         api_key=api_key,
         auth_header=auth_header,
     )
     model = caps.llm.get("model") or model or ""
-    capture_level = caps.llm.get("capture_level") or "tokens"
+    # `tokens` only when an engine was actually measured at it. With no default engine the default
+    # level must be the weakest, so a rollout that somehow reaches the default is never mistaken for
+    # a trainable one.
+    capture_level = caps.llm.get("capture_level") or ("tokens" if llm_url else "text")
     # `prepare` has loaded the dotenv by now, so a key that lives only in --env-file is visible.
     api_key = api_key or os.environ.get("OPENENV_LLM_API_KEY") or None
 

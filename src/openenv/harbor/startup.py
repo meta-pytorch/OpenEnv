@@ -122,9 +122,18 @@ def prepare(
         sandboxes = tuple(s.strip() for s in raw.split(",") if s.strip()) or None
 
     if require_llm and not llm_url:
+        # A serving deployment no longer needs one. The hazard this guarded against — an unset
+        # endpoint yielding rollouts that look fine and carry no token ids — is now handled where it
+        # belongs: every rollout names its engine, that engine is probed when the session is created,
+        # and the measured tier travels with the result. So an engineless server is a server waiting
+        # to be told which engine to use, not a misconfigured one.
+        #
+        # Callers that genuinely need an engine up front (`harbor rollout`, which runs a batch itself
+        # and has nowhere else to get one) still pass `require_llm=True` and still get this.
         raise RuntimeError(
             "no LLM URL given. Pass --llm-url (or llm_url=) explicitly; there is no default, "
-            "because an unset endpoint yields rollouts that look fine and carry no token ids."
+            "because this entry point runs rollouts itself and has no session to take an engine "
+            "from. A served deployment (`harbor serve`) does not need one: rollouts name their own."
         )
 
     llm: dict[str, Any] = {}
