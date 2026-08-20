@@ -180,7 +180,10 @@ def test_the_outgoing_model_comes_from_the_session_engine(monkeypatch):
         app.state.upstreams._by_engine[key] = (FakeClient(), "tokens")
         client.post(
             "/v1/chat/completions",
-            json={"model": "Qwen3.5-2B", "messages": [{"role": "user", "content": "hi"}]},
+            json={
+                "model": "Qwen3.5-2B",
+                "messages": [{"role": "user", "content": "hi"}],
+            },
             headers={"Authorization": f"Bearer {body['session_id']}"},
         )
 

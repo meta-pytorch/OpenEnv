@@ -569,7 +569,11 @@ def create_app(
         server default here is what broke an engineless server: `app.state.model` was empty, the
         rewrite was skipped, and the agent's mangled name went upstream untouched.
         """
-        if session is not None and session.upstream is not None and session.upstream.model:
+        if (
+            session is not None
+            and session.upstream is not None
+            and session.upstream.model
+        ):
             return session.upstream.model
         return app.state.model or ""
 
