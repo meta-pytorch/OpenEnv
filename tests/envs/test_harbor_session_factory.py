@@ -214,3 +214,101 @@ def test_prompt_skew_measures_against_the_engines_own_ids():
     assert drifted["exact_match_frac"] == 0.0
     assert drifted["worst_common_prefix"] == 2
     assert drifted["length_deltas"] == [1]
+
+
+# --- shapes and process boundaries: four bugs the tests above all passed through ----------------
+
+
+def test_tool_calls_reach_trl_in_the_shape_it_reads():
+    """The capture flattens tool calls to `{name, arguments}`; TRL and chat templates want the nested
+    OpenAI form. Handing over the flat shape makes `has_tool_call` false for every turn, so
+    `train_turn_fn=has_tool_call` — the documented default for a coding agent — throws away the whole
+    rollout while the run still looks healthy."""
+    res = result(
+        turns=[turn(tool_calls=[{"name": "bash", "arguments": '{"cmd":"ls"}'}])]
+    )
+    entry = harness.to_trace_entries(res)[0]
+    call = entry["response"]["choices"][0]["message"]["tool_calls"][0]
+    assert call["type"] == "function"
+    assert call["function"]["name"] == "bash"
+    assert call["function"]["arguments"] == '{"cmd":"ls"}', (
+        "arguments must stay the raw JSON string"
+    )
+    assert call["id"], (
+        "the schema requires an id, and it is what pairs a call with its result"
+    )
+
+
+def test_has_tool_call_sees_the_converted_calls():
+    """The actual consequence, asserted through TRL's own predicate rather than by inspection."""
+    trl = pytest.importorskip("trl.experimental.async_grpo.openenv_harness")
+    res = result(turns=[turn(tool_calls=[{"name": "bash", "arguments": "{}"}])])
+    entry = harness.to_trace_entries(res)[0]
+    assert trl.has_tool_call(trl._entry_to_turn(entry)) is True
+
+
+def test_already_nested_tool_calls_pass_through_untouched():
+    nested = {
+        "id": "call_x",
+        "type": "function",
+        "function": {"name": "bash", "arguments": "{}"},
+    }
+    res = result(turns=[turn(tool_calls=[nested])])
+    entry = harness.to_trace_entries(res)[0]
+    assert entry["response"]["choices"][0]["message"]["tool_calls"] == [nested]
+
+
+def test_the_factory_survives_pickling():
+    """TRL spawns the rollout loop and pickles the factory into it. Building the dataset in the parent
+    binds a websocket first, so without dropping it the pickle fails or the child inherits a
+    connection owned by another process."""
+    import pickle
+
+    env = FakeEnv(result())
+    f = factory_with(env, llm_url="http://vllm:8000")
+    f.prompt_rows()  # binds the client, as a trainer does before spawning
+    assert f._env is not None
+    revived = pickle.loads(pickle.dumps(f))
+    assert revived._env is None, "a live client must not cross the process boundary"
+    # The mapping is plain data and must survive, or the child cannot resolve the parent's dataset.
+    assert revived._by_instruction == f._by_instruction
+    assert revived.llm_url == "http://vllm:8000"
+
+
+def test_duplicate_instructions_do_not_silently_shadow_each_other(caplog):
+    """Two tasks with one instruction produced two rows that both resolved to the LAST index, so a
+    group trained on a task it was never given and nothing said so."""
+    env = FakeEnv(
+        result(),
+        tasks=[
+            {"index": 0, "task_name": "a", "instruction": "same text"},
+            {"index": 1, "task_name": "b", "instruction": "same text"},
+        ],
+    )
+    f = factory_with(env)
+    with caplog.at_level("WARNING"):
+        f.tasks()
+    assert any("share an instruction" in r.message for r in caplog.records), (
+        "a collision that changes which task runs must be said out loud"
+    )
+    # First occurrence wins, deterministically, rather than whichever happened to be last.
+    assert f.create([{"role": "user", "content": "same text"}])._task_index == 0
+
+
+def test_a_zero_timeout_defers_to_the_task_file():
+    """`0` is documented as "use the task's own timeout". `or` turns it into the factory default."""
+    env = FakeEnv(result())
+    session = factory_with(env, agent_timeout_sec=600).create(
+        [{"role": "user", "content": "first task"}]
+    )
+    session.wait_for_completion(timeout_s=0)
+    assert env.calls[0]["agent_timeout_sec"] == 0, "0 must reach the server as 0"
+
+
+def test_no_timeout_argument_uses_the_factory_default():
+    env = FakeEnv(result())
+    session = factory_with(env, agent_timeout_sec=450).create(
+        [{"role": "user", "content": "first task"}]
+    )
+    session.wait_for_completion()
+    assert env.calls[0]["agent_timeout_sec"] == 450

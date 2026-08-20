@@ -63,6 +63,47 @@ def instruction_id(instruction: str) -> str:
     return hashlib.sha1(instruction.strip().encode()).hexdigest()
 
 
+def _openai_tool_calls(flat: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """`{name, arguments}` -> OpenAI's `{id, type, function: {name, arguments}}`.
+
+    `HarborTurn.tool_calls` is deliberately flattened: a reward function checking which tool ran should
+    not have to walk a wire envelope. But TRL reads `message["tool_calls"]` verbatim, and both
+    `has_tool_call` and `apply_chat_template` expect the nested form. Handing over the flat shape makes
+    `has_tool_call` false for every turn, so `train_turn_fn=has_tool_call` — the documented default for
+    a coding agent — discards the entire rollout while the run still looks healthy. Templates that
+    iterate `call.function.name` would raise instead.
+
+    `arguments` is left exactly as captured. It is a JSON *string* on the wire, and TRL's
+    `_decode_tool_call_arguments` parses it before rendering, so parsing it here would hand the
+    template a dict it does not expect.
+    """
+    out: list[dict[str, Any]] = []
+    for index, call in enumerate(flat or []):
+        if not isinstance(call, dict):
+            continue
+        # Already nested (a future capture change, or another dialect): pass it through untouched.
+        if call.get("function"):
+            out.append(call)
+            continue
+        name = call.get("name")
+        if not name:
+            continue
+        out.append(
+            {
+                # An id is required by the schema and is what pairs a call with its tool result. The
+                # capture does not keep the harness's own id, so a positional one is minted: within a
+                # single assistant message that is enough to keep the pairing unambiguous.
+                "id": str(call.get("id") or f"call_{index}"),
+                "type": "function",
+                "function": {
+                    "name": str(name),
+                    "arguments": call.get("arguments", ""),
+                },
+            }
+        )
+    return out
+
+
 def to_trace_entries(result: HarborRolloutResult) -> list[dict[str, Any]]:
     """`HarborRolloutResult` -> TRL `TraceEntry` records, one per trainable turn.
 
@@ -89,7 +130,8 @@ def to_trace_entries(result: HarborRolloutResult) -> list[dict[str, Any]]:
                             "message": {
                                 "role": "assistant",
                                 "content": turn.text,
-                                "tool_calls": turn.tool_calls or None,
+                                "tool_calls": _openai_tool_calls(turn.tool_calls)
+                                or None,
                             },
                             "finish_reason": turn.finish_reason,
                         }
@@ -246,7 +288,12 @@ class HarborSession(ResourceSession):
                 model=self._model,
                 api_key=self._api_key,
                 auth_header=self._auth_header,
-                agent_timeout_sec=timeout_s or self._agent_timeout_sec,
+                # `is not None`, not `or`: 0 is a documented value meaning "defer to the task
+                # file", and `or` silently replaces it with the factory default. `OpenCodeSession`
+                # takes the same care for the same reason.
+                agent_timeout_sec=(
+                    timeout_s if timeout_s is not None else self._agent_timeout_sec
+                ),
             )
         except Exception as exc:  # noqa: BLE001 - see the docstring
             logger.warning(
@@ -347,8 +394,23 @@ class HarborSessionFactory(ResourceSessionFactory[HarborSession]):
         self._by_instruction: dict[str, int] = {}
         self._tasks: list[dict[str, Any]] = []
 
-    # The client holds a websocket, which does not survive a fork, so it is built lazily inside
-    # whichever process actually uses it. TRL runs its rollout loop in a spawned child.
+    def __getstate__(self) -> dict[str, Any]:
+        """Drop the live client when this factory is pickled.
+
+        TRL spawns its rollout loop in a separate process and pickles the factory into it. Building
+        the dataset in the parent calls `prompt_rows()` -> `tasks()` -> `_client()`, which binds an
+        httpx client and a websocket — so without this the pickle either fails outright or the child
+        inherits a connection owned by another process and every rollout dies on it.
+
+        The task list and the instruction map are kept: they are plain data, they cost a round trip to
+        rebuild, and the child needs the same mapping the parent's dataset was built from.
+        """
+        state = dict(self.__dict__)
+        state["_env"] = None
+        return state
+
+    # Built lazily so it is created in whichever process actually uses it, and dropped on pickling by
+    # `__getstate__` above.
     def _client(self) -> HarborEnv:
         if self._env is None:
             self._env = HarborEnv(base_url=self.server_url)
@@ -369,10 +431,25 @@ class HarborSessionFactory(ResourceSessionFactory[HarborSession]):
                 t.model_dump() if hasattr(t, "model_dump") else dict(t)
                 for t in env.get_task_range(self._split, 0, stop)
             ]
-            self._by_instruction = {
-                instruction_id(t.get("instruction") or ""): int(t.get("index", i))
-                for i, t in enumerate(self._tasks)
-            }
+            self._by_instruction = {}
+            collisions: dict[str, int] = {}
+            for i, task in enumerate(self._tasks):
+                key = instruction_id(task.get("instruction") or "")
+                index = int(task.get("index", i))
+                if key in self._by_instruction:
+                    collisions[key] = collisions.get(key, 1) + 1
+                    continue
+                self._by_instruction[key] = index
+            if collisions:
+                # Last-write-wins here would be invisible and wrong: two tasks with identical
+                # instructions produce two dataset rows that both resolve to one index, so a group
+                # trains on a task it was not given while every log line looks normal. Keeping the
+                # first and saying how many were shadowed at least makes it findable.
+                logger.warning(
+                    "%d task(s) share an instruction with an earlier task and are unreachable "
+                    "through prompt lookup; the first occurrence wins",
+                    sum(collisions.values()) - len(collisions),
+                )
         return self._tasks
 
     def prompt_rows(self) -> list[dict[str, Any]]:
