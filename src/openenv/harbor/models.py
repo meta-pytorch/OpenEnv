@@ -62,6 +62,14 @@ class HarborTurn(BaseModel):
     # know which tool was called rather than how many tokens were spent.
     text: str = ""
     tool_calls: list[dict[str, Any]] = Field(default_factory=list)
+    # What the harness ASKED for on this turn. Carried because a consumer that wants TRL's
+    # `TraceEntry` shape needs `request.messages` and `request.tools`, and without them the wire
+    # result cannot be converted at all — the token fields alone do not say what prompt produced
+    # them. It also makes retokenization skew measurable against `prompt_token_ids` above, which is
+    # the only way to know whether re-rendering a prompt locally is lossless for a model + harness
+    # pair rather than assuming it either way.
+    request_messages: list[dict[str, Any]] = Field(default_factory=list)
+    request_tools: list[dict[str, Any]] | None = None
 
 
 class HarborConversation(BaseModel):
@@ -308,6 +316,9 @@ def turns_from_document(document: dict[str, Any]) -> list[HarborTurn]:
                     # contract promises and what a per-turn trainer consumes.
                     prompt_token_ids=input_ids[:n_prompt],
                     completion_token_ids=input_ids[n_prompt:end],
+                    # Straight off the node, which already recorded exactly what was sent upstream.
+                    request_messages=list(node.get("request_messages") or []),
+                    request_tools=node.get("request_tools"),
                     per_token_logps=logprobs[n_prompt:end],
                     n_tools=node.get("n_tools", 0),
                     discarded=bool(node.get("discarded")),
