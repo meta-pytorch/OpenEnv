@@ -235,6 +235,7 @@ async def run_rollout(
     force_build: bool = False,
     session_prefix: str = "oe",
     capture_level: str = "tokens",
+    upstream: Any = None,
     inference: Any = None,
 ) -> HarborRolloutResult:
     """Run one rollout end to end. Never raises.
@@ -261,6 +262,9 @@ async def run_rollout(
         capture_level (`str`, *optional*, defaults to `"tokens"`):
             What the inference endpoint can return, as probed at startup. Below `tokens` this is an
             eval rollout: reward and full trace, no token fields.
+        upstream (`Upstream`, *optional*):
+            The engine this rollout's captured calls go to, already resolved and probed by the caller.
+            `None` uses the capture server's default engine.
         inference (`InferenceClient`, *optional*):
             The proxy's upstream client, read at the end for the parameter workarounds it had to
             apply. Passed rather than looked up so this function keeps no handle on the server.
@@ -274,9 +278,24 @@ async def run_rollout(
     # The session id lands in Harbor's E2B sandbox metadata (it is derived from trial_name), which
     # is what later makes it possible to reap only the sandboxes this server created.
     trial_name = f"{session_prefix}-{task_dir.name[:28]}-{uuid.uuid4().hex[:8]}"
+    # `upstream` names the engine for THIS rollout. Passing it here is what lets one server serve a
+    # train-tier and an eval-tier engine at once: the tier is measured per engine when the session is
+    # created, and travels on the session rather than on the server.
     session = registry.create(
-        session_id=None, harness=harness, sandbox=sandbox, task=task_dir.name
+        session_id=None,
+        upstream=upstream,
+        capture_level=capture_level,
+        harness=harness,
+        sandbox=sandbox,
+        task=task_dir.name,
     )
+    # The session is the single source of truth for the level from here on: the caller resolved the
+    # engine and its measured tier before calling, and a rollout must never claim a level the engine
+    # was not measured at.
+    # `getattr`, because `registry` is deliberately untyped: callers pass their own registry (the
+    # trainer-side runner does), and a session object that predates per-session levels should degrade
+    # to the caller's hint rather than crash the rollout.
+    capture_level = getattr(session, "capture_level", "") or capture_level
 
     result = HarborRolloutResult(
         task_id=str(task_dir),

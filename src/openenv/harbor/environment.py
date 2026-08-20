@@ -70,11 +70,21 @@ class HarborEnvironment(MCPEnvironment):
             reward_key: str = "",
             keep_sandbox: bool = False,
             force_build: bool = False,
+            llm_url: str = "",
+            model: str = "",
+            api_key: str = "",
+            auth_header: str = "",
         ) -> str:
             """Run one Harbor rollout and return a JSON `HarborRolloutResult`.
 
-            `harness` and `sandbox` are per-call, so consecutive rollouts can use different agents
-            and different backends against the same server.
+            `harness`, `sandbox` AND the engine are all per-call, so consecutive rollouts can use
+            different agents, different backends and different engines against the same server.
+
+            Naming `llm_url` probes that engine (once per engine, then cached) and decides this
+            rollout's tier from what it can actually return: token ids and processed logprobs mean
+            `train`, anything less means `eval`. That is why a trainer and an eval run can share one
+            server — the dataset tree and the sandbox templates are the expensive things to host, and
+            the engine is the cheap, changing part.
             """
             return self._run_rollout(
                 split,
@@ -84,6 +94,10 @@ class HarborEnvironment(MCPEnvironment):
                 reward_key,
                 keep_sandbox,
                 force_build,
+                llm_url,
+                model,
+                api_key,
+                auth_header,
             )
 
         @mcp.tool
@@ -185,6 +199,10 @@ class HarborEnvironment(MCPEnvironment):
         reward_key: str,
         keep_sandbox: bool,
         force_build: bool,
+        llm_url: str = "",
+        model: str = "",
+        api_key: str = "",
+        auth_header: str = "",
     ) -> str:
         from pathlib import Path
 
@@ -213,26 +231,50 @@ class HarborEnvironment(MCPEnvironment):
         # Not `asyncio.run`: this handler is reached from the MCP server, which is already inside a
         # running loop under ASGI, and `asyncio.run` raises there. The helper runs the coroutine on
         # a worker thread when a loop is already going.
-        result = run_async_safely(
-            _run(
+        async def _resolve_and_run():
+            """Settle which engine serves this rollout, then run it.
+
+            The probe is async and cached per engine, so it has to happen inside the coroutine rather
+            than at call time. Without a named engine this falls back to whatever the server booted
+            with, which is what every existing caller gets.
+            """
+            from openenv.core.harness.capture.sessions import Upstream
+
+            pool = service.capture.app.state.upstreams
+            if llm_url:
+                upstream = Upstream(
+                    llm_url=llm_url,
+                    model=model,
+                    api_key=api_key or None,
+                    auth_header=auth_header or "Authorization",
+                )
+                client, level = await pool.resolve(upstream)
+                served = client.served_model or model
+            else:
+                upstream = None
+                client, level = pool.default
+                # Read from the live service rather than class config: it is the same value the proxy
+                # was built with, so the result cannot claim a level the proxy is not running at.
+                level = getattr(service, "capture_level", "tokens")
+                served = service.model
+            return await _run(
                 task_dir=task_dir,
                 harness=harness,
                 sandbox=sandbox,
                 registry=service.capture.registry,
                 intercept_url=service.public_url,
-                model=service.model,
+                model=served,
                 trials_dir=Path("/tmp/openenv-harbor-trials"),
                 dataset=split,
                 reward_key=reward_key,
                 keep_sandbox=keep_sandbox,
                 force_build=force_build,
-                # Read from the live service rather than class config: it is the same value the
-                # capture proxy was built with, so the result cannot claim a level the proxy is not
-                # actually running at.
-                capture_level=getattr(service, "capture_level", "tokens"),
-                inference=service.capture.inference,
+                capture_level=level,
+                upstream=upstream,
+                inference=client,
             )
-        )
+
+        result = run_async_safely(_resolve_and_run())
 
         self._state.rollouts_completed += 1
         self._state.last_reward = result.reward

@@ -86,6 +86,10 @@ class HarborEnv(MCPToolClient):
         reward_key: str = "",
         keep_sandbox: bool = False,
         force_build: bool = False,
+        llm_url: str = "",
+        model: str = "",
+        api_key: str = "",
+        auth_header: str = "",
     ) -> HarborRolloutResult:
         """Run one rollout and return its result.
 
@@ -103,6 +107,17 @@ class HarborEnv(MCPToolClient):
                 Harbor environment type, e.g. `e2b` or `modal`.
             reward_key (`str`, *optional*):
                 Which reward key is the training signal, for multi-reward tasks.
+            llm_url (`str`, *optional*):
+                Engine for THIS rollout. Probed on first use (cached per engine) and the measured
+                tier decides `rollout_type`: token ids plus processed logprobs give `train`, anything
+                less gives `eval`. Omit to use whatever engine the server was booted with, if any.
+            model (`str`, *optional*):
+                Served model id at `llm_url`. Resolved automatically when that endpoint serves
+                exactly one model.
+            api_key (`str`, *optional*):
+                Credential for `llm_url`, when it is token-gated.
+            auth_header (`str`, *optional*):
+                Header to send the credential under, when not `Authorization`.
 
         Returns:
             [`HarborRolloutResult`]: Reward, per-turn token ids and logprobs, and findings.
@@ -116,6 +131,10 @@ class HarborEnv(MCPToolClient):
             reward_key=reward_key,
             keep_sandbox=keep_sandbox,
             force_build=force_build,
+            llm_url=llm_url,
+            model=model,
+            api_key=api_key,
+            auth_header=auth_header,
         )
         return HarborRolloutResult.model_validate_json(_as_text(raw))
 

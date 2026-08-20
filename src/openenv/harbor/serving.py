@@ -62,14 +62,15 @@ class HarborService:
     def __init__(
         self,
         *,
-        llm_url: str,
-        model: str,
+        llm_url: str = "",
+        model: str = "",
         datasets: list[str],
         capture_port: int = 8100,
         expose: str = "gradio",
         api_key: str | None = None,
         auth_header: str = "Authorization",
         capture_level: str = "tokens",
+        max_output_tokens: int | None = 8192,
     ) -> None:
         # The management routes are the trainer's control plane; the proxy route is the agent's data
         # plane. Published or mounted, both are reachable by anyone who has the URL, so the control
@@ -89,6 +90,7 @@ class HarborService:
             llm_url=llm_url,
             model=model,
             port=capture_port,
+            max_output_tokens=max_output_tokens,
             api_key=api_key,
             auth_header=auth_header,
             capture_level=capture_level,
@@ -150,7 +152,7 @@ class HarborService:
 
 def serve_harbor(
     *,
-    llm_url: str,
+    llm_url: str = "",
     datasets: list[str],
     model: str | None = None,
     host: str = "0.0.0.0",
@@ -160,6 +162,7 @@ def serve_harbor(
     env_file: str | None = None,
     api_key: str | None = None,
     auth_header: str = "Authorization",
+    max_output_tokens: int | None = 8192,
 ) -> None:
     """Boot the capture proxy, then serve the env server with the UI mounted.
 
@@ -209,6 +212,7 @@ def serve_harbor(
         api_key=api_key,
         auth_header=auth_header,
         capture_level=capture_level,
+        max_output_tokens=max_output_tokens,
     )
     public = service.start()
     HarborService.set_current(service)
