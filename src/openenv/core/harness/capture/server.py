@@ -37,10 +37,13 @@ Run:  python -m intercept.server --llm-url http://127.0.0.1:8000 --model Qwen3.5
 from __future__ import annotations
 
 import argparse
+import asyncio
 import logging
 import os
 import secrets
+import threading
 import uuid
+from dataclasses import replace
 from typing import Any
 
 from fastapi import FastAPI, Request
@@ -51,7 +54,12 @@ from .detection import APIType, detect
 from .dialects import TransformManager
 from .export import export_session
 from .graph import TurnNode
-from .sessions import extract_api_key, extract_harness_session, SessionRegistry
+from .sessions import (
+    extract_api_key,
+    extract_harness_session,
+    SessionRegistry,
+    Upstream,
+)
 from .upstream import InferenceClient, truncating_params, UpstreamError
 from .validate import check_turn, check_turn_eval
 
@@ -349,9 +357,128 @@ def normalise_client_payload(payload: dict[str, Any], api_type: APIType) -> None
             usage["output_tokens_details"] = {"reasoning_tokens": 0}
 
 
+class UpstreamPool:
+    """One inference client and one capability probe per distinct engine.
+
+    The engine a rollout talks to is a per-SESSION property, not a per-server one: a dataset server is
+    long-lived (thousands of task files, prebuilt sandbox templates) while a vLLM restarts every
+    training run, and a train-tier engine and an eval-tier one are usually both wanted at once. So
+    callers name their engine when they mint a session, and this pool makes that cheap.
+
+    Two things it exists to avoid:
+
+      * **Re-probing.** Deciding a tier means sending real completions (`validate_llm`). Doing that per
+        session would add several round trips to every rollout, so the measurement is cached per
+        `(url, model, auth_header)` and shared by every session on that engine.
+      * **Client churn.** One `InferenceClient` per engine rather than per rollout, so connection
+        pooling and the discovered `param_fixes` are shared.
+
+    The tier is MEASURED, never assumed: an engine that cannot be probed is `text`, the weakest, so a
+    rollout is never stamped trainable without evidence.
+    """
+
+    def __init__(self, *, default_client: InferenceClient, default_level: str) -> None:
+        self._default = (default_client, default_level)
+        self._by_engine: dict[tuple[str, str, str], tuple[InferenceClient, str]] = {}
+        self._lock = threading.Lock()
+
+    @property
+    def default(self) -> tuple[InferenceClient, str]:
+        """The engine this server was booted with, for sessions that name none."""
+        return self._default
+
+    def known(self) -> list[dict[str, Any]]:
+        """What has been probed so far, for `/health`. Never includes credentials."""
+        with self._lock:
+            return [
+                {
+                    "llm_url": url,
+                    # The client's model, not the key's: a caller may have left it blank for a
+                    # single-model endpoint and the probe resolved it, so the key holds "" while the
+                    # requests actually being sent carry the real name.
+                    "model": client.served_model or "",
+                    "capture_level": level,
+                }
+                for (url, _requested, _header), (
+                    client,
+                    level,
+                ) in self._by_engine.items()
+            ]
+
+    async def resolve(self, upstream: Upstream) -> tuple[InferenceClient, str]:
+        """Client and measured capture level for `upstream`, probing once per engine."""
+        key = upstream.cache_key
+        with self._lock:
+            hit = self._by_engine.get(key)
+        if hit is not None:
+            return hit
+
+        # `validate_llm` is synchronous urllib and sends several real completions, so it cannot run on
+        # the event loop: it would stall every other in-flight rollout for the length of a probe.
+        model, level = await asyncio.to_thread(self._probe, upstream)
+        client = InferenceClient(
+            base_url=upstream.llm_url.rstrip("/"),
+            served_model=model,
+            api_key=upstream.api_key,
+            auth_header=upstream.auth_header,
+            capture_level=level,
+        )
+        with self._lock:
+            # Two sessions naming the same new engine can probe concurrently. Keeping the first result
+            # means one client per engine either way; the loser is discarded before it ever opens a
+            # connection, so there is nothing to close.
+            self._by_engine.setdefault(key, (client, level))
+            return self._by_engine[key]
+
+    def _probe(self, upstream: Upstream) -> tuple[str, str]:
+        """`(served_model, capture_level)`. Blocking; always called on a worker thread."""
+        from .validate_llm import list_models, validate_llm
+
+        model = upstream.model
+        try:
+            if not model:
+                served = list_models(
+                    upstream.llm_url,
+                    api_key=upstream.api_key,
+                    auth_header=upstream.auth_header,
+                )
+                # Only when unambiguous. Guessing here makes the proxy rewrite `model` to the wrong
+                # name, and every call then fails upstream for a reason that mentions neither.
+                model = served[0] if len(served) == 1 else ""
+            if not model:
+                logger.warning(
+                    "upstream %s serves several models and none was named; capture level is 'text'",
+                    upstream.llm_url,
+                )
+                return "", "text"
+            report = validate_llm(
+                upstream.llm_url,
+                model,
+                api_key=upstream.api_key,
+                auth_header=upstream.auth_header,
+            )
+            level = report.capture_level or "text"
+            logger.warning(
+                "probed upstream %s (%s): capture_level=%s rollout_type=%s",
+                upstream.llm_url,
+                model,
+                level,
+                report.rollout_type,
+            )
+            return model, level
+        except Exception as exc:  # noqa: BLE001 - an unreachable engine is a tier, not a crash
+            logger.warning(
+                "could not probe upstream %s: %s: %s; capture level is 'text'",
+                upstream.llm_url,
+                type(exc).__name__,
+                exc,
+            )
+            return model, "text"
+
+
 def create_app(
     *,
-    llm_url: str,
+    llm_url: str = "",
     model: str | None = None,
     engine: str = "",
     require_registered: bool = True,
@@ -396,12 +523,20 @@ def create_app(
     # wrong process is silent: sessions are minted here and rejected there, so the agent gets 401 and
     # the rollout reports no model calls.
     app.state.instance_id = uuid.uuid4().hex
-    app.state.inference = InferenceClient(
-        base_url=llm_url.rstrip("/"),
-        served_model=model,
-        api_key=api_key,
-        auth_header=auth_header,
-        capture_level=capture_level,
+    # `None` when the server was booted without an engine. That is a supported state, not a broken
+    # one: the datasets are what makes this server worth keeping alive, and the engine is a per-rollout
+    # detail that arrives with the session. A session that names no engine and finds no default gets a
+    # clear 503 rather than calls to an empty base URL.
+    app.state.inference = (
+        InferenceClient(
+            base_url=llm_url.rstrip("/"),
+            served_model=model,
+            api_key=api_key,
+            auth_header=auth_header,
+            capture_level=capture_level,
+        )
+        if llm_url
+        else None
     )
     app.state.transforms = TransformManager()
     app.state.registry = SessionRegistry(require_registered=require_registered)
@@ -409,7 +544,26 @@ def create_app(
     app.state.llm_url = llm_url
     app.state.max_output_tokens = max_output_tokens
     app.state.capture_level = capture_level
+    # Per-session engines. The client built above is the DEFAULT, used by sessions that name none, so
+    # a server booted with --llm-url behaves exactly as before.
+    app.state.upstreams = UpstreamPool(
+        default_client=app.state.inference, default_level=capture_level
+    )
     app.state.admin_key = admin_key or None
+
+    async def _upstream_for(session) -> tuple[InferenceClient, str]:
+        """The engine this session's calls go to, and the level it was measured at."""
+        if session.upstream is not None:
+            return await app.state.upstreams.resolve(session.upstream)
+        return app.state.upstreams.default
+
+    def _level_of(session) -> str:
+        """A session's capture level without touching the network.
+
+        Reads what the probe recorded on the session, falling back to the server default. Used where
+        the level is needed but no upstream call is being made — exporting, for instance.
+        """
+        return session.capture_level or app.state.capture_level
 
     @app.get("/health")
     async def health() -> dict[str, Any]:
@@ -426,8 +580,15 @@ def create_app(
             # readable from an endpoint that, on a Space, is public.
             "capture_level": app.state.capture_level,
             "rollout_type": "train" if app.state.capture_level == "tokens" else "eval",
-            "upstream_auth": bool(app.state.inference.api_key),
-            "param_fixes": [str(f) for f in app.state.inference.param_fixes],
+            # Engines named per session and already probed. A caller can see what this server
+            # measured without minting a session to find out.
+            "upstreams": app.state.upstreams.known(),
+            "upstream_auth": bool(app.state.inference and app.state.inference.api_key),
+            "param_fixes": (
+                [str(f) for f in app.state.inference.param_fixes]
+                if app.state.inference
+                else []
+            ),
         }
 
     def _admin_ok(request: Request) -> bool:
@@ -468,14 +629,49 @@ def create_app(
     async def create_session(
         request: Request, payload: dict[str, Any] | None = None
     ) -> Any:
-        """Mint a rollout id. Hand it to the agent as its API key; that is the whole integration."""
+        """Mint a rollout id. Hand it to the agent as its API key; that is the whole integration.
+
+        The caller may also name the engine this rollout should use — `llm_url`, and optionally
+        `model`, `api_key`, `auth_header`. That engine is PROBED HERE, before the session is handed
+        back, and the measured tier is returned with it. So a caller learns whether it is going to get
+        a trainable rollout at submit time, not minutes later when the token fields come back empty.
+
+        Omitting `llm_url` uses the server's default engine, which is what a server booted with
+        `--llm-url` has always done.
+        """
         if not _admin_ok(request):
             return _forbidden()
         payload = payload or {}
+        upstream = None
+        level = ""
+        llm_url = str(payload.get("llm_url") or "").strip()
+        if llm_url:
+            upstream = Upstream(
+                llm_url=llm_url,
+                model=str(payload.get("model") or "").strip(),
+                api_key=payload.get("api_key") or None,
+                auth_header=str(payload.get("auth_header") or "Authorization"),
+            )
+            # Probe now. The cache means this costs round trips only for an engine never seen before,
+            # so a whole GRPO group naming the same vLLM pays for it once.
+            client, level = await app.state.upstreams.resolve(upstream)
+            # Carry the model the probe settled on: the caller may have left it blank for a
+            # single-model endpoint, and the proxy needs the resolved name to rewrite requests.
+            upstream = replace(upstream, model=client.served_model or upstream.model)
         session = app.state.registry.create(
-            payload.get("session_id"), **(payload.get("metadata") or {})
+            payload.get("session_id"),
+            upstream=upstream,
+            capture_level=level,
+            **(payload.get("metadata") or {}),
         )
-        return {"session_id": session.session_id}
+        effective = _level_of(session)
+        return {
+            "session_id": session.session_id,
+            "capture_level": effective,
+            "rollout_type": "train" if effective == "tokens" else "eval",
+            "llm_url": upstream.llm_url if upstream else app.state.llm_url,
+            "model": upstream.model if upstream else app.state.model,
+        }
 
     @app.get("/sessions")
     async def list_sessions(request: Request) -> Any:
@@ -515,7 +711,7 @@ def create_app(
             session,
             include_discarded=include_discarded,
             include_messages=include_messages,
-            capture_level=app.state.capture_level,
+            capture_level=_level_of(session),
         )
 
     @app.delete("/sessions/{session_id}")
@@ -526,6 +722,15 @@ def create_app(
 
     @app.get("/v1/models")
     async def models() -> Any:
+        """The default engine's model list.
+
+        Deliberately not session-scoped: this route is unauthenticated and answers before any session
+        exists, and some harnesses call it to decide whether their configured model is available. With
+        no default engine there is nothing to list, and an empty list is the honest answer rather than
+        a 500.
+        """
+        if app.state.inference is None:
+            return {"object": "list", "data": []}
         return await app.state.inference.list_models()
 
     @app.post("/{path:path}")
@@ -590,15 +795,28 @@ def create_app(
                 app.state.max_output_tokens,
             )
 
+        upstream_client, session_level = await _upstream_for(session)
+        if upstream_client is None:
+            # No engine on the session and none on the server. Saying so beats forwarding to an empty
+            # base URL, which surfaces as a connection error that names neither cause.
+            return JSONResponse(
+                {
+                    "error": {
+                        "message": "no inference engine for this session: name one as `llm_url` "
+                        "when creating the session, or boot the server with --llm-url"
+                    }
+                },
+                status_code=503,
+            )
         try:
-            response = await app.state.inference.completion(chat_request)
+            response = await upstream_client.completion(chat_request)
         except UpstreamError as exc:
             session.upstream_errors += 1
             logger.warning("upstream error [%s]: %s", session.session_id, exc)
             return JSONResponse({"error": {"message": str(exc)}}, status_code=502)
 
         normalise_response(response)
-        _ingest(session, chat_request, response, api_type)
+        _ingest(session, chat_request, response, api_type, session_level)
 
         if client_wants_stream:
             return StreamingResponse(
@@ -615,6 +833,7 @@ def create_app(
         chat_request: dict[str, Any],
         response: dict[str, Any],
         api_type: APIType,
+        capture_level: str,
     ) -> None:
         """Turn one upstream response into a graph node, validating before it lands.
 
@@ -651,7 +870,7 @@ def create_app(
             prompt_ids = response.get("prompt_token_ids") or []
             index = session.graph.stats()["n_turns"]
 
-            if app.state.capture_level != "tokens":
+            if capture_level != "tokens":
                 # An eval turn. Grade what an eval turn can be graded on and keep going: running
                 # `check_turn` here would report `no_prompt_ids` and `no_logprobs` as FATAL on every
                 # single turn, which is true and useless — it is the known, accepted property of the

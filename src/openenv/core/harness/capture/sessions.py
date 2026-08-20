@@ -67,6 +67,31 @@ def extract_harness_session(
     )
 
 
+@dataclass(frozen=True)
+class Upstream:
+    """Which engine one rollout's calls go to.
+
+    Per session rather than per server because the durable thing here is the DATASET, not the engine.
+    A dataset server downloads thousands of task files and builds sandbox templates; a vLLM restarts
+    every training run, and a train-tier engine and an eval-tier one are usually both wanted at once.
+    Pinning the engine at boot made the long-lived thing hostage to the short-lived one.
+
+    `cache_key` is what lets N concurrent sessions on one engine share a single client and a single
+    capability probe. The api key is deliberately NOT part of it: two sessions differing only by
+    credential still talk to the same endpoint with the same capabilities, and putting a secret in a
+    dict key is how secrets end up in logs.
+    """
+
+    llm_url: str
+    model: str = ""
+    api_key: str | None = None
+    auth_header: str = "Authorization"
+
+    @property
+    def cache_key(self) -> tuple[str, str, str]:
+        return (self.llm_url.rstrip("/"), self.model, self.auth_header)
+
+
 @dataclass
 class Session:
     """One rollout's capture buffer."""
@@ -78,6 +103,12 @@ class Session:
     findings: list[str] = field(default_factory=list)
     last_turn_at: float | None = None
     upstream_errors: int = 0
+    # Set when the caller named an engine for this rollout; `None` means use the server's default.
+    upstream: Upstream | None = None
+    # What that engine was MEASURED to support, filled in by the probe when the session is created.
+    # Empty means "not measured here", so the server default applies. Never assumed optimistically:
+    # claiming `tokens` without evidence is how an eval rollout gets stamped trainable.
+    capture_level: str = ""
 
     @property
     def idle_seconds(self) -> float:
@@ -93,11 +124,22 @@ class SessionRegistry:
         self._lock = threading.Lock()
         self.require_registered = require_registered
 
-    def create(self, session_id: str | None = None, **metadata: Any) -> Session:
+    def create(
+        self,
+        session_id: str | None = None,
+        *,
+        upstream: Upstream | None = None,
+        capture_level: str = "",
+        **metadata: Any,
+    ) -> Session:
         sid = clean_session_id(session_id) or f"s{secrets.token_hex(12)}"
         with self._lock:
             session = self._sessions.get(sid) or Session(session_id=sid)
             session.metadata.update(metadata)
+            if upstream is not None:
+                session.upstream = upstream
+            if capture_level:
+                session.capture_level = capture_level
             self._sessions[sid] = session
         return session
 
