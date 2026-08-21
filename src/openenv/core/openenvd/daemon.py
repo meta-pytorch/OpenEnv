@@ -19,10 +19,12 @@ orchestrators, graders, and operators talk to it; the workload never does.
 from __future__ import annotations
 
 import argparse
+import os
 from typing import Optional
 
 import uvicorn
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
+from fastapi.responses import JSONResponse
 from openenv.core.openenvd.models import TaskSpec, TaskStatus
 from openenv.core.openenvd.supervisor import Supervisor
 
@@ -31,11 +33,27 @@ class CreateTaskRequest(TaskSpec):
     autostart: bool = True
 
 
-def create_app(supervisor: Optional[Supervisor] = None) -> FastAPI:
+def create_app(
+    supervisor: Optional[Supervisor] = None,
+    auth_token: Optional[str] = None,
+) -> FastAPI:
     supervisor = supervisor or Supervisor()
     app = FastAPI(title="openenvd", version="0.1.0")
     app.supervisor = supervisor
     app.state.supervisor = supervisor
+
+    if auth_token:
+
+        @app.middleware("http")
+        async def require_bearer(request: Request, call_next):
+            if request.url.path != "/health":
+                header = request.headers.get("authorization", "")
+                if header != f"Bearer {auth_token}":
+                    return JSONResponse(
+                        status_code=401,
+                        content={"detail": "missing or invalid bearer token"},
+                    )
+            return await call_next(request)
 
     @app.get("/health")
     async def health() -> dict:
@@ -82,8 +100,8 @@ def create_app(supervisor: Optional[Supervisor] = None) -> FastAPI:
         return {"removed": name}
 
     @app.get("/events")
-    async def events() -> list[dict]:
-        return [e.model_dump() for e in supervisor.events()]
+    async def events(after: int = -1) -> list[dict]:
+        return [e.model_dump() for e in supervisor.events(after=after)]
 
     return app
 
@@ -95,8 +113,15 @@ def main(argv: Optional[list[str]] = None) -> None:
     )
     parser.add_argument("--host", default="0.0.0.0", help="bind address")
     parser.add_argument("--port", type=int, default=8100, help="bind port")
+    parser.add_argument(
+        "--auth-token",
+        default=None,
+        help="require this bearer token on all endpoints except /health "
+        "(defaults to OPENENVD_TOKEN env var)",
+    )
     args = parser.parse_args(argv)
-    uvicorn.run(create_app(), host=args.host, port=args.port)
+    token = args.auth_token or os.environ.get("OPENENVD_TOKEN")
+    uvicorn.run(create_app(auth_token=token), host=args.host, port=args.port)
 
 
 if __name__ == "__main__":

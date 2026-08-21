@@ -16,6 +16,7 @@ without that isolation and a warning is returned to the caller.
 from __future__ import annotations
 
 import ctypes
+import fcntl
 import logging
 import os
 import socket
@@ -139,7 +140,7 @@ def _bring_loopback_up() -> None:
         return
     try:
         ifreq = struct.pack("16sH", b"lo", IFF_UP)
-        s.ioctl(SIOCSIFFLAGS, ifreq)
+        fcntl.ioctl(s.fileno(), SIOCSIFFLAGS, ifreq)
     except OSError:
         logger.debug("could not bring loopback up in new netns")
     finally:

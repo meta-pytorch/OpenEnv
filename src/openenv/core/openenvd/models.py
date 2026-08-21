@@ -79,8 +79,13 @@ class TaskStatus(BaseModel):
 
 
 class SupervisorEvent(BaseModel):
-    """A lifecycle event emitted by the supervisor."""
+    """A lifecycle event emitted by the supervisor.
 
+    ``seq`` is a daemon-monotonic sequence number; consumers use it to resume
+    an event stream without gaps or duplicates.
+    """
+
+    seq: int = 0
     ts: float = Field(default_factory=time.time)
     task: str
     kind: str

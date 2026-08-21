@@ -57,6 +57,7 @@ class Supervisor:
         self._caps = capabilities or detect_capabilities()
         self._tasks: dict[str, _TaskEntry] = {}
         self._events: deque[SupervisorEvent] = deque(maxlen=event_buffer_size)
+        self._next_seq = 0
 
     async def register(self, spec: TaskSpec, autostart: bool = True) -> TaskStatus:
         if spec.name in self._tasks:
@@ -139,8 +140,8 @@ class Supervisor:
     def status_all(self) -> list[TaskStatus]:
         return [self.status(name) for name in self._tasks]
 
-    def events(self) -> list[SupervisorEvent]:
-        return list(self._events)
+    def events(self, after: int = -1) -> list[SupervisorEvent]:
+        return [e for e in self._events if e.seq > after]
 
     async def shutdown(self) -> None:
         for name in list(self._tasks):
@@ -222,4 +223,6 @@ class Supervisor:
             raise KeyError(f"unknown task: {name}") from None
 
     def _record(self, task: str, kind: str, detail: Optional[str] = None) -> None:
-        self._events.append(SupervisorEvent(task=task, kind=kind, detail=detail))
+        event = SupervisorEvent(seq=self._next_seq, task=task, kind=kind, detail=detail)
+        self._next_seq += 1
+        self._events.append(event)

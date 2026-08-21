@@ -100,7 +100,20 @@ def _read_net_ns_link(pid=None):
     return os.readlink(f"/proc/{pid}/ns/net")
 
 
+def _in_initial_user_ns() -> bool:
+    try:
+        with open("/proc/self/uid_map") as f:
+            first = f.readline().split()
+    except OSError:
+        return False
+    return first == ["0", "0", "4294967295"]
+
+
 requires_root = pytest.mark.skipif(os.geteuid() != 0, reason="requires root")
+requires_real_root = pytest.mark.skipif(
+    os.geteuid() != 0 or not _in_initial_user_ns(),
+    reason="requires real root (initial user ns) for setuid to arbitrary uids",
+)
 
 
 class TestRealIsolation:
@@ -126,7 +139,7 @@ class TestRealIsolation:
             proc.kill()
             await proc.wait()
 
-    @requires_root
+    @requires_real_root
     async def test_uid_dropped_child_runs_as_target_uid(self):
         import asyncio
 
