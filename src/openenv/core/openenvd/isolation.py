@@ -39,6 +39,21 @@ class IsolationCapabilities:
 
     can_drop_uid: bool
     can_unshare_net: bool
+    can_allocate_uids: bool = False
+
+
+def in_initial_user_ns() -> bool:
+    """True when running in the initial user namespace.
+
+    Only there are arbitrary UIDs (e.g. 65536+) actually usable; inside a
+    container user namespace only the mapped IDs exist.
+    """
+    try:
+        with open("/proc/self/uid_map") as f:
+            first = f.readline().split()
+    except OSError:
+        return False
+    return first == ["0", "0", "4294967295"]
 
 
 def detect_capabilities() -> IsolationCapabilities:
@@ -46,6 +61,7 @@ def detect_capabilities() -> IsolationCapabilities:
     return IsolationCapabilities(
         can_drop_uid=os.geteuid() == 0,
         can_unshare_net=_probe_unshare_net(),
+        can_allocate_uids=os.geteuid() == 0 and in_initial_user_ns(),
     )
 
 

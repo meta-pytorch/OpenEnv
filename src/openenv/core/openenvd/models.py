@@ -44,8 +44,11 @@ class TaskSpec(BaseModel):
         env (`dict[str, str]`): Extra environment variables merged over the
             daemon's own environment.
         cwd (`Optional[str]`): Working directory for the child.
-        uid (`Optional[int]`): Drop to this UID when the daemon is privileged.
-        gid (`Optional[int]`): Drop to this GID when the daemon is privileged.
+        uid (`Optional[int]`): Run as this UID (overrides ``auto_uid``).
+        gid (`Optional[int]`): Run as this GID (overrides ``auto_uid``).
+        auto_uid (`bool`): When no explicit uid/gid is given and the daemon
+            is privileged, allocate a dedicated UID pair for this task so
+            sibling tasks cannot signal it or read its files.
         network_isolated (`bool`): Run the child in its own network namespace
             when the runtime allows it; falls back to the shared namespace
             with a warning otherwise.
@@ -61,6 +64,7 @@ class TaskSpec(BaseModel):
     cwd: Optional[str] = None
     uid: Optional[int] = Field(default=None, ge=0)
     gid: Optional[int] = Field(default=None, ge=0)
+    auto_uid: bool = True
     network_isolated: bool = False
     restart_policy: RestartPolicy = RestartPolicy.NEVER
     max_retries: int = Field(default=3, ge=0)
@@ -76,6 +80,8 @@ class TaskStatus(BaseModel):
     pid: Optional[int] = None
     exit_code: Optional[int] = None
     restarts: int = 0
+    uid: Optional[int] = None
+    gid: Optional[int] = None
 
 
 class SupervisorEvent(BaseModel):

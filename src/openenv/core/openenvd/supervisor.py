@@ -29,6 +29,7 @@ from openenv.core.openenvd.models import (
     TaskState,
     TaskStatus,
 )
+from openenv.core.openenvd.uid_allocator import UidAllocator
 
 logger = logging.getLogger(__name__)
 
@@ -44,6 +45,8 @@ class _TaskEntry:
         self.restarts = 0
         self.stop_requested = False
         self.monitor: Optional[asyncio.Task] = None
+        self.uid: Optional[int] = None
+        self.gid: Optional[int] = None
 
 
 class Supervisor:
@@ -53,17 +56,35 @@ class Supervisor:
         self,
         capabilities: Optional[IsolationCapabilities] = None,
         event_buffer_size: int = 1000,
+        uid_allocator: Optional[UidAllocator] = None,
     ):
         self._caps = capabilities or detect_capabilities()
         self._tasks: dict[str, _TaskEntry] = {}
         self._events: deque[SupervisorEvent] = deque(maxlen=event_buffer_size)
         self._next_seq = 0
+        self._uids = uid_allocator or UidAllocator()
 
     async def register(self, spec: TaskSpec, autostart: bool = True) -> TaskStatus:
         if spec.name in self._tasks:
             raise ValueError(f"task {spec.name!r} is already registered")
-        entry = _TaskEntry(spec)
-        self._tasks[spec.name] = entry
+        entry = _TaskEntry(spec.model_copy())
+        if (
+            entry.spec.auto_uid
+            and entry.spec.uid is None
+            and entry.spec.gid is None
+            and self._caps.can_allocate_uids
+        ):
+            allocated = self._uids.acquire(entry.spec.name)
+            if allocated is not None:
+                entry.spec.gid, entry.spec.uid = allocated
+                self._record(entry.spec.name, "uid_allocated", f"uid={allocated[0]}")
+            else:
+                logger.warning(
+                    "openenvd task %s: UID range exhausted; "
+                    "running as the current user",
+                    spec.name,
+                )
+        self._tasks[entry.spec.name] = entry
         self._record(spec.name, "registered")
         if autostart:
             return await self.start(spec.name)
@@ -125,6 +146,7 @@ class Supervisor:
         entry = self._get(name)
         if entry.state in (TaskState.RUNNING, TaskState.STARTING, TaskState.RESTARTING):
             await self.stop(name)
+        self._uids.release(name)
         del self._tasks[name]
 
     def status(self, name: str) -> TaskStatus:
@@ -135,6 +157,8 @@ class Supervisor:
             pid=entry.proc.pid if entry.proc is not None else None,
             exit_code=entry.exit_code,
             restarts=entry.restarts,
+            uid=entry.spec.uid,
+            gid=entry.spec.gid,
         )
 
     def status_all(self) -> list[TaskStatus]:
