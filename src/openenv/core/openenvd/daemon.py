@@ -65,6 +65,11 @@ def create_app(
             return await supervisor.register(request, autostart=request.autostart)
         except ValueError as e:
             raise HTTPException(status_code=409, detail=str(e)) from e
+        except OSError as e:
+            raise HTTPException(
+                status_code=500,
+                detail=f"task registered but failed to spawn: {e}",
+            ) from e
 
     @app.get("/tasks")
     async def list_tasks() -> list[TaskStatus]:

@@ -26,6 +26,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import sys
 import time
 from typing import Optional
 
@@ -41,7 +42,7 @@ def trajectory_writer_spec(
 ) -> TaskSpec:
     """Build a TaskSpec registering the writer against a running daemon."""
     argv = [
-        "python",
+        sys.executable,
         "-m",
         "openenv.core.openenvd.sidecars.trajectory_writer",
         "--daemon-url",
