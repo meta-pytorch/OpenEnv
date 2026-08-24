@@ -5,16 +5,23 @@ passes. Each slice appends its checkpoint here so regressions are structural, no
 procedural.
 """
 
+from pathlib import Path
+
 import pytest
 from conftest import (
     EXPECTED_POLICY,
+    FIXTURES,
     INVALID_MANIFEST_FIXTURES,
     load_fixture_manifest,
     VALID_MANIFEST_FIXTURES,
 )
 from openenv.validation.manifest import NormalizedManifest
 from openenv.validation.policy import load_policy
+from openenv.validation.report import ValidationReport
 from pydantic import ValidationError
+from typer.testing import CliRunner
+
+REPO_ROOT = Path(__file__).parent.parent.parent
 
 
 def test_checkpoint_0_contracts_are_executable():
@@ -34,3 +41,56 @@ def test_checkpoint_0_contracts_are_executable():
 
     policy = load_policy("v1")
     assert {e.check_id for e in policy.entries} == set(EXPECTED_POLICY)
+
+
+def test_checkpoint_1_walking_skeleton():
+    """Slice 1: signature → parse → grade → policy → report → exit code.
+
+    A real env exits 0 with a schema-valid report; a broken manifest exits 1
+    failing static.manifest; an ambiguous package exits 2 with SignatureError.
+    """
+    from openenv.cli.__main__ import app
+
+    runner = CliRunner()
+
+    ok = runner.invoke(
+        app,
+        [
+            "validate",
+            str(REPO_ROOT / "envs" / "echo_env"),
+            "--level",
+            "static",
+            "--skip-build",
+            "--json",
+        ],
+    )
+    assert ok.exit_code == 0, ok.output
+    report = ValidationReport.model_validate_json(ok.output)
+    assert report.verdict.value == "pass"
+    assert any(r.check_id == "static.manifest" for r in report.results)
+
+    broken = runner.invoke(
+        app,
+        [
+            "validate",
+            str(FIXTURES / "broken_manifest"),
+            "--level",
+            "static",
+            "--skip-build",
+        ],
+    )
+    assert broken.exit_code == 1, broken.output
+    assert "static.manifest" in broken.output
+
+    ambiguous = runner.invoke(
+        app,
+        [
+            "validate",
+            str(FIXTURES / "ambiguous_package"),
+            "--level",
+            "static",
+            "--skip-build",
+        ],
+    )
+    assert ambiguous.exit_code == 2, ambiguous.output
+    assert "ambiguous" in ambiguous.output.lower()

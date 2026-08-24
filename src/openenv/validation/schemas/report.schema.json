@@ -519,7 +519,7 @@
     }
   },
   "additionalProperties": false,
-  "description": "One report per validation run, maximum information per run.\n\nPin `policy_version` and a local run reproduces the hub verdict, modulo hub-lane\nchecks.",
+  "description": "One report per validation run, maximum information per run.\n\nPin `policy_version` and a local run reproduces the hub verdict, modulo hub-lane\nchecks.\n\n`manifest` is `None` only when the package's declarations failed the manifest\nschema \u2014 the report then carries the `static.manifest` FAIL explaining why.",
   "properties": {
     "lane": {
       "$ref": "#/$defs/Lane"
@@ -532,7 +532,14 @@
       "type": "array"
     },
     "manifest": {
-      "$ref": "#/$defs/NormalizedManifest"
+      "anyOf": [
+        {
+          "$ref": "#/$defs/NormalizedManifest"
+        },
+        {
+          "type": "null"
+        }
+      ]
     },
     "policy_version": {
       "title": "Policy Version",

@@ -6,6 +6,7 @@ an author is never shown a check they cannot red-to-green. Hub and statistical c
 ids are reserved in this schema so operator reports and local reports share it.
 """
 
+from pathlib import Path
 from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -51,6 +52,9 @@ class ValidationReport(BaseModel):
 
     Pin `policy_version` and a local run reproduces the hub verdict, modulo hub-lane
     checks.
+
+    `manifest` is `None` only when the package's declarations failed the manifest
+    schema — the report then carries the `static.manifest` FAIL explaining why.
     """
 
     model_config = ConfigDict(extra="forbid")
@@ -59,9 +63,28 @@ class ValidationReport(BaseModel):
     target: str
     source_digest: str
     signature: SignatureKind
-    manifest: NormalizedManifest
+    manifest: NormalizedManifest | None
     policy_version: str
     lane: Lane
     levels_run: list[Level]
     results: list[CheckResult]
     verdict: Verdict
+
+
+def write_report(report: ValidationReport, path: Path | None = None) -> str:
+    """
+    Serialize a validation report to schema-versioned JSON.
+
+    Args:
+        report ([`~openenv.validation.report.ValidationReport`]):
+            The completed report.
+        path (`Path`, *optional*):
+            When set, the JSON is also written to this file.
+
+    Returns:
+        `str`: the JSON payload, without a trailing newline.
+    """
+    payload = report.model_dump_json(indent=2)
+    if path is not None:
+        path.write_text(payload + "\n")
+    return payload
