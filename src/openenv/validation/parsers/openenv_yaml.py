@@ -15,6 +15,11 @@ VALIDATION_BLOCK_REMEDIATION = (
     "see the manifest schema at src/openenv/validation/schemas/manifest.schema.json"
 )
 
+SCHEMA_REMEDIATION = (
+    "fix the `validation:` block in openenv.yaml so it matches the normalized "
+    "manifest schema at src/openenv/validation/schemas/manifest.schema.json"
+)
+
 
 def _format_validation_error(exc: ValidationError) -> list[str]:
     """Render pydantic errors as `field: message` evidence lines."""
@@ -91,5 +96,5 @@ class OpenEnvYamlParser:
         except ValidationError as exc:
             raise ManifestError(
                 _format_validation_error(exc),
-                remediation=VALIDATION_BLOCK_REMEDIATION,
+                remediation=SCHEMA_REMEDIATION,
             ) from exc
