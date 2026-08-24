@@ -4,25 +4,25 @@
 # This source code is licensed under the BSD-style license found in the
 # LICENSE file in the root directory of this source tree.
 
-"""OpenCode session factory + session implementation.
+"""Pi session factory + session implementation.
 
 Implements the :class:`ResourceSessionFactory` / :class:`ResourceSession`
-contracts from ``openenv.core.harness`` (PR #471). The session wraps one
-sandbox running the ``opencode`` CLI agent.
+contracts from ``openenv.core.harness``. The session wraps one sandbox running
+the ``pi`` coding-agent CLI.
 
 Two operating modes:
 
-  - ``mode="black_box"`` — opencode talks directly to ``config.base_url``.
-    No proxy, no logprob capture. Use for smoke tests / SFT / eval.
-  - ``mode="transparent_proxy"`` — an in-sandbox FastAPI proxy
-    sits between opencode and the upstream LLM. It injects ``logprobs=true``
-    on every request and writes per-turn ``(messages, completion_tokens,
-    per_token_logps)`` to ``proxy_trace.jsonl`` for GRPO consumption.
+  - ``mode="black_box"`` — Pi talks directly to ``config.base_url``. No proxy,
+    no logprob capture. Use for smoke tests / SFT / eval.
+  - ``mode="transparent_proxy"`` — an in-sandbox FastAPI proxy sits
+    between Pi and the upstream LLM. It injects ``logprobs=true`` on every
+    request and writes per-turn ``(messages, completion_tokens, per_token_logps)``
+    to ``proxy_trace.jsonl`` for GRPO consumption.
 
-Single driver path: opencode is started as a background subprocess via
-``opencode run --format json --dangerously-skip-permissions ...`` and we
-poll its exit code. The previous ``opencode serve`` driver was removed —
-opencode CLI is the only path now.
+Pi is started as a background subprocess via ``pi --print --mode json ...`` and
+we poll its exit code. The sandbox backend + interception proxy are shared with
+the OpenCode primitive (imported from ``opencode_env.sandbox``); the plan is to
+consolidate both into ``openenv.core`` in a follow-up.
 """
 
 from __future__ import annotations
@@ -32,6 +32,7 @@ import shlex
 from pathlib import Path
 from typing import Any, Callable, Literal
 
+import opencode_env
 from openenv.core.env_server.mcp_types import Tool
 from openenv.core.harness import (
     Message,
@@ -40,41 +41,42 @@ from openenv.core.harness import (
     ToolResult,
     VerifyResult,
 )
+from opencode_env.sandbox.base import BgJob, SandboxBackend, SandboxHandle
 
-from .config import OpenCodeConfig
-from .opencode_runtime import (
+from .config import PiConfig
+from .pi_runtime import (
     agent_log_path,
     build_env_vars,
     build_install_cmd,
-    build_opencode_json,
+    build_models_json,
     build_run_cmd,
     instruction_path,
-    opencode_bin_path,
-    opencode_config_path,
+    models_json_path,
+    node_dir,
+    pi_bin_path,
     proxy_dir,
     proxy_log_path,
     proxy_source_path,
     proxy_trace_path,
     system_prompt_path,
 )
-from .sandbox.base import BgJob, SandboxBackend, SandboxHandle
-from .task import OpenCodeTask
+from .task import PiTask
 
 
-# Mode B proxy port. In-sandbox paths derive from config.sandbox_home (opencode_runtime).
+# Mode B proxy port. In-sandbox paths derive from config.sandbox_home (pi_runtime).
 _PROXY_PORT = 7000
 
-# Local proxy source, uploaded to proxy_source_path(config) unless already baked in.
-_PROXY_SOURCE_PATH = Path(__file__).parent / "sandbox" / "interception.py"
+# Shared proxy source, uploaded to proxy_source_path(config) unless already baked in.
+_PROXY_SOURCE_PATH = Path(opencode_env.__file__).parent / "sandbox" / "interception.py"
 
 
-Verifier = Callable[[SandboxHandle, OpenCodeTask], VerifyResult]
+Verifier = Callable[[SandboxHandle, PiTask], VerifyResult]
 
 
-class OpenCodeSession(ResourceSession):
-    """One live OpenCode rollout inside a sandbox.
+class PiSession(ResourceSession):
+    """One live Pi rollout inside a sandbox.
 
-    The session is created already-running: :meth:`OpenCodeSessionFactory.create`
+    The session is created already-running: :meth:`PiSessionFactory.create`
     calls :meth:`start_agent` before returning. Typical usage::
 
         session = factory.create(task)
@@ -87,10 +89,9 @@ class OpenCodeSession(ResourceSession):
         self,
         *,
         sandbox: SandboxHandle,
-        config: OpenCodeConfig,
-        task: OpenCodeTask,
+        config: PiConfig,
+        task: PiTask,
         verifier: Verifier | None = None,
-        base_url_override: str | None = None,
         proxy_trace_path: str | None = None,
         proxy_bg_job: BgJob | None = None,
     ) -> None:
@@ -98,26 +99,25 @@ class OpenCodeSession(ResourceSession):
         self.config = config
         self.task = task
         self._verifier = verifier
-        self._base_url_override = base_url_override
         self._bg_job: BgJob | None = None
         self._proxy_trace_path = proxy_trace_path
         self._proxy_bg_job = proxy_bg_job
 
     # ------------------------------------------------------------------
-    # ResourceSession contract (PR #471)
+    # ResourceSession contract
     # ------------------------------------------------------------------
     def initial_messages(self) -> list[Message]:
         return [{"role": "user", "content": self.task.instruction}]
 
     def list_tools(self) -> list[Tool]:
-        # OpenCode owns its own tool loop — none are exposed to the harness.
+        # Pi owns its own tool loop — none are exposed to the harness.
         return []
 
     def call_tool(self, name: str, arguments: dict[str, Any]) -> ToolResult:
         return ToolResult(
             error=(
-                "OpenCodeSession does not expose external tool calls; the "
-                "CLI agent owns its own tool loop."
+                "PiSession does not expose external tool calls; the CLI agent "
+                "owns its own tool loop."
             )
         )
 
@@ -146,14 +146,14 @@ class OpenCodeSession(ResourceSession):
         self.sandbox.kill()
 
     # ------------------------------------------------------------------
-    # OpenCode-specific session API
+    # Pi-specific session API
     # ------------------------------------------------------------------
     def start_agent(self) -> None:
-        """Launch ``opencode run`` as a background subprocess in the sandbox."""
+        """Launch ``pi --print`` as a background subprocess in the sandbox."""
         if self._bg_job is not None:
             return
         cmd = build_run_cmd(self.config)
-        envs = build_env_vars(self.config, base_url_override=self._base_url_override)
+        envs = build_env_vars(self.config)
         self._bg_job = self.sandbox.start_bg(cmd, envs=envs)
 
     def wait_for_completion(self, timeout_s: float | None = None) -> int:
@@ -164,7 +164,7 @@ class OpenCodeSession(ResourceSession):
         return self._bg_job.wait(timeout=budget)
 
     def fetch_trace(self) -> str:
-        """Return the raw ``opencode run`` log (JSON-lines when ``run_format=json``)."""
+        """Return the raw ``pi`` log (JSON-lines, ``--mode json``)."""
         return self.sandbox.read_text(agent_log_path(self.config))
 
     def fetch_proxy_trace(self) -> list[dict[str, Any]]:
@@ -189,22 +189,22 @@ class OpenCodeSession(ResourceSession):
         return records
 
 
-class OpenCodeSessionFactory(ResourceSessionFactory[OpenCodeSession]):
-    """Produce isolated per-rollout :class:`OpenCodeSession` instances.
+class PiSessionFactory(ResourceSessionFactory):
+    """Produce isolated per-rollout :class:`PiSession` instances.
 
-    The factory owns sandbox provisioning, opencode install, config injection,
-    and (Mode B) proxy startup. Each :meth:`create` call returns a fresh
-    sandbox with a running agent.
+    The factory owns sandbox provisioning, Pi install, config injection, and
+    (Mode B) proxy startup. Each :meth:`create` call returns a fresh sandbox
+    with a running agent.
     """
 
     def __init__(
         self,
         *,
-        config: OpenCodeConfig,
+        config: PiConfig,
         sandbox_backend: SandboxBackend,
         mode: Literal["black_box", "transparent_proxy"] = "black_box",
         verifier: Verifier | None = None,
-        install_timeout_s: int = 240,
+        install_timeout_s: int = 300,
         setup_timeout_s: int = 300,
         create_attempts: int = 3,
         create_backoff_s: float = 2.0,
@@ -226,12 +226,12 @@ class OpenCodeSessionFactory(ResourceSessionFactory[OpenCodeSession]):
         seed: int | None = None,
         episode_id: str | None = None,
         start_agent: bool = True,
-    ) -> OpenCodeSession:
+    ) -> PiSession:
         """Create one session, retrying with exponential backoff.
 
-        Session creation spins up a sandbox, installs opencode, and starts the
-        proxy + agent, the flakiest step in a rollout. Each failed attempt tears
-        its own sandbox down (see :meth:`_create_once`), so a retry never leaks.
+        Session creation spins up a sandbox, installs Pi, and starts the proxy +
+        agent, the flakiest step in a rollout. Each failed attempt tears its own
+        sandbox down (see :meth:`_create_once`), so a retry never leaks.
 
         Pass ``start_agent=False`` to return before launching the agent (for
         example to run setup first), then call ``session.start_agent()``.
@@ -263,12 +263,15 @@ class OpenCodeSessionFactory(ResourceSessionFactory[OpenCodeSession]):
         seed: int | None = None,
         episode_id: str | None = None,
         start_agent: bool = True,
-    ) -> OpenCodeSession:
+    ) -> PiSession:
         import logging
         _log = logging.getLogger(__name__)
 
-        oc_task = OpenCodeTask.coerce(task)
-        sandbox_timeout = int(self._config.agent_timeout_s) + 300
+        pi_task = PiTask.coerce(task)
+        # Budget must cover the cold bootstrap (Node + npm + proxy deps) plus the agent.
+        sandbox_timeout = (
+            self._install_timeout_s + self._setup_timeout_s + int(self._config.agent_timeout_s) + 120
+        )
 
         _log.info(
             "factory.create: creating sandbox timeout=%ds mode=%s",
@@ -285,44 +288,35 @@ class OpenCodeSessionFactory(ResourceSessionFactory[OpenCodeSession]):
         _log.info("factory.create: sandbox=%s — bootstrapping…", sid)
         # Any failure past here (bootstrap/proxy/agent) must tear the sandbox down.
         try:
-            self._bootstrap_sandbox(sandbox, oc_task)
+            self._bootstrap_sandbox(sandbox, pi_task)
 
-            base_url_override: str | None = None
-            proxy_trace_path: str | None = None
+            proxy_trace_path_str: str | None = None
             proxy_bg_job: BgJob | None = None
             if self._mode == "transparent_proxy":
                 _log.info(
                     "factory.create: starting interception proxy on :%d → %s",
                     _PROXY_PORT, self._config.base_url,
                 )
-                proxy_bg_job, base_url_override, proxy_trace_path = self._start_proxy(
+                proxy_bg_job, base_url_override, proxy_trace_path_str = self._start_proxy(
                     sandbox
                 )
                 _log.info("factory.create: proxy up at %s", base_url_override)
-                # Rewrite opencode.json so opencode points at the proxy. Force
-                # ``openai_compatible`` so opencode hits ``/v1/chat/completions``
-                # (which the proxy serves) rather than provider-specific paths.
-                from .config import OpenCodeConfig as _OCC
-
-                proxy_cfg = _OCC(
-                    **{
-                        **self._config.model_dump(),
-                        "provider": "openai_compatible",
-                        "base_url": base_url_override,
-                    }
+                # Rewrite models.json so Pi points at the proxy instead of the
+                # upstream directly (the proxy serves /v1/chat/completions).
+                proxy_cfg = PiConfig(
+                    **{**self._config.model_dump(), "base_url": base_url_override}
                 )
                 sandbox.write_text(
-                    opencode_config_path(self._config),
-                    build_opencode_json(proxy_cfg),
+                    models_json_path(self._config),
+                    build_models_json(proxy_cfg),
                 )
 
-            session = OpenCodeSession(
+            session = PiSession(
                 sandbox=sandbox,
                 config=self._config,
-                task=oc_task,
+                task=pi_task,
                 verifier=self._verifier,
-                base_url_override=base_url_override,
-                proxy_trace_path=proxy_trace_path,
+                proxy_trace_path=proxy_trace_path_str,
                 proxy_bg_job=proxy_bg_job,
             )
             if start_agent:
@@ -346,10 +340,9 @@ class OpenCodeSessionFactory(ResourceSessionFactory[OpenCodeSession]):
     ) -> None:
         """Probe the sandbox until ``echo ok`` succeeds.
 
-        E2B (and other backends) sometimes return the handle before the
-        guest is fully ready. Issue ``echo ok`` with short timeouts until
-        it succeeds. Returns silently on success; raises ``RuntimeError``
-        on prolonged failure.
+        Some backends return the handle before the guest is fully ready. Issue
+        ``echo ok`` with short timeouts until it succeeds. Returns silently on
+        success; raises ``RuntimeError`` on prolonged failure.
         """
         import time
 
@@ -380,9 +373,9 @@ class OpenCodeSessionFactory(ResourceSessionFactory[OpenCodeSession]):
     ):
         """Run ``sandbox.exec`` with exponential backoff on transient failure.
 
-        Transient = ``exit_code != 0`` AND empty stderr (SIGKILL / network
-        blip signature) OR an exception during exec. Final failure is raised
-        as ``RuntimeError`` carrying the last exit code + stderr.
+        Transient = ``exit_code != 0`` AND empty stderr (SIGKILL / network blip
+        signature) OR an exception during exec. Final failure is raised as
+        ``RuntimeError`` carrying the last exit code + stderr.
         """
         import time
 
@@ -409,16 +402,17 @@ class OpenCodeSessionFactory(ResourceSessionFactory[OpenCodeSession]):
             f"(exit={last_exit}, stderr={last_stderr!r}, stdout_tail={last_stdout[-400:]!r})"
         )
 
-    def _opencode_already_installed(self, sandbox: SandboxHandle) -> bool:
-        """Cheap probe — returns True if opencode is on disk in the sandbox.
+    def _pi_already_installed(self, sandbox: SandboxHandle) -> bool:
+        """Cheap probe — returns True if Pi is on disk in the sandbox.
 
-        Used to skip the slow ``curl install`` step when running against a
-        prebaked template that already ships opencode.
+        Used to skip the slow install step when running against a prebaked
+        template that already ships Pi.
         """
         try:
             r = sandbox.exec(
-                f"{opencode_bin_path(self._config)} --version",
-                timeout=10,
+                f'export PATH="{node_dir(self._config)}/bin:$PATH" && '
+                f"{pi_bin_path(self._config)} --version",
+                timeout=15,
             )
             return r.exit_code == 0
         except Exception:
@@ -427,28 +421,28 @@ class OpenCodeSessionFactory(ResourceSessionFactory[OpenCodeSession]):
     def _bootstrap_sandbox(
         self,
         sandbox: SandboxHandle,
-        task: OpenCodeTask,
+        task: PiTask,
     ) -> None:
-        """Install opencode, write config + task files, run optional setup."""
+        """Install Pi, write config + task files, run optional setup."""
 
         # Stage 1: wait for the sandbox to be responsive.
         self._wait_for_sandbox_ready(sandbox)
 
-        # Stage 2: install opencode (skipped if a prebaked template already
-        # has it). curl|bash is flaky — retry with backoff.
-        if not self._opencode_already_installed(sandbox):
+        # Stage 2: install Pi (skipped if a prebaked template already has it).
+        # npm install over a bootstrapped Node is flaky — retry with backoff.
+        if not self._pi_already_installed(sandbox):
             self._exec_with_retry(
                 sandbox,
                 build_install_cmd(self._config),
                 timeout=self._install_timeout_s,
                 attempts=3,
                 backoff_s=3.0,
-                label="opencode install",
+                label="pi install",
             )
 
         sandbox.write_text(
-            opencode_config_path(self._config),
-            build_opencode_json(self._config),
+            models_json_path(self._config),
+            build_models_json(self._config),
         )
         sandbox.write_text(instruction_path(self._config), task.instruction)
 
@@ -484,14 +478,17 @@ class OpenCodeSessionFactory(ResourceSessionFactory[OpenCodeSession]):
     ) -> tuple[BgJob, str, str]:
         """Install proxy deps + start the proxy as a bg job inside the sandbox.
 
-        Returns ``(proxy_bg_job, base_url_override, proxy_trace_path)``.
-        Skips the pip install + source-upload steps when the prebaked
-        template already has them in place.
+        Returns ``(proxy_bg_job, base_url_override, proxy_trace_path)``. Skips
+        the pip install + source-upload steps when the prebaked template already
+        has them in place.
         """
-        proxy_already_present = sandbox.exists(proxy_source_path(self._config))
-
-        if not proxy_already_present:
-            # Install proxy deps (idempotent on retries).
+        # Deps and source are gated separately: the pre-baked image bakes the
+        # deps but not the proxy source (it lives in opencode_env, outside the
+        # pi image build context), so each skip triggers independently.
+        deps_present = (
+            sandbox.exec("python -c 'import fastapi, uvicorn, httpx'", timeout=15).exit_code == 0
+        )
+        if not deps_present:
             self._exec_with_retry(
                 sandbox,
                 "set -o pipefail && pip install --quiet 'fastapi>=0.104' "
@@ -501,7 +498,8 @@ class OpenCodeSessionFactory(ResourceSessionFactory[OpenCodeSession]):
                 backoff_s=2.0,
                 label="proxy deps install",
             )
-            # Upload the proxy module into the sandbox.
+
+        if not sandbox.exists(proxy_source_path(self._config)):
             sandbox.write_text(
                 proxy_source_path(self._config),
                 _PROXY_SOURCE_PATH.read_text(),
@@ -526,8 +524,7 @@ class OpenCodeSessionFactory(ResourceSessionFactory[OpenCodeSession]):
             )
         if self._config.proxy_disable_thinking:
             proxy_args.append("--disable-thinking")
-        # Force the upstream model id on every forwarded request — opencode's
-        # internal title-gen call sometimes strips the provider prefix.
+        # Force the upstream model id on every forwarded request.
         if self._config.model:
             proxy_args.extend(["--model-override", self._config.model])
 
@@ -537,11 +534,11 @@ class OpenCodeSessionFactory(ResourceSessionFactory[OpenCodeSession]):
             f"{quoted_proxy_args} "
             f"> {shlex.quote(proxy_log_path(self._config))} 2>&1"
         )
-        proxy_env = {"OPENCODE_UPSTREAM_API_KEY": self._config.api_key}
+        proxy_env = {"UPSTREAM_API_KEY": self._config.api_key}
         proxy_job = sandbox.start_bg(proxy_cmd, envs=proxy_env)
 
-        # Wait for the proxy to start listening. Cold uvicorn boot inside
-        # E2B can take anywhere from <1s to ~30s depending on cache state.
+        # Wait for the proxy to start listening. Cold uvicorn boot can take
+        # anywhere from <1s to ~30s depending on cache state.
         import time
 
         attempts = 120
@@ -571,8 +568,8 @@ class OpenCodeSessionFactory(ResourceSessionFactory[OpenCodeSession]):
 
 
 __all__ = [
-    "OpenCodeSession",
-    "OpenCodeSessionFactory",
-    "OpenCodeTask",
+    "PiSession",
+    "PiSessionFactory",
+    "PiTask",
     "Verifier",
 ]

@@ -4,16 +4,16 @@
 # This source code is licensed under the BSD-style license found in the
 # LICENSE file in the root directory of this source tree.
 
-"""OpenCode MCP environment.
+"""Pi MCP environment.
 
 Single MCP tool ``run_rollout`` that takes a uniform Task shape:
 
   - ``instruction``  — prompt for the agent
-  - ``setup``        — bash commands run BEFORE the agent (in the sandbox)
-  - ``verify``       — bash commands run AFTER the agent
+  - ``setup``        — bash commands run in the sandbox at rollout start
+  - ``verify``       — bash commands run after the agent finishes
 
 Reward = ``passed_verify_commands / total`` unless a verify command writes
-a float to ``/home/user/logs/verifier/reward.txt`` (override).
+a float to ``/root/logs/verifier/reward.txt`` (override).
 
 Returns a JSON-serialized :class:`RolloutResult` with reward + per-turn
 logprobs (Mode B) + setup/verify command results + file outputs.
@@ -22,7 +22,6 @@ logprobs (Mode B) + setup/verify command results + file outputs.
 from __future__ import annotations
 
 import json
-import os
 import time
 from typing import Any, Optional
 from uuid import uuid4
@@ -40,24 +39,27 @@ except ImportError:  # pragma: no cover
     from server.catalog import ENDPOINT_KINDS, resolve_endpoint  # type: ignore
 
 
-# One rollout (sandbox cold start + opencode install + opencode run +
-# verifier) typically takes 30-180s; can spike to ~600s under load. Override
-# OpenEnv's 30s MCP-tool default so the server doesn't cut us off.
-_RUN_ROLLOUT_TIMEOUT_S = 900.0
+# One rollout (sandbox cold start + Node/Pi install + pi run + verifier) can
+# reach ~20min worst case on a cold image. Override OpenEnv's 30s MCP-tool
+# default so the server doesn't cut us off.
+_RUN_ROLLOUT_TIMEOUT_S = 1500.0
 
-# Inside-sandbox paths the server writes/reads.
-HOME = "/home/user"
+# Default Hugging Face sandbox image (cold-installs Node + Pi per rollout).
+_DEFAULT_IMAGE = "python:3.12"
+
+# Inside-sandbox paths the server writes/reads (HF sandbox execs as root).
+HOME = "/root"
 WORKDIR = f"{HOME}/workdir"
 INSTRUCTION_PATH = f"{HOME}/task/instruction.md"
 REWARD_FILE = f"{HOME}/logs/verifier/reward.txt"
 PROXY_LOG = f"{HOME}/logs/agent/proxy.log"
-AGENT_LOG = f"{HOME}/logs/agent/opencode.jsonl"
+AGENT_LOG = f"{HOME}/logs/agent/pi.jsonl"
 VERIFY_TIMEOUT_S = 120
 # Setup can pip-install / download, which easily exceeds the verify budget.
 SETUP_TIMEOUT_S = 300
 
 
-class OpenCodeEnvironment(MCPEnvironment):
+class PiEnvironment(MCPEnvironment):
     """Per-session environment exposing a single ``run_rollout`` MCP tool."""
 
     SUPPORTS_CONCURRENT_SESSIONS = True
@@ -67,14 +69,14 @@ class OpenCodeEnvironment(MCPEnvironment):
         try:
             from ..models import (
                 CommandResult,
-                OpenCodeState,
+                PiState,
                 RolloutResult,
                 RolloutTurn,
             )
         except ImportError:  # pragma: no cover
             from models import (  # type: ignore
                 CommandResult,
-                OpenCodeState,
+                PiState,
                 RolloutResult,
                 RolloutTurn,
             )
@@ -82,34 +84,33 @@ class OpenCodeEnvironment(MCPEnvironment):
         # Import the primitive from its defining modules (not the top-level
         # package, which re-exports the client) to keep server/client separate.
         try:
-            from ..config import OpenCodeConfig
-            from ..harness import OpenCodeSessionFactory
-            from ..sandbox import E2BSandboxBackend
-            from ..task import OpenCodeTask
+            from ..config import PiConfig
+            from ..harness import PiSessionFactory
+            from ..task import PiTask
         except ImportError:  # pragma: no cover
-            from config import OpenCodeConfig  # type: ignore
-            from harness import OpenCodeSessionFactory  # type: ignore
-            from sandbox import E2BSandboxBackend  # type: ignore
-            from task import OpenCodeTask  # type: ignore
+            from config import PiConfig  # type: ignore
+            from harness import PiSessionFactory  # type: ignore
+            from task import PiTask  # type: ignore
+        from opencode_env.sandbox import HFSandboxBackend
 
         self._CommandResult = CommandResult
         self._RolloutResult = RolloutResult
         self._RolloutTurn = RolloutTurn
-        self._OpenCodeState = OpenCodeState
-        self._OpenCodeConfig = OpenCodeConfig
-        self._OpenCodeSessionFactory = OpenCodeSessionFactory
-        self._OpenCodeTask = OpenCodeTask
-        self._E2BSandboxBackend = E2BSandboxBackend
+        self._PiState = PiState
+        self._PiConfig = PiConfig
+        self._PiSessionFactory = PiSessionFactory
+        self._PiTask = PiTask
+        self._HFSandboxBackend = HFSandboxBackend
 
-        # Don't raise on missing E2B_API_KEY here — OpenEnv's web-interface
-        # layer instantiates the env at import time for schema introspection,
-        # and we want the docs / Gradio UI to load even when the operator is
-        # just exploring. The real check happens lazily in
-        # ``_run_rollout_impl`` (any rollout without creds fails fast there
-        # with a clear error in the result payload).
-        self._state = self._OpenCodeState(episode_id=str(uuid4()))
+        # Don't raise on missing HF_TOKEN here — OpenEnv's web-interface layer
+        # instantiates the env at import time for schema introspection, and we
+        # want the docs / Gradio UI to load even when the operator is just
+        # exploring. The real check happens lazily in ``_run_rollout_impl``
+        # (any rollout without creds fails fast there with a clear error in
+        # the result payload).
+        self._state = self._PiState(episode_id=str(uuid4()))
 
-        mcp = FastMCP("opencode_env")
+        mcp = FastMCP("pi_env")
 
         @mcp.tool
         def run_rollout(
@@ -131,17 +132,17 @@ class OpenCodeEnvironment(MCPEnvironment):
             max_tokens_cap: int = 4096,
             top_logprobs: int = 5,
             agent_timeout_s: float = 600.0,
-            template: str = "",
+            image: str = "",
         ) -> str:
-            """Run one OpenCode rollout end-to-end.
+            """Run one Pi rollout end-to-end.
 
             ``endpoint`` is the shorthand selector (one of
             ``"vllm"`` / ``"openai"`` / ``"hf_router"``) — the server
             resolves base_url / api_key / model from env vars + catalog
             defaults. Pass any of those explicitly to override.
 
-            See ``opencode_env.client.OpenCodeEnv.run_rollout`` for full
-            arg docs. Returns a JSON-serialized ``RolloutResult``.
+            See ``pi_env.client.PiEnv.run_rollout`` for full arg docs.
+            Returns a JSON-serialized ``RolloutResult``.
             """
             # Resolve via catalog when shorthand is provided.
             disable_thinking_resolved = disable_thinking
@@ -178,7 +179,7 @@ class OpenCodeEnvironment(MCPEnvironment):
                 max_tokens_cap=max_tokens_cap,
                 top_logprobs=top_logprobs,
                 agent_timeout_s=agent_timeout_s,
-                template=template,
+                image=image,
             )
 
         super().__init__(mcp)
@@ -191,14 +192,14 @@ class OpenCodeEnvironment(MCPEnvironment):
         episode_id: Optional[str] = None,
         **_: Any,
     ) -> Observation:
-        self._state = self._OpenCodeState(episode_id=episode_id or str(uuid4()))
+        self._state = self._PiState(episode_id=episode_id or str(uuid4()))
         return Observation(
             done=False,
             reward=None,
             metadata={
                 "status": "ready",
                 "message": (
-                    "opencode_env ready. Call run_rollout(...) with a task."
+                    "pi_env ready. Call run_rollout(...) with a task."
                 ),
             },
         )
@@ -261,7 +262,7 @@ class OpenCodeEnvironment(MCPEnvironment):
         max_tokens_cap: int,
         top_logprobs: int,
         agent_timeout_s: float,
-        template: str,
+        image: str,
         progress_cb=None,
     ) -> str:
         # Optional progress callback: receives short status strings at each
@@ -278,23 +279,24 @@ class OpenCodeEnvironment(MCPEnvironment):
         t0 = time.time()
 
         # Late credential check — keeps the server importable in dev /
-        # docs-only contexts.
-        if not os.environ.get("E2B_API_KEY"):
+        # docs-only contexts. get_token() covers HF_TOKEN, the legacy env var,
+        # and a cached ``hf auth login`` token.
+        from huggingface_hub import get_token
+
+        if not get_token():
             result.error = (
-                "E2B_API_KEY is not set on the server. Configure it in the "
-                "Space's secrets / your .env / your shell before calling "
-                "run_rollout."
+                "No Hugging Face token found. Set HF_TOKEN (Space secret / .env "
+                "/ shell) or run `hf auth login` before calling run_rollout."
             )
             result.wall_s = round(time.time() - t0, 3)
-            _emit("error: E2B_API_KEY missing on server")
+            _emit("error: HF token missing on server")
             return result.model_dump_json()
 
         _emit(f"resolving config (model={model}, mode={mode})")
 
-        # Build OpenCodeConfig + factory. We keep the proxy in charge of
+        # Build PiConfig + factory. We keep the proxy in charge of
         # ``model_override`` / ``logprobs`` / ``max_tokens``-cap injection.
-        config = self._OpenCodeConfig(
-            provider="openai_compatible",
+        config = self._PiConfig(
             base_url=base_url.rstrip("/"),
             api_key=api_key,
             model=model,
@@ -311,18 +313,14 @@ class OpenCodeEnvironment(MCPEnvironment):
         # That way the primitive still aborts on setup failure AND we get
         # observability in the response.
         instruction_payload = instruction
-        opencode_task = self._OpenCodeTask(
+        pi_task = self._PiTask(
             instruction=instruction_payload,
             metadata={"task_id": task_id},
         )
 
-        backend_kwargs: dict[str, Any] = {}
-        if template:
-            backend_kwargs["template"] = template
-
-        factory = self._OpenCodeSessionFactory(
+        factory = self._PiSessionFactory(
             config=config,
-            sandbox_backend=self._E2BSandboxBackend(**backend_kwargs),
+            sandbox_backend=self._HFSandboxBackend(image=image or _DEFAULT_IMAGE),
             mode=mode,
             verifier=None,
         )
@@ -330,10 +328,10 @@ class OpenCodeEnvironment(MCPEnvironment):
         session = None
         try:
             _emit(
-                f"creating E2B sandbox (template={template or 'default'}) — "
-                "this is the slow phase (~5–60s cold, ~5s with template)"
+                f"creating HF sandbox (image={image or _DEFAULT_IMAGE}) — "
+                "this is the slow phase (Node + Pi cold-install per rollout)"
             )
-            session = factory.create(task=opencode_task, start_agent=False)
+            session = factory.create(task=pi_task, start_agent=False)
             result.sandbox_id = session.sandbox.sandbox_id
             _emit(
                 f"sandbox ready: {result.sandbox_id} "
@@ -357,7 +355,7 @@ class OpenCodeEnvironment(MCPEnvironment):
             if result.error is None:
                 session.start_agent()
                 _emit(
-                    f"agent running — opencode CLI in sandbox "
+                    f"agent running — pi CLI in sandbox "
                     f"(timeout {int(agent_timeout_s)}s)"
                 )
                 try:
