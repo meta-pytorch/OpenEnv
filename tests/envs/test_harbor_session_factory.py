@@ -462,3 +462,18 @@ def test_a_borrowed_client_is_left_alone():
     )
     session.close()
     assert closed == [], "closing a borrowed client would break its owner"
+
+
+def test_an_empty_indices_list_is_refused_rather_than_meaning_everything():
+    """A selection that matched nothing must not silently become the whole split.
+
+    `indices=[]` arrives from a caller whose filter found no tasks. Treating it as "no selection"
+    would train on all 2238 tasks while the caller believes it picked a handful.
+    """
+    with pytest.raises(ValueError, match="no tasks would be selected"):
+        harness.HarborSessionFactory("http://server:8000", split="s", indices=[])
+
+
+def test_omitting_indices_still_means_the_whole_split():
+    f = harness.HarborSessionFactory("http://server:8000", split="s")
+    assert f._indices is None

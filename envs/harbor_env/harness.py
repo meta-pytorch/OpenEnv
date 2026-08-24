@@ -486,7 +486,14 @@ class HarborSessionFactory(ResourceSessionFactory[HarborSession]):
         # whether it can learn anything at all: a task every generation solves and one none solves both
         # give reward_std 0. The band that splits has to be chosen per model — the suite's own
         # difficulty numbers were measured with a different harness and point the wrong way here.
-        self._indices = list(indices) if indices else None
+        # `is not None`, not truthiness: an EMPTY list means a caller's selection matched nothing,
+        # and falling back to "all tasks" there would silently train on the whole split instead of
+        # saying so. Only an omitted argument means "no selection".
+        if indices is not None and not list(indices):
+            raise ValueError(
+                "indices is empty: no tasks would be selected. Pass None to use the whole split."
+            )
+        self._indices = list(indices) if indices is not None else None
         # A rollout result is quadratic in turns (each turn carries its whole prompt), so the 100 MB
         # default is reachable: a 262-turn rollout exceeded it and closed the connection.
         self._max_message_size_mb = max_message_size_mb
@@ -536,7 +543,7 @@ class HarborSessionFactory(ResourceSessionFactory[HarborSession]):
         if not self._tasks:
             env = self._client()
             total = env.num_tasks(self._split)
-            if self._indices:
+            if self._indices is not None:
                 bad = [i for i in self._indices if not 0 <= i < total]
                 if bad:
                     raise IndexError(
