@@ -366,7 +366,37 @@ class HarborSession(ResourceSession):
                 self._task_index,
                 self.result.error,
             )
+        else:
+            self._warn_if_oversized()
         return 0 if self.result.ok else 1
+
+    # A packed row much beyond this has, in practice, meant an OOM in the loss step rather than a
+    # slow one. Deliberately a log line and not a rejection: what to do about a huge rollout is the
+    # trainer's decision, and dropping it here would silently shrink a GRPO group.
+    OVERSIZED_TRAINABLE_TOKENS = 250_000
+
+    def _warn_if_oversized(self) -> None:
+        """Name the cause of an OOM that otherwise surfaces in the wrong place.
+
+        AsyncGRPO packs every turn of a rollout into ONE training row, and each turn re-sends the
+        whole conversation, so packed length grows with the SQUARE of the turn count. When that row is
+        too large the failure appears much later as `CUBLAS_STATUS_ALLOC_FAILED` inside the chunked LM
+        head's backward — an OOM wearing a cuBLAS mask, in a stack frame that mentions neither the
+        rollout nor its turn count. This line is what connects the two.
+        """
+        result = self.result
+        if result is None:
+            return
+        tokens = getattr(result, "n_trainable_tokens", 0) or 0
+        if tokens > self.OVERSIZED_TRAINABLE_TOKENS:
+            logger.warning(
+                "harbor rollout %s[%d] packs %d trainable tokens across %d turns; a row this large "
+                "has meant an OOM in the loss step. Cap the agent with agent_step_limit.",
+                self._split,
+                self._task_index,
+                tokens,
+                getattr(result, "n_turns", -1),
+            )
 
     def fetch_proxy_trace(self) -> list[dict[str, Any]]:
         """Per-turn captured records, in TRL's `TraceEntry` shape.
