@@ -137,9 +137,19 @@ class HarborService:
         return self.public_url
 
     def stop(self) -> None:
-        if self._forwarder is not None:
-            self._forwarder.stop()
-        self.capture.stop()
+        """Tear both halves down, even if the first half refuses to go.
+
+        The capture port is released in a `finally` for the same reason `start()` unwinds on failure:
+        a forwarder that raises on shutdown (a wedged tunnel process, a dead subprocess) would
+        otherwise leave the proxy holding its port, and the next `start()` fails on a port conflict
+        that says nothing about what actually went wrong.
+        """
+        try:
+            if self._forwarder is not None:
+                self._forwarder.stop()
+        finally:
+            self._forwarder = None
+            self.capture.stop()
 
     @classmethod
     def current(cls) -> "HarborService | None":

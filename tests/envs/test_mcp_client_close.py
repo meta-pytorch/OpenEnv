@@ -57,14 +57,18 @@ def test_the_mcp_override_runs_and_then_calls_up(monkeypatch):
     order: list[str] = []
 
     class Fake(mcp_client.MCPClientBase):
-        def __init__(self):  # deliberately skips real construction; only close is under test
+        def __init__(
+            self,
+        ):  # deliberately skips real construction; only close is under test
             self._production_session_id = None
             self._http_client = None
 
     async def parent_close(self):
         order.append("parent")
 
-    monkeypatch.setattr(env_client.EnvClient, "_close_async", parent_close, raising=True)
+    monkeypatch.setattr(
+        env_client.EnvClient, "_close_async", parent_close, raising=True
+    )
     client = Fake()
     asyncio.run(client._close_async())
     assert order == ["parent"], "the parent's teardown must still be reached"

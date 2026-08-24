@@ -4,7 +4,10 @@
 # This source code is licensed under the BSD-style license found in the
 # LICENSE file in the root directory of this source tree.
 
-"""The two upstream Harbor defects that cost `hermes` and `openclaw` their ATIF trajectory.
+"""The upstream Harbor defect that cost `openclaw` its ATIF trajectory.
+
+The sibling `hermes` fix went away with the seam itself: hermes-agent fails to install
+(`exit 127`, 5/5 attempts), so there is nothing left to intercept.
 
 Both failed the same way: no error, no exception, no missing file -- just an agent that quietly
 produced no trace, so every rollout reported `atif=none` and the cross-check silently did not exist.
@@ -20,12 +23,9 @@ import pytest
 
 install_fixes = pytest.importorskip("openenv.harbor.install_fixes")
 openclaw_mod = pytest.importorskip("harbor.agents.installed.openclaw")
-hermes_mod = pytest.importorskip("harbor.agents.installed.hermes")
 
-InterceptHermes = install_fixes.InterceptHermes
 TRIM = install_fixes._OPENCLAW_TRIM_TRAILING_LOG
 OpenClaw = openclaw_mod.OpenClaw
-Hermes = hermes_mod.Hermes
 
 _CONTAINER_PATH = "/logs/agent/openclaw.txt"
 _SESSION_FILE = "/root/.openclaw/agents/main/sessions/790c93f1.jsonl"
@@ -137,62 +137,3 @@ def test_a_backwards_scan_without_the_suffix_rule_latches_onto_the_wrong_object(
 
     assert found == {"stopReason": "stop", "finishReason": "stop"}
     assert "meta" not in found
-
-
-# --- hermes -----------------------------------------------------------------
-# Driven through `asyncio.run` rather than written as `async def` tests: `asyncio_mode = "auto"` in
-# pyproject only takes effect when pytest-asyncio is installed, and it is not in every environment
-# that runs this suite. A test that silently does not execute would defeat the purpose.
-def test_hermes_session_is_exported_without_the_source_filter(monkeypatch):
-    """`--source cli` matches nothing, so the export must be re-run without any filter.
-
-    In hermes-agent ANY filter routes export through `list_prune_candidates()`, whose WHERE clause
-    starts `s.ended_at IS NOT NULL` -- and a `chat -q` session never sets `ended_at`. The flag
-    therefore selects zero rows for exactly the sessions Harbor creates, and the command still exits
-    0, so nothing anywhere reports a problem.
-    """
-    commands: list[str] = []
-
-    async def fake_super_run(self, instruction, environment, context):
-        return None
-
-    async def fake_exec_as_agent(
-        self, environment, command, env=None, timeout_sec=None
-    ):
-        commands.append(command)
-
-    monkeypatch.setattr(Hermes, "run", fake_super_run)
-    monkeypatch.setattr(
-        InterceptHermes, "exec_as_agent", fake_exec_as_agent, raising=False
-    )
-
-    agent = object.__new__(InterceptHermes)
-    asyncio.run(InterceptHermes.run(agent, "solve it", object(), object()))
-
-    assert len(commands) == 1, commands
-    assert "hermes sessions export /logs/agent/hermes-session.jsonl" in commands[0]
-    assert "--source" not in commands[0]
-
-
-def test_a_failed_hermes_export_does_not_fail_the_rollout(monkeypatch):
-    """The trajectory is a cross-check, not the product. Losing it must not discard a graded run."""
-    warnings: list[str] = []
-
-    async def fake_super_run(self, instruction, environment, context):
-        return None
-
-    async def boom(self, environment, command, env=None, timeout_sec=None):
-        raise RuntimeError("sandbox went away")
-
-    class _Logger:
-        def warning(self, message, *args):
-            warnings.append(message % args if args else message)
-
-    monkeypatch.setattr(Hermes, "run", fake_super_run)
-    monkeypatch.setattr(InterceptHermes, "exec_as_agent", boom, raising=False)
-
-    agent = object.__new__(InterceptHermes)
-    agent.logger = _Logger()
-    asyncio.run(InterceptHermes.run(agent, "solve it", object(), object()))
-
-    assert warnings and "sandbox went away" in warnings[0]

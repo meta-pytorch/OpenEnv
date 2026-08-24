@@ -71,6 +71,25 @@ _NO_HARBOR_RETRY = 0
 _PROC_ENV_LOCK = threading.Lock()
 
 
+async def _acquire_proc_env() -> None:
+    """Take `_PROC_ENV_LOCK` without leaking it if the caller is cancelled.
+
+    `asyncio.to_thread` is not cancellable: cancelling the await abandons the future, but the worker
+    thread runs on and still takes the lock. Nobody is left holding a frame that releases it, so a
+    single cancelled proc-env rollout — a client timeout, a trainer shutting a worker down — would
+    wedge every later goose rollout on a lock with no owner. Hence the done-callback: whoever ends up
+    acquiring is the one who releases.
+    """
+    acquiring = asyncio.ensure_future(asyncio.to_thread(_PROC_ENV_LOCK.acquire))
+    try:
+        await asyncio.shield(acquiring)
+    except asyncio.CancelledError:
+        acquiring.add_done_callback(
+            lambda fut: _PROC_ENV_LOCK.release() if not fut.cancelled() else None
+        )
+        raise
+
+
 @contextlib.contextmanager
 def process_env(seam_name: str, env: dict[str, str]):
     """Set the seam's process-level env vars for the duration of the block, then put them back.
@@ -360,7 +379,7 @@ async def run_rollout(
             # Acquired via `to_thread` so a blocking `acquire()` cannot stall the event loop while
             # another rollout holds the lock for the length of a full trial. A bare `acquire()` here
             # would deadlock the server the first time two goose rollouts overlapped on one loop.
-            await asyncio.to_thread(_PROC_ENV_LOCK.acquire)
+            await _acquire_proc_env()
             try:
                 with process_env(seam.name, proc_env):
                     config = build_trial_config(**config_kwargs)

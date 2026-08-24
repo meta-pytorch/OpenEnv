@@ -919,7 +919,11 @@ def harbor_gradio_builder(
         # the whole point of validating a URL here. Say which one will be used, because a server may
         # also have been booted with a default and the two can differ.
         service = HarborService.current()
-        if service is not None and service.llm_url and service.llm_url.rstrip("/") != url:
+        if (
+            service is not None
+            and service.llm_url
+            and service.llm_url.rstrip("/") != url
+        ):
             lines.append(
                 f"Rollouts will use **this** endpoint, not the server's default "
                 f"(`{service.llm_url}`)."
