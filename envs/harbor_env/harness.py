@@ -259,8 +259,12 @@ class HarborSession(ResourceSession):
         api_key: str = "",
         auth_header: str = "",
         agent_timeout_sec: float = 0.0,
+        owns_env: bool = False,
     ) -> None:
         self._env = env
+        # Whether closing this session should close the client too. True when the factory handed this
+        # session a client of its own, which it does for every rollout — see `create`.
+        self._owns_env = owns_env
         self._split = split
         self._task_index = task_index
         self._instruction = instruction
@@ -305,9 +309,14 @@ class HarborSession(ResourceSession):
 
     def close(self) -> None:
         # The server owns the sandbox and tears it down with the trial, so there is nothing to release
-        # here. Kept because the contract requires it, and a silent no-op is better than a subclass
-        # that forgets it exists.
-        return None
+        # there. The CLIENT is ours, though: one websocket per session, and leaving it open holds an
+        # env session on the server until `max_concurrent_envs` is exhausted.
+        if self._owns_env and self._env is not None:
+            try:
+                self._env.close()
+            except Exception:  # noqa: BLE001 - a client that will not close must not fail a rollout
+                logger.warning("closing this session's client failed", exc_info=True)
+            self._env = None
 
     # --- loop-owning extensions ---------------------------------------------
 
@@ -420,6 +429,8 @@ class HarborSessionFactory(ResourceSessionFactory[HarborSession]):
         auth_header: str = "",
         agent_timeout_sec: float = 600.0,
         num_tasks: int | None = None,
+        indices: list[int] | None = None,
+        max_message_size_mb: float = 4096.0,
     ) -> None:
         self.server_url = server_url.rstrip("/")
         self.harness = harness
@@ -431,6 +442,14 @@ class HarborSessionFactory(ResourceSessionFactory[HarborSession]):
         self.auth_header = auth_header
         self.agent_timeout_sec = agent_timeout_sec
         self._num_tasks = num_tasks
+        # Specific tasks, rather than the first N of the split. Which tasks a group trains on decides
+        # whether it can learn anything at all: a task every generation solves and one none solves both
+        # give reward_std 0. The band that splits has to be chosen per model — the suite's own
+        # difficulty numbers were measured with a different harness and point the wrong way here.
+        self._indices = list(indices) if indices else None
+        # A rollout result is quadratic in turns (each turn carries its whole prompt), so the 100 MB
+        # default is reachable: a 262-turn rollout exceeded it and closed the connection.
+        self._max_message_size_mb = max_message_size_mb
         self._env: HarborEnv | None = None
         self._split = split
         self._by_instruction: dict[str, int] = {}
@@ -463,16 +482,37 @@ class HarborSessionFactory(ResourceSessionFactory[HarborSession]):
                 self._split = splits[0]["name"]
         return self._env
 
+    def new_client(self) -> HarborEnv:
+        """A fresh client for one rollout. Overridable so a caller can substitute a transport.
+
+        Separate from `_client()`, which is the factory's own long-lived connection for task metadata.
+        """
+        return HarborEnv(
+            base_url=self.server_url, max_message_size_mb=self._max_message_size_mb
+        )
+
     def tasks(self) -> list[dict[str, Any]]:
         """The tasks this factory can run, fetched once from the server."""
         if not self._tasks:
             env = self._client()
             total = env.num_tasks(self._split)
-            stop = min(total, self._num_tasks) if self._num_tasks else total
-            self._tasks = [
-                t.model_dump() if hasattr(t, "model_dump") else dict(t)
-                for t in env.get_task_range(self._split, 0, stop)
-            ]
+            if self._indices:
+                bad = [i for i in self._indices if not 0 <= i < total]
+                if bad:
+                    raise IndexError(
+                        f"index(es) {bad[:5]} out of range for {self._split!r} ({total} tasks)"
+                    )
+                # Normalised the same way as the range branch below: `get_task` returns a
+                # `HarborTaskRef` model while `get_task_range` returns dicts, and everything after
+                # this point does `task.get(...)`.
+                self._tasks = [
+                    _as_dict(env.get_task(self._split, i)) for i in self._indices
+                ]
+            else:
+                stop = min(total, self._num_tasks) if self._num_tasks else total
+                self._tasks = [
+                    _as_dict(t) for t in env.get_task_range(self._split, 0, stop)
+                ]
             self._by_instruction = {}
             collisions: dict[str, int] = {}
             for i, task in enumerate(self._tasks):
@@ -523,8 +563,16 @@ class HarborSessionFactory(ResourceSessionFactory[HarborSession]):
                 "this prompt does not match any task on the server. Build the dataset from "
                 "`prompt_rows()` so the instruction the trainer sends is the one the server has."
             )
+        # A CLIENT PER SESSION, never the factory's shared one. The MCP transport sends and then
+        # receives on one socket with no request-id correlation, so two rollouts sharing a client raise
+        # `ConcurrencyError: cannot call recv while another coroutine is already running recv`. With
+        # `num_generations` rollouts in flight that is every rollout of every step, instantly, and each
+        # one comes back unscorable — a run that looks like it is working and trains on nothing.
+        #
+        # The factory keeps its own client for task metadata, which is fetched once and sequentially.
         return HarborSession(
-            env=self._client(),
+            env=self.new_client(),
+            owns_env=True,
             split=self._split,
             task_index=index,
             instruction=instruction,
@@ -537,6 +585,18 @@ class HarborSessionFactory(ResourceSessionFactory[HarborSession]):
             auth_header=self.auth_header,
             agent_timeout_sec=self.agent_timeout_sec,
         )
+
+
+def _as_dict(task: Any) -> dict[str, Any]:
+    """A task record as a plain dict, whichever shape the client handed back.
+
+    `HarborEnv.get_task` returns a `HarborTaskRef` model and `get_task_range` returns dicts, so code
+    downstream that calls `task.get(...)` breaks on one and not the other depending on which path
+    selected the tasks.
+    """
+    if hasattr(task, "model_dump"):
+        return task.model_dump()
+    return dict(task)
 
 
 def _instruction_of(task: Any) -> str:

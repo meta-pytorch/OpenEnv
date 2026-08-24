@@ -82,8 +82,15 @@ class FakeEnv:
 
 
 def factory_with(env, **kw):
+    """A factory whose metadata client AND per-session clients are the same fake.
+
+    Sessions get their own client in production (a shared socket cannot carry overlapping rollouts),
+    so the fake has to be returned from `new_client` too or these tests assert on a client nothing
+    uses.
+    """
     f = harness.HarborSessionFactory("http://server:8000", split="train-split", **kw)
     f._env = env
+    f.new_client = lambda: env
     return f
 
 
@@ -265,7 +272,12 @@ def test_the_factory_survives_pickling():
     import pickle
 
     env = FakeEnv(result())
-    f = factory_with(env, llm_url="http://vllm:8000")
+    # Built directly, not via `factory_with`: that helper patches `new_client` with a lambda, and a
+    # lambda on the instance is itself unpicklable — which would test the helper, not the factory.
+    f = harness.HarborSessionFactory(
+        "http://server:8000", split="train-split", llm_url="http://vllm:8000"
+    )
+    f._env = env
     f.prompt_rows()  # binds the client, as a trainer does before spawning
     assert f._env is not None
     revived = pickle.loads(pickle.dumps(f))
@@ -312,3 +324,141 @@ def test_no_timeout_argument_uses_the_factory_default():
     )
     session.wait_for_completion()
     assert env.calls[0]["agent_timeout_sec"] == 450
+
+
+def test_explicit_indices_normalise_like_the_range_path():
+    """`get_task` returns a model, `get_task_range` returns dicts.
+
+    Selecting specific tasks went through `get_task`, so every consumer doing `task.get(...)` hit
+    `'HarborTaskRef' object has no attribute 'get'` — but only when indices were used, so the tests
+    and the default path both passed. It surfaced on the first real training launch.
+    """
+
+    class ModelLike:
+        """Stands in for a pydantic HarborTaskRef: has model_dump, has no .get."""
+
+        def __init__(self, index, instruction):
+            self._d = {
+                "index": index,
+                "task_name": f"t{index}",
+                "instruction": instruction,
+            }
+
+        def model_dump(self):
+            return dict(self._d)
+
+    class ModelEnv(FakeEnv):
+        def num_tasks(self, split=""):
+            return 10
+
+        def get_task(self, split, index):
+            return ModelLike(index, f"task {index}")
+
+    f = harness.HarborSessionFactory(
+        "http://server:8000", split="train-split", indices=[3, 7]
+    )
+    f._env = ModelEnv(result())
+    rows = f.prompt_rows()
+    assert [r["task_index"] for r in rows] == [3, 7]
+    assert rows[0]["prompt"][0]["content"] == "task 3"
+    # And the instruction map must resolve back, or create() cannot find the task.
+    assert f.create(rows[1]["prompt"])._task_index == 7
+
+
+def test_out_of_range_indices_are_rejected_loudly():
+    """Silently dropping them would train on fewer tasks than asked for, invisibly."""
+
+    class ModelEnv(FakeEnv):
+        def num_tasks(self, split=""):
+            return 5
+
+    f = harness.HarborSessionFactory(
+        "http://server:8000", split="train-split", indices=[1, 99]
+    )
+    f._env = ModelEnv(result())
+    with pytest.raises(IndexError, match="out of range"):
+        f.tasks()
+
+
+def test_each_session_gets_its_own_client():
+    """Sharing one client across concurrent rollouts fails every rollout of every step.
+
+    The MCP transport sends and then receives on one socket with no request-id correlation, so two
+    overlapping `run_rollout` calls raise `ConcurrencyError: cannot call recv while another coroutine
+    is already running recv`. With `num_generations` rollouts in flight that is all of them, instantly,
+    each returning unscorable — a training run that logs happily and learns nothing. It also starves
+    the socket's keepalive, so the next symptom is `keepalive ping timeout`, which looks like a network
+    fault rather than a sharing bug.
+    """
+    env = FakeEnv(result())
+    f = harness.HarborSessionFactory("http://server:8000", split="train-split")
+    f._env = env  # metadata client only; new_client is deliberately NOT overridden here
+    f.prompt_rows()
+    built = []
+
+    class Recording(harness.HarborEnv):
+        def __init__(
+            self, base_url, **kw
+        ):  # no super().__init__: nothing here connects
+            built.append(base_url)
+
+    original = harness.HarborEnv
+    harness.HarborEnv = Recording
+    try:
+        a = f.create([{"role": "user", "content": "first task"}])
+        b = f.create([{"role": "user", "content": "second task"}])
+    finally:
+        harness.HarborEnv = original
+
+    assert len(built) == 2, "each session must construct its own client"
+    assert a._env is not b._env, "two sessions must not share one websocket"
+    assert a._owns_env and b._owns_env, "and each must own (and therefore close) it"
+    assert a._env is not f._env, "nor share the factory's metadata client"
+
+
+def test_a_session_closes_the_client_it_owns():
+    """Left open, each rollout holds an env session until `max_concurrent_envs` is exhausted."""
+    closed = []
+
+    class Closable:
+        def close(self):
+            closed.append(True)
+
+    session = harness.HarborSession(
+        env=Closable(),
+        owns_env=True,
+        split="s",
+        task_index=0,
+        instruction="i",
+        harness="mini-swe-agent",
+        sandbox="e2b",
+        llm_url="",
+        model="",
+    )
+    session.close()
+    assert closed == [True]
+    assert session._env is None, "and must not be reused after closing"
+
+
+def test_a_borrowed_client_is_left_alone():
+    """A session handed someone else's client must not close it out from under them."""
+    closed = []
+
+    class Closable:
+        def close(self):
+            closed.append(True)
+
+    borrowed = Closable()
+    session = harness.HarborSession(
+        env=borrowed,
+        owns_env=False,
+        split="s",
+        task_index=0,
+        instruction="i",
+        harness="mini-swe-agent",
+        sandbox="e2b",
+        llm_url="",
+        model="",
+    )
+    session.close()
+    assert closed == [], "closing a borrowed client would break its owner"
