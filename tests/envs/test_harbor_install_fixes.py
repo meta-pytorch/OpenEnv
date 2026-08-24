@@ -16,7 +16,6 @@ Neither is detectable from a passing rollout, which is why they are pinned here.
 
 from __future__ import annotations
 
-import asyncio
 import json
 
 import pytest
