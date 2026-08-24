@@ -443,11 +443,9 @@ async def run_rollout(
         # A consumer comparing this field against the turns beside it has to find them consistent, so
         # this is the deduped figure. The sequence-wise total is still in `stats` for a consumer that
         # trains on `sequences` instead, where per-sequence counting is the correct reading.
-        result.n_trainable_tokens = sum(
-            len(t.completion_token_ids)
-            for t in result.turns
-            if t.trainable and not t.discarded
-        )
+        # Set once `result.turns` exists — see below, where it is filled in from the document after
+        # aux masking. Reading it here made the total always 0, because `turns` is still empty at this
+        # point in the function.
         result.multi_turn = result.n_turns > result.n_roots
         result.findings = [
             f for f in document.get("validation", []) if not f.startswith("[INFO]")
@@ -501,6 +499,23 @@ async def run_rollout(
                     _mask_out_nodes(document, sequence, nodes & aux)
 
         result.turns = turns_from_document(document)
+        # Counted over the DEDUPED turns, not over sequences.
+        #
+        # `stats["n_trainable_tokens"]` sums `n_trainable` per sequence, and forked paths share their
+        # prefix — so a node reached by several sequences is counted once per sequence, while `turns`
+        # deliberately emits each node once (a duplicated row is the same model call credited twice,
+        # which quietly doubles its weight in a gradient). Reporting the sequence-wise sum beside the
+        # deduped turns meant the two disagreed: 6845 reported against 6201 present on one forked
+        # rollout, 32950 against 31720 on a longer one.
+        #
+        # It has to be computed HERE rather than beside the other stats, because `turns` does not
+        # exist until this line. The sequence-wise total stays in `stats` for a consumer that trains
+        # on `sequences`, where counting per sequence is the correct reading.
+        result.n_trainable_tokens = sum(
+            len(t.completion_token_ids)
+            for t in result.turns
+            if t.trainable and not t.discarded
+        )
         # Every conversation, not only the trainable ones: an auxiliary call that
         # went wrong is exactly what someone reading a bad rollout needs to see.
         result.conversations = conversations_from_document(document)

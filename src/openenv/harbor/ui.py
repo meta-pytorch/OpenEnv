@@ -950,6 +950,11 @@ def harbor_gradio_builder(
                 "ok": True,
                 "capture_level": report.capture_level,
                 "trainable": report.trainable,
+                # Carried so Run can reach a token-gated endpoint. Without it, validating a hosted
+                # provider succeeded and pressing Run then failed to authenticate against the same
+                # URL. `gr.State` is held server-side and this is never rendered back into the page,
+                # which is the same rule the API key box itself follows.
+                "api_key": api_key or "",
             },
             gr.update(
                 interactive=bool(sandboxes),
@@ -1036,7 +1041,9 @@ def harbor_gradio_builder(
             typed_url = str((engine or {}).get("url") or "").strip()
             if typed_url:
                 upstream = Upstream(
-                    llm_url=typed_url, model=str((engine or {}).get("model") or "")
+                    llm_url=typed_url,
+                    model=str((engine or {}).get("model") or ""),
+                    api_key=str((engine or {}).get("api_key") or "") or None,
                 )
                 client, level = await pool.resolve(upstream)
                 served = client.served_model or upstream.model
