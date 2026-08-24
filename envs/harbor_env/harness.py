@@ -144,6 +144,48 @@ def to_trace_entries(result: HarborRolloutResult) -> list[dict[str, Any]]:
     return entries
 
 
+def _decoded_arguments(messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Tool-call `arguments` as a mapping rather than a JSON string, for chat-template rendering.
+
+    The wire format keeps `arguments` as a string, which is what the OpenAI schema specifies. XML-style
+    templates — Qwen3.5's among them — iterate it, and iterating a string raises
+    `Can only get item pairs from a mapping`, so a render that should be a measurement becomes a crash.
+
+    TRL does the same thing before rendering (`_decode_tool_call_arguments`), so skipping it here would
+    also mean measuring something other than what TRL actually feeds the template.
+    """
+    import json as _json
+
+    out: list[dict[str, Any]] = []
+    for message in messages:
+        calls = message.get("tool_calls")
+        if not calls:
+            out.append(message)
+            continue
+        decoded = []
+        for call in calls:
+            function = call.get("function") or {}
+            arguments = function.get("arguments", call.get("arguments"))
+            if not isinstance(arguments, str):
+                decoded.append(call)
+                continue
+            try:
+                parsed = _json.loads(arguments or "{}")
+            except ValueError:
+                # Not JSON. Pass it through: a template that cannot render it should fail loudly
+                # rather than have this function invent a shape.
+                decoded.append(call)
+                continue
+            new_call = dict(call)
+            if call.get("function"):
+                new_call["function"] = {**function, "arguments": parsed}
+            else:
+                new_call["arguments"] = parsed
+            decoded.append(new_call)
+        out.append({**message, "tool_calls": decoded})
+    return out
+
+
 def measure_prompt_skew(
     result: HarborRolloutResult, tokenizer, **template_kwargs
 ) -> dict[str, Any]:
@@ -168,7 +210,7 @@ def measure_prompt_skew(
         if turn.discarded or not turn.prompt_token_ids or not turn.request_messages:
             continue
         rendered = tokenizer.apply_chat_template(
-            list(turn.request_messages),
+            _decoded_arguments(turn.request_messages),
             tools=turn.request_tools,
             add_generation_prompt=True,
             tokenize=True,
