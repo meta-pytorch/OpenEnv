@@ -914,16 +914,15 @@ def harbor_gradio_builder(
                 detail = finding.split(": ", 2)[-1]
                 lines.append(f"⚠️ {detail}")
 
-        # The Run button below uses the endpoint this SERVER was started with, not the one typed
-        # here — the capture proxy was built at boot and cannot be repointed from a browser. When
-        # the two differ, saying so is the difference between a confusing result and an obvious
-        # mistake.
+        # Run uses the endpoint typed above. The engine is a per-rollout argument, so a browser can
+        # point this server at any reachable OpenAI-spec endpoint without restarting it — which is
+        # the whole point of validating a URL here. Say which one will be used, because a server may
+        # also have been booted with a default and the two can differ.
         service = HarborService.current()
-        if service is not None and service.llm_url.rstrip("/") != url:
+        if service is not None and service.llm_url and service.llm_url.rstrip("/") != url:
             lines.append(
-                f"⚠️ **Rollouts will not use this endpoint.** This server serves "
-                f"`{service.llm_url}` (`{service.model}`, {service.capture_level}); restart it "
-                "with `--llm-url` to change that. Validation above only describes the URL you typed."
+                f"Rollouts will use **this** endpoint, not the server's default "
+                f"(`{service.llm_url}`)."
             )
         lines.append(
             f"Sandboxes: {', '.join(f'`{s}`' for s in sandboxes) or '**none usable**'}"
@@ -1023,25 +1022,48 @@ def harbor_gradio_builder(
 
         done: queue.Queue = queue.Queue(maxsize=1)
 
+        async def _run_with_engine():
+            """Resolve the engine the user validated, then run against it.
+
+            The engine is per rollout, so the URL in the box is the one used. Resolving it through the
+            capture server's pool means the tier comes from a real probe of that endpoint rather than
+            from whatever the server happened to boot with — and the probe is cached, so pressing Run
+            repeatedly costs nothing after the first time.
+            """
+            from openenv.core.harness.capture.sessions import Upstream
+
+            pool = service.capture.app.state.upstreams
+            typed_url = str((engine or {}).get("url") or "").strip()
+            if typed_url:
+                upstream = Upstream(
+                    llm_url=typed_url, model=str((engine or {}).get("model") or "")
+                )
+                client, level = await pool.resolve(upstream)
+                served = client.served_model or upstream.model
+            else:
+                # Nothing validated in the box: fall back to the server's default, which is what a
+                # server booted with --llm-url provides. With neither, the rollout reports the
+                # missing engine rather than silently producing an untrainable result.
+                upstream, (client, level) = None, pool.default
+                level = getattr(service, "capture_level", "text")
+                served = service.model
+            return await _run(
+                task_dir=task_dir,
+                harness=harness,
+                sandbox=sandbox,
+                registry=service.capture.registry,
+                intercept_url=service.public_url,
+                model=served,
+                trials_dir=Path("/tmp/openenv-harbor-trials"),
+                dataset=spec,
+                capture_level=level,
+                upstream=upstream,
+                inference=client,
+            )
+
         def worker() -> None:
             try:
-                res = asyncio.run(
-                    _run(
-                        task_dir=task_dir,
-                        harness=harness,
-                        sandbox=sandbox,
-                        registry=service.capture.registry,
-                        intercept_url=service.public_url,
-                        model=service.model,
-                        trials_dir=Path("/tmp/openenv-harbor-trials"),
-                        dataset=spec,
-                        # From the service, not from the validated state: the proxy this rollout
-                        # actually goes through was built at boot, and the result must describe that
-                        # rather than whatever URL the box currently holds.
-                        capture_level=getattr(service, "capture_level", "tokens"),
-                        inference=service.capture.inference,
-                    )
-                )
+                res = asyncio.run(_run_with_engine())
                 done.put(("ok", res.model_dump()))
             except Exception as exc:  # noqa: BLE001 - show it, never take the server down
                 done.put(("err", f"{type(exc).__name__}: {exc}"))
