@@ -431,7 +431,23 @@ async def run_rollout(
         stats = document.get("stats", {})
         result.n_turns = stats.get("n_turns", 0)
         result.n_roots = stats.get("n_roots", 0)
-        result.n_trainable_tokens = stats.get("n_trainable_tokens", 0)
+        # Counted over the DEDUPED turns, not over sequences.
+        #
+        # `stats["n_trainable_tokens"]` sums `n_trainable` per sequence, and forked paths share their
+        # prefix — so a node reached by several sequences is counted once per sequence. `turns` (below)
+        # deliberately emits each node once, because a duplicated row is the same model call credited
+        # twice and quietly doubles its weight in a gradient. Reporting the sequence-wise sum next to
+        # the deduped turns meant the two disagreed: measured on a forked gemini-cli rollout, 6845
+        # reported against 6201 actually present, and 32950 against 31720 on a longer one.
+        #
+        # A consumer comparing this field against the turns beside it has to find them consistent, so
+        # this is the deduped figure. The sequence-wise total is still in `stats` for a consumer that
+        # trains on `sequences` instead, where per-sequence counting is the correct reading.
+        result.n_trainable_tokens = sum(
+            len(t.completion_token_ids)
+            for t in result.turns
+            if t.trainable and not t.discarded
+        )
         result.multi_turn = result.n_turns > result.n_roots
         result.findings = [
             f for f in document.get("validation", []) if not f.startswith("[INFO]")
