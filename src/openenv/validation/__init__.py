@@ -4,6 +4,7 @@ from .graders import ENTRY_POINT_GROUP, Grader, GraderRegistry, Subject
 from .manifest import (
     CapabilitiesSpec,
     JudgePin,
+    ManifestError,
     NetworkPolicy,
     NormalizedManifest,
     OracleDeclaration,
@@ -23,8 +24,10 @@ from .policy import (
     SeverityPolicy,
 )
 from .providers import ExecResult, RunningSubject, ValidationProvider
-from .report import CheckResult, ValidationReport
+from .report import CheckResult, ValidationReport, write_report
+from .runner import run_validation
 from .signature import (
+    detect_signature,
     SignatureError,
     UNSUPPORTED_CATEGORIES,
     UnsupportedPackageError,
@@ -54,6 +57,7 @@ __all__ = [
     "JudgePin",
     "Lane",
     "Level",
+    "ManifestError",
     "NetworkPolicy",
     "NormalizedManifest",
     "OracleDeclaration",
@@ -78,5 +82,8 @@ __all__ = [
     "Verdict",
     "VerifierBinding",
     "apply_policy",
+    "detect_signature",
     "load_policy",
+    "run_validation",
+    "write_report",
 ]

@@ -9,7 +9,10 @@ from pathlib import Path
 from unittest.mock import patch
 
 from openenv.cli.__main__ import app
-from openenv.cli._validation import validate_running_environment
+from openenv.cli._validation import (
+    validate_multi_mode_deployment,
+    validate_running_environment,
+)
 from typer.testing import CliRunner
 
 
@@ -186,34 +189,57 @@ def test_validate_command_runtime_target_outputs_json() -> None:
     mock_validate.assert_called_once_with("https://example.com", timeout_s=5.0)
 
 
-def test_validate_command_local_path_still_works(tmp_path: Path) -> None:
-    """CLI local validation remains backward compatible."""
+def test_validate_command_local_path_without_validation_block_fails(
+    tmp_path: Path,
+) -> None:
+    """Packages without a `validation:` block fail static.manifest (exit 1)."""
     env_dir = tmp_path / "test_env"
     _write_minimal_valid_env(env_dir)
 
-    result = runner.invoke(app, ["validate", str(env_dir)])
+    result = runner.invoke(
+        app, ["validate", str(env_dir), "--level", "static", "--skip-build"]
+    )
 
-    assert result.exit_code == 0
-    assert "[OK]" in result.output
+    assert result.exit_code == 1
+    assert "static.manifest" in result.output
+    assert "validation" in result.output
 
 
 def test_validate_command_local_json_output(tmp_path: Path) -> None:
-    """CLI can emit JSON report for local validation via --json."""
+    """CLI --json emits a schema-valid ValidationReport for a local package."""
     env_dir = tmp_path / "test_env"
     _write_minimal_valid_env(env_dir)
+    yaml_text = (env_dir / "openenv.yaml").read_text()
+    (env_dir / "openenv.yaml").write_text(
+        yaml_text
+        + "version: 0.1.0\n"
+        + "validation:\n"
+        + "  reward:\n"
+        + "    range: [0.0, 1.0]\n"
+        + "    floor_margin: 0.5\n"
+        + "  resources:\n"
+        + "    cpu: 1.0\n"
+        + "    memory_mb: 1024\n"
+        + "    disk_mb: 512\n"
+        + "    episode_timeout_s: 60.0\n"
+        + "  capabilities:\n"
+        + "    verifier:\n"
+        + "      kind: reward_channel\n"
+        + "  types:\n"
+        + "    tags: [demo]\n"
+    )
 
-    result = runner.invoke(app, ["validate", str(env_dir), "--json"])
+    result = runner.invoke(
+        app, ["validate", str(env_dir), "--level", "static", "--skip-build", "--json"]
+    )
 
-    assert result.exit_code == 0
+    assert result.exit_code == 0, result.output
     payload = json.loads(result.output)
-    assert payload["validation_type"] == "local_environment"
-    assert payload["passed"] is True
-    assert payload["summary"]["passed_count"] == 1
-    assert payload["summary"]["total_count"] == 1
-    assert payload["summary"]["failed_criteria"] == []
+    assert payload["report_schema_version"] == "1"
+    assert payload["verdict"] == "pass"
 
 
-def test_validate_command_rejects_environment_package_as_runtime_dependency(
+def test_multi_mode_rejects_environment_package_as_runtime_dependency(
     tmp_path: Path,
 ) -> None:
     """An openenv-* environment package is not the OpenEnv runtime package."""
@@ -229,16 +255,16 @@ def test_validate_command_rejects_environment_package_as_runtime_dependency(
         'server = "server.app:main"\n'
     )
 
-    result = runner.invoke(app, ["validate", str(env_dir)])
+    is_valid, issues = validate_multi_mode_deployment(env_dir)
 
-    assert result.exit_code != 0
-    assert "Missing required dependency: openenv>=0.2.0" in result.output
+    assert is_valid is False
+    assert "Missing required dependency: openenv>=0.2.0" in issues
 
 
-def test_validate_command_accepts_dockerfile_managed_openenv_runtime(
+def test_multi_mode_accepts_dockerfile_managed_openenv_runtime(
     tmp_path: Path,
 ) -> None:
-    """Local validation accepts envs that install OpenEnv in Dockerfile."""
+    """Multi-mode helper accepts envs that install OpenEnv in Dockerfile."""
     env_dir = tmp_path / "test_env"
     _write_minimal_valid_env(env_dir)
     (env_dir / "pyproject.toml").write_text(
@@ -254,14 +280,14 @@ def test_validate_command_accepts_dockerfile_managed_openenv_runtime(
         'RUN pip install --no-cache-dir --no-deps "openenv>=0.2.2"\n'
     )
 
-    result = runner.invoke(app, ["validate", str(env_dir), "--json"])
+    is_valid, issues = validate_multi_mode_deployment(env_dir)
 
-    assert result.exit_code == 0
-    assert json.loads(result.output)["passed"] is True
+    assert is_valid is True
+    assert issues == []
 
 
-def test_validate_command_accepts_main_call_with_arguments(tmp_path: Path) -> None:
-    """Local validation accepts a guarded main(...) call with arguments."""
+def test_multi_mode_accepts_main_call_with_arguments(tmp_path: Path) -> None:
+    """Multi-mode helper accepts a guarded main(...) call with arguments."""
     env_dir = tmp_path / "test_env"
     _write_minimal_valid_env(
         env_dir,
@@ -269,15 +295,14 @@ def test_validate_command_accepts_main_call_with_arguments(tmp_path: Path) -> No
         main_invocation="main(port=8000)",
     )
 
-    result = runner.invoke(app, ["validate", str(env_dir)])
+    is_valid, issues = validate_multi_mode_deployment(env_dir)
 
-    assert result.exit_code == 0
-    assert "main() function not callable" not in result.output
-    assert "[OK]" in result.output
+    assert is_valid is True
+    assert not any("main() function not callable" in issue for issue in issues)
 
 
-def test_validate_command_rejects_nested_main_guard(tmp_path: Path) -> None:
-    """Local validation requires the __main__ guard at module scope."""
+def test_multi_mode_rejects_nested_main_guard(tmp_path: Path) -> None:
+    """Multi-mode helper requires the __main__ guard at module scope."""
     env_dir = tmp_path / "test_env"
     _write_minimal_valid_env(env_dir)
     (env_dir / "server" / "app.py").write_text(
@@ -287,14 +312,14 @@ def test_validate_command_rejects_nested_main_guard(tmp_path: Path) -> None:
         "        main()\n"
     )
 
-    result = runner.invoke(app, ["validate", str(env_dir)])
+    is_valid, issues = validate_multi_mode_deployment(env_dir)
 
-    assert result.exit_code != 0
-    assert "main() function not callable" in result.output
+    assert is_valid is False
+    assert any("main() function not callable" in issue for issue in issues)
 
 
-def test_validate_command_accepts_later_top_level_main_guard(tmp_path: Path) -> None:
-    """Local validation scans each top-level __main__ guard for a main() call."""
+def test_multi_mode_accepts_later_top_level_main_guard(tmp_path: Path) -> None:
+    """Multi-mode helper scans each top-level __main__ guard for a main() call."""
     env_dir = tmp_path / "test_env"
     _write_minimal_valid_env(env_dir)
     (env_dir / "server" / "app.py").write_text(
@@ -305,13 +330,13 @@ def test_validate_command_accepts_later_top_level_main_guard(tmp_path: Path) -> 
         "    main()\n"
     )
 
-    result = runner.invoke(app, ["validate", str(env_dir)])
+    is_valid, issues = validate_multi_mode_deployment(env_dir)
 
-    assert result.exit_code == 0
-    assert "[OK]" in result.output
+    assert is_valid is True
+    assert issues == []
 
 
-def test_validate_command_syntax_error_fallback_requires_dunder_main(
+def test_multi_mode_syntax_error_fallback_requires_dunder_main(
     tmp_path: Path,
 ) -> None:
     """Syntax-error fallback still requires the literal __main__ guard string."""
@@ -321,10 +346,10 @@ def test_validate_command_syntax_error_fallback_requires_dunder_main(
         "def main(:\n    return None\n\nif __name__ ==\n    main(\n"
     )
 
-    result = runner.invoke(app, ["validate", str(env_dir)])
+    is_valid, issues = validate_multi_mode_deployment(env_dir)
 
-    assert result.exit_code != 0
-    assert "main() function not callable" in result.output
+    assert is_valid is False
+    assert any("main() function not callable" in issue for issue in issues)
 
 
 def test_validate_command_rejects_mixed_path_and_url(tmp_path: Path) -> None:
