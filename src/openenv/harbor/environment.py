@@ -75,6 +75,7 @@ class HarborEnvironment(MCPEnvironment):
             api_key: str = "",
             auth_header: str = "",
             agent_timeout_sec: float = 0.0,
+            agent_step_limit: int = 0,
         ) -> str:
             """Run one Harbor rollout and return a JSON `HarborRolloutResult`.
 
@@ -82,7 +83,10 @@ class HarborEnvironment(MCPEnvironment):
             different agents, different backends and different engines against the same server.
 
             `agent_timeout_sec` bounds the whole rollout from the caller's side; 0 defers to the
-            task file.
+            task file. `agent_step_limit` bounds how many steps the agent takes; 0 leaves it
+            unbounded. A cap is worth setting for training: every turn re-sends the whole
+            conversation, so packed training rows grow with the SQUARE of the turn count, and only
+            some harnesses can express a limit at all (the rest log a warning).
 
             Naming `llm_url` probes that engine (once per engine, then cached) and decides this
             rollout's tier from what it can actually return: token ids and processed logprobs mean
@@ -103,6 +107,7 @@ class HarborEnvironment(MCPEnvironment):
                 api_key,
                 auth_header,
                 agent_timeout_sec,
+                agent_step_limit,
             )
 
         @mcp.tool
@@ -209,6 +214,7 @@ class HarborEnvironment(MCPEnvironment):
         api_key: str = "",
         auth_header: str = "",
         agent_timeout_sec: float = 0.0,
+        agent_step_limit: int = 0,
     ) -> str:
         from pathlib import Path
 
@@ -284,6 +290,7 @@ class HarborEnvironment(MCPEnvironment):
                 # is how a rollout ran past 30 minutes and was killed by the client's socket timeout
                 # rather than by anything that knew what it was waiting for.
                 agent_timeout_sec=agent_timeout_sec or None,
+                agent_step_limit=agent_step_limit or None,
             )
 
         result = run_async_safely(_resolve_and_run())

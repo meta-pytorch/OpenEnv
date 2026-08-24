@@ -91,6 +91,7 @@ class HarborEnv(MCPToolClient):
         api_key: str = "",
         auth_header: str = "",
         agent_timeout_sec: float = 0.0,
+        agent_step_limit: int = 0,
     ) -> HarborRolloutResult:
         """Run one rollout and return its result.
 
@@ -119,6 +120,10 @@ class HarborEnv(MCPToolClient):
                 Credential for `llm_url`, when it is token-gated.
             auth_header (`str`, *optional*):
                 Header to send the credential under, when not `Authorization`.
+            agent_step_limit (`int`, *optional*):
+                Stop the agent after this many steps. `0` leaves it unbounded. Worth setting for
+                training: each turn re-sends the whole conversation, so a packed training row grows
+                with the square of the turn count.
             agent_timeout_sec (`float`, *optional*):
                 Hard ceiling on this rollout. `0` defers to the task file's own `[agent] timeout_sec`,
                 which covers the agent run but not sandbox setup — so a wedged boot is bounded only by
@@ -141,6 +146,7 @@ class HarborEnv(MCPToolClient):
             api_key=api_key,
             auth_header=auth_header,
             agent_timeout_sec=agent_timeout_sec,
+            agent_step_limit=agent_step_limit,
         )
         return HarborRolloutResult.model_validate_json(_as_text(raw))
 

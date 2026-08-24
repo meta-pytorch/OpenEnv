@@ -197,6 +197,7 @@ def build_trial_config(
     trials_dir: Path | str,
     keep_sandbox: bool = False,
     agent_timeout_sec: float | None = None,
+    agent_step_limit: int | None = None,
     force_build: bool = False,
 ) -> Any:
     """Assemble Harbor's `TrialConfig` for one rollout.
@@ -215,7 +216,10 @@ def build_trial_config(
 
     seam = seams.get(harness)
     model_name, kwargs, agent_env, _proc_env = seam.resolve(
-        base_url=intercept_url, session=session_id, model=model
+        base_url=intercept_url,
+        session=session_id,
+        model=model,
+        step_limit=agent_step_limit,
     )
 
     agent = AgentConfig(
@@ -251,6 +255,7 @@ async def run_rollout(
     reward_key: str = "",
     keep_sandbox: bool = False,
     agent_timeout_sec: float | None = None,
+    agent_step_limit: int | None = None,
     force_build: bool = False,
     session_prefix: str = "oe",
     capture_level: str = "tokens",
@@ -343,6 +348,7 @@ async def run_rollout(
             trials_dir=trials_dir,
             keep_sandbox=keep_sandbox,
             agent_timeout_sec=agent_timeout_sec,
+            agent_step_limit=agent_step_limit,
             force_build=force_build,
         )
 

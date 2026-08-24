@@ -24,6 +24,7 @@ Per-harness findings live in README.md (per-harness findings). Add to it as each
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass, field
 from typing import Any, Callable
 
@@ -83,6 +84,9 @@ def _pi(base_url: str, session: str, model: str) -> dict[str, Any]:
     }
 
 
+logger = logging.getLogger(__name__)
+
+
 @dataclass(frozen=True)
 class Seam:
     """One harness's wiring. Three channels, in order of preference.
@@ -115,23 +119,71 @@ class Seam:
     agent_env: dict[str, str] = field(default_factory=dict)
     env: dict[str, str] = field(default_factory=dict)
     kwargs: Callable[[str, str, str], dict[str, Any]] | None = None
+    # How THIS harness expresses "stop after N agent steps", if it can. Per-agent knowledge, so it
+    # belongs here rather than in the caller.
+    #
+    # A cap matters for training, not just for cost. AsyncGRPO packs every turn of a rollout into one
+    # row, and each turn re-sends the whole conversation, so packed length grows with the SQUARE of
+    # the turn count: a 58-turn rollout is an order of magnitude larger than a 17-turn one and OOMs
+    # the loss step while every log line looks healthy. Harbor itself has no step cap — only a
+    # timeout — and an earlier Qwen3-4B run micro-stepped to 451 turns and 10.1M prompt tokens.
+    step_limit: Callable[[int], dict[str, Any]] | None = None
     status: str = "untested"
     notes: str = ""
 
     def resolve(
-        self, *, base_url: str, session: str, model: str
+        self,
+        *,
+        base_url: str,
+        session: str,
+        model: str,
+        step_limit: int | None = None,
     ) -> tuple[str, dict[str, Any], dict[str, str], dict[str, str]]:
         """-> (model_name, AgentConfig.kwargs, AgentConfig.env, os.environ vars).
 
         `model` is normalised through `agent_facing_model` first, so a served id like
         `Qwen/Qwen3.5-9B` cannot leak an extra slash into a harness's model string.
+
+        A `step_limit` this seam cannot express is WARNED about rather than dropped: silently ignoring
+        it would let a caller believe its rollouts are bounded when they are not, and the symptom
+        surfaces much later as an OOM in the loss step.
         """
         model = agent_facing_model(model)
         fmt = {"base_url": base_url, "session": session, "model": model}
         agent_env = {k: v.format(**fmt) for k, v in self.agent_env.items()}
         proc_env = {k: v.format(**fmt) for k, v in self.env.items()}
         extra = self.kwargs(base_url, session, model) if self.kwargs else {}
+        if step_limit:
+            if self.step_limit is None:
+                logger.warning(
+                    "%s has no way to express a step limit; this rollout runs unbounded "
+                    "(bounded only by its timeout)",
+                    self.name,
+                )
+            else:
+                extra = _deep_merge(extra, self.step_limit(step_limit))
         return self.model_fmt.format(model=model), extra, agent_env, proc_env
+
+
+def _deep_merge(base: dict[str, Any], extra: dict[str, Any]) -> dict[str, Any]:
+    """Merge nested config without clobbering a sibling key.
+
+    A shallow update of `{"config": {...}}` would replace a seam's whole config block with the step
+    limit alone, which is how a base_url quietly disappears.
+    """
+    merged = dict(base)
+    for key, value in extra.items():
+        if isinstance(value, dict) and isinstance(merged.get(key), dict):
+            merged[key] = _deep_merge(merged[key], value)
+        else:
+            merged[key] = value
+    return merged
+
+
+def _mini_swe_agent_step_limit(limit: int) -> dict[str, Any]:
+    """mini-swe-agent takes a YAML config; Harbor's wrapper accepts it as a `config` mapping and dumps
+    it (`harbor/agents/installed/mini_swe_agent.py`). `agent.step_limit` is the key it reads."""
+    return {"config": {"agent": {"step_limit": limit}}}
 
 
 def _opencode(base_url: str, session: str, model: str) -> dict[str, Any]:
@@ -320,6 +372,7 @@ SEAMS: dict[str, Seam] = {
             "OPENAI_API_BASE": "{base_url}/v1",
             "OPENAI_BASE_URL": "{base_url}/v1",
         },
+        step_limit=_mini_swe_agent_step_limit,
         notes="MSWEA_API_KEY plus a model-derived key var; litellm under the hood.",
     ),
     "qwen-coder": Seam(

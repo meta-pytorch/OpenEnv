@@ -259,6 +259,7 @@ class HarborSession(ResourceSession):
         api_key: str = "",
         auth_header: str = "",
         agent_timeout_sec: float = 0.0,
+        agent_step_limit: int = 0,
         owns_env: bool = False,
     ) -> None:
         self._env = env
@@ -276,6 +277,7 @@ class HarborSession(ResourceSession):
         self._api_key = api_key
         self._auth_header = auth_header
         self._agent_timeout_sec = agent_timeout_sec
+        self._agent_step_limit = agent_step_limit
         self.result: HarborRolloutResult | None = None
 
     # --- ResourceSession -----------------------------------------------------
@@ -342,6 +344,7 @@ class HarborSession(ResourceSession):
                 # `is not None`, not `or`: 0 is a documented value meaning "defer to the task
                 # file", and `or` silently replaces it with the factory default. `OpenCodeSession`
                 # takes the same care for the same reason.
+                agent_step_limit=self._agent_step_limit,
                 agent_timeout_sec=(
                     timeout_s if timeout_s is not None else self._agent_timeout_sec
                 ),
@@ -399,6 +402,11 @@ class HarborSessionFactory(ResourceSessionFactory[HarborSession]):
             Which agent runs in the sandbox.
         sandbox (`str`, *optional*, defaults to `"e2b"`):
             Harbor sandbox backend.
+        agent_step_limit (`int`, *optional*, defaults to `0`):
+            Stop the agent after this many steps; `0` leaves it unbounded. AsyncGRPO packs every turn
+            of a rollout into one training row and each turn re-sends the whole conversation, so
+            packed length grows with the SQUARE of the turn count — an unbounded rollout can OOM the
+            loss step while every rollout log line looks healthy.
         agent_timeout_sec (`float`, *optional*, defaults to `600.0`):
             Ceiling on one rollout. Worth setting: a rollout holds a generation slot for the length of
             the call, and the task file's own timeout covers the agent run but not sandbox setup.
@@ -428,6 +436,7 @@ class HarborSessionFactory(ResourceSessionFactory[HarborSession]):
         api_key: str = "",
         auth_header: str = "",
         agent_timeout_sec: float = 600.0,
+        agent_step_limit: int = 0,
         num_tasks: int | None = None,
         indices: list[int] | None = None,
         max_message_size_mb: float = 4096.0,
@@ -441,6 +450,7 @@ class HarborSessionFactory(ResourceSessionFactory[HarborSession]):
         self.api_key = api_key
         self.auth_header = auth_header
         self.agent_timeout_sec = agent_timeout_sec
+        self.agent_step_limit = agent_step_limit
         self._num_tasks = num_tasks
         # Specific tasks, rather than the first N of the split. Which tasks a group trains on decides
         # whether it can learn anything at all: a task every generation solves and one none solves both
@@ -584,6 +594,7 @@ class HarborSessionFactory(ResourceSessionFactory[HarborSession]):
             api_key=self.api_key,
             auth_header=self.auth_header,
             agent_timeout_sec=self.agent_timeout_sec,
+            agent_step_limit=self.agent_step_limit,
         )
 
 
