@@ -377,22 +377,12 @@ SEAMS: dict[str, Seam] = {
     # These follow the same two shapes seen everywhere: a key + base URL pair, delivered through
     # `_get_env` (so agent_env works) or `os.environ` (so the process env is forced). Where the
     # wrapper reads os.environ directly, both channels are set and the grader warning fires.
-    "hermes": Seam(
-        name="hermes",
-        status="validated",
-        dialect="openai_chat",
-        model_fmt="openai/{model}",
-        # Harbor's generated config sets `provider: "auto"`, so hermes self-routes and ignores
-        # OPENAI_BASE_URL (401 from an endpoint that is not ours). The subclass pins the provider and
-        # disables compression, which would otherwise break prefix stitching.
-        import_path="openenv.harbor.install_fixes:InterceptHermes",
-        kwargs=lambda base_url, session, model: {
-            "intercept_config": {"base_url": base_url, "api_key": session}
-        },
-        # hermes.py:365 reads os.environ.get("OPENAI_BASE_URL") directly.
-        env={"OPENAI_BASE_URL": "{base_url}/v1", "OPENAI_API_KEY": "{session}"},
-        agent_env={"OPENAI_BASE_URL": "{base_url}/v1", "OPENAI_API_KEY": "{session}"},
-    ),
+    # hermes: REMOVED, not merely untested. Measured across 5 DataAgent tasks it failed 5/5 before the
+    # agent started — `exit 127` from
+    # `curl -fsSL .../NousResearch/hermes-agent/main/scripts/install.sh | bash` — so every attempt cost
+    # a sandbox and several minutes to learn nothing. The capture layer reported it correctly ("the
+    # intercept saw no model calls: the agent never reached it"), which is how it was found. The
+    # `InterceptHermes` subclass is gone with it; re-adding both needs the install to work first.
     "vibe": Seam(
         name="vibe",
         status="validated",
@@ -739,7 +729,6 @@ ATIF_AGENTS = [
     "gemini-cli",
     "goose",
     "grok-build",
-    "hermes",
     "kimi-cli",
     "mimo",
     "mini-swe-agent",

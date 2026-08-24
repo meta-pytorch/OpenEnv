@@ -53,7 +53,6 @@ def _harbor(module: str, name: str) -> Any:
 ClineCli = _harbor("harbor.agents.installed.cline.cline", "ClineCli")
 ExecInput = _harbor("harbor.agents.installed.cline.cline", "ExecInput")
 GeminiCli = _harbor("harbor.agents.installed.gemini_cli", "GeminiCli")
-Hermes = _harbor("harbor.agents.installed.hermes", "Hermes")
 KimiCli = _harbor("harbor.agents.installed.kimi_cli", "KimiCli")
 OpenClaw = _harbor("harbor.agents.installed.openclaw", "OpenClaw")
 OpenHands = _harbor("harbor.agents.installed.openhands", "OpenHands")
@@ -402,120 +401,6 @@ class InterceptCline(ClineCli):
         )
         commands.insert(1, ExecInput(command=merge))
         return commands
-
-
-class InterceptHermes(Hermes):
-    """hermes, pointed at our endpoint via its `custom_providers` config, compression off.
-
-    Harbor generates hermes' config.yaml with `provider: "auto"`, so hermes routes itself and never
-    honours OPENAI_BASE_URL. It authenticates somewhere else entirely and the intercept records zero
-    calls:
-
-        HTTP 401: Missing Authentication header
-
-    Pinning `provider: "openai"` does NOT work -- hermes rejects it outright
-    (`Unknown provider 'openai'`), because its table maps the openai prefix to a `None` CLI flag,
-    i.e. "use the full provider/model name and let auto-routing resolve it".
-
-    The supported route is a **custom provider** entry
-    (https://hermes-agent.nousresearch.com/docs/integrations/providers):
-
-        custom_providers:
-          - name: intercept
-            base_url: http://host:port/v1
-            api_key: ...
-
-    Compression is also disabled. Harbor enables it (`threshold: 0.85`), and compaction rewrites the
-    conversation, which breaks token-prefix stitching: the rollout would fragment into per-turn rows
-    exactly as terminus-2 does.
-
-    `_build_config_yaml` is a staticmethod upstream but is invoked as `self._build_config_yaml(...)`,
-    so overriding it as an instance method is safe and gives access to the injected endpoint.
-    """
-
-    PROVIDER = "intercept"
-
-    def __init__(
-        self, *args: Any, intercept_config: dict[str, str] | None = None, **kwargs: Any
-    ):
-        self._intercept_config = intercept_config or {}
-        super().__init__(*args, **kwargs)
-
-    def _build_config_yaml(self, model: str) -> str:  # type: ignore[override]
-        import yaml
-
-        cfg = yaml.safe_load(Hermes._build_config_yaml(model)) or {}
-
-        base_url = self._intercept_config.get("base_url")
-        api_key = self._intercept_config.get("api_key")
-        if base_url:
-            entry = {
-                "name": self.PROVIDER,
-                "base_url": f"{base_url}/v1",
-                "model": model,
-            }
-            if api_key:
-                entry["api_key"] = api_key
-            cfg["custom_providers"] = [entry]
-            cfg["provider"] = self.PROVIDER
-
-        # Compaction is incompatible with prefix stitching; see docs/HARNESS_NOTES.md.
-        cfg.setdefault("compression", {})["enabled"] = False
-        return yaml.safe_dump(cfg, sort_keys=False)
-
-    async def run(self, instruction, environment, context) -> None:  # type: ignore[override]
-        """Re-export the session without `--source cli`, which matches nothing.
-
-        UPSTREAM HARBOR BUG. Delete this override once Harbor drops the flag (hermes.py:446).
-
-        Harbor ends a hermes run with:
-
-            hermes sessions export /logs/agent/hermes-session.jsonl --source cli 2>/dev/null || true
-
-        That command does not fail -- it succeeds and exports NOTHING, leaving a 0-byte file, so
-        `populate_context_post_run` reads an empty session and writes no `trajectory.json`.
-
-        The flag is not the obvious suspect: the session's `source` really is `cli`
-        (`hermes sessions list` prints `Src=cli`). The actual mechanism is that in hermes-agent ANY
-        filter switches export off `db.export_all()` and onto `db.list_prune_candidates()`
-        (hermes_cli/sessions_cmd.py:329-379), whose WHERE clause opens with
-
-            clauses = ["s.ended_at IS NOT NULL"]      # hermes_state.py:7852
-
-        documented as "Only ended sessions are ever candidates ... so a live session is never
-        selected". And `hermes chat -q ... -Q` never finalizes its session, so `ended_at` stays NULL:
-
-            sqlite> SELECT id, source, ended_at FROM sessions;
-            20260803_074252_1a49f2|cli|
-
-        That second half is a hermes-agent behaviour we do not control (reproduced with a plain
-        `hermes chat -q` run, no custom provider involved). What Harbor controls is passing a filter
-        that provably selects zero rows for exactly the sessions it creates. Without the flag the
-        same export returns the session, and Harbor's own unmodified converter turns it into a
-        valid ATIF trajectory.
-
-        Re-running the export afterwards rather than editing Harbor's command is what keeps this an
-        override instead of a fork: Harbor's version runs first in its own `finally`, writes the
-        0-byte file, and this overwrites it before the logs are downloaded.
-        """
-        await super().run(instruction, environment, context)
-        try:
-            await self.exec_as_agent(
-                environment,
-                command=(
-                    'export PATH="$HOME/.local/bin:$PATH" && '
-                    "hermes sessions export /logs/agent/hermes-session.jsonl"
-                ),
-                env={"HERMES_HOME": "/tmp/hermes"},
-                timeout_sec=60,
-            )
-        except Exception as exc:  # noqa: BLE001 - a missing trace must not fail a good rollout
-            # Warned rather than swallowed: Harbor's `2>/dev/null || true` is what hid this for so
-            # long, and a silent second copy of that mistake would be worse than the first.
-            self.logger.warning(
-                "unfiltered hermes session export failed (%s); ATIF trajectory will be missing",
-                str(exc)[:160],
-            )
 
 
 class InterceptKimi(KimiCli):
