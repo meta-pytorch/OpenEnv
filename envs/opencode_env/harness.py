@@ -206,6 +206,8 @@ class OpenCodeSessionFactory(ResourceSessionFactory[OpenCodeSession]):
         verifier: Verifier | None = None,
         install_timeout_s: int = 240,
         setup_timeout_s: int = 300,
+        create_attempts: int = 3,
+        create_backoff_s: float = 2.0,
     ) -> None:
         if mode not in {"black_box", "transparent_proxy"}:
             raise ValueError(f"Unknown mode: {mode!r}")
@@ -215,12 +217,52 @@ class OpenCodeSessionFactory(ResourceSessionFactory[OpenCodeSession]):
         self._verifier = verifier
         self._install_timeout_s = install_timeout_s
         self._setup_timeout_s = setup_timeout_s
+        self._create_attempts = create_attempts
+        self._create_backoff_s = create_backoff_s
 
     def create(
         self,
         task: Any,
         seed: int | None = None,
         episode_id: str | None = None,
+        start_agent: bool = True,
+    ) -> OpenCodeSession:
+        """Create one session, retrying with exponential backoff.
+
+        Session creation spins up a sandbox, installs opencode, and starts the
+        proxy + agent, the flakiest step in a rollout. Each failed attempt tears
+        its own sandbox down (see :meth:`_create_once`), so a retry never leaks.
+
+        Pass ``start_agent=False`` to return before launching the agent (for
+        example to run setup first), then call ``session.start_agent()``.
+        """
+        import logging
+        import time
+
+        _log = logging.getLogger(__name__)
+        last_exc: Exception = RuntimeError("create_attempts must be >= 1")
+        for i in range(self._create_attempts):
+            try:
+                return self._create_once(
+                    task, seed=seed, episode_id=episode_id, start_agent=start_agent
+                )
+            except Exception as exc:  # noqa: BLE001
+                last_exc = exc
+                if i + 1 < self._create_attempts:
+                    backoff = self._create_backoff_s * (2**i)
+                    _log.warning(
+                        "factory.create attempt %d/%d failed (%r); retrying in %.1fs",
+                        i + 1, self._create_attempts, exc, backoff,
+                    )
+                    time.sleep(backoff)
+        raise last_exc
+
+    def _create_once(
+        self,
+        task: Any,
+        seed: int | None = None,
+        episode_id: str | None = None,
+        start_agent: bool = True,
     ) -> OpenCodeSession:
         import logging
         _log = logging.getLogger(__name__)
@@ -283,7 +325,8 @@ class OpenCodeSessionFactory(ResourceSessionFactory[OpenCodeSession]):
                 proxy_trace_path=proxy_trace_path,
                 proxy_bg_job=proxy_bg_job,
             )
-            session.start_agent()
+            if start_agent:
+                session.start_agent()
             return session
         except Exception as exc:
             _log.error("factory.create: setup failed, killing sandbox: %r", exc)

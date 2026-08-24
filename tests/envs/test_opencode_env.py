@@ -58,6 +58,23 @@ def test_public_api_imports() -> None:
     )
 
 
+def test_new_session_client_preserves_supported_constructor_options() -> None:
+    """Session recreation filters unsupported base-client options."""
+    from opencode_env import OpenCodeEnv
+
+    env = OpenCodeEnv(
+        base_url="http://localhost:8000",
+        connect_timeout_s=12.0,
+        message_timeout_s=34.0,
+    )
+
+    session = env._create_session_client()
+
+    assert isinstance(session, OpenCodeEnv)
+    assert session._connect_timeout == 12.0
+    assert session._message_timeout == 34.0
+
+
 def test_server_modules_import() -> None:
     """Server-side modules (FastAPI app, MCP env, catalog) import cleanly."""
     from opencode_env.server.app import app  # noqa: F401
