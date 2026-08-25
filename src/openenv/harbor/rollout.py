@@ -391,14 +391,27 @@ async def run_rollout(
             # Acquired via `to_thread` so a blocking `acquire()` cannot stall the event loop while
             # another rollout holds the lock for the length of a full trial. A bare `acquire()` here
             # would deadlock the server the first time two goose rollouts overlapped on one loop.
-            await _acquire_proc_env()
-            try:
-                with process_env(seam.name, proc_env):
+            from .proc_env_context import install as install_ctx_env
+            from .proc_env_context import overlay as ctx_env_overlay
+
+            if install_ctx_env():
+                # No lock. `os.environ` reads are context-local now, so concurrent rollouts of a
+                # credential-by-env harness each see their OWN session key from the same expression.
+                # This is what stops claude-code, gemini-cli and goose serialising behind one another.
+                with ctx_env_overlay(proc_env):
                     config = build_trial_config(**config_kwargs)
                     trial = await Trial.create(config)
                     trial_result = await trial.run()
-            finally:
-                _PROC_ENV_LOCK.release()
+            else:
+                # Fallback: mutate the real environment under a lock, one rollout at a time.
+                await _acquire_proc_env()
+                try:
+                    with process_env(seam.name, proc_env):
+                        config = build_trial_config(**config_kwargs)
+                        trial = await Trial.create(config)
+                        trial_result = await trial.run()
+                finally:
+                    _PROC_ENV_LOCK.release()
     except Exception as exc:  # noqa: BLE001 - a rollout failure is a RESULT, never an exception
         result.ok = False
         result.error = str(exc)[:600]
