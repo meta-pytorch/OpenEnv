@@ -337,6 +337,12 @@ async def run_rollout(
     try:
         from harbor.trial.trial import Trial
 
+        # Collapse identical per-task templates onto one alias when asked. Must happen before the
+        # first `Trial.create`, and is idempotent, so calling it per rollout is free.
+        from .shared_template import enable_shared_templates
+
+        enable_shared_templates()
+
         config_kwargs = dict(
             task_dir=task_dir,
             harness=harness,
