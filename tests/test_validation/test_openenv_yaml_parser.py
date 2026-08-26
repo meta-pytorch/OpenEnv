@@ -1,5 +1,3 @@
-"""OpenEnvYamlParser: openenv.yaml maps onto the committed served-min-pass golden."""
-
 import pytest
 from conftest import FIXTURES, load_fixture_manifest
 from openenv.validation.manifest import ManifestError, NormalizedManifest

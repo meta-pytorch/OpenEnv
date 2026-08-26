@@ -1,5 +1,3 @@
-"""Validation orchestration: parse → grade → apply policy → report."""
-
 import hashlib
 import time
 from pathlib import Path
@@ -59,7 +57,7 @@ def _run_grader(grader, subject: Subject) -> CheckResult:
     started = time.monotonic()
     try:
         return grader.run(subject)
-    except Exception as exc:  # noqa: BLE001 — grader crash is evidence, not fatal
+    except Exception as exc:
         return CheckResult(
             check_id=grader.check_id,
             status=CheckStatus.ERROR,
@@ -92,7 +90,6 @@ def run_validation(
             Level ceiling; graders above it are not selected.
         skip_build (`bool`, *optional*, defaults to `False`):
             Skip the image build; build-dependent checks SKIP with a reason.
-            Slice 1 has no build-dependent graders, so this is accepted and unused.
         policy ([`~openenv.validation.policy.SeverityPolicy`], *optional*):
             Severity policy; `None` loads the committed default version.
 

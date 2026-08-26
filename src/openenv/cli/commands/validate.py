@@ -1,11 +1,5 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""
-OpenEnv validate command.
-
-Local packages run the RFC 008 pipeline. `--url` still probes a running server.
-"""
-
 import json
 from pathlib import Path
 from typing import Annotated

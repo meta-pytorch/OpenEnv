@@ -1,5 +1,3 @@
-"""Parser for the served OpenEnv format (`openenv.yaml`)."""
-
 from pathlib import Path
 
 import yaml
@@ -22,7 +20,6 @@ SCHEMA_REMEDIATION = (
 
 
 def _format_validation_error(exc: ValidationError) -> list[str]:
-    """Render pydantic errors as `field: message` evidence lines."""
     lines = []
     for err in exc.errors():
         loc = ".".join(str(part) for part in err["loc"]) or "manifest"
@@ -77,6 +74,9 @@ class OpenEnvYamlParser:
             "judge": validation.get("judge"),
             "task_distribution": validation.get("task_distribution"),
         }
+        # Omit absent required sections so schema errors read as "field required"
+        # rather than "not a valid dictionary". Omit absent `network` so the
+        # manifest default (mode public) applies.
         for key, value in (
             ("name", raw.get("name")),
             ("reward", validation.get("reward")),

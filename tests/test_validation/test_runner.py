@@ -1,5 +1,3 @@
-"""run_validation: parse → grade → policy → report, one report per run."""
-
 import shutil
 
 import pytest

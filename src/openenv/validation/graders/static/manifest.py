@@ -1,5 +1,3 @@
-"""The `static.manifest` grader: the manifest is schema-valid and within policy bounds."""
-
 import time
 
 from ...manifest import NormalizedManifest

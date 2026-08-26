@@ -1,7 +1,5 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Tests for the openenv validate command and runtime validation utilities."""
-
 from __future__ import annotations
 
 import json
@@ -22,8 +20,6 @@ runner = CliRunner()
 
 
 class _MockResponse:
-    """Minimal mock response object for requests.get/post tests."""
-
     def __init__(self, status_code: int, payload: dict | None = None):
         self.status_code = status_code
         self._payload = payload
@@ -40,7 +36,6 @@ def _write_minimal_valid_env(
     main_signature: str = "def main():",
     main_invocation: str = "main()",
 ) -> None:
-    """Create a minimal local environment that passes local validation."""
     (env_dir / "server").mkdir(parents=True)
 
     (env_dir / "openenv.yaml").write_text(
@@ -62,8 +57,6 @@ def _write_minimal_valid_env(
 
 
 def test_validate_running_environment_success() -> None:
-    """Runtime validator returns passing criteria for a conforming server."""
-
     def _fake_get(url: str, timeout: float) -> _MockResponse:
         if url.endswith("/openapi.json"):
             return _MockResponse(
@@ -118,8 +111,6 @@ def test_validate_running_environment_success() -> None:
 
 
 def test_validate_running_environment_failure() -> None:
-    """Runtime validator marks report as failed when criteria fail."""
-
     def _fake_get(url: str, timeout: float) -> _MockResponse:
         if url.endswith("/openapi.json"):
             return _MockResponse(
@@ -171,7 +162,6 @@ def test_validate_running_environment_failure() -> None:
 
 
 def test_validate_command_runtime_target_outputs_json() -> None:
-    """CLI validates runtime targets and prints JSON report."""
     mock_report = {
         "target": "https://example.com",
         "validation_type": "running_environment",
@@ -194,7 +184,6 @@ def test_validate_command_runtime_target_outputs_json() -> None:
 def test_validate_command_local_path_without_validation_block_fails(
     tmp_path: Path,
 ) -> None:
-    """Packages without a `validation:` block fail static.manifest (exit 1)."""
     env_dir = tmp_path / "test_env"
     _write_minimal_valid_env(env_dir)
 
@@ -221,7 +210,6 @@ def test_validate_command_local_path_without_validation_block_fails(
 def test_multi_mode_rejects_environment_package_as_runtime_dependency(
     tmp_path: Path,
 ) -> None:
-    """An openenv-* environment package is not the OpenEnv runtime package."""
     env_dir = tmp_path / "test_env"
     _write_minimal_valid_env(env_dir)
     (env_dir / "pyproject.toml").write_text(
@@ -243,7 +231,6 @@ def test_multi_mode_rejects_environment_package_as_runtime_dependency(
 def test_multi_mode_accepts_dockerfile_managed_openenv_runtime(
     tmp_path: Path,
 ) -> None:
-    """Multi-mode helper accepts envs that install OpenEnv in Dockerfile."""
     env_dir = tmp_path / "test_env"
     _write_minimal_valid_env(env_dir)
     (env_dir / "pyproject.toml").write_text(
@@ -266,7 +253,6 @@ def test_multi_mode_accepts_dockerfile_managed_openenv_runtime(
 
 
 def test_multi_mode_accepts_main_call_with_arguments(tmp_path: Path) -> None:
-    """Multi-mode helper accepts a guarded main(...) call with arguments."""
     env_dir = tmp_path / "test_env"
     _write_minimal_valid_env(
         env_dir,
@@ -281,7 +267,6 @@ def test_multi_mode_accepts_main_call_with_arguments(tmp_path: Path) -> None:
 
 
 def test_multi_mode_rejects_nested_main_guard(tmp_path: Path) -> None:
-    """Multi-mode helper requires the __main__ guard at module scope."""
     env_dir = tmp_path / "test_env"
     _write_minimal_valid_env(env_dir)
     (env_dir / "server" / "app.py").write_text(
@@ -298,7 +283,6 @@ def test_multi_mode_rejects_nested_main_guard(tmp_path: Path) -> None:
 
 
 def test_multi_mode_accepts_later_top_level_main_guard(tmp_path: Path) -> None:
-    """Multi-mode helper scans each top-level __main__ guard for a main() call."""
     env_dir = tmp_path / "test_env"
     _write_minimal_valid_env(env_dir)
     (env_dir / "server" / "app.py").write_text(
@@ -318,7 +302,6 @@ def test_multi_mode_accepts_later_top_level_main_guard(tmp_path: Path) -> None:
 def test_multi_mode_syntax_error_fallback_requires_dunder_main(
     tmp_path: Path,
 ) -> None:
-    """Syntax-error fallback still requires the literal __main__ guard string."""
     env_dir = tmp_path / "test_env"
     _write_minimal_valid_env(env_dir)
     (env_dir / "server" / "app.py").write_text(
@@ -332,7 +315,6 @@ def test_multi_mode_syntax_error_fallback_requires_dunder_main(
 
 
 def test_validate_command_rejects_mixed_path_and_url(tmp_path: Path) -> None:
-    """CLI rejects mixing a local path argument with --url mode."""
     env_dir = tmp_path / "test_env"
     _write_minimal_valid_env(env_dir)
 

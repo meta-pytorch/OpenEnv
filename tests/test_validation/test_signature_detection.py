@@ -1,5 +1,3 @@
-"""detect_signature: exactly one well-known file of a parseable format, never a guess."""
-
 import pytest
 from conftest import FIXTURES
 from openenv.validation.signature import (

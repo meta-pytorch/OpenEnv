@@ -1,5 +1,3 @@
-"""CLI contract: one command, exit codes 0/1/2/3, schema-valid JSON reports."""
-
 import subprocess
 import sys
 from pathlib import Path
