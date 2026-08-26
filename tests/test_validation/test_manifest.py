@@ -99,10 +99,14 @@ def test_reward_channel_verifier_forbids_entry():
         VerifierBinding(kind="reward_channel", entry="tests/test.sh")
 
 
+def test_types_require_at_least_one_tag():
+    data = load_fixture_manifest("served_min_pass")
+    data["types"]["tags"] = []
+    with pytest.raises(ValidationError, match="at least 1"):
+        NormalizedManifest.model_validate(data)
+
+
 def test_signature_is_provenance_only():
-    # Two manifests differing only by signature select identically: grader selection
-    # reads capabilities and tags, never the signature. Guarded structurally in
-    # test_protocols.py; here we pin that the field exists and carries the format.
     data = load_fixture_manifest("harbor_task_min")
     manifest = NormalizedManifest.model_validate(data)
     assert manifest.signature.value == "task.toml"
