@@ -1,5 +1,7 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
+"""OpenEnv validate command."""
+
 import json
 from pathlib import Path
 from typing import Annotated

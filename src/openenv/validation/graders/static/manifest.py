@@ -1,3 +1,5 @@
+"""The `static.manifest` grader."""
+
 import time
 
 from ...manifest import NormalizedManifest

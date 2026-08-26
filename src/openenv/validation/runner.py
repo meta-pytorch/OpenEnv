@@ -1,3 +1,5 @@
+"""Validation orchestration: parse → grade → apply policy → report."""
+
 import hashlib
 import time
 from pathlib import Path
