@@ -1,5 +1,3 @@
-"""Schema round-trip tests: each fixture manifest validates or fails as intended."""
-
 import pytest
 from conftest import (
     INVALID_MANIFEST_FIXTURES,
@@ -14,7 +12,6 @@ from pydantic import ValidationError
 def test_valid_fixture_manifests_round_trip(name):
     data = load_fixture_manifest(name)
     manifest = NormalizedManifest.model_validate(data)
-    # Round-trip: dump and re-validate to the same model.
     assert (
         NormalizedManifest.model_validate(manifest.model_dump(mode="json")) == manifest
     )
@@ -28,8 +25,6 @@ def test_invalid_fixture_manifests_are_rejected(name):
 
 
 def test_no_oracle_is_a_valid_manifest_not_a_parse_error():
-    # Absence of an oracle is a graded FAIL on semantic.oracle_max (it must show up
-    # in the report with remediation), never a schema rejection.
     manifest = NormalizedManifest.model_validate(load_fixture_manifest("no_oracle"))
     assert manifest.capabilities.oracle is None
 

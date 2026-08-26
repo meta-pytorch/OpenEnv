@@ -1,9 +1,4 @@
-"""RFC 008 validation contracts: types and the normalized manifest.
-
-This slice ships the enums and [`~openenv.validation.manifest.NormalizedManifest`].
-Graders, when they land, read the manifest and never the signature. Detection,
-parsers, the report schema, and the severity policy land in later slices.
-"""
+"""RFC 008 validation contracts: types and [`~openenv.validation.manifest.NormalizedManifest`]."""
 
 from .manifest import (
     CapabilitiesSpec,
