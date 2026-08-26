@@ -168,6 +168,7 @@ class FleetTaskEnv:
         self.final_reward: Optional[float] = None
         self._submitted_answer: Optional[str] = None
         self._browser_lease = None  # BrowserLeaseResult for browser_use
+        self._browser_cluster_name: Optional[str] = None
 
         # Feedback for hint generation (accumulated during rollout)
         self._tool_errors: List[str] = []
@@ -301,10 +302,12 @@ class FleetTaskEnv:
         )
 
         if self.modality == "browser_use":
-            from .browser_lease import create_browser_lease
+            from .browser_lease import create_browser_lease, extract_cluster_name
 
             root_url = str(self._orch._fleet_env.urls.root)
+            self._browser_cluster_name = extract_cluster_name(root_url)
             self._browser_lease = await create_browser_lease(
+                cluster_name=self._browser_cluster_name,
                 instance_url=root_url,
                 ttl_seconds=self.ttl_seconds,
             )
@@ -874,6 +877,7 @@ class FleetTaskEnv:
 
                     asyncio.run(
                         delete_browser_lease(
+                            self._browser_cluster_name,
                             self._browser_lease.lease_id,
                         )
                     )
@@ -916,6 +920,7 @@ class FleetTaskEnv:
                     from .browser_lease import delete_browser_lease
 
                     await delete_browser_lease(
+                        self._browser_cluster_name,
                         self._browser_lease.lease_id,
                     )
                 except Exception:
