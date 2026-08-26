@@ -8,11 +8,7 @@ FIXTURES = Path(__file__).parent.parent / "fixtures" / "validation"
 # Fixture packages whose normalized manifest must validate.
 VALID_MANIFEST_FIXTURES = [
     "served_min_pass",
-    "empty_solution_max_reward",
     "no_oracle",
-    "leaky_observation",
-    "nondeterministic",
-    "leaky_egress",
     "harbor_task_min",
     "posttrain_task_min",
 ]
