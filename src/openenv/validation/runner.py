@@ -130,7 +130,7 @@ def run_validation(
             manifest=manifest,
             image_ref=None,
             running=None,
-            outputs_dir=target,
+            outputs_dir=target / "outputs",
         )
         results.extend(
             _run_grader(grader, subject)
