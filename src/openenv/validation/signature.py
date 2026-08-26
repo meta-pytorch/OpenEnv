@@ -58,7 +58,6 @@ class UnsupportedPackageError(Exception):
 
 
 def _has_yaml_frontmatter(path: Path) -> bool:
-    """Return True when `task.md` starts with YAML frontmatter (`---`)."""
     try:
         return path.read_text(encoding="utf-8").lstrip().startswith("---")
     except OSError:
@@ -66,7 +65,6 @@ def _has_yaml_frontmatter(path: Path) -> bool:
 
 
 def _file_present(package_root: Path, kind: SignatureKind) -> bool:
-    """Return True when this signature's well-known file is present and countable."""
     path = package_root / kind.value
     if not path.is_file():
         return False

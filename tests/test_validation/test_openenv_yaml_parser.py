@@ -38,8 +38,6 @@ def test_missing_validation_block_has_remediation(tmp_path):
 
 
 def test_parse_is_a_pure_read(tmp_path):
-    # Package code must never be imported or executed: a booby-trapped module
-    # alongside a valid openenv.yaml parses without tripping.
     src = (FIXTURES / "served_min_pass" / "openenv.yaml").read_text()
     (tmp_path / "openenv.yaml").write_text(src)
     (tmp_path / "server.py").write_text(

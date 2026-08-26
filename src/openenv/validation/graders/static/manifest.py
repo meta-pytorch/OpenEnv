@@ -9,15 +9,7 @@ from ...types import CheckStatus, Level, ProviderCapability
 
 
 class StaticManifestGrader:
-    """
-    Checks the parsed manifest's declared tolerances against the policy bounds.
-
-    Schema validity itself is established before this grader runs (an unparseable
-    manifest never reaches grading — the runner records the `static.manifest` FAIL
-    directly from the parser's [`~openenv.validation.manifest.ManifestError`]). What
-    remains to grade is that author-declared values sit within what the severity
-    policy allows an author to declare.
-    """
+    """Checks declared tolerances against the severity policy bounds."""
 
     check_id = "static.manifest"
     level = Level.STATIC

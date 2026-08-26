@@ -17,15 +17,11 @@ def test_openenv_yaml_detects_the_served_format():
 
 
 def test_the_table_lists_exactly_the_implemented_parsers():
-    # Only the served-env parser exists in this build. task.toml joins with the
-    # Harbor parser and task.md with the PostTrain parser.
     assert set(WELL_KNOWN_FILES) == {SignatureKind.OPENENV_SERVED}
 
 
 @pytest.mark.parametrize("fixture", ["harbor_task_min", "posttrain_task_min"])
 def test_formats_without_parsers_are_unrecognized_not_guessed(fixture):
-    # These packages are real formats, but this build cannot parse them —
-    # refusing as unrecognized beats claiming support.
     with pytest.raises(SignatureError, match="unrecognized"):
         detect_signature(FIXTURES / fixture)
 

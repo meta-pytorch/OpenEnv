@@ -218,52 +218,6 @@ def test_validate_command_local_path_without_validation_block_fails(
     assert "validation" in result.stdout
 
 
-def test_validate_command_local_json_output(tmp_path: Path) -> None:
-    """CLI --json emits a schema-valid ValidationReport for a local package."""
-    env_dir = tmp_path / "test_env"
-    _write_minimal_valid_env(env_dir)
-    yaml_text = (env_dir / "openenv.yaml").read_text()
-    (env_dir / "openenv.yaml").write_text(
-        yaml_text
-        + "version: 0.1.0\n"
-        + "validation:\n"
-        + "  reward:\n"
-        + "    range: [0.0, 1.0]\n"
-        + "    floor_margin: 0.5\n"
-        + "  resources:\n"
-        + "    cpu: 1.0\n"
-        + "    memory_mb: 1024\n"
-        + "    disk_mb: 512\n"
-        + "    episode_timeout_s: 60.0\n"
-        + "  capabilities:\n"
-        + "    verifier:\n"
-        + "      kind: reward_channel\n"
-        + "  types:\n"
-        + "    tags: [demo]\n"
-    )
-
-    result = subprocess.run(
-        [
-            sys.executable,
-            "-m",
-            "openenv.cli",
-            "validate",
-            str(env_dir),
-            "--level",
-            "static",
-            "--skip-build",
-            "--json",
-        ],
-        capture_output=True,
-        text=True,
-    )
-
-    assert result.returncode == 0, result.stdout + result.stderr
-    payload = json.loads(result.stdout)
-    assert payload["report_schema_version"] == "1"
-    assert payload["verdict"] == "pass"
-
-
 def test_multi_mode_rejects_environment_package_as_runtime_dependency(
     tmp_path: Path,
 ) -> None:

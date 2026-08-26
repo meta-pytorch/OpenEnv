@@ -3,9 +3,7 @@
 """
 OpenEnv validate command.
 
-Local packages run through the RFC 008 validation pipeline (signature → parse →
-grade → severity policy → report). Running servers are probed via --url until the
-runtime graders land.
+Local packages run the RFC 008 pipeline. `--url` still probes a running server.
 """
 
 import json
@@ -27,11 +25,10 @@ from openenv.validation import (
 )
 
 
-# Exit-code contract (RFC 008):
-EXIT_PASS = 0  # verdict PASS or WARN
-EXIT_FAIL = 1  # verdict FAIL
-EXIT_UNSUPPORTED = 2  # SignatureError / UnsupportedPackageError
-EXIT_INTERNAL = 3  # internal error
+EXIT_PASS = 0
+EXIT_FAIL = 1
+EXIT_UNSUPPORTED = 2
+EXIT_INTERNAL = 3
 
 _LEVELS = {
     "static": Level.STATIC,
@@ -41,13 +38,11 @@ _LEVELS = {
 
 
 def _looks_like_url(value: str) -> bool:
-    """Return True when the value appears to be a URL target."""
     candidate = value.strip().lower()
     return candidate.startswith("http://") or candidate.startswith("https://")
 
 
 def _render_report(report: ValidationReport) -> str:
-    """Human-readable report summary."""
     lines = [
         f"Validation report for {report.target} (signature: {report.signature.value})",
         f"  policy {report.policy_version} · levels run: "

@@ -1,9 +1,4 @@
-"""Validation orchestration: parse → grade → apply policy → report.
-
-Levels run in order and accumulate into one report per run — a level with a
-policy-fail finding still lets later levels run where dependencies permit, so an
-author gets maximum information per run.
-"""
+"""Validation orchestration: parse → grade → apply policy → report."""
 
 import hashlib
 import time
@@ -61,7 +56,6 @@ def default_parser_registry() -> ParserRegistry:
 
 
 def _run_grader(grader, subject: Subject) -> CheckResult:
-    """Run one grader; a crash is an ERROR result (fails closed), never an abort."""
     started = time.monotonic()
     try:
         return grader.run(subject)
