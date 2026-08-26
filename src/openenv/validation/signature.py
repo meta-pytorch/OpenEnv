@@ -1,20 +1,9 @@
-"""Signature detection contracts: well-known files, never a guess.
-
-`detect_signature` itself lands with the walking skeleton (slice 1); this module ships
-the detection rules and error contract so parsers, registries, and the CLI exit-code
-contract can be written against them.
-"""
+"""Well-known files and unsupported-package errors."""
 
 from .types import SignatureKind
 
 WELL_KNOWN_FILES: dict[SignatureKind, str] = {}
-"""Signature detection table: the formats THIS build can parse.
-
-Entries are added alongside their parsers (`openenv.yaml` with the served-env
-parser, `task.toml` with the Harbor parser, `task.md` — frontmatter required —
-with the PostTrain parser). A format absent from this table is refused as
-unrecognized: validation never claims support for a format it cannot parse.
-"""
+"""Formats this build can parse. Empty until a parser is registered. Values are the enum filenames."""
 
 UNSUPPORTED_CATEGORIES: dict[str, str] = {
     "hosted-verifier": (
@@ -32,7 +21,7 @@ UNSUPPORTED_CATEGORIES: dict[str, str] = {
         "registered parser; unreachable when detection tracks implemented parsers"
     ),
 }
-"""The RFC 008 unsupported-categories list. Detection produces exit code 2, never a guess."""
+"""RFC 008 unsupported-package categories. Maps to CLI exit code 2."""
 
 
 class SignatureError(Exception):

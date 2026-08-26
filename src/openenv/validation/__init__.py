@@ -1,4 +1,4 @@
-"""RFC 008 validation contracts: types and [`~openenv.validation.manifest.NormalizedManifest`]."""
+"""RFC 008 validation contracts: types, [`~openenv.validation.manifest.NormalizedManifest`], registries, report, and severity policy."""
 
 from .graders import ENTRY_POINT_GROUP, Grader, GraderRegistry, Subject
 from .manifest import (
