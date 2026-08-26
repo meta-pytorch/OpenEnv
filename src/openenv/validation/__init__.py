@@ -1,9 +1,8 @@
-"""Environment validation (RFC 008): contracts and the local `openenv validate` pipeline.
+"""RFC 008 validation contracts: types and the normalized manifest.
 
-Ships local validation plus the contracts that let any operator build a hub —
-signature detection, parsers, one normalized manifest, a grader registry, a report
-schema, and a versioned severity policy. Graders read the manifest, never the
-signature.
+This slice ships the enums and [`~openenv.validation.manifest.NormalizedManifest`].
+Graders, when they land, read the manifest and never the signature. Detection,
+parsers, the report schema, and the severity policy land in later slices.
 """
 
 from .manifest import (
