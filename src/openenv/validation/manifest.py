@@ -51,9 +51,6 @@ class RewardDeclaration(BaseModel):
 class JudgePin(BaseModel):
     """
     Pinned judge configuration. Required iff `capabilities.llm_judged`.
-
-    The pin lives in the manifest, not the rubric object: `LLMJudge.state_dict()` does
-    not serialize model/version/params, so validation checks the declared pin.
     """
 
     model_config = ConfigDict(extra="forbid")

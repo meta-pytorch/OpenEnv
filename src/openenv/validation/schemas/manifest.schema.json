@@ -73,7 +73,7 @@
     },
     "JudgePin": {
       "additionalProperties": false,
-      "description": "Pinned judge configuration. Required iff `capabilities.llm_judged`.\n\nThe pin lives in the manifest, not the rubric object: `LLMJudge.state_dict()` does\nnot serialize model/version/params, so validation checks the declared pin.",
+      "description": "Pinned judge configuration. Required iff `capabilities.llm_judged`.",
       "properties": {
         "model": {
           "title": "Model",
