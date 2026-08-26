@@ -1,4 +1,9 @@
-"""RFC 008 validation contracts: types, [`~openenv.validation.manifest.NormalizedManifest`], registries, report, and severity policy."""
+"""RFC 008 environment validation: contracts and the local `openenv validate` pipeline.
+
+Ships signature detection, parsers, one normalized manifest, a grader registry,
+a report schema, a versioned severity policy, and the local runner. Graders read
+the manifest, never the signature.
+"""
 
 from .graders import ENTRY_POINT_GROUP, Grader, GraderRegistry, Subject
 from .manifest import (
