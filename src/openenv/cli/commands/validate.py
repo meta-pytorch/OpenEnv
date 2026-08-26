@@ -203,6 +203,9 @@ def validate(
     except PolicyError as exc:
         typer.echo(f"Internal error: {exc}", err=True)
         raise typer.Exit(EXIT_INTERNAL) from exc
+    except Exception as exc:
+        typer.echo(f"Internal error: {exc}", err=True)
+        raise typer.Exit(EXIT_INTERNAL) from exc
 
     report_json = write_report(validation_report, output)
     if json_output:

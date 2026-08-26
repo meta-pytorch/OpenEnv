@@ -6,7 +6,6 @@ author gets maximum information per run.
 """
 
 import hashlib
-import tempfile
 import time
 from pathlib import Path
 
@@ -16,7 +15,6 @@ from .manifest import ManifestError, NormalizedManifest
 from .parsers import ParserRegistry
 from .parsers.openenv_yaml import OpenEnvYamlParser
 from .policy import apply_policy, load_policy, SeverityPolicy
-from .providers import ValidationProvider
 from .report import CheckResult, ValidationReport
 from .signature import detect_signature
 from .types import CheckStatus, Lane, Level
@@ -62,13 +60,6 @@ def default_parser_registry() -> ParserRegistry:
     return registry
 
 
-def default_grader_registry(policy: SeverityPolicy) -> GraderRegistry:
-    """The core graders shipped in this build, configured against a policy."""
-    registry = GraderRegistry()
-    registry.register(StaticManifestGrader(policy.bounds))
-    return registry
-
-
 def _run_grader(grader, subject: Subject) -> CheckResult:
     """Run one grader; a crash is an ERROR result (fails closed), never an abort."""
     started = time.monotonic()
@@ -87,7 +78,6 @@ def run_validation(
     target: Path,
     *,
     max_level: Level = Level.SEMANTIC,
-    provider: ValidationProvider | None = None,
     skip_build: bool = False,
     policy: SeverityPolicy | None = None,
 ) -> ValidationReport:
@@ -106,20 +96,16 @@ def run_validation(
             The package directory.
         max_level ([`~openenv.validation.types.Level`], *optional*, defaults to `Level.SEMANTIC`):
             Level ceiling; graders above it are not selected.
-        provider ([`~openenv.validation.providers.ValidationProvider`], *optional*):
-            Sandbox provider for runtime+ levels. Unused until the runtime phase
-            lands; `None` selects the default provider then.
         skip_build (`bool`, *optional*, defaults to `False`):
             Skip the image build; build-dependent checks SKIP with a reason.
-            Slice 1 has no build-dependent graders, so this only records
-            `image_ref=None` on the subject.
+            Slice 1 has no build-dependent graders, so this is accepted and unused.
         policy ([`~openenv.validation.policy.SeverityPolicy`], *optional*):
             Severity policy; `None` loads the committed default version.
 
     Returns:
         [`~openenv.validation.report.ValidationReport`]: the completed report.
     """
-    del provider, skip_build  # reserved: runtime build + provider selection
+    del skip_build
     target = Path(target)
     policy = policy or load_policy()
     signature = detect_signature(target)
@@ -127,7 +113,6 @@ def run_validation(
     parser = default_parser_registry().parser_for(signature)
     manifest: NormalizedManifest | None = None
     results: list[CheckResult] = []
-    levels_run: list[Level] = [Level.STATIC]
 
     parse_started = time.monotonic()
     try:
@@ -145,17 +130,19 @@ def run_validation(
         )
 
     if manifest is not None:
-        graders = default_grader_registry(policy).select(manifest, max_level)
-        with tempfile.TemporaryDirectory(prefix="openenv-validate-") as outputs:
-            subject = Subject(
-                root=target,
-                manifest=manifest,
-                image_ref=None,
-                running=None,
-                outputs_dir=Path(outputs),
-            )
-            results.extend(_run_grader(grader, subject) for grader in graders)
-        levels_run = sorted({Level.STATIC, *(g.level for g in graders)})
+        graders = GraderRegistry()
+        graders.register(StaticManifestGrader(policy.bounds))
+        subject = Subject(
+            root=target,
+            manifest=manifest,
+            image_ref=None,
+            running=None,
+            outputs_dir=target,
+        )
+        results.extend(
+            _run_grader(grader, subject)
+            for grader in graders.select(manifest, max_level)
+        )
 
     return ValidationReport(
         report_schema_version=REPORT_SCHEMA_VERSION,
@@ -165,7 +152,7 @@ def run_validation(
         manifest=manifest,
         policy_version=policy.policy_version,
         lane=Lane.LOCAL,
-        levels_run=levels_run,
+        levels_run=[Level.STATIC],
         results=results,
         verdict=apply_policy(results, policy, Lane.LOCAL),
     )

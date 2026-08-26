@@ -5,6 +5,8 @@
 from __future__ import annotations
 
 import json
+import subprocess
+import sys
 from pathlib import Path
 from unittest.mock import patch
 
@@ -196,13 +198,24 @@ def test_validate_command_local_path_without_validation_block_fails(
     env_dir = tmp_path / "test_env"
     _write_minimal_valid_env(env_dir)
 
-    result = runner.invoke(
-        app, ["validate", str(env_dir), "--level", "static", "--skip-build"]
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "openenv.cli",
+            "validate",
+            str(env_dir),
+            "--level",
+            "static",
+            "--skip-build",
+        ],
+        capture_output=True,
+        text=True,
     )
 
-    assert result.exit_code == 1
-    assert "static.manifest" in result.output
-    assert "validation" in result.output
+    assert result.returncode == 1
+    assert "static.manifest" in result.stdout
+    assert "validation" in result.stdout
 
 
 def test_validate_command_local_json_output(tmp_path: Path) -> None:
@@ -229,12 +242,24 @@ def test_validate_command_local_json_output(tmp_path: Path) -> None:
         + "    tags: [demo]\n"
     )
 
-    result = runner.invoke(
-        app, ["validate", str(env_dir), "--level", "static", "--skip-build", "--json"]
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "openenv.cli",
+            "validate",
+            str(env_dir),
+            "--level",
+            "static",
+            "--skip-build",
+            "--json",
+        ],
+        capture_output=True,
+        text=True,
     )
 
-    assert result.exit_code == 0, result.output
-    payload = json.loads(result.output)
+    assert result.returncode == 0, result.stdout + result.stderr
+    payload = json.loads(result.stdout)
     assert payload["report_schema_version"] == "1"
     assert payload["verdict"] == "pass"
 

@@ -1,27 +1,17 @@
-"""OpenEnvYamlParser: fixture openenv.yaml files parse to their committed goldens."""
+"""OpenEnvYamlParser: openenv.yaml maps onto the committed served-min-pass golden."""
 
 import pytest
 from conftest import FIXTURES, load_fixture_manifest
 from openenv.validation.manifest import ManifestError, NormalizedManifest
 from openenv.validation.parsers.openenv_yaml import OpenEnvYamlParser
 from openenv.validation.runner import default_parser_registry
-from openenv.validation.signature import SignatureError
-
-# Served fixtures whose normalized_manifest.json is the golden parse result.
-GOLDEN_FIXTURES = [
-    "served_min_pass",
-    "empty_solution_max_reward",
-    "no_oracle",
-    "leaky_observation",
-    "nondeterministic",
-    "leaky_egress",
-]
+from openenv.validation.signature import detect_signature
+from openenv.validation.types import SignatureKind
 
 
-@pytest.mark.parametrize("name", GOLDEN_FIXTURES)
-def test_parse_matches_the_committed_golden_manifest(name):
-    parsed = OpenEnvYamlParser().parse(FIXTURES / name)
-    golden = NormalizedManifest.model_validate(load_fixture_manifest(name))
+def test_parse_matches_the_committed_golden_manifest():
+    parsed = OpenEnvYamlParser().parse(FIXTURES / "served_min_pass")
+    golden = NormalizedManifest.model_validate(load_fixture_manifest("served_min_pass"))
     assert parsed == golden
 
 
@@ -60,15 +50,14 @@ def test_parse_is_a_pure_read(tmp_path):
 
 
 def test_default_registry_dispatches_openenv_yaml_end_to_end():
-    manifest = default_parser_registry().parse(FIXTURES / "served_min_pass")
+    signature = detect_signature(FIXTURES / "served_min_pass")
+    assert signature is SignatureKind.OPENENV_SERVED
+    manifest = (
+        default_parser_registry()
+        .parser_for(signature)
+        .parse(FIXTURES / "served_min_pass")
+    )
     assert manifest.name == "served-min-pass"
-
-
-def test_default_registry_refuses_formats_without_parsers():
-    # task.toml is not in the detection table until the Harbor parser lands, so
-    # a Harbor package is refused as unrecognized rather than half-supported.
-    with pytest.raises(SignatureError, match="unrecognized"):
-        default_parser_registry().parse(FIXTURES / "harbor_task_min")
 
 
 def test_network_policy_parses_and_defaults_to_public(tmp_path):

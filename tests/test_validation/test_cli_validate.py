@@ -1,31 +1,38 @@
 """CLI contract: one command, exit codes 0/1/2/3, schema-valid JSON reports."""
 
+import subprocess
+import sys
+from pathlib import Path
+
 from conftest import FIXTURES
-from openenv.cli.__main__ import app
 from openenv.validation.report import ValidationReport
-from typer.testing import CliRunner
 
-runner = CliRunner()
+REPO_ROOT = Path(__file__).parent.parent.parent
 
 
-def _validate(*args):
-    return runner.invoke(app, ["validate", *args])
+def _validate(*args: str) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(
+        [sys.executable, "-m", "openenv.cli", "validate", *args],
+        capture_output=True,
+        text=True,
+        cwd=REPO_ROOT,
+    )
 
 
 def test_valid_package_exits_zero():
     result = _validate(
         str(FIXTURES / "served_min_pass"), "--level", "static", "--skip-build"
     )
-    assert result.exit_code == 0, result.output
-    assert "Verdict: PASS" in result.output
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert "Verdict: PASS" in result.stdout
 
 
 def test_json_report_is_schema_valid():
     result = _validate(
         str(FIXTURES / "served_min_pass"), "--level", "static", "--skip-build", "--json"
     )
-    assert result.exit_code == 0, result.output
-    report = ValidationReport.model_validate_json(result.output)
+    assert result.returncode == 0, result.stdout + result.stderr
+    report = ValidationReport.model_validate_json(result.stdout)
     assert report.verdict.value == "pass"
 
 
@@ -39,7 +46,7 @@ def test_output_writes_the_json_report(tmp_path):
         "--output",
         str(out),
     )
-    assert result.exit_code == 0, result.output
+    assert result.returncode == 0, result.stdout + result.stderr
     ValidationReport.model_validate_json(out.read_text())
 
 
@@ -47,48 +54,52 @@ def test_failing_manifest_exits_one():
     result = _validate(
         str(FIXTURES / "broken_manifest"), "--level", "static", "--skip-build"
     )
-    assert result.exit_code == 1, result.output
-    assert "static.manifest" in result.output
+    assert result.returncode == 1, result.stdout + result.stderr
+    assert "static.manifest" in result.stdout
 
 
 def test_ambiguous_package_exits_two():
     result = _validate(
         str(FIXTURES / "ambiguous_package"), "--level", "static", "--skip-build"
     )
-    assert result.exit_code == 2, result.output
-    assert "ambiguous" in result.output
+    assert result.returncode == 2, result.stdout + result.stderr
+    assert "ambiguous" in result.stderr
 
 
 def test_unrecognized_package_exits_two():
     result = _validate(
         str(FIXTURES / "unrecognized_package"), "--level", "static", "--skip-build"
     )
-    assert result.exit_code == 2, result.output
-    assert "unrecognized" in result.output
+    assert result.returncode == 2, result.stdout + result.stderr
+    assert "unrecognized" in result.stderr
 
 
 def test_format_without_a_parser_exits_two():
-    # Harbor packages are refused as unrecognized until the Harbor parser lands.
     result = _validate(
         str(FIXTURES / "harbor_task_min"), "--level", "static", "--skip-build"
     )
-    assert result.exit_code == 2, result.output
-    assert "unrecognized" in result.output
+    assert result.returncode == 2, result.stdout + result.stderr
+    assert "unrecognized" in result.stderr
 
 
 def test_nonexistent_path_exits_two(tmp_path):
     result = _validate(str(tmp_path / "nope"))
-    assert result.exit_code == 2, result.output
+    assert result.returncode == 2, result.stdout + result.stderr
 
 
 def test_unknown_level_is_an_internal_error():
     result = _validate(str(FIXTURES / "served_min_pass"), "--level", "cosmic")
-    assert result.exit_code == 3, result.output
+    assert result.returncode == 3, result.stdout + result.stderr
+
+
+def test_unknown_policy_is_an_internal_error():
+    result = _validate(str(FIXTURES / "served_min_pass"), "--policy", "nope")
+    assert result.returncode == 3, result.stdout + result.stderr
 
 
 def test_unpinned_judge_fails_static_manifest():
     result = _validate(
         str(FIXTURES / "unpinned_judge"), "--level", "static", "--skip-build"
     )
-    assert result.exit_code == 1
-    assert "judge pin" in result.output
+    assert result.returncode == 1
+    assert "judge pin" in result.stdout

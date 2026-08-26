@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Protocol, runtime_checkable
 
 from ..manifest import NormalizedManifest
-from ..signature import detect_signature, UnsupportedPackageError
+from ..signature import UnsupportedPackageError
 from ..types import SignatureKind
 
 
@@ -67,19 +67,3 @@ class ParserRegistry:
                 f"no parser registered for signature {signature.value!r}",
             )
         return parser
-
-    def parse(self, package_root: Path) -> NormalizedManifest:
-        """
-        Detect the package signature and dispatch to its parser.
-
-        This is the only place a [`~openenv.validation.types.SignatureKind`] selects
-        behavior.
-
-        Args:
-            package_root (`Path`):
-                The package directory to detect and parse.
-
-        Returns:
-            [`~openenv.validation.manifest.NormalizedManifest`]: the normalized manifest.
-        """
-        return self.parser_for(detect_signature(package_root)).parse(package_root)
