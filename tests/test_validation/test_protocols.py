@@ -1,5 +1,3 @@
-"""Protocol-conformance tests against trivial fakes (the fakes live here only)."""
-
 from pathlib import Path
 
 import pytest
@@ -90,7 +88,7 @@ def test_parser_registry_dispatches_by_signature():
     assert registry.parser_for(SignatureKind.OPENENV_SERVED) is parser
 
 
-def test_unregistered_signature_is_unsupported_never_guessed():
+def test_unregistered_signature_raises_parser_not_implemented():
     registry = ParserRegistry()
     registry.register(FakeParser())
     with pytest.raises(UnsupportedPackageError) as exc_info:
@@ -146,13 +144,16 @@ def test_selection_is_ordered_by_level_then_check_id(manifest):
 
 
 def test_selection_never_sees_the_signature(manifest):
-    # The registry's core rule, by construction: two manifests differing ONLY by
-    # signature must select the identical grader set.
     registry = GraderRegistry()
     registry.register(FakeGrader(check_id="static.manifest", level=Level.STATIC))
     as_harbor = manifest.model_copy(update={"signature": SignatureKind.HARBOR_TASK})
-    ids = lambda ms: [g.check_id for g in registry.select(ms, max_level=Level.SEMANTIC)]  # noqa: E731
-    assert ids(manifest) == ids(as_harbor)
+    served_ids = [
+        g.check_id for g in registry.select(manifest, max_level=Level.SEMANTIC)
+    ]
+    harbor_ids = [
+        g.check_id for g in registry.select(as_harbor, max_level=Level.SEMANTIC)
+    ]
+    assert served_ids == harbor_ids
 
 
 def test_subject_is_frozen(manifest, tmp_path):
@@ -180,9 +181,6 @@ def test_register_rejects_unknown_capability_names():
 
 
 def test_entry_point_grader_classes_are_instantiated(manifest, monkeypatch):
-    # The standard module:ClassName entry-point pattern: a grader CLASS already
-    # satisfies the runtime-checkable protocol (class attributes exist on the class
-    # object), so instantiation must key off isinstance(..., type), not the protocol.
     class FakeEntryPoint:
         name = "fake-class"
 

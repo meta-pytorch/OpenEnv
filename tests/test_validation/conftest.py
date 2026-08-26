@@ -14,9 +14,7 @@ INVALID_MANIFEST_FIXTURES = [
     "unpinned_judge",
 ]
 
-# The canonical check-id table (RFC 008 §9): id -> (level, lane, severity).
-# The severity policy artifact must match this exactly; keeping the table literal
-# here means the policy file cannot drift without a test noticing.
+# Must match severity-v1.json so the policy file cannot drift silently.
 EXPECTED_POLICY = {
     "static.manifest": (1, "local", "fail"),
     "static.reproducible_build": (1, "local", "fail"),

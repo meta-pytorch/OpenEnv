@@ -1,5 +1,3 @@
-"""The committed JSON Schemas must match the pydantic models (CI sync check)."""
-
 import json
 from pathlib import Path
 
@@ -28,9 +26,7 @@ def test_committed_schema_matches_model(fname):
     )
 
 
-def test_report_schema_reserves_operator_check_ids():
-    # Operator reports and local reports share one schema: the reserved hub.* and
-    # statistical.* namespaces must be expressible as check ids.
+def test_report_schema_allows_hub_and_statistical_check_ids():
     schema = ValidationReport.model_json_schema()
     pattern = schema["$defs"]["CheckResult"]["properties"]["check_id"]["pattern"]
     import re

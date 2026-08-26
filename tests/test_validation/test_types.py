@@ -1,23 +1,12 @@
-"""Contract tests for the core validation enums."""
-
 from openenv.validation.signature import WELL_KNOWN_FILES
-from openenv.validation.types import (
-    CheckStatus,
-    Lane,
-    Level,
-    Severity,
-    SignatureKind,
-    Verdict,
-)
+from openenv.validation.types import CheckStatus, Lane, Level, Severity, Verdict
 
 
 def test_levels_are_ordered_by_cost():
     assert Level.STATIC < Level.RUNTIME < Level.SEMANTIC < Level.STATISTICAL
 
 
-def test_grader_statuses_and_policy_severities_are_disjoint_vocabularies():
-    # Graders emit CheckStatus; only the policy assigns Severity. SKIP/ERROR belong
-    # to graders alone; ADVISORY belongs to the policy alone.
+def test_skip_and_error_are_statuses_advisory_is_a_severity():
     statuses = {s.value for s in CheckStatus}
     severities = {s.value for s in Severity}
     assert "skip" in statuses and "skip" not in severities
@@ -33,9 +22,5 @@ def test_lanes():
     assert {lane.value for lane in Lane} == {"local", "hub"}
 
 
-def test_well_known_files_track_implemented_parsers_only():
-    # The detection table only lists formats this build can parse; entries are
-    # added alongside their parsers. Every entry's filename is its enum value.
-    assert set(WELL_KNOWN_FILES) <= set(SignatureKind)
-    for kind, filename in WELL_KNOWN_FILES.items():
-        assert kind.value == filename
+def test_well_known_files_is_empty_until_a_parser_exists():
+    assert WELL_KNOWN_FILES == {}
