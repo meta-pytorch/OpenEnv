@@ -25,6 +25,20 @@ def test_valid_package_exits_zero():
     assert "Verdict: PASS" in result.stdout
 
 
+def test_echo_env_exits_zero():
+    result = _validate(
+        str(REPO_ROOT / "envs" / "echo_env"),
+        "--level",
+        "static",
+        "--skip-build",
+        "--json",
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+    report = ValidationReport.model_validate_json(result.stdout)
+    assert report.verdict.value == "pass"
+    assert any(r.check_id == "static.manifest" for r in report.results)
+
+
 def test_json_report_is_schema_valid():
     result = _validate(
         str(FIXTURES / "served_min_pass"), "--level", "static", "--skip-build", "--json"
