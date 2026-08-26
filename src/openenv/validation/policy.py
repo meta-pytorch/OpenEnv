@@ -8,7 +8,7 @@ lane and severity, and bounds what tolerances an author may declare.
 import json
 from importlib.resources import files
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, model_validator
 
 from .report import CheckResult
 from .types import CheckStatus, Lane, Level, Severity, Verdict
@@ -53,6 +53,13 @@ class SeverityPolicy(BaseModel):
     policy_version: str
     entries: list[PolicyEntry]
     bounds: DeclarationBounds
+
+    @model_validator(mode="after")
+    def _unique_check_ids(self) -> "SeverityPolicy":
+        ids = [entry.check_id for entry in self.entries]
+        if len(ids) != len(set(ids)):
+            raise ValueError("duplicate check ids in policy")
+        return self
 
     def entries_for_lane(self, lane: Lane) -> dict[str, PolicyEntry]:
         """

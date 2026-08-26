@@ -1,10 +1,15 @@
-"""Policy-completeness and verdict tests for the committed severity policy."""
-
 import pytest
 from conftest import EXPECTED_POLICY
-from openenv.validation.policy import apply_policy, load_policy, PolicyError
+from openenv.validation.policy import (
+    apply_policy,
+    DeclarationBounds,
+    load_policy,
+    PolicyEntry,
+    PolicyError,
+    SeverityPolicy,
+)
 from openenv.validation.report import CheckResult
-from openenv.validation.types import CheckStatus, Lane, Verdict
+from openenv.validation.types import CheckStatus, Lane, Level, Severity, Verdict
 
 
 def result(check_id: str, status: CheckStatus) -> CheckResult:
@@ -30,11 +35,24 @@ def test_policy_levels_lanes_and_severities_match_the_rfc_table(policy):
         assert entry.severity.value == severity, entry.check_id
 
 
-def test_each_check_id_has_exactly_one_lane(policy):
-    lanes: dict[str, set] = {}
-    for entry in policy.entries:
-        lanes.setdefault(entry.check_id, set()).add(entry.lane)
-    assert all(len(v) == 1 for v in lanes.values())
+def test_duplicate_check_ids_are_rejected():
+    entry = PolicyEntry(
+        check_id="static.manifest",
+        level=Level.STATIC,
+        lane=Lane.LOCAL,
+        severity=Severity.FAIL,
+    )
+    with pytest.raises(ValueError, match="duplicate check ids"):
+        SeverityPolicy(
+            policy_version="v1",
+            entries=[entry, entry],
+            bounds=DeclarationBounds(
+                max_oracle_tolerance=0.1,
+                min_floor_margin=0.1,
+                max_variance_tolerance=0.2,
+                max_episode_timeout_s=3600.0,
+            ),
+        )
 
 
 def test_local_lane_never_contains_hub_or_statistical_ids(policy):
@@ -98,8 +116,6 @@ def test_unknown_check_id_is_an_internal_error(policy):
 
 
 def test_hub_id_in_a_local_run_is_an_internal_error(policy):
-    # Local reports contain only local-lane ids; a hub id reaching a local
-    # policy application is a pipeline bug, not a gradable result.
     results = [result("hub.cross_host_determinism", CheckStatus.PASS)]
     with pytest.raises(PolicyError, match="cross_host"):
         apply_policy(results, policy, Lane.LOCAL)
