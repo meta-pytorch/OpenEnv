@@ -5,7 +5,7 @@ contract graders; type tags select domain graders. The manifest's `signature` fi
 report provenance only — grader selection never reads it.
 """
 
-from typing import Any, Literal
+from typing import Annotated, Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
@@ -241,7 +241,7 @@ class TypeSpec(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    tags: list[str]
+    tags: list[Annotated[str, Field(min_length=1)]] = Field(min_length=1)
 
 
 class NormalizedManifest(BaseModel):

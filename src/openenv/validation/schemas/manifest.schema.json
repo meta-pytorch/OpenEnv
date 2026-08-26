@@ -305,8 +305,10 @@
       "properties": {
         "tags": {
           "items": {
+            "minLength": 1,
             "type": "string"
           },
+          "minItems": 1,
           "title": "Tags",
           "type": "array"
         }
