@@ -71,8 +71,8 @@ defines ground truth, and search ranks that bounded inventory afterward.
 - Preserve the orchestration and agent interface boundary.
 - Reuse RFC 008 validation contracts when they land instead of creating a
   second normalized manifest or report format.
-- Prove provider portability with a second adapter before considering a
-  dedicated registry.
+- Prove provider portability with a second-provider portability spike before
+  considering a dedicated registry.
 
 ### Non-goals
 
@@ -83,8 +83,9 @@ defines ground truth, and search ranks that bounded inventory afterward.
 - No change to `AutoEnv`, `EnvironmentDiscovery`, `EnvClient`, `openenv push`,
   or `openenv.yaml`.
 - No new runtime endpoint or third interface alongside orchestration and MCP.
-- No agent-facing catalog access. Catalog discovery is for users, authors, and
-  training infrastructure.
+- No automatic injection of catalog results into the prompt or tool surface of
+  the agent being trained, and no discovery-initiated install, invocation, or
+  selection for execution.
 - No v0.1 representation of harness-specific streaming surfaces from RFC 005.
   The card records OpenEnv orchestration and evidenced agent tools only.
 - No automatic install, deployment, wake-up, or tool invocation.
@@ -174,8 +175,17 @@ minted it. It is not automatically a cross-provider canonical identity.
 
 #### Artifact
 
-An artifact is an immutable source revision, package hash, or image digest.
-Artifact metadata remains meaningful when every deployment is stopped.
+Each resolvable v0.1 Environment Card describes exactly one immutable
+environment revision. Different revisions are different cards and may be
+related with `version_of`. `artifacts` may list multiple immutable
+representations of that revision, but each representation must identify the
+evidence that binds it to the source revision. What evidence is sufficient is
+part of Open Question 2.
+
+Card-level `license`, `interfaces`, `requires_explicit_trust`, and `validation`
+claims apply to that revision unless a field explicitly identifies a narrower
+artifact. Artifact metadata remains meaningful when every deployment is
+stopped.
 
 `artifact_availability` is one of:
 
@@ -195,6 +205,10 @@ It is dynamic finder output, not part of the static Environment Card.
 Provider projections must bind to the artifact revision they were observed
 against. A projection for another revision is stale and must not be silently
 carried forward.
+
+Execution-provider offers, jobs, training configuration, evaluation runs,
+rollouts, and traces are out of scope for this RFC and are not Environment Card
+fields. Discovery does not imply an offer or an executable action.
 
 ### 3. OpenEnv Environment Card
 
@@ -221,9 +235,9 @@ is not a complete catalog compatibility contract.
 | `description` | Required | Short task-oriented description |
 | `owner` | Required | Artifact-owner claim or the literal `unknown`; separate from the ARD publisher |
 | `canonical_id` | Optional | Cross-provider identity assertion from an authority the consumer trusts |
-| `source` | Required | Provider and provider-native record ID |
+| `source` | Required | Provider-native record identity and environment locator; resolvable cards also require the source revision; provider profiles define concrete fields and stability guarantees |
 | `artifact_availability` | Required | `resolvable`, `external`, or `unknown` |
-| `artifacts` | Conditional | Immutable references when availability is `resolvable` |
+| `artifacts` | Conditional | One or more immutable representations of the card's single revision when availability is `resolvable` |
 | `license` | Required | SPDX expression, `other`, or `unknown`; never inferred |
 | `license_url` | Conditional | Required when `license` is `other` |
 | `interfaces` | Required | One orchestration descriptor plus optional agent-tools descriptors |
@@ -236,6 +250,22 @@ Omission and an explicit sentinel mean different things:
   the explicit value `unknown`.
 - Optional capability claims are omitted when there is no evidence. Omission
   means unknown, not absent.
+
+`source` is a revision-bound locator, not canonical environment identity. A
+provider profile must define which identifier remains stable across mutable
+names or transfers, how an environment is located within a multi-environment
+record, and how a source revision is made immutable. One provider record may
+therefore yield multiple cards distinguished by locator and revision.
+
+A resolvable card carries exactly one revision. Where present,
+`source.revision`, every `artifacts[].revision`, and every
+`interfaces[].source_revision` must be identical. `source.revision` is
+authoritative. A card whose revision fields disagree is invalid.
+
+Adapters must preserve the authoritative source and revision for mapped
+claims. They must not promote provider heuristics to authoritative card claims.
+Missing or conflicting license evidence yields `unknown`; unsupported optional
+claims are omitted.
 
 #### Example card
 
@@ -255,7 +285,8 @@ identity claim.
   },
   "source": {
     "provider": "huggingface",
-    "id": "openenv/echo_env"
+    "id": "openenv/echo_env",
+    "revision": "2b73c927ac6e70a55555efeabdc58bf4c448dfba"
   },
   "artifact_availability": "resolvable",
   "artifacts": [
@@ -286,6 +317,10 @@ identity claim.
 The example is not a normative schema file. A schema is an implementation
 artifact after RFC acceptance.
 
+`source.id` in this example is the Hugging Face provider-native locator. A
+Hugging Face provider profile defining a transfer-stable identity remains part
+of Open Question 3.
+
 `environment_spec_version` is the integer compatibility claim derived from the
 OpenEnv manifest. `interfaces[].version` is the protocol descriptor's string
 version. They are separate version axes and must not be coerced into one field.
@@ -304,15 +339,22 @@ Several identities appear in one result:
 | Deployment host | `*.hf.space` | Provider projection |
 
 The adapter must preserve both facts and claims. The publisher segment in an
-ARD identifier is an authority claim, not proof by itself. ARD's
-`trustManifest` binds publisher identity and provenance to that segment. A
-finder must treat the publisher as unverified until the trust data is checked.
-The OpenEnv `owner` field is a separate artifact-owner claim. It may differ from
-the record publisher, as with republished upstream software.
+ARD identifier is an authority claim, not proof by itself. ARD's optional
+`trustManifest` carries publisher-identity and provenance inputs for
+verification under the applicable trust framework; presence alone proves
+nothing. A finder may display the publisher as verified only after that
+verification succeeds. A finder that verifies a `trustManifest` must enforce
+ARD section 4.5.1 publisher-authority binding. An entry whose trust domain does
+not align with its publisher segment is rejected from verified results or
+shown as unverified.
+
+The OpenEnv `owner` field is a separate artifact-owner claim. It may differ
+from the record publisher, as with republished upstream software.
 
 ARD trust data and OpenEnv trust fields do not duplicate each other:
 
-- ARD `trustManifest` authenticates the record publisher and its provenance.
+- ARD `trustManifest` supplies record-publisher identity and provenance inputs;
+  verified status is a finder result, not a card claim.
 - OpenEnv `owner` states who the card claims owns the environment artifact.
 - OpenEnv `requires_explicit_trust` tells a later executor whether
   catalog-supplied remote code requires an explicit user decision.
@@ -396,8 +438,9 @@ invariant reviewed by the adapter, not a mechanically certified claim.
 
 ### 6. ARD carriage
 
-An Environment Card is the `data` value or the document referenced by `url` in
-an ARD Entry:
+For v0.1, an Environment Card is carried inline as the `data` value of an ARD
+Entry. Carriage by `url`, and the authorization-preserving dereference it would
+require, are deferred to Open Question 13.
 
 ```json
 {
@@ -416,7 +459,8 @@ an ARD Entry:
     },
     "source": {
       "provider": "huggingface",
-      "id": "openenv/echo_env"
+      "id": "openenv/echo_env",
+      "revision": "2b73c927ac6e70a55555efeabdc58bf4c448dfba"
     },
     "artifact_availability": "resolvable",
     "artifacts": [
@@ -501,6 +545,11 @@ Examples:
 This preserves external and dataset-bound environments without manufacturing a
 package, image, license, or runtime claim.
 
+The single-revision invariant applies only to `resolvable` cards. `external`
+and `unknown` cards are revision-unbound in v0.1 because the adapter cannot
+establish an immutable environment artifact. A provider snapshot revision may
+still appear in adapter evidence, but it is not an artifact revision.
+
 ### 8. Relationship to RFC 008
 
 [RFC 008](./008-environment-auto-validation.md) defines a normalized manifest
@@ -575,11 +624,16 @@ sequenceDiagram
 - Call an MCP tool.
 - Choose one candidate and execute it automatically.
 
+A user-directed assistant may issue a metadata-only discovery query on behalf
+of a user. This does not give the agent being trained catalog access. Any
+assistant client must preserve the interface-role boundary in section 5 and
+treat catalog text as untrusted data under section 10.
+
 A local result cache is an implementation decision. If one is added, the
 implementation review must define versioning, expiry, user and credential
-scoping, `--offline`, and `--refresh` behavior. This RFC requires only that
-private results never cross identity boundaries and that a discovery cache
-never contains executable candidate code.
+scoping, `--offline`, and `--refresh` behavior. Private-result handling follows
+the credential-scope rule in section 10. A discovery cache must never contain
+executable candidate code.
 
 Any live reachability probe is opt-in. It must be restricted to the provider's
 declared host set and must report its observation time. Finder-reported runtime
@@ -640,6 +694,13 @@ status.
 
 Default discovery does not contact candidate deployments. This avoids turning
 a search into an outbound scanner or disclosing user interest to every result.
+
+#### Credential scope
+
+Credentials are scoped to one configured finder or provider authority and
+caller identity. They must not be forwarded to another registry, referral,
+provider, or candidate endpoint unless separately configured for that origin.
+Caches must be partitioned by identity and credential scope.
 
 #### License handling
 
@@ -719,6 +780,10 @@ when the proposal fails.
 These criteria prevent tuning to one provider's current ranking behavior or to
 the motivating queries.
 
+The ranking stop rule is evaluated on the frozen first-party Hugging Face
+inventory. The second-provider gate tests contract portability only and does
+not alter the preregistered ranking threshold.
+
 ### 12. Delivery
 
 Each stage has a reviewable output:
@@ -727,32 +792,46 @@ Each stage has a reviewable output:
 flowchart LR
   RFC["RFC 011 accepted"]
   Benchmark["Frozen offline benchmark"]
-  Adapter["hf-discover OpenEnv adapter"]
+  Adapter["Hugging Face provider adapter"]
   Entries["Public first-party ARD entries"]
+  Second["Second-provider portability spike"]
   CLI["openenv discover"]
-  Second["Second provider adapter"]
   Registry{"Dedicated registry needed?"}
 
-  RFC --> Benchmark --> Adapter --> Entries --> CLI --> Second --> Registry
+  RFC --> Benchmark --> Adapter --> Entries --> Second --> CLI --> Registry
 ```
 
 1. **RFC 011** agrees on ownership, card semantics, identity, trust, and the
    read-only boundary.
 2. **Offline benchmark** publishes the inventory, labels, baseline, held-out
    results, and stop decision.
-3. **`hf-discover` adapter** emits the OpenEnv result type from native Hugging
-   Face inventory.
+3. **Hugging Face provider adapter** emits complete OpenEnv entries from
+   independently enumerated native inventory. Delivery does not assume an
+   in-process `hf-discover` server plugin.
 4. **Public entries** cover first-party environments with explicit unknowns
    rather than inferred claims.
-5. **CLI client** queries configured ARD finders and renders metadata.
-6. **Second adapter** proves the card is not a Hugging Face-specific shape.
+5. **Second-provider portability spike** proves the card and adapter contract
+   are not Hugging Face-specific. Its minimum bar is independent enumeration,
+   complete card generation, and zero Hugging Face-specific card fields.
+6. **CLI client** queries configured ARD finders and renders metadata.
 7. **Registry decision** happens only after two providers expose the operational
    need.
 
+Before CLI work, both public adapter paths must return complete inline
+Environment Cards and must prove that source hosting alone does not create a
+runtime provider projection.
+
+Lifecycle, deletion, stale-state behavior, mapping provenance, and credential
+partitioning remain implementation-review requirements and benchmark metrics.
+The first two-provider prototype is public-only. Private inventory waits for
+the credential model in Open Question 15.
+
 The ARD conformance-tool change discussed in
 [ards-project/ard-spec#66](https://github.com/ards-project/ard-spec/issues/66)
-is useful for extension media types, but this RFC does not depend on it. A valid
-OpenEnv extension type is permitted by ARD regardless of that diagnostic.
+and implemented by
+[ards-project/ard-spec#85](https://github.com/ards-project/ard-spec/pull/85)
+is useful for extension media types, but this RFC does not depend on it. A
+valid OpenEnv extension type is permitted by ARD regardless of that diagnostic.
 
 At the time of this RFC, none of the 14 public first-party Spaces exposes a
 machine-readable license through its Space card metadata. The first published
@@ -811,13 +890,20 @@ adapters less reusable. The OpenEnv-specific part belongs in the card.
 
 ## Open questions
 
+Questions 1, 2, 3, and 8 are acceptance-blocking for this RFC. The remaining
+questions must be resolved before the implementation stage they affect.
+
 1. Should the normative Environment Card schema live in OpenEnv, while ARD
    carries it as an extension, or should a later shared profile repository own
    it?
 2. Should cards be generated from the RFC 008 normalized manifest plus provider
-   data, or should authors maintain a sidecar card? This RFC prefers generation
-   to avoid a second source of truth.
-3. Which second provider should prove portability?
+   data, or should authors maintain a sidecar card? What precedence and
+   evidence policy governs conflicting metadata, especially artifact and
+   license claims? This RFC prefers generation to avoid a second source of
+   truth.
+3. Which second provider should prove portability, and which provider-profile
+   fields must each provider profile define for stable record identity, mutable
+   locator, environment path, and revision?
 4. Should `declared` agent-tools claims affect ranking, or only filtering and
    display?
 5. Should the eventual command be `openenv discover` or
@@ -835,12 +921,20 @@ adapters less reusable. The OpenEnv-specific part belongs in the card.
     from RFC 005, or should those remain provider projection data?
 12. Should RFC 008 reserve `runtime.orchestration_boundary`, and what evidence
     can verify that an agent-facing tool does not provide simulation control?
+13. How must a client retrieve a complete card when search returns only a
+    minimal result or URL, including authorization-preserving dereference?
+14. What lifecycle contract covers deletion, transfer, retraction, and stale
+    snapshots, and should tombstones be standardized outside the Environment
+    Card?
+15. What origin, caller-identity, cache, and referral credential model is
+    required before private inventories are enabled?
 
 ## References
 
 - [ARD v0.91 specification](https://github.com/ards-project/ard-spec/tree/aa3e598bb7752a9175897823234311216acfa864)
 - [ARD issue #44: deployment metadata](https://github.com/ards-project/ard-spec/issues/44)
-- [ARD issue #66: extension media-type diagnostics](https://github.com/ards-project/ard-spec/issues/66)
+- [ARD issue #66: maintainer direction on extension media types](https://github.com/ards-project/ard-spec/issues/66)
+- [ARD PR #85: conformance reports extension media types as informational](https://github.com/ards-project/ard-spec/pull/85)
 - [Hugging Face `hf-discover`](https://github.com/huggingface/hf-discover)
 - [RFC 002: OpenEnv framework specification](./002-env-spec.md)
 - [RFC 003: MCP support](./003-mcp-support.md)
