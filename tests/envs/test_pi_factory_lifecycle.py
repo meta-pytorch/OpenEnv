@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""OpenCodeSessionFactory.create() must tear the sandbox down on any post-provision failure."""
+"""PiSessionFactory.create() must tear the sandbox down on any post-provision failure."""
 
 from __future__ import annotations
 
@@ -14,8 +14,8 @@ for _p in (_REPO_ROOT, os.path.join(_REPO_ROOT, "envs")):
     if _p not in sys.path:
         sys.path.insert(0, _p)
 
-from opencode_env.config import OpenCodeConfig  # noqa: E402
-from opencode_env.harness import OpenCodeSessionFactory  # noqa: E402
+from pi_env.config import PiConfig  # noqa: E402
+from pi_env.harness import PiSessionFactory  # noqa: E402
 
 
 class _FakeSandbox:
@@ -36,8 +36,8 @@ class _FakeBackend:
 
 
 def _factory(sandbox, **overrides):
-    return OpenCodeSessionFactory(
-        config=OpenCodeConfig(base_url="http://localhost:8000/v1"),
+    return PiSessionFactory(
+        config=PiConfig(base_url="http://localhost:8000/v1"),
         sandbox_backend=_FakeBackend(sandbox),
         **overrides,
     )
