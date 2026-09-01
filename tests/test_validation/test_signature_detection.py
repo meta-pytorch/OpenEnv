@@ -40,6 +40,12 @@ def test_task_md_without_frontmatter_is_not_a_named_format(tmp_path):
     assert detect_signature(tmp_path) is SignatureKind.OPENENV_SERVED
 
 
+def test_non_utf8_task_md_is_not_a_named_format(tmp_path):
+    (tmp_path / "openenv.yaml").write_text("spec_version: 1\nname: x\n")
+    (tmp_path / "task.md").write_bytes(b"\xff\xfe")
+    assert detect_signature(tmp_path) is SignatureKind.OPENENV_SERVED
+
+
 def test_missing_directory_is_a_signature_error(tmp_path):
     with pytest.raises(SignatureError, match="not a package directory"):
         detect_signature(tmp_path / "does_not_exist")

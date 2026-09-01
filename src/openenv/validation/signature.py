@@ -60,7 +60,7 @@ class UnsupportedPackageError(Exception):
 def _has_yaml_frontmatter(path: Path) -> bool:
     try:
         return path.read_text(encoding="utf-8").lstrip().startswith("---")
-    except OSError:
+    except (OSError, UnicodeError):
         return False
 
 
