@@ -121,7 +121,13 @@ class GraderRegistry:
             `int`: the number of graders loaded.
         """
         loaded = 0
-        for ep in entry_points(group=ENTRY_POINT_GROUP):
+        discovered = entry_points()
+        if hasattr(discovered, "select"):
+            selected = discovered.select(group=ENTRY_POINT_GROUP)
+        else:
+            selected = discovered.get(ENTRY_POINT_GROUP, ())
+
+        for ep in selected:
             candidate = ep.load()
             grader = candidate() if isinstance(candidate, type) else candidate
             self.register(grader)
