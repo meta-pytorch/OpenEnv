@@ -121,7 +121,7 @@ def main() -> None:
     """Run the ThinkingBox OpenEnv application on its configured public port."""
     import uvicorn
 
-    uvicorn.run(app, host="0.0.0.0", port=8901)
+    uvicorn.run(app, host="0.0.0.0", port=8000)
 
 
 if __name__ == "__main__":

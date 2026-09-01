@@ -3,4 +3,4 @@ name: thinkingbox_env
 type: space
 runtime: fastapi
 app: thinkingbox_env.server.app:app
-port: 8901
+port: 8000

@@ -29,7 +29,7 @@ async def main() -> None:
         "--env-config",
         help="Server-visible config path; defaults to --config.",
     )
-    parser.add_argument("--base-url", default="http://127.0.0.1:8901")
+    parser.add_argument("--base-url", default="http://127.0.0.1:8000")
     parser.add_argument("--dataset")
     parser.add_argument(
         "--env-dataset",

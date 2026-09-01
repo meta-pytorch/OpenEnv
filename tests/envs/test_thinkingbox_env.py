@@ -429,7 +429,7 @@ def test_action_and_observation_schema_is_public_and_strict() -> None:
 
 
 def test_client_serializes_actions_and_terminal_envelopes() -> None:
-    client = ThinkingBoxEnv(base_url="http://127.0.0.1:8901")
+    client = ThinkingBoxEnv(base_url="http://127.0.0.1:8000")
     assert client._message_timeout == DEFAULT_MESSAGE_TIMEOUT_S
     payload = client._step_payload(
         CallToolAction(

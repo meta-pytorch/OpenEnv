@@ -5,7 +5,7 @@ colorFrom: indigo
 colorTo: blue
 sdk: docker
 pinned: false
-app_port: 8901
+app_port: 8000
 tags:
   - openenv
 ---
@@ -41,7 +41,7 @@ Connect from a trusted harness:
 ```python
 from thinkingbox_env import ThinkingBoxEnv
 
-async with ThinkingBoxEnv(base_url="http://127.0.0.1:8901") as env:
+async with ThinkingBoxEnv(base_url="http://127.0.0.1:8000") as env:
     result = await env.reset("file.py:test_name")
     tools = await env.list_tools()
     result = await env.call_tool("tool_name", {"argument": "value"})

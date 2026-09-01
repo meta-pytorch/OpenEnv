@@ -41,7 +41,7 @@ class ThinkingBoxEnv(
     Examples:
 
     ```python
-    async with ThinkingBoxEnv("http://127.0.0.1:8901") as env:
+    async with ThinkingBoxEnv("http://127.0.0.1:8000") as env:
         result = await env.reset("file.py:test_name")
     ```
     """

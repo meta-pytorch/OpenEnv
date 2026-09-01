@@ -28,8 +28,8 @@ RUN mkdir -p /data/thinkingbox_bench
 VOLUME ["/data/thinkingbox_bench"]
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
-    CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8901/health')" || exit 1
+    CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')" || exit 1
 
-EXPOSE 8901
+EXPOSE 8000
 
-CMD ["uvicorn", "thinkingbox_env.server.app:app", "--host", "0.0.0.0", "--port", "8901"]
+CMD ["uvicorn", "thinkingbox_env.server.app:app", "--host", "0.0.0.0", "--port", "8000"]
