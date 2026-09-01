@@ -24,7 +24,10 @@ workflows.
 This OpenEnv adapter exposes the public
 [ThinkingBox-Bench](https://arxiv.org/abs/2608.19741) through the standard
 WebSocket reset/step interface. The adapter is currently designed for
-evaluation only.
+evaluation only. Canonical coverage uses the pinned public benchmark release;
+user-supplied ThinkingBox scenarios can also be evaluated when their executable
+data and external services are provided, but those runs are not canonical
+ThinkingBox-Bench results.
 
 ## Quick Start
 
@@ -48,9 +51,32 @@ async with ThinkingBoxEnv(base_url="http://127.0.0.1:8000") as env:
     result = await env.submit_message("Final response")
 ```
 
-For native model orchestration, repetition IDs, privacy-reviewed canonical
-JSONL, and strict aggregation, use
-[`examples/thinkingbox/eval_testlist.py`](../../examples/thinkingbox/eval_testlist.py).
+## Examples
+
+- [Public client example](https://github.com/huggingface/OpenEnv/blob/main/examples/thinkingbox/example_usage.py):
+  reset a server-visible task and inspect its public task and tool observations
+  without loading benchmark implementation data on the client.
+- [Evaluation wrapper](https://github.com/huggingface/OpenEnv/blob/main/examples/thinkingbox/eval_testlist.py):
+  invoke the packaged `thinkingbox-eval` CLI for native model orchestration,
+  repetition IDs, privacy-reviewed canonical JSONL, and strict aggregation.
+
+Run either script from the repository root:
+
+```bash
+uv run --project envs/thinkingbox_env \
+  python examples/thinkingbox/example_usage.py file.py:test_name
+
+uv run --project envs/thinkingbox_env \
+  python examples/thinkingbox/eval_testlist.py \
+  --config /path/to/thinkingbox.yaml \
+  --output results.jsonl
+```
+
+The evaluator's `--config` and `--dataset` paths are local to the trusted
+evaluator. For a remote OpenEnv server, pass the corresponding server-visible
+paths with `--env-config` and `--env-dataset`. Strict `canary` and `full`
+coverage profiles accept only the pinned public benchmark; custom scenario
+bundles use ordinary non-profiled evaluation.
 
 ## Environment Details
 

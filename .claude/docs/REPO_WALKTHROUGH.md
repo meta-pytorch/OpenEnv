@@ -90,18 +90,6 @@ envs/
 │       └── Dockerfile                # Container definition
 │
 ├── thinkingbox_env/           # Stateful MCP business-workflow benchmark adapter
-│   ├── client.py                  # Typed trusted-harness client
-│   ├── models.py                  # Public action, observation, and state wire models
-│   ├── openenv.yaml               # Port and FastAPI application entry point
-│   ├── pyproject.toml             # Python 3.12 package and pinned ThinkingBox runtime
-│   ├── README.md                  # Usage, trust boundary, configuration, and citation
-│   └── server/
-│       ├── app.py                    # WebSocket server plus liveness/readiness routes
-│       ├── config.py                 # Runtime settings and installed-package provenance
-│       ├── data_loader.py            # Commit-pinned executable release validation/cache
-│       ├── thinkingbox_environment.py # Native episode orchestration and grading
-│       └── Dockerfile                # Standalone Python 3.12 image
-│
 ├── coding_env/               # Python code execution environment
 ├── chat_env/                 # Conversational environment
 ├── textarena_env/            # Text-based games (TextArena)
@@ -250,9 +238,7 @@ docs/
     └── _static/              # Static assets (versions.json, etc.)
 ```
 
-ThinkingBox runnable examples live in `examples/thinkingbox/`:
-`example_usage.py` drives one configured episode, and `eval_testlist.py`
-produces canonical repeated-evaluation JSONL with strict coverage validation.
+ThinkingBox examples: `example_usage.py` is a public-client smoke test, while `eval_testlist.py` invokes the packaged evaluator.
 
 ## Key Files to Know
 

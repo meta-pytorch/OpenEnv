@@ -231,7 +231,7 @@ The OpenEnv community has built a catalog of ready-to-run environments that cove
     </div>
     <div class="border dark:border-gray-700 p-5 rounded-lg shadow">
       <div class="font-bold mb-2">ThinkingBox</div>
-      <p class="text-sm">Stateful ThinkingBox workflows with isolated MCP tools, agent and simulated-user interaction, and executable evaluation of backend state, side effects, and response requirements.</p>
+      <p class="text-sm">Evaluation-only adapter for public ThinkingBox-Bench and user-supplied ThinkingBox scenarios, preserving isolated MCP tools, simulated users, and native state and side-effect grading.</p>
       <div class="flex gap-2 mt-3">
         <a href="environments/thinkingbox" class="!no-underline border dark:border-gray-700 px-3 py-1 rounded text-sm hover:shadow">📄 Docs</a>
       </div>
