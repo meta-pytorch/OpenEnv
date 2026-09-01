@@ -1,25 +1,41 @@
-FROM python:3.12-slim AS builder
+ARG BASE_IMAGE=ghcr.io/huggingface/openenv-base:latest
+FROM ${BASE_IMAGE} AS builder
 
+WORKDIR /app
+COPY . /app/env
 WORKDIR /app/env
-COPY . .
+
+RUN if ! command -v uv >/dev/null 2>&1; then \
+        curl -LsSf https://astral.sh/uv/install.sh | sh && \
+        mv /root/.local/bin/uv /usr/local/bin/uv && \
+        mv /root/.local/bin/uvx /usr/local/bin/uvx; \
+    fi
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends git \
     && rm -rf /var/lib/apt/lists/*
-RUN pip install --no-cache-dir uv==0.10.4
+
 RUN --mount=type=cache,target=/root/.cache/uv \
     if [ -f uv.lock ]; then \
-        uv sync --frozen --no-dev --no-editable; \
+        uv sync --frozen --no-install-project --no-editable; \
     else \
-        uv sync --no-dev --no-editable; \
+        uv sync --no-install-project --no-editable; \
     fi
 
-FROM python:3.12-slim
+RUN --mount=type=cache,target=/root/.cache/uv \
+    if [ -f uv.lock ]; then \
+        uv sync --frozen --no-editable; \
+    else \
+        uv sync --no-editable; \
+    fi
 
-WORKDIR /app/env
-COPY --from=builder /app/env /app/env
+FROM ${BASE_IMAGE}
 
-ENV PATH="/app/env/.venv/bin:$PATH"
+WORKDIR /app
+COPY --from=builder /app/env/.venv /app/.venv
+COPY . /app/env
+
+ENV PATH="/app/.venv/bin:$PATH"
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
 ENV OPENENV_TB_DATA_CACHE=/data/thinkingbox_bench

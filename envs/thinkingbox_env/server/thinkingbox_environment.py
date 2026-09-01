@@ -8,7 +8,9 @@ from __future__ import annotations
 
 import asyncio
 import inspect
+import logging
 from collections.abc import AsyncIterator, Callable
+from functools import partial
 from typing import Any
 from uuid import uuid4
 
@@ -48,23 +50,33 @@ from thinkingbox.common.mcp_proxy_client import MCPProxyContext
 from thinkingbox.common.testrunner import TestScript
 from thinkingbox.common.user_simulated_answer import UserSimulator
 
+from .. import benchmark_data
+from ..benchmark_data import DataBundle
 from ..models import (
     _FinishAction,
     CallToolAction,
+    DATA_COMMIT,
+    DATA_RELEASE_NAME,
     SubmitMessageAction,
     ThinkingBoxAction,
+    ThinkingBoxExecutionProvenance,
     ThinkingBoxObservation,
     ThinkingBoxState,
     ToolCallResult,
 )
-from . import config as server_config, data_loader
-from .config import (
-    load_runtime_settings,
-    load_thinkingbox_runtime_provenance,
-    make_proxy_client,
-    RuntimeSettings,
-)
-from .data_loader import DataBundle
+from ..runtime import load_thinkingbox_runtime_provenance
+from . import config as server_config
+from .config import load_runtime_settings, make_proxy_client, RuntimeSettings
+
+
+logger = logging.getLogger(__name__)
+
+
+def _redacted_exc_info(
+    exc: Exception,
+) -> tuple[type[RuntimeError], RuntimeError, Any]:
+    redacted = RuntimeError(f"{type(exc).__name__}: details redacted")
+    return type(redacted), redacted, exc.__traceback__
 
 
 _RESERVED_TOOL_NAMES = frozenset(
@@ -172,12 +184,17 @@ class ThinkingBoxEnvironment(
     ) -> None:
         super().__init__()
         self._proxy_url = proxy_url or server_config.SESSION_PROXY_URL
-        self._default_dataset = dataset or server_config.DATASET_PATH or None
-        self._default_agent = agent or server_config.AGENT
+        self._default_dataset = (
+            benchmark_data.DATASET_PATH if dataset is None else dataset
+        ) or None
+        self._default_agent = server_config.AGENT if agent is None else agent
         self._default_config = config_path or server_config.THINKINGBOX_CONFIG or None
 
-        self._bundle_resolver = bundle_resolver or data_loader.resolve_data_bundle
-        self._manifest_loader = manifest_loader or data_loader.load_test_uids
+        self._bundle_resolver = bundle_resolver or partial(
+            benchmark_data.resolve_data_bundle,
+            cache_root=benchmark_data.DATA_CACHE,
+        )
+        self._manifest_loader = manifest_loader or benchmark_data.load_test_uids
         self._case_loader = case_loader or get_dataset_case_by_name
         self._settings_loader = settings_loader or load_runtime_settings
         self._proxy_factory = proxy_factory or make_proxy_client
@@ -214,6 +231,7 @@ class ThinkingBoxEnvironment(
         self._query: str | None = None
         self._bot_instructions: str | None = None
         self._bundle: DataBundle | None = None
+        self._selected_agent: str | None = None
 
     @property
     def state(self) -> ThinkingBoxState:
@@ -305,7 +323,8 @@ class ThinkingBoxEnvironment(
                 raise ValueError("test_uid is not in the canonical manifest")
 
             reset_stage = "hydration"
-            selected_agent = agent or self._default_agent
+            selected_agent = self._default_agent if agent is None else agent
+            self._selected_agent = selected_agent
             self._tc = await asyncio.to_thread(
                 self._case_loader,
                 test_uid,
@@ -862,12 +881,12 @@ class ThinkingBoxEnvironment(
                         "data_release": (
                             self._bundle.release_name
                             if self._bundle is not None
-                            else server_config.DATA_RELEASE_NAME
+                            else DATA_RELEASE_NAME
                         ),
                         "data_revision": (
                             self._bundle.revision
                             if self._bundle is not None
-                            else server_config.DATA_COMMIT
+                            else DATA_COMMIT
                         ),
                     }
                 )
@@ -1093,35 +1112,35 @@ class ThinkingBoxEnvironment(
 
     def _public_metadata(self) -> dict[str, Any]:
         metadata: dict[str, Any] = {
-            "benchmark": data_loader.DATASET_NAME,
+            "benchmark": benchmark_data.DATASET_NAME,
             "thinkingbox_revision": self._runtime_provenance.identity,
             "data_release": (
                 self._bundle.release_name
                 if self._bundle is not None
-                else server_config.DATA_RELEASE_NAME
+                else DATA_RELEASE_NAME
             ),
             "data_revision": (
-                self._bundle.revision
-                if self._bundle is not None
-                else server_config.DATA_COMMIT
+                self._bundle.revision if self._bundle is not None else DATA_COMMIT
             ),
         }
+        if self._selected_agent is not None:
+            metadata["agent"] = self._selected_agent
         if self._bundle is not None and self._settings is not None:
-            metadata["execution_provenance"] = {
-                "thinkingbox_revision": self._runtime_provenance.identity,
-                "thinkingbox_source_sha256": (self._runtime_provenance.source_sha256),
-                "thinkingbox_source_type": self._runtime_provenance.source_type,
-                "data_release": self._bundle.release_name,
-                "data_revision": self._bundle.revision,
-                "config_sha256": self._settings.config_sha256,
-                "data_bundle_sha256": self._bundle.bundle_sha256,
-                "manifest_path": self._bundle.manifest_path.relative_to(
+            metadata["execution_provenance"] = ThinkingBoxExecutionProvenance(
+                thinkingbox_revision=self._runtime_provenance.identity,
+                thinkingbox_source_sha256=self._runtime_provenance.source_sha256,
+                thinkingbox_source_type=self._runtime_provenance.source_type,
+                data_release=self._bundle.release_name,
+                data_revision=self._bundle.revision,
+                config_sha256=self._settings.config_sha256,
+                data_bundle_sha256=self._bundle.bundle_sha256,
+                manifest_path=self._bundle.manifest_path.relative_to(
                     self._bundle.root
                 ).as_posix(),
-                "manifest_sha256": self._bundle.manifest_sha256,
-                "manifest_uids_sha256": self._bundle.manifest_uids_sha256,
-                "task_count": self._bundle.task_count,
-            }
+                manifest_sha256=self._bundle.manifest_sha256,
+                manifest_uids_sha256=self._bundle.manifest_uids_sha256,
+                task_count=self._bundle.task_count,
+            ).model_dump(mode="json")
         if self._tc is not None:
             scenario = self._tc.metadata.get("scenario")
             if scenario:
@@ -1140,9 +1159,22 @@ class ThinkingBoxEnvironment(
         )
 
     def _latch_infrastructure(self, stage: str, exc: Exception) -> None:
-        if self._infrastructure_stage is None:
+        primary = self._infrastructure_stage is None
+        logger.error(
+            "ThinkingBox infrastructure failure",
+            extra={
+                "event_name": "thinkingbox.infrastructure_failure",
+                "tb_stage": stage,
+                "tb_primary": primary,
+                "tb_task_uid": self._state.task_uid,
+                "tb_episode_id": self._state.episode_id,
+                "exception_type": type(exc).__name__,
+            },
+            exc_info=_redacted_exc_info(exc),
+        )
+        if primary:
             self._infrastructure_stage = stage
-            self._infrastructure_detail = f"{type(exc).__name__}: {exc}"
+            self._infrastructure_detail = type(exc).__name__
 
     def _clear_sensitive(self) -> None:
         self._session = None
@@ -1157,3 +1189,4 @@ class ThinkingBoxEnvironment(
         self._query = None
         self._bot_instructions = None
         self._bundle = None
+        self._selected_agent = None

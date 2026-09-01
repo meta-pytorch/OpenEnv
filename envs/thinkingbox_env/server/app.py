@@ -4,6 +4,7 @@ OpenEnv owns the WebSocket lifecycle while each environment instance delegates
 tool execution to an externally managed ThinkingBox Session Proxy.
 """
 
+import logging
 from collections.abc import Callable
 
 import httpx
@@ -12,10 +13,17 @@ from fastapi.responses import JSONResponse
 from openenv.core import Environment, HTTPEnvServer, ServerMode
 from thinkingbox.common.config_types import SessionProxyConfig
 
+from thinkingbox_env import benchmark_data
 from thinkingbox_env.models import ThinkingBoxAction, ThinkingBoxObservation
-from thinkingbox_env.server import config, data_loader
+from thinkingbox_env.server import config
 from thinkingbox_env.server.config import load_runtime_settings
-from thinkingbox_env.server.thinkingbox_environment import ThinkingBoxEnvironment
+from thinkingbox_env.server.thinkingbox_environment import (
+    _redacted_exc_info,
+    ThinkingBoxEnvironment,
+)
+
+
+logger = logging.getLogger(__name__)
 
 
 def create_thinkingbox_app(
@@ -66,7 +74,7 @@ async def ready() -> JSONResponse:
             Component readiness with HTTP 200 only when all observable
             requirements are ready.
     """
-    data_ok = data_loader.data_ready()
+    data_ok = benchmark_data.data_ready()
     configured = bool(config.THINKINGBOX_CONFIG)
     config_ok = False
     user_model_ok = False
@@ -83,7 +91,16 @@ async def ready() -> JSONResponse:
         config_ok = configured
         user_model_ok = config_ok and settings.user_model is not None
         judge_model_ok = config_ok and settings.judge_model is not None
-    except Exception:
+    except Exception as exc:
+        logger.warning(
+            "ThinkingBox readiness configuration check failed",
+            extra={
+                "event_name": "thinkingbox.readiness_failure",
+                "tb_component": "runtime_config",
+                "exception_type": type(exc).__name__,
+            },
+            exc_info=_redacted_exc_info(exc),
+        )
         settings = None
 
     proxy_ok = False
@@ -92,8 +109,16 @@ async def ready() -> JSONResponse:
         async with httpx.AsyncClient(timeout=3.0) as client:
             response = await client.get(f"{proxy.endpoint_url.rstrip('/')}/health")
             proxy_ok = response.is_success
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.warning(
+            "ThinkingBox readiness proxy check failed",
+            extra={
+                "event_name": "thinkingbox.readiness_failure",
+                "tb_component": "session_proxy",
+                "exception_type": type(exc).__name__,
+            },
+            exc_info=_redacted_exc_info(exc),
+        )
 
     ready_now = data_ok and config_ok and user_model_ok and judge_model_ok and proxy_ok
     return JSONResponse(

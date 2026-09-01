@@ -11,11 +11,13 @@ import copy
 import hashlib
 import io
 import json
+import logging
 import os
 import shutil
 import subprocess
 import sys
 import tarfile
+import tomllib
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from types import SimpleNamespace
@@ -55,31 +57,13 @@ for _path in (_ROOT, _ROOT / "envs"):
     if str(_path) not in sys.path:
         sys.path.insert(0, str(_path))
 
-from examples.thinkingbox import eval_testlist as thinkingbox_eval
-from openenv.core import ListToolsAction
-from thinkingbox_env.client import DEFAULT_MESSAGE_TIMEOUT_S, ThinkingBoxEnv
-from thinkingbox_env.models import (
-    _FinishAction,
-    CallToolAction,
-    SubmitMessageAction,
-    SubmittedToolCall,
-    ThinkingBoxAction,
-    ThinkingBoxObservation,
+from openenv.core import EnvClient, ListToolsAction
+from thinkingbox_env import (
+    benchmark_data as data_loader,
+    evaluation as thinkingbox_eval,
+    runtime as thinkingbox_runtime,
 )
-from thinkingbox_env.server import (
-    app as app_module,
-    data_loader,
-    ThinkingBoxEnvironment,
-)
-from thinkingbox_env.server.app import create_thinkingbox_app
-from thinkingbox_env.server.config import (
-    load_runtime_settings,
-    load_thinkingbox_config,
-    load_thinkingbox_runtime_provenance,
-    require_canonical_thinkingbox_runtime,
-    RuntimeSettings,
-)
-from thinkingbox_env.server.data_loader import (
+from thinkingbox_env.benchmark_data import (
     _extract_archive,
     DataBundle,
     DATASET_NAME,
@@ -88,6 +72,32 @@ from thinkingbox_env.server.data_loader import (
     load_test_uids,
     resolve_data_bundle,
 )
+from thinkingbox_env.client import DEFAULT_MESSAGE_TIMEOUT_S, ThinkingBoxEnv
+from thinkingbox_env.models import (
+    _FinishAction,
+    CallToolAction,
+    CANONICAL_TEST_UIDS,
+    DATA_COMMIT,
+    DATA_MANIFEST_PATH,
+    DATA_RELEASE_NAME,
+    SubmitMessageAction,
+    SubmittedToolCall,
+    ThinkingBoxAction,
+    ThinkingBoxExecutionProvenance,
+    ThinkingBoxObservation,
+)
+from thinkingbox_env.runtime import (
+    load_thinkingbox_config,
+    load_thinkingbox_runtime_provenance,
+    require_canonical_thinkingbox_runtime,
+)
+from thinkingbox_env.server import (
+    app as app_module,
+    config as server_config,
+    ThinkingBoxEnvironment,
+)
+from thinkingbox_env.server.app import create_thinkingbox_app
+from thinkingbox_env.server.config import load_runtime_settings, RuntimeSettings
 
 
 UID = "demo.py:test_case"
@@ -232,6 +242,8 @@ def _environment(
     simulator: FakeSimulator | None = None,
     evaluator: Any = None,
     proxy_factory: Any = None,
+    case_loader: Any = None,
+    agent: str | None = None,
 ) -> ThinkingBoxEnvironment:
     bundle = DataBundle(
         root=Path("bundle"),
@@ -245,9 +257,10 @@ def _environment(
         task_count=1,
     )
     return ThinkingBoxEnvironment(
+        agent=agent,
         bundle_resolver=lambda _: bundle,
         manifest_loader=lambda _: [UID],
-        case_loader=lambda *_: case.model_copy(deep=True),
+        case_loader=case_loader or (lambda *_: case.model_copy(deep=True)),
         settings_loader=lambda *_: settings or _settings(),
         proxy_factory=proxy_factory or (lambda _: proxy),
         user_model_factory=lambda model: model,
@@ -283,6 +296,44 @@ def test_server_import_does_not_load_client() -> None:
     assert completed.returncode == 0, completed.stderr
 
 
+def test_client_and_evaluator_imports_do_not_load_server_modules() -> None:
+    """Client-side package entry points must not cross into trusted server code."""
+    completed = subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            (
+                "import sys; "
+                "import thinkingbox_env.client; "
+                "import thinkingbox_env.evaluation; "
+                "assert not any(name.startswith('thinkingbox_env.server') "
+                "for name in sys.modules)"
+            ),
+        ],
+        cwd=_ROOT,
+        env={
+            **os.environ,
+            "PYTHONPATH": os.pathsep.join((str(_ROOT / "src"), str(_ROOT / "envs"))),
+        },
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+
+    assert completed.returncode == 0, completed.stderr
+
+
+def test_examples_and_client_have_no_server_imports() -> None:
+    paths = (
+        _ROOT / "envs/thinkingbox_env/client.py",
+        _ROOT / "envs/thinkingbox_env/evaluation.py",
+        _ROOT / "examples/thinkingbox/example_usage.py",
+        _ROOT / "examples/thinkingbox/eval_testlist.py",
+    )
+    for path in paths:
+        assert "thinkingbox_env.server" not in path.read_text(encoding="utf-8")
+
+
 def test_runtime_provenance_uses_installed_pep610_identity() -> None:
     """Runtime identity must reflect the actual VCS or local package source."""
     provenance = load_thinkingbox_runtime_provenance()
@@ -306,7 +357,8 @@ def test_runtime_provenance_uses_installed_pep610_identity() -> None:
         "DATA_MANIFEST_SHA256",
         "DATA_MANIFEST_UIDS_SHA256",
     ):
-        assert not hasattr(data_loader.config, obsolete)
+        assert not hasattr(data_loader, obsolete)
+        assert not hasattr(thinkingbox_runtime, obsolete)
 
 
 def test_editable_runtime_records_deterministic_source_identity(
@@ -334,7 +386,7 @@ def test_editable_runtime_records_deterministic_source_identity(
             )
 
     monkeypatch.setattr(
-        data_loader.config.metadata,
+        thinkingbox_runtime.metadata,
         "distribution",
         lambda name: (
             EditableDistribution()
@@ -343,7 +395,7 @@ def test_editable_runtime_records_deterministic_source_identity(
         ),
     )
     monkeypatch.setattr(
-        data_loader.config,
+        thinkingbox_runtime,
         "_thinkingbox_source_root",
         lambda: package_root,
     )
@@ -464,6 +516,35 @@ def test_client_serializes_actions_and_terminal_envelopes() -> None:
     assert result.observation.kind == "terminal"
 
 
+def test_client_reset_omits_none_agent_and_other_server_defaults(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[dict[str, Any]] = []
+
+    def capture_reset(_: EnvClient[Any, Any, Any], **kwargs: Any) -> object:
+        calls.append(kwargs)
+        return object()
+
+    monkeypatch.setattr(EnvClient, "reset", capture_reset)
+    client = ThinkingBoxEnv(base_url="http://127.0.0.1:8000")
+
+    client.reset(UID, seed=7)
+    client.reset(
+        UID,
+        dataset="/server/data",
+        agent="custom-agent",
+        config="/server/config.yaml",
+    )
+
+    assert calls[0] == {"test_uid": UID, "seed": 7}
+    assert calls[1] == {
+        "test_uid": UID,
+        "dataset": "/server/data",
+        "agent": "custom-agent",
+        "config": "/server/config.yaml",
+    }
+
+
 def test_standard_app_schema_does_not_advertise_finish() -> None:
     from thinkingbox_env.server.app import app
 
@@ -542,7 +623,7 @@ def test_readiness_reports_required_components_and_typesense_limitation(
         "THINKINGBOX_CONFIG",
         "config.yaml" if configured else "",
     )
-    monkeypatch.setattr(app_module.data_loader, "data_ready", lambda: True)
+    monkeypatch.setattr(app_module.benchmark_data, "data_ready", lambda: True)
     monkeypatch.setattr(app_module.httpx, "AsyncClient", FakeAsyncClient)
     monkeypatch.setattr(
         app_module,
@@ -595,6 +676,31 @@ async def test_reset_is_private_and_proxy_allowlist_is_scenario_only() -> None:
         "InjectionAttackInToolResponse",
         "lookup",
     ]
+
+
+@pytest.mark.asyncio
+async def test_reset_none_agent_uses_server_default_and_explicit_override(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    selected_agents: list[str] = []
+    monkeypatch.setattr(server_config, "AGENT", "server-agent")
+    case = _case()
+
+    def load_case(_uid: str, _base_dir: str, agent: str) -> HydratedTestCase:
+        selected_agents.append(agent)
+        return case.model_copy(deep=True)
+
+    env = _environment(
+        case,
+        FakeProxyClient(),
+        case_loader=load_case,
+    )
+    default_reset = await env.reset_async(test_uid=UID, agent=None)
+    explicit_reset = await env.reset_async(test_uid=UID, agent="explicit-agent")
+
+    assert selected_agents == ["server-agent", "explicit-agent"]
+    assert default_reset.metadata["agent"] == "server-agent"
+    assert explicit_reset.metadata["agent"] == "explicit-agent"
 
 
 @pytest.mark.asyncio
@@ -1051,6 +1157,40 @@ assert x.messages[-1].content == "simulated reply"
 
 
 @pytest.mark.asyncio
+async def test_reset_failure_logs_structured_redacted_diagnostics(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    secret = "credential=reset-secret"
+
+    def fail_bundle(_: str | None) -> DataBundle:
+        raise RuntimeError(secret)
+
+    env = ThinkingBoxEnvironment(bundle_resolver=fail_bundle)
+    with caplog.at_level(
+        logging.ERROR,
+        logger="thinkingbox_env.server.thinkingbox_environment",
+    ):
+        observation = await env.reset_async(test_uid=UID, episode_id="episode-log")
+
+    assert observation.kind == "error"
+    assert observation.error == "ThinkingBox reset failed during data."
+    assert secret not in str(observation.model_dump(mode="json"))
+    assert secret not in caplog.text
+    record = next(
+        record
+        for record in caplog.records
+        if getattr(record, "event_name", None) == "thinkingbox.infrastructure_failure"
+    )
+    assert record.tb_stage == "data"
+    assert record.tb_primary is True
+    assert record.tb_task_uid == UID
+    assert record.tb_episode_id == "episode-log"
+    assert record.exception_type == "RuntimeError"
+    assert record.exc_info is not None
+    assert "details redacted" in caplog.text
+
+
+@pytest.mark.asyncio
 @pytest.mark.parametrize("failure", ["proxy", "effects", "simulator"])
 async def test_infrastructure_failures_latch_and_skip_grader(failure: str) -> None:
     grader_calls = 0
@@ -1177,6 +1317,18 @@ def _write_local_bundle(root: Path, marker: str) -> list[str]:
     return uids
 
 
+def test_canonical_uid_identity_is_complete_ordered_and_stable() -> None:
+    assert len(CANONICAL_TEST_UIDS) == 507
+    assert len(CANONICAL_TEST_UIDS) == len(set(CANONICAL_TEST_UIDS))
+    assert CANONICAL_TEST_UIDS[0] == (
+        "sandbox_external_retail_group1.py:test_case_ST002_001"
+    )
+    assert CANONICAL_TEST_UIDS[-1] == "sandbox_consulting_group1.py:test_trv_013"
+    assert thinkingbox_eval._sha256_json(list(CANONICAL_TEST_UIDS)) == (
+        "63b1f9fae0ee0465bfafd83815bd97a03d151029947e5197e4f328babce75490"
+    )
+
+
 def _write_runtime_config(path: Path, model: str) -> None:
     path.write_text(
         f"""
@@ -1226,6 +1378,10 @@ async def test_reset_exposes_exact_selected_config_and_data_fingerprints(
     selected_bundle = resolve_data_bundle(str(selected_root))
     default_bundle = resolve_data_bundle(str(default_root))
     execution = reset.metadata["execution_provenance"]
+    assert (
+        ThinkingBoxExecutionProvenance.model_validate(execution).model_dump(mode="json")
+        == execution
+    )
     runtime = load_thinkingbox_runtime_provenance()
     assert execution == {
         "thinkingbox_revision": runtime.identity,
@@ -1235,7 +1391,7 @@ async def test_reset_exposes_exact_selected_config_and_data_fingerprints(
         "data_revision": "local",
         "config_sha256": hashlib.sha256(selected_config.read_bytes()).hexdigest(),
         "data_bundle_sha256": selected_bundle.bundle_sha256,
-        "manifest_path": data_loader.config.DATA_MANIFEST_PATH,
+        "manifest_path": DATA_MANIFEST_PATH,
         "manifest_sha256": selected_bundle.manifest_sha256,
         "manifest_uids_sha256": selected_bundle.manifest_uids_sha256,
         "task_count": len(load_test_uids(selected_bundle)),
@@ -1363,7 +1519,7 @@ def test_local_bundle_rejects_obsolete_manifest_fallback(tmp_path: Path) -> None
         "- case.py:test_one\n", encoding="utf-8"
     )
 
-    with pytest.raises(DatasetError, match=data_loader.config.DATA_MANIFEST_PATH):
+    with pytest.raises(DatasetError, match=DATA_MANIFEST_PATH):
         resolve_data_bundle(str(root))
 
 
@@ -1424,7 +1580,7 @@ def _pin_fixture_bundle(
 ) -> None:
     bundle = data_loader._validate_root(root, require_stamp=False)
     monkeypatch.setattr(
-        data_loader.config,
+        data_loader,
         "DATA_BUNDLE_SHA256",
         bundle.bundle_sha256,
     )
@@ -1444,8 +1600,8 @@ def test_explicit_pinned_cache_preserves_data_revision(
 
     bundle = resolve_data_bundle(str(root))
 
-    assert bundle.release_name == data_loader.config.DATA_RELEASE_NAME
-    assert bundle.revision == data_loader.config.DATA_COMMIT
+    assert bundle.release_name == DATA_RELEASE_NAME
+    assert bundle.revision == DATA_COMMIT
 
 
 def test_pinned_cache_rejects_mutated_content_with_unchanged_stamp(
@@ -1616,14 +1772,19 @@ def test_archive_extraction_rejects_resolved_target_escape(tmp_path: Path) -> No
     assert not (outside / "outside.txt").exists()
 
 
-def test_dockerfile_supports_frozen_and_rewritten_lockless_contexts() -> None:
+def test_dockerfile_uses_canonical_python311_base_and_frozen_sync() -> None:
     dockerfile = (_ROOT / "envs/thinkingbox_env/server/Dockerfile").read_text(
         encoding="utf-8"
     )
 
+    assert "ARG BASE_IMAGE=ghcr.io/huggingface/openenv-base:latest" in dockerfile
+    assert dockerfile.count("FROM ${BASE_IMAGE}") == 2
+    assert "python:3.12-slim" not in dockerfile
+    assert "curl -LsSf https://astral.sh/uv/install.sh" in dockerfile
     assert "if [ -f uv.lock ]; then" in dockerfile
-    assert "uv sync --frozen --no-dev --no-editable" in dockerfile
-    assert "uv sync --no-dev --no-editable" in dockerfile
+    assert "uv sync --frozen --no-install-project --no-editable" in dockerfile
+    assert "uv sync --frozen --no-editable" in dockerfile
+    assert "apt-get install -y --no-install-recommends git" in dockerfile
 
 
 def test_docker_context_excludes_local_and_result_artifacts_but_keeps_lock() -> None:
@@ -1635,6 +1796,9 @@ def test_docker_context_excludes_local_and_result_artifacts_but_keeps_lock() -> 
         ".venv",
         "__pycache__",
         ".pytest_cache",
+        "build",
+        "dist",
+        "*.egg-info",
         "*.pyc",
         "*.pyo",
         "*.log",
@@ -1647,6 +1811,59 @@ def test_docker_context_excludes_local_and_result_artifacts_but_keeps_lock() -> 
     assert (env_root / "SKIP_HF_DEPLOYMENT").read_text(encoding="utf-8") == (
         "disabled now, coming soon\n"
     )
+
+
+def test_python311_metadata_pin_and_packaged_cli_are_canonical() -> None:
+    env_root = _ROOT / "envs/thinkingbox_env"
+    project = tomllib.loads((env_root / "pyproject.toml").read_text(encoding="utf-8"))
+    lock = (env_root / "uv.lock").read_text(encoding="utf-8")
+
+    assert project["project"]["requires-python"] == ">=3.11"
+    assert project["project"]["scripts"]["thinkingbox-eval"] == (
+        "thinkingbox_env.evaluation:main"
+    )
+    thinkingbox_dependency = next(
+        dependency
+        for dependency in project["project"]["dependencies"]
+        if dependency.startswith("thinkingbox @ ")
+    )
+    assert thinkingbox_dependency.endswith("@ee4bee0d7c7d2e75a00b578dd3096378e4fb42e6")
+    assert 'requires-python = ">=3.11"' in lock
+    assert "ee4bee0d7c7d2e75a00b578dd3096378e4fb42e6" in lock
+    assert "file://" not in thinkingbox_dependency
+    assert "file://" not in lock
+    runtime_source = (env_root / "runtime.py").read_text(encoding="utf-8")
+    assert "import copy" not in runtime_source
+    assert "reasoning_effort" not in runtime_source
+
+
+def test_examples_and_packaged_cli_run_from_repository_root() -> None:
+    wrapper = _ROOT / "examples/thinkingbox/eval_testlist.py"
+    wrapper_lines = [
+        line
+        for line in wrapper.read_text(encoding="utf-8").splitlines()
+        if line.strip() and not line.lstrip().startswith('"""')
+    ]
+    assert len(wrapper_lines) <= 4
+    env = {
+        **os.environ,
+        "PYTHONPATH": os.pathsep.join((str(_ROOT / "src"), str(_ROOT / "envs"))),
+    }
+    commands = (
+        [sys.executable, "examples/thinkingbox/example_usage.py", "--help"],
+        [sys.executable, "examples/thinkingbox/eval_testlist.py", "--help"],
+        [sys.executable, "-m", "thinkingbox_env.evaluation", "--help"],
+    )
+    for command in commands:
+        completed = subprocess.run(
+            command,
+            cwd=_ROOT,
+            env=env,
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        assert completed.returncode == 0, completed.stderr
 
 
 def test_native_config_forwards_agent_user_and_judge_settings(
@@ -1717,7 +1934,7 @@ user_can_end_conversation: true
     assert "proxy.invalid" not in str(provenance)
 
 
-def test_public_runtime_accepts_aoai_responses_xhigh_through_compat_loader(
+def test_native_runtime_accepts_aoai_responses_xhigh_directly(
     tmp_path: Path,
 ) -> None:
     path = tmp_path / "thinkingbox-xhigh.yaml"
@@ -1762,6 +1979,7 @@ def test_framework_hash_uses_only_tracked_runtime_sources_and_lockfiles(
 ) -> None:
     tracked = [
         Path("examples/thinkingbox/eval_testlist.py"),
+        Path("envs/thinkingbox_env/evaluation.py"),
         Path("envs/thinkingbox_env/server/thinkingbox_environment.py"),
         Path("envs/thinkingbox_env/pyproject.toml"),
         Path("envs/thinkingbox_env/uv.lock"),
@@ -1804,6 +2022,45 @@ def test_framework_hash_uses_only_tracked_runtime_sources_and_lockfiles(
         encoding="utf-8",
     )
     assert thinkingbox_eval._framework_sha256(tmp_path) != initial
+
+
+def test_runtime_framework_hash_uses_actual_imported_sources(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    package_root = tmp_path / "installed/thinkingbox_env"
+    openenv_root = tmp_path / "installed/openenv/core"
+    checkout_root = tmp_path / "checkout"
+    package_root.mkdir(parents=True)
+    openenv_root.mkdir(parents=True)
+    (package_root / "evaluation.py").write_text("VALUE = 1\n", encoding="utf-8")
+    (openenv_root / "env_client.py").write_text("VALUE = 1\n", encoding="utf-8")
+    false_openenv = checkout_root / "src/openenv/core/env_client.py"
+    false_openenv.parent.mkdir(parents=True)
+    false_openenv.write_text("FALSE = 1\n", encoding="utf-8")
+
+    roots = {
+        "thinkingbox_env": package_root,
+        "openenv.core": openenv_root,
+    }
+    monkeypatch.setattr(
+        thinkingbox_eval,
+        "_module_source_root",
+        lambda name: roots[name],
+    )
+    monkeypatch.setattr(thinkingbox_eval, "_git_root", lambda _: checkout_root)
+    assert thinkingbox_eval._framework_checkout_root(package_root) is None
+
+    source_package = checkout_root / "envs/thinkingbox_env"
+    source_package.mkdir(parents=True)
+    assert thinkingbox_eval._framework_checkout_root(source_package) == checkout_root
+
+    initial = thinkingbox_eval._runtime_framework_sha256(checkout_root)
+    false_openenv.write_text("FALSE = 2\n", encoding="utf-8")
+    assert thinkingbox_eval._runtime_framework_sha256(checkout_root) == initial
+
+    (openenv_root / "env_client.py").write_text("VALUE = 2\n", encoding="utf-8")
+    assert thinkingbox_eval._runtime_framework_sha256(checkout_root) != initial
 
 
 def _eval_provenance() -> dict[str, Any]:
@@ -2010,7 +2267,7 @@ def test_eval_canonical_fixture_validates_and_native_tb_agg_is_exact(
         "mean_pass_ci_low": pytest.approx(0.1767360971),
         "mean_pass_ci_high": pytest.approx(0.9612523822),
         "unbiased_pass_at_k": [[1, 2 / 3]],
-        "unbiased_pass_power_k": [[1, 2 / 3]],
+        "pass_power_k": [[1, 2 / 3]],
     }
 
     leaked = results[0].model_copy(deep=True)

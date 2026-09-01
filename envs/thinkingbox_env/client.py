@@ -64,7 +64,7 @@ class ThinkingBoxEnv(
         test_uid: str,
         *,
         dataset: str | None = None,
-        agent: str = "think",
+        agent: str | None = None,
         config: str | None = None,
         **kwargs: Any,
     ) -> Any:
@@ -75,8 +75,9 @@ class ThinkingBoxEnv(
                 UID from the resolved release manifest.
             dataset (`str`, *optional*):
                 Server-visible executable data root or `dataset/` path.
-            agent (`str`, *optional*, defaults to `"think"`):
-                Native ThinkingBox agent definition.
+            agent (`str`, *optional*):
+                Native ThinkingBox agent definition. When omitted, the server
+                uses `OPENENV_TB_AGENT`.
             config (`str`, *optional*):
                 Server-visible native ThinkingBox configuration path.
             kwargs (`dict`, *optional*):
@@ -86,13 +87,14 @@ class ThinkingBoxEnv(
         Returns:
             A client result containing [`ThinkingBoxObservation`].
         """
-        return super().reset(
-            test_uid=test_uid,
-            dataset=dataset,
-            agent=agent,
-            config=config,
-            **kwargs,
-        )
+        reset_kwargs: dict[str, Any] = {"test_uid": test_uid, **kwargs}
+        if dataset is not None:
+            reset_kwargs["dataset"] = dataset
+        if agent is not None:
+            reset_kwargs["agent"] = agent
+        if config is not None:
+            reset_kwargs["config"] = config
+        return super().reset(**reset_kwargs)
 
     def list_tools(self) -> Any:
         """Return the tools permitted for the active scenario.

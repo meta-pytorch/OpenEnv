@@ -21,10 +21,30 @@ from uuid import uuid4
 import yaml
 from filelock import FileLock
 
-from . import config
+from .models import (
+    DATA_ARCHIVE_URL,
+    DATA_BUNDLE_SHA256,
+    DATA_COMMIT,
+    DATA_MANIFEST_PATH,
+    DATA_RELEASE_NAME,
+)
 
 
 DATASET_NAME = "thinkingbox_bench"
+DATASET_PATH = os.environ.get("OPENENV_TB_DATASET", "")
+DATA_TIMEOUT = float(os.environ.get("OPENENV_TB_DATA_TIMEOUT", "120"))
+_cache_home = Path(
+    os.environ.get(
+        "XDG_CACHE_HOME",
+        str(Path.home() / ".cache"),
+    )
+)
+DATA_CACHE = Path(
+    os.environ.get(
+        "OPENENV_TB_DATA_CACHE",
+        str(_cache_home / "openenv" / "thinkingbox_bench"),
+    )
+)
 _STAMP = ".openenv-thinkingbox-data.json"
 _MAX_ARCHIVE_BYTES = 256 * 1024 * 1024
 _MAX_EXTRACTED_BYTES = 2 * 1024 * 1024 * 1024
@@ -38,7 +58,7 @@ _ALLOWED_TOP_LEVELS = {
     *_BUNDLE_TOP_LEVELS,
     "LICENSE.txt",
 }
-_MANIFEST_PATH = Path(config.DATA_MANIFEST_PATH)
+_MANIFEST_PATH = Path(DATA_MANIFEST_PATH)
 _download_lock = threading.Lock()
 
 
@@ -136,10 +156,10 @@ def _bundle_sha256(root: Path) -> str:
 def _canonical_stamp() -> dict[str, str | int]:
     return {
         "schema_version": 2,
-        "release_name": config.DATA_RELEASE_NAME,
-        "data_commit": config.DATA_COMMIT,
-        "bundle_sha256": config.DATA_BUNDLE_SHA256,
-        "manifest_path": config.DATA_MANIFEST_PATH,
+        "release_name": DATA_RELEASE_NAME,
+        "data_commit": DATA_COMMIT,
+        "bundle_sha256": DATA_BUNDLE_SHA256,
+        "manifest_path": DATA_MANIFEST_PATH,
     }
 
 
@@ -149,8 +169,8 @@ def _require_canonical_content(bundle: DataBundle) -> None:
     except ValueError as exc:
         raise DatasetError("ThinkingBox manifest is outside the data bundle") from exc
     if (
-        bundle.bundle_sha256 != config.DATA_BUNDLE_SHA256
-        or manifest_relative != config.DATA_MANIFEST_PATH
+        bundle.bundle_sha256 != DATA_BUNDLE_SHA256
+        or manifest_relative != DATA_MANIFEST_PATH
     ):
         raise DatasetError("ThinkingBox data content does not match the pinned release")
 
@@ -171,9 +191,7 @@ def _validate_root(root: Path, *, require_stamp: bool) -> DataBundle:
         raise DatasetError("ThinkingBox data is missing LICENSE.txt")
     manifest = root / _MANIFEST_PATH
     if not manifest.is_file():
-        raise DatasetError(
-            f"ThinkingBox manifest not found at {config.DATA_MANIFEST_PATH}"
-        )
+        raise DatasetError(f"ThinkingBox manifest not found at {DATA_MANIFEST_PATH}")
     test_uids = _read_test_uids(manifest)
     if require_stamp:
         try:
@@ -195,8 +213,8 @@ def _validate_root(root: Path, *, require_stamp: bool) -> DataBundle:
         _require_canonical_content(bundle)
         return replace(
             bundle,
-            release_name=config.DATA_RELEASE_NAME,
-            revision=config.DATA_COMMIT,
+            release_name=DATA_RELEASE_NAME,
+            revision=DATA_COMMIT,
         )
     return bundle
 
@@ -313,10 +331,7 @@ def _extract_archive(archive: Path, destination: Path) -> None:
 
 
 def _cache_destination(cache_root: Path) -> Path:
-    key = (
-        f"{config.DATA_RELEASE_NAME}-{config.DATA_COMMIT[:12]}-"
-        f"{config.DATA_BUNDLE_SHA256[:16]}"
-    )
+    key = f"{DATA_RELEASE_NAME}-{DATA_COMMIT[:12]}-{DATA_BUNDLE_SHA256[:16]}"
     return cache_root.expanduser().resolve() / key
 
 
@@ -327,8 +342,8 @@ def _publication_lock(destination: Path) -> Path:
 def ensure_data(
     *,
     cache_root: Path | None = None,
-    archive_url: str = config.DATA_ARCHIVE_URL,
-    timeout: float = config.DATA_TIMEOUT,
+    archive_url: str = DATA_ARCHIVE_URL,
+    timeout: float = DATA_TIMEOUT,
 ) -> DataBundle:
     """Download, verify, safely extract, and publish canonical data atomically.
 
@@ -344,7 +359,7 @@ def ensure_data(
         [`DataBundle`]:
             Validated canonical bundle from the atomic cache.
     """
-    destination = _cache_destination(cache_root or config.DATA_CACHE)
+    destination = _cache_destination(cache_root or DATA_CACHE)
     try:
         return _validate_root(destination, require_stamp=True)
     except DatasetError:
@@ -388,7 +403,13 @@ def ensure_data(
                 shutil.rmtree(workspace, ignore_errors=True)
 
 
-def resolve_data_bundle(configured: str | None = None) -> DataBundle:
+def resolve_data_bundle(
+    configured: str | None = None,
+    *,
+    cache_root: Path | None = None,
+    archive_url: str = DATA_ARCHIVE_URL,
+    timeout: float = DATA_TIMEOUT,
+) -> DataBundle:
     """Resolve an explicit local bundle or the pinned atomic cache.
 
     Args:
@@ -399,9 +420,13 @@ def resolve_data_bundle(configured: str | None = None) -> DataBundle:
         [`DataBundle`]:
             Validated local or canonical executable data.
     """
-    selected = (configured or config.DATASET_PATH).strip()
+    selected = (configured or DATASET_PATH).strip()
     if not selected:
-        return ensure_data()
+        return ensure_data(
+            cache_root=cache_root,
+            archive_url=archive_url,
+            timeout=timeout,
+        )
 
     path = Path(selected).expanduser().resolve()
     if (path / "dataset").is_dir():
@@ -418,7 +443,11 @@ def resolve_data_bundle(configured: str | None = None) -> DataBundle:
     return _validate_root(root, require_stamp=False)
 
 
-def data_ready(configured: str | None = None) -> bool:
+def data_ready(
+    configured: str | None = None,
+    *,
+    cache_root: Path | None = None,
+) -> bool:
     """Return whether configured or cached data is already valid.
 
     Args:
@@ -429,12 +458,15 @@ def data_ready(configured: str | None = None) -> bool:
         `bool`:
             `True` only when validation succeeds without downloading.
     """
-    selected = (configured or config.DATASET_PATH).strip()
+    selected = (configured or DATASET_PATH).strip()
     try:
         if selected:
             resolve_data_bundle(selected)
         else:
-            _validate_root(_cache_destination(config.DATA_CACHE), require_stamp=True)
+            _validate_root(
+                _cache_destination(cache_root or DATA_CACHE),
+                require_stamp=True,
+            )
     except DatasetError:
         return False
     return True

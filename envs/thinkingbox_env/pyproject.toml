@@ -6,7 +6,7 @@ build-backend = "setuptools.build_meta"
 name = "thinkingbox-env"
 version = "0.1.0"
 description = "OpenEnv adapter for the public ThinkingBox benchmark"
-requires-python = ">=3.12"
+requires-python = ">=3.11"
 dependencies = [
     "openenv>=0.4.1",
     "fastapi>=0.116.0",
@@ -15,7 +15,7 @@ dependencies = [
     "pydantic>=2.0.0",
     "pyyaml>=6.0",
     "uvicorn>=0.24.0",
-    "thinkingbox @ git+https://github.com/microsoft/thinkingbox.git@c7dca2b97a4bd4f8ce88a7346d33831f0934eb68",
+    "thinkingbox @ git+https://github.com/microsoft/thinkingbox.git@ee4bee0d7c7d2e75a00b578dd3096378e4fb42e6",
 ]
 
 [project.optional-dependencies]
@@ -26,6 +26,7 @@ dev = [
 
 [project.scripts]
 server = "thinkingbox_env.server.app:main"
+thinkingbox-eval = "thinkingbox_env.evaluation:main"
 
 [tool.setuptools]
 include-package-data = true
