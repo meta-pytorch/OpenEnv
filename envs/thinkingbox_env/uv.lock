@@ -2639,7 +2639,7 @@ wheels = [
 [[package]]
 name = "thinkingbox"
 version = "0.1.0"
-source = { git = "https://github.com/microsoft/thinkingbox.git?rev=ee4bee0d7c7d2e75a00b578dd3096378e4fb42e6#ee4bee0d7c7d2e75a00b578dd3096378e4fb42e6" }
+source = { git = "https://github.com/microsoft/thinkingbox.git?rev=faa959a62ba13ac4988ab04222f82af142309fea#faa959a62ba13ac4988ab04222f82af142309fea" }
 dependencies = [
     { name = "azure-identity" },
     { name = "click" },
@@ -2692,7 +2692,7 @@ requires-dist = [
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.4.0" },
     { name = "pytest-asyncio", marker = "extra == 'dev'", specifier = ">=1.1.0" },
     { name = "pyyaml", specifier = ">=6.0" },
-    { name = "thinkingbox", git = "https://github.com/microsoft/thinkingbox.git?rev=ee4bee0d7c7d2e75a00b578dd3096378e4fb42e6" },
+    { name = "thinkingbox", git = "https://github.com/microsoft/thinkingbox.git?rev=faa959a62ba13ac4988ab04222f82af142309fea" },
     { name = "uvicorn", specifier = ">=0.24.0" },
 ]
 provides-extras = ["dev"]
