@@ -2,7 +2,12 @@ from pathlib import Path
 
 import pytest
 from conftest import load_fixture_manifest
-from openenv.validation.graders import Grader, GraderRegistry, Subject
+from openenv.validation.graders import (
+    ENTRY_POINT_GROUP,
+    Grader,
+    GraderRegistry,
+    Subject,
+)
 from openenv.validation.manifest import NormalizedManifest
 from openenv.validation.parsers import Parser, ParserRegistry
 from openenv.validation.providers import ExecResult, RunningSubject, ValidationProvider
@@ -47,6 +52,12 @@ class FakeGrader:
         return CheckResult(
             check_id=self.check_id, status=CheckStatus.PASS, duration_s=0.0
         )
+
+
+class FakeEntryPoints(list):
+    def select(self, **params):
+        assert params == {"group": ENTRY_POINT_GROUP}
+        return self
 
 
 class FakeRunningSubject:
@@ -190,7 +201,7 @@ def test_entry_point_grader_classes_are_instantiated(manifest, monkeypatch):
     import openenv.validation.graders as graders_module
 
     monkeypatch.setattr(
-        graders_module, "entry_points", lambda group: [FakeEntryPoint()]
+        graders_module, "entry_points", lambda: FakeEntryPoints([FakeEntryPoint()])
     )
     registry = GraderRegistry()
     assert registry.load_entry_points() == 1
@@ -210,7 +221,26 @@ def test_entry_point_grader_instances_register_as_is(manifest, monkeypatch):
     import openenv.validation.graders as graders_module
 
     monkeypatch.setattr(
-        graders_module, "entry_points", lambda group: [FakeEntryPoint()]
+        graders_module, "entry_points", lambda: FakeEntryPoints([FakeEntryPoint()])
+    )
+    registry = GraderRegistry()
+    assert registry.load_entry_points() == 1
+    assert registry.select(manifest, max_level=Level.SEMANTIC) == [instance]
+
+
+def test_entry_point_loading_supports_the_legacy_mapping_api(manifest, monkeypatch):
+    instance = FakeGrader()
+
+    class FakeEntryPoint:
+        def load(self):
+            return instance
+
+    import openenv.validation.graders as graders_module
+
+    monkeypatch.setattr(
+        graders_module,
+        "entry_points",
+        lambda: {ENTRY_POINT_GROUP: [FakeEntryPoint()]},
     )
     registry = GraderRegistry()
     assert registry.load_entry_points() == 1
