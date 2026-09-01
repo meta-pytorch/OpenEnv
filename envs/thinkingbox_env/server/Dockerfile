@@ -32,10 +32,9 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 FROM ${BASE_IMAGE}
 
 WORKDIR /app
-COPY --from=builder /app/env/.venv /app/.venv
-COPY . /app/env
+COPY --from=builder /app/env /app/env
 
-ENV PATH="/app/.venv/bin:$PATH"
+ENV PATH="/app/env/.venv/bin:$PATH"
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
 ENV OPENENV_TB_DATA_CACHE=/data/thinkingbox_bench

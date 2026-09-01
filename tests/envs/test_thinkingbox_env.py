@@ -1784,6 +1784,9 @@ def test_dockerfile_uses_canonical_python311_base_and_frozen_sync() -> None:
     assert "if [ -f uv.lock ]; then" in dockerfile
     assert "uv sync --frozen --no-install-project --no-editable" in dockerfile
     assert "uv sync --frozen --no-editable" in dockerfile
+    assert "COPY --from=builder /app/env /app/env" in dockerfile
+    assert 'ENV PATH="/app/env/.venv/bin:$PATH"' in dockerfile
+    assert "COPY --from=builder /app/env/.venv /app/.venv" not in dockerfile
     assert "apt-get install -y --no-install-recommends git" in dockerfile
 
 
