@@ -1,7 +1,7 @@
 {
   "manifest_schema_version": "1",
   "name": "unpinned-judge",
-  "version": "0.1.0",
+  "version": null,
   "signature": "openenv.yaml",
   "reward": {
     "range": [0.0, 1.0],
