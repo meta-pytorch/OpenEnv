@@ -1,3 +1,4 @@
+import hashlib
 import shutil
 
 import pytest
@@ -76,3 +77,13 @@ def test_source_digest_is_deterministic_and_content_sensitive(tmp_path):
     assert len(first) == 64
     (copy / "extra.txt").write_text("changed\n")
     assert source_digest(copy) != first
+
+
+def test_source_digest_uses_portable_relative_paths(tmp_path):
+    package_root = tmp_path / "pkg"
+    nested = package_root / "nested"
+    nested.mkdir(parents=True)
+    (nested / "file.txt").write_bytes(b"contents")
+
+    expected = hashlib.sha256(b"nested/file.txt\0contents\0").hexdigest()
+    assert source_digest(package_root) == expected

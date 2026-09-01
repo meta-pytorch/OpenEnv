@@ -31,17 +31,16 @@ def source_digest(package_root: Path) -> str:
         `str`: a 64-character hex digest.
     """
     digest = hashlib.sha256()
-    files = sorted(
-        path
-        for path in package_root.rglob("*")
-        if path.is_file()
-        and not any(
-            part in _DIGEST_EXCLUDED_DIRS
-            for part in path.relative_to(package_root).parts
-        )
-    )
-    for path in files:
-        digest.update(str(path.relative_to(package_root)).encode())
+    files = []
+    for path in package_root.rglob("*"):
+        relative_path = path.relative_to(package_root)
+        if path.is_file() and not any(
+            part in _DIGEST_EXCLUDED_DIRS for part in relative_path.parts
+        ):
+            files.append((relative_path.as_posix(), path))
+
+    for relative_path, path in sorted(files, key=lambda item: item[0]):
+        digest.update(relative_path.encode())
         digest.update(b"\0")
         digest.update(path.read_bytes())
         digest.update(b"\0")

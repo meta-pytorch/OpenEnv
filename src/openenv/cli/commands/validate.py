@@ -188,6 +188,7 @@ def validate(
             skip_build=skip_build,
             policy=load_policy(policy_version),
         )
+        report_json = write_report(validation_report, output)
     except (SignatureError, UnsupportedPackageError) as exc:
         typer.echo(f"Error: {exc}", err=True)
         raise typer.Exit(EXIT_UNSUPPORTED) from exc
@@ -198,7 +199,6 @@ def validate(
         typer.echo(f"Internal error: {exc}", err=True)
         raise typer.Exit(EXIT_INTERNAL) from exc
 
-    report_json = write_report(validation_report, output)
     if json_output:
         typer.echo(report_json)
     else:

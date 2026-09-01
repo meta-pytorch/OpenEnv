@@ -62,6 +62,20 @@ def test_output_writes_the_json_report(tmp_path):
     ValidationReport.model_validate_json(out.read_text())
 
 
+def test_output_write_failure_is_an_internal_error(tmp_path):
+    out = tmp_path / "missing" / "report.json"
+    result = _validate(
+        str(FIXTURES / "served_min_pass"),
+        "--level",
+        "static",
+        "--skip-build",
+        "--output",
+        str(out),
+    )
+    assert result.returncode == 3, result.stdout + result.stderr
+    assert "Internal error:" in result.stderr
+
+
 def test_failing_manifest_exits_one():
     result = _validate(
         str(FIXTURES / "broken_manifest"), "--level", "static", "--skip-build"

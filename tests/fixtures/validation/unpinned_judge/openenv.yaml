@@ -1,5 +1,4 @@
 spec_version: 1
-version: 0.1.0
 name: unpinned-judge
 type: env
 runtime: python
