@@ -11,7 +11,6 @@ value the alias is built from — asserting on our wrapper would only prove the 
 from __future__ import annotations
 
 import pytest
-
 from openenv.harbor import shared_template
 
 

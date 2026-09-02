@@ -391,8 +391,10 @@ async def run_rollout(
             # Acquired via `to_thread` so a blocking `acquire()` cannot stall the event loop while
             # another rollout holds the lock for the length of a full trial. A bare `acquire()` here
             # would deadlock the server the first time two goose rollouts overlapped on one loop.
-            from .proc_env_context import install as install_ctx_env
-            from .proc_env_context import overlay as ctx_env_overlay
+            from .proc_env_context import (
+                install as install_ctx_env,
+                overlay as ctx_env_overlay,
+            )
 
             if install_ctx_env():
                 # No lock. `os.environ` reads are context-local now, so concurrent rollouts of a
