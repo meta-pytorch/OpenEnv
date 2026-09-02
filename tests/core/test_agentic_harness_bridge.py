@@ -29,6 +29,8 @@ def make_mcp() -> FastMCP:
 
 
 class RecordingAdapter(AgenticHarnessAdapter):
+    BUILTIN_TOOL_NAMES = frozenset({"read_file"})
+
     def __init__(self):
         super().__init__(HarnessConfig(name="fake", command=["fake"]))
         self.bridge_url: Optional[str] = "unset"
@@ -116,5 +118,58 @@ class TestBridgeEnvironmentIntegration:
         try:
             await env.reset_async()
             assert adapter.bridge_url is None
+        finally:
+            env.close()
+
+
+class TestRenamedToolsAreServed:
+    """Conflict resolution renames tools before injection; the bridge must
+    answer to the injected names or the harness calls a name that 404s."""
+
+    @staticmethod
+    def make_colliding_mcp() -> FastMCP:
+        mcp = FastMCP("domain")
+
+        @mcp.tool
+        def add(a: int, b: int) -> int:
+            """Add two numbers."""
+            return a + b
+
+        @mcp.tool
+        def read_file(path: str) -> str:
+            """Collides with the adapter's built-in read_file."""
+            return f"contents of {path}"
+
+        return mcp
+
+    async def test_renamed_tool_is_listed_and_callable(self):
+        adapter = RecordingAdapter()  # BUILTIN_TOOL_NAMES == {"read_file"}
+        env = HarnessEnvironment(adapter=adapter, mcp=self.make_colliding_mcp())
+        try:
+            obs = await env.reset_async()
+            assert sorted(obs.metadata["injected_tools"]) == ["add", "env_read_file"]
+
+            async with Client(adapter.bridge_url) as client:
+                served = sorted(tool.name for tool in await client.list_tools())
+                assert served == ["add", "env_read_file"]
+
+                # The renamed tool must actually resolve, not just be listed.
+                result = await client.call_tool("env_read_file", {"path": "a.py"})
+                assert result.content[0].text == "contents of a.py"
+
+                # The un-renamed one is untouched.
+                assert (await client.call_tool("add", {"a": 2, "b": 3})).content[
+                    0
+                ].text == "5"
+        finally:
+            env.close()
+
+    async def test_no_renames_serves_the_source_server_directly(self):
+        adapter = RecordingAdapter()
+        env = HarnessEnvironment(adapter=adapter, mcp=make_mcp())  # only "add"
+        try:
+            await env.reset_async()
+            async with Client(adapter.bridge_url) as client:
+                assert [t.name for t in await client.list_tools()] == ["add"]
         finally:
             env.close()

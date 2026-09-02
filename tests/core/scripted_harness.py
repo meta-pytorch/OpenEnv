@@ -17,6 +17,7 @@ Modes:
   exit-now         - print to stderr and exit with code 3.
   crash-after-echo - ``ready``, echo one line, then exit with code 1.
   ignore-sigterm   - ignore SIGTERM, print ``ready``, then sleep.
+  unicode-echo     - like echo, but the reply carries non-ASCII characters.
 """
 
 from __future__ import annotations
@@ -73,6 +74,13 @@ def mode_echo() -> None:
         print("echo:" + line.strip(), flush=True)
 
 
+def mode_unicode_echo() -> None:
+    """Echo with non-ASCII output, which locale-encoded pipes would fail on."""
+    print("ready", flush=True)
+    for line in sys.stdin:
+        print("echo:\u2713 " + line.strip() + " \u4e16\u754c \U0001f600", flush=True)
+
+
 def mode_slow_start() -> None:
     time.sleep(60)
     print("ready", flush=True)
@@ -99,6 +107,7 @@ def mode_ignore_sigterm() -> None:
 MODES = {
     "mcp": mode_mcp,
     "echo": mode_echo,
+    "unicode-echo": mode_unicode_echo,
     "slow-start": mode_slow_start,
     "exit-now": mode_exit_now,
     "crash-after-echo": mode_crash_after_echo,

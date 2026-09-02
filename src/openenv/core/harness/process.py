@@ -106,6 +106,12 @@ class HarnessProcess:
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 text=True,
+                # Explicit UTF-8: text=True alone decodes with the locale
+                # encoding, which is often ASCII in a container, and harness
+                # output is routinely non-ASCII. errors="replace" keeps a
+                # stray byte from killing the reader thread mid-turn.
+                encoding="utf-8",
+                errors="replace",
                 bufsize=1,
                 start_new_session=True,
             )
@@ -252,8 +258,11 @@ class HarnessProcess:
             try:
                 for line in stream:
                     sink(line)
-            except ValueError:
-                pass  # stream closed during shutdown
+            except (ValueError, OSError):
+                # Raised when the pipe is closed during shutdown. Decoding
+                # cannot raise here: the stream is opened with
+                # errors="replace".
+                pass
 
         thread = threading.Thread(target=_pump, daemon=True)
         thread.start()

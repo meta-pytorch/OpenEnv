@@ -5,6 +5,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 from typing import Any, Optional
 from uuid import uuid4
 
@@ -12,8 +13,13 @@ from ..env_server.mcp_environment import MCPEnvironment
 from ..env_server.mcp_types import CallToolAction, ListToolsAction, Tool
 from ..env_server.types import Action, Observation, State
 from ..utils import run_async_safely
-from .adapter import AgenticHarnessAdapter, HarnessError, HarnessNotRunningError
-from .bridge import HarnessMCPBridge
+from .adapter import (
+    AgenticHarnessAdapter,
+    HarnessError,
+    HarnessNotRunningError,
+    HarnessTurnTimeoutError,
+)
+from .bridge import build_bridge_server, HarnessMCPBridge
 from .events import events_to_metadata, HarnessEvent, HarnessEventType
 from .tools import resolve_tool_conflicts
 
@@ -21,6 +27,8 @@ try:
     from fastmcp import FastMCP
 except ModuleNotFoundError:  # pragma: no cover - fastmcp is a core dependency
     FastMCP = None
+
+logger = logging.getLogger(__name__)
 
 
 class HarnessAction(Action):
@@ -125,8 +133,10 @@ class HarnessEnvironment(MCPEnvironment):
             the injected tools.
         """
         self._episode_active = False
-        if await self.adapter.is_alive():
-            await self.adapter.stop()
+        # Unconditional: stop() is contractually idempotent, and a harness that
+        # died on its own still holds reapable resources (pipes, reader threads,
+        # an unwaited process) that is_alive() reports nothing about.
+        await self.adapter.stop()
         await self._stop_bridge()
 
         tools = await self._collect_injectable_tools()
@@ -134,14 +144,26 @@ class HarnessEnvironment(MCPEnvironment):
 
         bridge_url: Optional[str] = None
         if resolved:
-            if self._bridge is None:
-                self._bridge = HarnessMCPBridge(self._require_mcp_server())
+            # The bridge must serve the tools under the names we inject, so a
+            # tool renamed by conflict resolution stays callable.
+            renames = {
+                new.name: old.name
+                for new, old in zip(resolved, tools)
+                if new.name != old.name
+            }
+            served = await build_bridge_server(self._require_mcp_server(), renames)
+            self._bridge = HarnessMCPBridge(served)
             bridge_url = await asyncio.to_thread(self._bridge.start)
 
         try:
             await self.adapter.inject_tools(resolved, bridge_url)
             await self.adapter.start(self.adapter.config.working_directory)
         except Exception:
+            # Best effort: a partially started harness must not outlive reset().
+            try:
+                await self.adapter.stop()
+            except Exception:
+                pass
             await self._stop_bridge()
             raise
 
@@ -249,6 +271,13 @@ class HarnessEnvironment(MCPEnvironment):
                 f"harness turn exceeded {timeout} seconds",
                 error_type="turn_timeout",
             )
+        except HarnessTurnTimeoutError as exc:
+            # Must precede HarnessError: an adapter that raises the dedicated
+            # timeout exception means a timeout, not a crash.
+            return await self._terminal_error_observation(
+                str(exc),
+                error_type="turn_timeout",
+            )
         except HarnessError as exc:
             return await self._terminal_error_observation(
                 str(exc),
@@ -297,12 +326,32 @@ class HarnessEnvironment(MCPEnvironment):
         )
 
     async def _collect_injectable_tools(self) -> list[Tool]:
-        """Enumerate the environment's MCP tools for injection."""
+        """
+        Enumerate the environment's MCP tools for injection into the harness.
+
+        Mode-specific tools registered with `MCPEnvironment.tool(mode=...)` are
+        excluded: they are tracked by the environment rather than registered on
+        the FastMCP server, so the bridge cannot serve them. Advertising a tool
+        the harness then cannot call is worse than not advertising it, so they
+        are dropped with a warning. Supporting them needs a design decision
+        about mode semantics inside a harness turn (follow-up).
+        """
         list_tools_observation = await self._async_handle_list_tools()
         error = list_tools_observation.metadata.get("error")
         if error:
             raise HarnessError(f"Failed to enumerate environment tools: {error}")
-        return list(list_tools_observation.tools)
+
+        tools = list(list_tools_observation.tools)
+        mode_specific = [t for t in tools if t.name in self._mode_tool_schemas]
+        if mode_specific:
+            logger.warning(
+                "Not injecting mode-specific tools into harness %r (the tool "
+                "bridge cannot serve them): %s",
+                self.adapter.config.name,
+                ", ".join(sorted(t.name for t in mode_specific)),
+            )
+            tools = [t for t in tools if t.name not in self._mode_tool_schemas]
+        return tools
 
     async def _stop_bridge(self) -> None:
         """Best-effort stop of the tool bridge, off the event loop."""

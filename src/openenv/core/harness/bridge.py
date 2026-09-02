@@ -12,6 +12,67 @@ from typing import Any, Optional
 from .adapter import HarnessError
 
 
+async def _source_tools(mcp_server: Any) -> dict[str, Any]:
+    """Return {name: FastMCP tool}, compatible with FastMCP 2.x and 3.x.
+
+    Async twin of [`~openenv.core.env_server.mcp_environment.get_server_tools`],
+    which wraps the same calls in `run_async_safely`; awaiting directly avoids
+    spawning a thread when we are already on a loop.
+    """
+    if hasattr(mcp_server, "get_tools"):
+        result = await mcp_server.get_tools()
+        if isinstance(result, dict):
+            return result
+    if hasattr(mcp_server, "list_tools"):
+        return {tool.name: tool for tool in await mcp_server.list_tools()}
+    return {}
+
+
+async def build_bridge_server(mcp_server: Any, renames: dict[str, str]) -> Any:
+    """
+    Return a FastMCP server exposing the env's tools under their injected names.
+
+    Tool-name conflict resolution can rename an environment tool before it is
+    injected into a harness (`read_file` -> `env_read_file`). The harness then
+    calls the new name, so the bridge has to answer to it: serving the source
+    server unchanged would advertise a name that does not resolve.
+
+    Args:
+        mcp_server (`FastMCP`):
+            The environment's own tool server.
+        renames (`dict[str, str]`):
+            Mapping of injected name to source name. Empty means no renames.
+
+    Returns:
+        `FastMCP`: `mcp_server` itself when there is nothing to rename,
+        otherwise a view of it whose tools carry the injected names.
+    """
+    if not renames:
+        return mcp_server
+
+    from fastmcp import FastMCP
+    from fastmcp.tools.tool import Tool as FastMCPTool
+
+    source_tools = await _source_tools(mcp_server)
+    missing = sorted(set(renames.values()) - set(source_tools))
+    if missing:
+        raise HarnessError(
+            "Cannot rename tools that the MCP server does not expose: "
+            + ", ".join(missing)
+        )
+
+    served_name_of = {source: served for served, source in renames.items()}
+    view = FastMCP(f"{getattr(mcp_server, 'name', 'openenv')}-harness-view")
+    for name, tool in source_tools.items():
+        served_name = served_name_of.get(name, name)
+        view.add_tool(
+            tool
+            if served_name == name
+            else FastMCPTool.from_tool(tool, name=served_name)
+        )
+    return view
+
+
 class HarnessMCPBridge:
     """
     Serve an in-process FastMCP server over loopback HTTP for harness use.
@@ -139,4 +200,4 @@ class HarnessMCPBridge:
         self._uvicorn_server = None
 
 
-__all__ = ["HarnessMCPBridge"]
+__all__ = ["build_bridge_server", "HarnessMCPBridge"]
