@@ -8,6 +8,8 @@ that the harness drives. There is no meaningful `step()` to expose while opencod
 from __future__ import annotations
 
 import json
+import os
+from pathlib import Path
 from typing import Any
 from uuid import uuid4
 
@@ -19,6 +21,23 @@ from .models import HarborState
 # A rollout is minutes, not seconds. OpenEnv's MCP tools default to 30s and there is no config knob,
 # so the only way to raise it is to shadow `step`/`step_async` and inject a default.
 _ROLLOUT_TIMEOUT_S = 1800.0
+
+
+def _trials_dir() -> Path:
+    """Where per-rollout artifacts are written.
+
+    Overridable because the default lives on `/tmp`, which is node-local, shared between users, and
+    cleared: one sweep of 12 harnesses x 15 tasks left 13,187 trial directories totalling 35 GB
+    there, and a 16,000-rollout run projects to ~42 GB. Traces are the durable product of an eval --
+    the reward is one float, the trace is the evidence -- so they belong on a filesystem the user
+    chose.
+
+    Set `OPENENV_HARBOR_TRIALS_DIR` to relocate. The default is unchanged so existing deployments
+    behave exactly as before.
+    """
+    return Path(
+        os.environ.get("OPENENV_HARBOR_TRIALS_DIR") or "/tmp/openenv-harbor-trials"
+    )
 
 
 class HarborEnvironment(MCPEnvironment):
@@ -216,8 +235,6 @@ class HarborEnvironment(MCPEnvironment):
         agent_timeout_sec: float = 0.0,
         agent_step_limit: int = 0,
     ) -> str:
-        from pathlib import Path
-
         from openenv.core.utils import run_async_safely
 
         from .models import HarborRolloutResult
@@ -276,7 +293,7 @@ class HarborEnvironment(MCPEnvironment):
                 registry=service.capture.registry,
                 intercept_url=service.public_url,
                 model=served,
-                trials_dir=Path("/tmp/openenv-harbor-trials"),
+                trials_dir=_trials_dir(),
                 dataset=split,
                 reward_key=reward_key,
                 keep_sandbox=keep_sandbox,

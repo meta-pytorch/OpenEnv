@@ -127,6 +127,34 @@ def _same_message(a: Any, b: Any) -> bool:
     return _message_identity(a) == _message_identity(b)
 
 
+def _without_leading_system(messages: Any) -> list:
+    """The message list with any leading system messages removed.
+
+    Used only for PARENT LOOKUP, never for what gets stored. Some harnesses re-render their system
+    prompt on every step, so the same conversation carries a slightly different system message each
+    turn: claude-code's differs after the first ~150 characters while the rest of the history matches
+    exactly. Comparing it would fail at index 0, no parent would be found for any turn, and a 13-turn
+    rollout is reported as 13 separate roots — the failure `_find_parent_by_messages` exists to
+    prevent, arriving through a different door than the missing-role case it was written for.
+    Measured downstream: a trace of 13 turns became 101 assistant messages once those false roots
+    were concatenated.
+
+    Leading system messages are dropped rather than compared loosely so that a conversation which
+    GAINS or LOSES a system message still lines up; comparing by role alone would keep the lists
+    aligned only while both have one.
+    """
+    if not isinstance(messages, list):
+        return []
+    i = 0
+    while i < len(messages):
+        m = messages[i]
+        if isinstance(m, dict) and (m.get("role") or "") == "system":
+            i += 1
+            continue
+        break
+    return list(messages[i:])
+
+
 @dataclass
 class TurnNode:
     """One model call, and where it sits relative to the call before it."""
@@ -327,7 +355,14 @@ class RolloutGraph:
             ]
             if not end or len(end) > len(node.request_messages) or len(end) <= best_len:
                 continue
-            if all(_same_message(a, b) for a, b in zip(end, node.request_messages)):
+            # Compared with leading system messages dropped from BOTH sides: a harness that
+            # re-renders its system prompt every step would otherwise fail at index 0 and orphan every
+            # turn. See `_without_leading_system`.
+            end_cmp = _without_leading_system(end)
+            node_cmp = _without_leading_system(node.request_messages)
+            if not end_cmp or len(end_cmp) > len(node_cmp):
+                continue
+            if all(_same_message(a, b) for a, b in zip(end_cmp, node_cmp)):
                 best_id, best_len = candidate_id, len(end)
         return best_id
 
