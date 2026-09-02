@@ -24,6 +24,7 @@ from openenv.core.harness import (
     HarnessEvent,
     HarnessEventType,
     HarnessNotRunningError,
+    HarnessTurnTimeoutError,
 )
 from openenv.core.rubrics import Rubric
 
@@ -51,6 +52,7 @@ class FakeAdapter(AgenticHarnessAdapter):
         self.alive = False
         self.fail_on_start = False
         self.fail_on_send = False
+        self.raise_turn_timeout = False
         self.send_delay_s = 0.0
         self.scripted_turns: list[list[HarnessEvent]] = []
 
@@ -73,6 +75,8 @@ class FakeAdapter(AgenticHarnessAdapter):
         self.calls.append("send")
         if self.send_delay_s:
             await asyncio.sleep(self.send_delay_s)
+        if self.raise_turn_timeout:
+            raise HarnessTurnTimeoutError("adapter timed the turn out itself")
         if self.fail_on_send:
             raise HarnessError("harness exploded mid-turn")
         events = (
@@ -152,7 +156,7 @@ class TestReset:
         env, adapter = make_env()
         obs = await env.reset_async()
 
-        assert adapter.calls == ["inject_tools", "start"]
+        assert adapter.calls == ["stop", "inject_tools", "start"]
         names = sorted(t.name for t in adapter.injected_tools)
         assert names == ["env_read_file", "query_db"]
         assert sorted(obs.metadata["injected_tools"]) == names
@@ -311,3 +315,62 @@ class TestSyncFacadeAndClose:
         assert overrides_method(env.reset_async, Environment.reset_async)
         assert overrides_method(env.step_async, Environment.step_async)
         assert env.SUPPORTS_CONCURRENT_SESSIONS is False
+
+
+class TestCleanupAndErrorClassification:
+    async def test_reset_stops_adapter_even_when_not_alive(self):
+        # A harness that died on its own reports is_alive() False while still
+        # holding reapable resources; skipping stop() leaked them.
+        env, adapter = make_env()
+        await env.reset_async()
+        adapter.alive = False
+        adapter.calls.clear()
+
+        await env.reset_async()
+
+        assert adapter.calls[0] == "stop"
+
+    async def test_start_failure_stops_the_adapter(self):
+        env, adapter = make_env()
+        adapter.fail_on_start = True
+        with pytest.raises(HarnessError):
+            await env.reset_async()
+        # inject -> start (raises) -> stop
+        assert adapter.calls[-1] == "stop"
+
+    async def test_adapter_raised_timeout_is_not_reported_as_a_crash(self):
+        env, adapter = make_env()
+        await env.reset_async()
+        adapter.raise_turn_timeout = True
+
+        obs = await env.step_async(HarnessAction(message="hi"))
+
+        assert obs.done is True
+        assert obs.metadata["error_type"] == "turn_timeout"
+
+
+class TestModeSpecificTools:
+    async def test_mode_tools_are_not_injected(self, caplog):
+        # Tools registered with tool(mode=...) are tracked by the environment
+        # rather than the FastMCP server, so the bridge cannot serve them.
+        # Advertising them would promise the harness a tool it cannot call.
+        env, adapter = make_env()
+
+        @env.tool(mode="production")
+        def prod_only(x: int) -> int:
+            """Production-only tool."""
+            return x
+
+        # A mode tool is only advertised when the env is in that mode; without
+        # this the tool never reaches the injectable list and the test would
+        # pass vacuously.
+        env._mode = "production"
+        listed = await env._async_handle_list_tools()
+        assert "prod_only" in [t.name for t in listed.tools]
+
+        with caplog.at_level("WARNING"):
+            obs = await env.reset_async()
+
+        assert "prod_only" not in obs.metadata["injected_tools"]
+        assert all(t.name != "prod_only" for t in adapter.injected_tools)
+        assert "prod_only" in caplog.text

@@ -124,3 +124,22 @@ class TestTerminateEscalation:
 
         assert process.is_running() is False
         assert elapsed < 5.0  # grace (0.5s) + margin, well under the 60s sleep
+
+
+class TestEncoding:
+    async def test_non_ascii_output_survives_the_reader(self):
+        # text=True alone decodes with the locale encoding (often ASCII in a
+        # container), and UnicodeDecodeError is a ValueError, which the reader
+        # thread used to swallow -- killing stdout pumping for the whole turn.
+        process = make_process("unicode-echo")
+        await process.start(ready_check=ready)
+        try:
+            await process.write_line("hello")
+            line = await process.read_line(timeout_s=10.0)
+            assert line == "echo:✓ hello 世界 \U0001f600"
+
+            # The pump is still alive for subsequent turns.
+            await process.write_line("again")
+            assert await process.read_line(timeout_s=10.0) is not None
+        finally:
+            await process.stop()

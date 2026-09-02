@@ -24,7 +24,7 @@ from .adapter import (
     HarnessStartupError,
     HarnessTurnTimeoutError,
 )
-from .bridge import HarnessMCPBridge
+from .bridge import build_bridge_server, HarnessMCPBridge
 from .config import HarnessConfig, HarnessTransport
 from .environment import HarnessAction, HarnessEnvironment
 from .events import (
@@ -94,6 +94,7 @@ __all__ = [
     "HarnessStartupError",
     "HarnessTransport",
     "HarnessTurnTimeoutError",
+    "build_bridge_server",
     "events_to_metadata",
     "resolve_tool_conflicts",
 ]
