@@ -13,8 +13,21 @@ A seam has:
                 so a surprise in capture is checkable against what we predicted.
     kwargs      optional (base_url, session, model) -> dict merged into AgentConfig.kwargs, for
                 agents needing more than env vars.
-    status      "validated" only after an end-to-end run passed the capture contract AND the ATIF
-                cross-check. Everything else is "untested", however plausible it looks.
+    status      what to trust, and the only field a caller should filter on:
+
+                  "validated"     an end-to-end run passed the capture contract AND the ATIF
+                                  cross-check. Safe for cross-model and cross-harness comparison.
+                  "unstable:<why>" runs and grades, but cannot be budgeted -- it ignores the step
+                                  cap, so one rollout can consume a sweep. Reachable explicitly;
+                                  deliberately absent from the validated set and the UI picker.
+                  "unsupported:<why>" observed to produce unusable results. Worse than an error
+                                  when it scores a countable 0.0, because that reads as a weak
+                                  model rather than a broken harness.
+                  "blocked:<why>" cannot run here at all -- missing credentials or registry entry.
+                  "untested"      no end-to-end run yet, however plausible it looks.
+
+                Measured 2026-09-01/02 over 16,000 rollouts on HuggingEnvs/data-agent-harbor-test:
+                10 validated, 2 unstable, 3 unsupported.
 
 The API key is always the intercept session id. That is the multiplexing scheme: one server, one
 port, N concurrent rollouts, each identified by the key its agent was handed.
@@ -386,7 +399,7 @@ SEAMS: dict[str, Seam] = {
     ),
     "swe-agent": Seam(
         name="swe-agent",
-        status="validated",
+        status="unstable:unbounded-turns",
         dialect="openai_chat",
         model_fmt="openai/{model}",
         agent_env={"OPENAI_API_KEY": "{session}", "OPENAI_BASE_URL": "{base_url}/v1"},
@@ -411,11 +424,15 @@ SEAMS: dict[str, Seam] = {
             "total_cost_limit": "0",
             "max_input_tokens": "0",
         },
-        notes="SWE-bench agent: requires a git repo, which DataAgent tasks are not.",
+        notes=(
+            "Works, but IGNORES the step cap: 12 requested, 37-45 turns run. Cost "
+            "cannot be bounded, so it is unsafe in a sized sweep. Also needs a git "
+            "repo, which DataAgent tasks are not."
+        ),
     ),
     "goose": Seam(
         name="goose",
-        status="validated",
+        status="unsupported:erratic-cost",
         dialect="openai_chat",
         model_fmt="openai/{model}",
         # goose is the one that reads `os.environ.get("OPENAI_API_KEY")` DIRECTLY (goose.py:678) and
@@ -424,7 +441,11 @@ SEAMS: dict[str, Seam] = {
         # `runner.apply_seam_env` warns when this happens so it is never a silent reward change.
         env={"OPENAI_API_KEY": "{session}", "OPENAI_BASE_URL": "{base_url}/v1"},
         agent_env={"OPENAI_BASE_URL": "{base_url}/v1"},
-        notes="Reads os.environ directly, so the process env is unavoidable -> LLM judge disabled.",
+        notes=(
+            "Unbudgetable: 6 turns on one rollout and 347 on another of the SAME task. "
+            "A sweep cannot be sized when one harness can consume 50x its expected "
+            "wall-clock."
+        ),
     ),
     # --- tier 2: seams derived from each wrapper, none validated yet ----------
     # These follow the same two shapes seen everywhere: a key + base URL pair, delivered through
@@ -456,7 +477,7 @@ SEAMS: dict[str, Seam] = {
     ),
     "openclaw": Seam(
         name="openclaw",
-        status="validated",
+        status="unsupported:launch-failure",
         dialect="openai_chat",
         model_fmt="openai/{model}",
         agent_env={"OPENAI_BASE_URL": "{base_url}/v1", "OPENAI_API_KEY": "{session}"},
@@ -493,11 +514,19 @@ SEAMS: dict[str, Seam] = {
         # Harbor writes the config to the HOST logs dir then copies it from the CONTAINER path,
         # which assumes a bind mount. E2B has none, so the subclass uploads it into the sandbox.
         import_path="openenv.harbor.install_fixes:InterceptOpenClaw",
-        notes="Harbor assumes /logs/agent is bind-mounted; E2B is not, so the config is uploaded.",
+        notes=(
+            "`nvm use 22 && openclaw agent --local ...` exits 1 and the agent never "
+            "makes a model call, so a suite's missing-answer default scores it a "
+            "countable 0.0 -- worse than an error."
+        ),
     ),
     "kimi-cli": Seam(
         name="kimi-cli",
-        status="validated",
+        status="unsupported:no-reward",
+        notes=(
+            "Reached 14 turns then returned no reward at all (`rewards={}`) on both "
+            "probe tasks, so nothing it produces is scorable."
+        ),
         dialect="openai_chat",
         model_fmt="openai/{model}",
         # Harbor DELIBERATELY unsets OPENAI_BASE_URL / OPENAI_API_KEY before spawning kimi
@@ -565,7 +594,11 @@ SEAMS: dict[str, Seam] = {
         # it: exactly one `POST /v1/responses` against 465 chat-completions calls, and that one was
         # trae. Its client reads `usage.input_tokens_details.cached_tokens`, a Responses-only field.
         name="trae-agent",
-        status="validated",
+        status="unstable:unbounded-turns",
+        notes=(
+            "Works, but IGNORES the step cap: 12 requested, 112-200 turns run -- ~20x "
+            "the stable harnesses. One rollout can consume a whole sweep's budget."
+        ),
         dialect="openai_responses",
         model_fmt="openai/{model}",
         agent_env={"OPENAI_BASE_URL": "{base_url}/v1", "OPENAI_API_KEY": "{session}"},

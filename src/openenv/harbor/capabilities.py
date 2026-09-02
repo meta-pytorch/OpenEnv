@@ -43,7 +43,9 @@ class HarnessStatus:
     name: str
     dialect: str
     kind: str  # "installed" (runs in the sandbox) | "base" (runs host-side)
-    status: str  # "validated" | "untested"
+    # "validated" | "unstable:<why>" | "unsupported:<why>" | "blocked:<why>" | "untested".
+    # Only "validated" is offered for comparison work; see seams.py for what each one means.
+    status: str
     needs_subclass: bool  # True when Harbor's wrapper cannot be configured as shipped
     notes: str = ""
 
