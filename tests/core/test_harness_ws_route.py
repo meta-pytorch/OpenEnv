@@ -4,6 +4,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 from typing import AsyncIterator, Optional
 
@@ -32,6 +33,8 @@ class FakeAdapter(AgenticHarnessAdapter):
         self.calls: list[str] = []
         self.alive = False
         self.fail_on_send = False
+        self.hang_on_send = False
+        self.omit_turn_complete = False
         FakeAdapter.created.append(self)
 
     async def start(self, working_directory: str) -> None:
@@ -47,8 +50,15 @@ class FakeAdapter(AgenticHarnessAdapter):
 
     async def send_message_streaming(self, message: str) -> AsyncIterator[HarnessEvent]:
         self.calls.append(f"send:{message}")
+        if self.hang_on_send:
+            await asyncio.sleep(3600)
         if self.fail_on_send:
             raise RuntimeError("adapter blew up")
+        if self.omit_turn_complete:
+            yield HarnessEvent(
+                type=HarnessEventType.TEXT_OUTPUT, data={"text": "no terminal event"}
+            )
+            return
         yield HarnessEvent(type=HarnessEventType.TOOL_CALL, data={"tool_name": "shell"})
         yield HarnessEvent(
             type=HarnessEventType.TURN_COMPLETE,
@@ -259,3 +269,43 @@ class TestModeWiring:
         )
         route_paths = {getattr(r, "path", None) for r in app.routes}
         assert "/reset" in route_paths
+
+
+class TestTurnBoundaries:
+    """A production turn must end: on its own, on timeout, or with an error."""
+
+    def test_hung_turn_is_bounded_by_session_timeout(self):
+        app, server = make_app(ServerMode.PRODUCTION)
+        client = TestClient(app)
+
+        with client.websocket_connect("/harness") as websocket:
+            websocket.receive_text()  # session_started
+            adapter = [a for a in FakeAdapter.created if a.alive][0]
+            adapter.hang_on_send = True
+            adapter.config.session_timeout_s = 0.2
+
+            websocket.send_text(json.dumps({"type": "message", "content": "hang"}))
+            event = json.loads(websocket.receive_text())
+            assert event["type"] == "error"
+            assert "exceeded 0.2 seconds" in event["data"]["message"]
+
+        # The session is released rather than pinned at capacity forever.
+        assert server.active_sessions == 0
+
+    def test_stream_without_turn_complete_is_reported(self):
+        app, server = make_app(ServerMode.PRODUCTION)
+        client = TestClient(app)
+
+        with client.websocket_connect("/harness") as websocket:
+            websocket.receive_text()  # session_started
+            adapter = [a for a in FakeAdapter.created if a.alive][0]
+            adapter.omit_turn_complete = True
+
+            websocket.send_text(json.dumps({"type": "message", "content": "hi"}))
+            assert json.loads(websocket.receive_text())["type"] == "text_output"
+            # A client blocking on the terminal event would otherwise hang.
+            event = json.loads(websocket.receive_text())
+            assert event["type"] == "error"
+            assert "TURN_COMPLETE" in event["data"]["message"]
+
+        assert server.active_sessions == 0

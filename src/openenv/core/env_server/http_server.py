@@ -669,6 +669,14 @@ class HTTPEnvServer:
                 )
                 await websocket.send_text(error_response.model_dump_json())
 
+            async def send_harness_error(message: str) -> None:
+                """Emit a terminal ERROR event in the harness event stream."""
+                error_event = HarnessEvent(
+                    type=HarnessEventType.ERROR,
+                    data={"message": message, "recoverable": False},
+                )
+                await websocket.send_text(error_event.model_dump_json())
+
             try:
                 session_id, session_env = await self._create_session()
 
@@ -714,23 +722,50 @@ class HTTPEnvServer:
                             continue
 
                         self._update_session_activity(session_id, increment_step=True)
-                        try:
-                            async for (
-                                event
-                            ) in session_env.adapter.send_message_streaming(
-                                client_message.content
-                            ):
+
+                        async def stream_turn(content: str) -> bool:
+                            """Stream one turn; True if it ended with TURN_COMPLETE."""
+                            saw_terminal = False
+                            adapter = session_env.adapter
+                            async for event in adapter.send_message_streaming(content):
                                 await websocket.send_text(event.model_dump_json())
                                 # Long turns must not be reaped as idle
                                 self._update_session_activity(session_id)
+                                saw_terminal = (
+                                    event.type is HarnessEventType.TURN_COMPLETE
+                                )
+                            return saw_terminal
+
+                        # Bound the turn in wall-clock time, matching what
+                        # simulation mode does in HarnessEnvironment._run_turn.
+                        # Without this a hung harness holds the session open
+                        # forever, and the server sits at capacity.
+                        turn_timeout_s = session_env.adapter.config.session_timeout_s
+                        try:
+                            completed = await asyncio.wait_for(
+                                stream_turn(client_message.content),
+                                turn_timeout_s,
+                            )
+                        except asyncio.TimeoutError:
+                            await send_harness_error(
+                                f"harness turn exceeded {turn_timeout_s} seconds"
+                            )
+                            break
                         except Exception as e:
                             # Harness state after a crash is undefined; end
                             # the session so a reconnect gets a fresh one.
-                            error_event = HarnessEvent(
-                                type=HarnessEventType.ERROR,
-                                data={"message": str(e), "recoverable": False},
+                            await send_harness_error(str(e))
+                            break
+
+                        if not completed:
+                            # send_message() raises HarnessError here; the
+                            # socket equivalent is to say so and end the
+                            # session, rather than leaving a client that
+                            # blocks on the terminal event waiting forever.
+                            await send_harness_error(
+                                "harness event stream ended without a "
+                                "TURN_COMPLETE event"
                             )
-                            await websocket.send_text(error_event.model_dump_json())
                             break
 
             except WebSocketDisconnect:
