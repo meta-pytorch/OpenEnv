@@ -1830,9 +1830,9 @@ def test_python311_metadata_pin_and_packaged_cli_are_canonical() -> None:
         for dependency in project["project"]["dependencies"]
         if dependency.startswith("thinkingbox @ ")
     )
-    assert thinkingbox_dependency.endswith("@ee4bee0d7c7d2e75a00b578dd3096378e4fb42e6")
+    assert thinkingbox_dependency.endswith("@40c1212f9582ca90175079bc313e530e9e9a4981")
     assert 'requires-python = ">=3.11"' in lock
-    assert "ee4bee0d7c7d2e75a00b578dd3096378e4fb42e6" in lock
+    assert "40c1212f9582ca90175079bc313e530e9e9a4981" in lock
     assert "file://" not in thinkingbox_dependency
     assert "file://" not in lock
     runtime_source = (env_root / "runtime.py").read_text(encoding="utf-8")

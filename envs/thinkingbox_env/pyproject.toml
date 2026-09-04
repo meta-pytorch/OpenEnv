@@ -15,7 +15,7 @@ dependencies = [
     "pydantic>=2.0.0",
     "pyyaml>=6.0",
     "uvicorn>=0.24.0",
-    "thinkingbox @ git+https://github.com/microsoft/thinkingbox.git@faa959a62ba13ac4988ab04222f82af142309fea",
+    "thinkingbox @ git+https://github.com/microsoft/thinkingbox.git@40c1212f9582ca90175079bc313e530e9e9a4981",
 ]
 
 [project.optional-dependencies]
