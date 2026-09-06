@@ -100,7 +100,7 @@ Each RFC should include the following sections:
 - [010-echo-env-token-world-model.md](./010-echo-env-token-world-model.md) - Env-token World Modeling (ECHO): trajectory token-role masks + an optimizer world-loss seam
 
 ### Discovery & Distribution
-- [011-ard-catalog-discovery.md](./011-ard-catalog-discovery.md) - ARD-backed catalog discovery for portable environments
+- [011-ard-catalog-discovery.md](./011-ard-catalog-discovery.md) - Versioned environment metadata, ARD interchange, and a read-only producer-consumer path
 
 ## Questions?
 

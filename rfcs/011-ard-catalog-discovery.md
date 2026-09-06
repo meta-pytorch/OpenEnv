@@ -2,215 +2,187 @@
 
 **Status**: Draft
 **Created**: 2026-08-27
+**Updated**: 2026-09-06
 **Authors**: @thegovind
 **RFC ID**: 011
 
 ## Summary
 
-OpenEnv can list installed environment packages, resolve a known Hugging Face
-repository, and connect to a known endpoint. It cannot answer a different
-question: "Which environment should I use for this task?" across environments
-the user does not already know.
+OpenEnv can resolve a known environment and enumerate installed packages. A
+different customer job comes first: find an unfamiliar environment for a task,
+inspect its source and limitations, and identify the exact subject being
+selected without running it.
 
-This RFC proposes catalog discovery through
-[Agentic Resource Discovery (ARD)](https://github.com/ards-project/ard-spec).
-ARD supplies the generic entry, search, and federation contract. OpenEnv
-supplies an experimental Environment Card that defines what a portable RL
-environment is. A provider adapter enumerates its native inventory, maps static
-metadata into cards, and attaches current provider state to search results.
+This RFC proposes a versioned metadata producer and a reference consumer for an
+explicitly scoped inventory. OpenEnv owns an experimental Environment Card.
+[Agentic Resource Discovery (ARD)](https://github.com/ards-project/ard-spec)
+carries it through its generic entry and search contracts. A producer maps
+authoritative source metadata into records; a consumer finds and inspects those
+records while preserving source, environment locator, and revision.
 
-Discovery is metadata-only. It does not install code, pull images, start or wake
-a deployment, reset or step an environment, or call an MCP tool. The proposal
-adds no runtime protocol and does not make ARD an OpenEnv dependency. This RFC
-ships no implementation. Implementation starts only if a preregistered offline
-inventory and ranking benchmark beats the current baseline on held-out queries.
+The first implementation milestone is useful, metadata-only discovery. Its
+acceptance criteria cover inventory accounting, record correctness, selection
+usefulness, complete-card handling, and update/removal behavior. A deterministic
+lexical baseline is a valid outcome. Optional semantic ranking is evaluated
+separately against that baseline. Basic discovery does not depend on RFC 008
+validation reports; any claim of a validated property does.
+
+This RFC ships no implementation. It adds no runtime endpoint or dependency,
+does not provision a registry, and does not change `AutoEnv`, `EnvClient`,
+`openenv push`, or the existing `openenv.yaml` format. Discovery never installs
+or imports candidate code, pulls images, wakes deployments, resets or steps
+environments, or invokes their tools.
 
 ## Motivation
 
-### Problem statement
+### The customer job
 
-Several existing features use the word "discovery," but none is a remote
-catalog search:
+A researcher choosing an environment needs to answer:
 
-| Surface | Input | What it finds | Side effects |
-| --- | --- | --- | --- |
-| `EnvironmentDiscovery` in `src/openenv/auto/_discovery.py` | Current Python environment | Installed `openenv-*` distributions and their packaged manifests | Reads package metadata and a local cache |
-| `AutoEnv.from_env("owner/repo")` in `src/openenv/auto/auto_env.py` | Known repository ID | One explicitly named Hugging Face Space or package | May probe a deployment and install publisher code |
-| `docs/source/environments.md` and `scripts/manage_hf_collection.py` | Curated list or Hugging Face inventory | Provider-specific environment records | Maintainer-operated publication workflow |
-| Proposed catalog discovery | Task description and filters | Unknown environments across indexed providers | Reads catalog metadata only |
+1. Does a candidate for this task exist in the advertised inventory?
+2. What does the agent do, and what prerequisites or limitations are declared?
+3. Which source, environment within that source, and revision does the record
+   describe?
+4. Which facts are declarations, verified evidence, or unknown?
+5. How can the selected subject be inspected and later resolved without
+   silently changing it?
 
-The missing path matters before execution. A user needs to know:
+Discovery, relevance ranking, environment validation, and execution approval
+answer different questions. A format does not populate an inventory. A search
+score does not establish quality or permission. A missing validation report
+does not make an otherwise useful metadata record undiscoverable.
 
-1. Does an environment for this task exist?
-2. Who published the record and who claims to own the artifact?
-3. Is there an immutable artifact, or is the environment external?
-4. Which interfaces are declared or validated?
-5. What code or deployment would a later explicit command trust?
+### Existing surfaces
 
-The current Hugging Face data also shows why search cannot define inventory. On
-2026-08-26, enumeration found 14 public Spaces in the first-party `openenv/*`
-author set. Thirteen matched the proposed eligibility rule of Docker SDK plus
-the exact `openenv` tag. Direct Hub semantic retrieval found 2 of those 13 with
-running-only defaults and 7 of 13 when non-running candidates were included.
-The deployed typed `hf-discover` Space search returned no raw Space results for
-the tested queries.
+| Surface | What it already provides | Limit for this job |
+| --- | --- | --- |
+| `EnvironmentDiscovery` | Installed `openenv-*` packages and packaged manifests | Not a catalog of unfamiliar remote resources |
+| `AutoEnv.from_env("owner/repo")` | Resolution of a known Hub identifier | May probe a deployment, install code, and instantiate a client |
+| Environment READMEs and package metadata | Authored descriptions and usage information | Scattered inputs rather than one maintained interchange contract |
+| Public docs catalog and provider metadata APIs | Pre-install browsing and provider-scoped records | Not a complete, provider-independent environment inventory |
+| Optional `TaskProvider` API | Tasks and splits within a known environment | Runtime-facing task introspection, not a cold global catalog |
 
-These measurements are feasibility evidence, not a benchmark result. They show
-that search cannot define inventory. An independently audited provider snapshot
-defines ground truth, and search ranks that bounded inventory afterward.
+The data is uneven, not absent. At OpenEnv main commit
+[`b9d8c1f9`](https://github.com/huggingface/OpenEnv/commit/b9d8c1f953e0c3e0bbee2f3f6f6c73d8eae61f5f),
+38 top-level environment manifests exist. Five have descriptions, while all 38
+corresponding `pyproject.toml` files have project descriptions. These are useful
+producer inputs, although a present description is not necessarily a good
+task-oriented summary.
 
-### Goals
+A September 6, 2026 public Hub request with `author=openenv`, `limit=100`, and
+`full=true` returned 14 Space records with `cardData`, `sha`, and `lastModified`.
+Thirteen had Docker SDK and the exact `openenv` tag. Those are provider records
+and candidate-selection signals, not a validated environment count.
 
-- Search for an unknown environment by task through one read-only contract.
-- Keep ARD generic while giving OpenEnv environments a domain-specific card.
-- Support public, private, external, and non-distributable environments without
-  claiming that each has a pullable artifact.
-- Keep logical identity, immutable artifacts, and current deployments separate.
-- Surface license, provenance, interface evidence, and remote-code trust before
-  any execution step.
-- Preserve the orchestration and agent interface boundary.
-- Reuse RFC 008 validation contracts when they land instead of creating a
-  second normalized manifest or report format.
-- Prove provider portability with a second-provider portability spike before
-  considering a dedicated registry.
+The repository and Hub populations differ. A repository-to-Hub coverage
+percentage requires an authoritative mapping; a capped name-search response
+cannot supply one. Runtime state must not remove an otherwise eligible source
+artifact from discovery.
 
-### Non-goals
+### Goals and non-goals
 
-- No registry service, crawler, queue, submission API, or index host in this
-  repository.
-- No ranking service in this repository.
-- No implementation of `openenv discover` in this RFC.
-- No change to `AutoEnv`, `EnvironmentDiscovery`, `EnvClient`, `openenv push`,
-  or `openenv.yaml`.
-- No new runtime endpoint or third interface alongside orchestration and MCP.
-- No automatic injection of catalog results into the prompt or tool surface of
-  the agent being trained, and no discovery-initiated install, invocation, or
-  selection for execution.
-- No v0.1 representation of harness-specific streaming surfaces from RFC 005.
-  The card records OpenEnv orchestration and evidenced agent tools only.
-- No automatic install, deployment, wake-up, or tool invocation.
-- No generic deployment schema. That work remains with
-  [ards-project/ard-spec#44](https://github.com/ards-project/ard-spec/issues/44).
-- No trust reputation system, signing scheme, or new attestation format.
-- No quality gate. Discovery may show validation evidence, but operator policy
-  decides whether an environment is accepted.
-- No fuzzy cross-provider deduplication.
+The proposal provides task-oriented discovery before execution, explicit
+inventory scope, source/revision identity, honest uncertainty, and an
+interchange format that can be tested across independent producers and
+consumers.
+
+It does not define a central registry operator, crawler, ranking service,
+submission API, trust reputation system, signing scheme, execution-provider
+offer, Train button, job, rollout, or evaluation record. It does not make MCP
+support mandatory for every environment.
+
+It does not certify build reproducibility, training value, or semantic tool
+safety merely because a record parses or names a source commit. Such evidence
+belongs to the appropriate validation or operator process.
 
 ## Design
 
-### 1. Ownership
-
-ARD, OpenEnv, and provider adapters own different layers:
+### 1. Ownership and the first concrete path
 
 ```mermaid
 flowchart LR
-  Native["Provider-native records"]
-  Adapter["Provider adapter<br/>inventory + mapping + current state"]
-  Card["OpenEnv Environment Card<br/>environment semantics"]
-  Entry["ARD Entry<br/>generic discovery envelope"]
-  Finder["ARD finder<br/>search + filters + federation"]
-  CLI["Future openenv discover<br/>read-only client"]
-
-  Native --> Adapter
-  Adapter --> Card
-  Card --> Entry
-  Adapter --> Entry
-  Entry --> Finder
-  CLI --> Finder
+  Source["Authoritative source metadata"] --> Producer["Versioned record producer"]
+  Producer --> Catalog["Scoped ARD catalog"]
+  Catalog --> Consumer["Reference consumer"]
+  Consumer --> Inspect["Inspect source and revision"]
+  Catalog -.-> Ranker["Optional ranking experiment"]
+  Ranker -.-> Consumer
 ```
 
-- **ARD owns** the entry envelope, `POST /search`, filters, referrals, and
-  federation behavior.
-- **OpenEnv owns** the Environment Card, environment identity semantics,
-  artifact rules, and interface roles.
-- **Each provider adapter owns** native enumeration, provider facts, card
-  generation, and current provider projections.
-- **A finder owns** indexing, ranking, pagination, and freshness policy.
-- **OpenEnv does not own** the provider's runtime state or the registry's
-  ranking algorithm.
+- **OpenEnv owns** the card schema, versioning policy, fixtures, and environment
+  semantics.
+- **A source producer owns** inventory enumeration, metadata mapping,
+  provenance, and correction/removal of its published records.
+- **A catalog publisher owns** its publication authority, snapshot location,
+  freshness policy, and the scope it claims to cover.
+- **ARD owns** the generic entry, publication, search, filter, and federation
+  contracts.
+- **A finder owns** indexing and retrieval behavior for its configured sources.
+- **A consumer/operator owns** local trust policy and any later execution
+  decision.
 
-ARD does not crawl a Hub by itself. A Hub is searchable only when it publishes
-ARD entries or a queried finder has an adapter for that Hub.
+The first implementation PR must identify a producer, an independently
+implemented consumer, a versioned catalog snapshot, and the supported
+complete-record path. The initial source may be the maintained OpenEnv
+repository or a defined public provider inventory. These are different
+populations and must not be presented as interchangeable.
 
-This RFC targets ARD v0.91 at commit
+The producer should reuse authored package descriptions, README declarations,
+manifests, and provider facts before introducing duplicate metadata fields.
+Missing task descriptions need author review, not an invented positive claim.
+A closed task-domain taxonomy or required Hugging Face-specific canonical ID is
+not a prerequisite.
+
+This RFC targets ARD v0.91 at
 [`aa3e598`](https://github.com/ards-project/ard-spec/commit/aa3e598bb7752a9175897823234311216acfa864).
-ARD is pre-1.0. An implementation must pin the supported ARD revision and treat
-unknown or changed fields as unknown rather than guessing.
+Implementations must state their supported profile. A valid extension type is
+not proof that every finder preserves every field, supports every filter, or
+returns a complete card.
 
-### 2. Resource model
+### 2. What a record identifies
 
-One environment is represented at three layers:
+The initial unit is an environment definition at a stated revision, where that
+revision can be established. It is not every task instance, a running server,
+or a training job.
 
 ```mermaid
-erDiagram
-  LOGICAL_ENVIRONMENT ||--o{ ARTIFACT : has
-  ARTIFACT ||--o{ PROVIDER_PROJECTION : observed_as
-  LOGICAL_ENVIRONMENT {
-    string publisher_scoped_identity
-    string name
-    string optional_canonical_id
-  }
-  ARTIFACT {
-    string immutable_revision_or_digest
-    string artifact_availability
-    string license
-    boolean requires_explicit_trust
-  }
-  PROVIDER_PROJECTION {
-    string provider
-    string endpoint
-    string runtime_state
-    string observed_at
-  }
+flowchart TD
+  Logical["Logical environment"] --> RevisionA["Revision A card"]
+  Logical --> RevisionB["Revision B card"]
+  RevisionA --> Artifact["Immutable source or artifact"]
+  RevisionA -.-> Runtime["Dated provider observation"]
 ```
 
-#### Logical environment
+Keep three layers separate:
 
-The logical environment is the stable domain concept, such as "Echo
-Environment." It can have several artifact versions and several provider
-projections.
+| Layer | Meaning | Does not establish |
+| --- | --- | --- |
+| Logical environment | The continuing environment concept | Global canonical identity from a similar name |
+| Revision card and artifact references | The particular subject selected | A reproducible build or identical episode outcomes by itself |
+| Provider observation | Hosting state observed at a time for a stated revision | Artifact identity, license, or execution permission |
 
-The ARD `identifier` identifies the published record under the authority that
-minted it. It is not automatically a cross-provider canonical identity.
+A source locator identifies the provider record and the environment within it.
+One repository may contain many environments. For repository-backed sources,
+the initial profile uses a repository URI, a repository-relative environment
+path, and a full source revision. A provider ID or repository name alone is not
+enough.
 
-#### Artifact
+Each revision-bound card describes one revision. `source.revision` is
+authoritative; any `artifacts[].revision` or interface `source_revision`
+describing that subject must agree with it. A revision mismatch is invalid.
 
-Each resolvable v0.1 Environment Card describes exactly one immutable
-environment revision. Different revisions are different cards and may be
-related with `version_of`. `artifacts` may list multiple immutable
-representations of that revision, but each representation must identify the
-evidence that binds it to the source revision. What evidence is sufficient is
-part of Open Question 2.
+The initial publication profile uses a distinct ARD identifier for each
+revision-bound card. This makes an identifier-only result refer to one card
+revision rather than silently changing the selected subject. The publisher owns
+that identifier; it is not a global canonical environment ID. A different
+identity/version scheme needs an explicit producer-consumer contract.
 
-Card-level `license`, `interfaces`, `requires_explicit_trust`, and `validation`
-claims apply to that revision unless a field explicitly identifies a narrower
-artifact. Artifact metadata remains meaningful when every deployment is
-stopped.
+Optional trusted `canonical_id`, `same_as`, or `version_of` assertions may
+relate records later. Similar names never justify a merge. Equal digests can
+identify equal artifacts without proving that two publishers mean the same
+logical environment. Provider observations remain distinct.
 
-`artifact_availability` is one of:
-
-- `resolvable`: the record contains an immutable artifact reference.
-- `external`: the environment exists, but the catalog cannot distribute or
-  verify its artifact.
-- `unknown`: the adapter cannot establish either state.
-
-This field does not mean "running now." That is provider state.
-
-#### Provider projection
-
-A provider projection describes one current deployment or hosting view. It may
-include the provider, endpoint, region, runtime state, and observed timestamp.
-It is dynamic finder output, not part of the static Environment Card.
-
-Provider projections must bind to the artifact revision they were observed
-against. A projection for another revision is stale and must not be silently
-carried forward.
-
-Execution-provider offers, jobs, training configuration, evaluation runs,
-rollouts, and traces are out of scope for this RFC and are not Environment Card
-fields. Discovery does not imply an offer or an executable action.
-
-### 3. OpenEnv Environment Card
+### 3. The experimental Environment Card
 
 The proposed media type is:
 
@@ -218,726 +190,517 @@ The proposed media type is:
 application/vnd.openenv.environment-card+json
 ```
 
-ARD intentionally keeps its `type` term open. The OpenEnv media type is an
-extension type, not a request to add an OpenEnv concept to ARD core.
-
-The initial card is experimental. Its schema version is independent of the
-current `openenv.yaml` `spec_version`, which is emitted and recorded today but
-is not a complete catalog compatibility contract.
-
-#### Card fields
+The card is an OpenEnv-owned extension, not a request for an OpenEnv core type
+in ARD. Its initial schema and valid/invalid fixtures belong with the first
+producer-consumer implementation. Until an accepted schema is published,
+implementers must pin the draft/profile revision rather than assume a released
+wire contract.
 
 | Field | Requirement | Meaning |
 | --- | --- | --- |
-| `schema_version` | Required | Version of the Environment Card shape |
-| `environment_spec_version` | Required | OpenEnv environment protocol compatibility claim |
+| `schema_version` | Required | Version of the card shape |
 | `name` | Required | Human-readable environment name |
-| `description` | Required | Short task-oriented description |
-| `owner` | Required | Artifact-owner claim or the literal `unknown`; separate from the ARD publisher |
-| `canonical_id` | Optional | Cross-provider identity assertion from an authority the consumer trusts |
-| `source` | Required | Provider-native record identity and environment locator; resolvable cards also require the source revision; provider profiles define concrete fields and stability guarantees |
-| `artifact_availability` | Required | `resolvable`, `external`, or `unknown` |
-| `artifacts` | Conditional | One or more immutable representations of the card's single revision when availability is `resolvable` |
-| `license` | Required | SPDX expression, `other`, or `unknown`; never inferred |
-| `license_url` | Conditional | Required when `license` is `other` |
-| `interfaces` | Required | One orchestration descriptor plus optional agent-tools descriptors |
-| `requires_explicit_trust` | Required | Whether a later operation must explicitly trust catalog-supplied remote code |
-| `validation` | Conditional | Required when an agent-tools descriptor has `status: validated` |
+| `description` | Required | Authored or reviewed task-oriented description |
+| `owner` | Required | Source-maintainer/owner claim or `unknown`; not proof of copyright ownership, publisher authority, or endorsement |
+| `source` | Required | Provider-scoped record identity and environment locator, with revision when established |
+| `artifact_availability` | Required | `resolvable`, `external`, or `unknown`, as defined below |
+| `artifacts` | Conditional | Immutable representations of the selected subject; required for `resolvable` |
+| `license` | Required | Applicable environment-artifact SPDX expression, `other`, or `unknown`; never inferred from popularity or a missing field |
+| `license_url` | Conditional | Required for `other`; may cite authoritative evidence for an SPDX declaration |
+| `interfaces` | Required | One orchestration descriptor and optional evidenced agent-tool descriptors |
+| `manifest_spec_version` | Optional | The source manifest's own format/version marker, not a runtime compatibility certificate |
+| `framework_requirement` | Optional | Source-declared OpenEnv package requirement, not a validated compatibility result |
+| `validation` | Conditional | Required for a `validated` interface claim |
+| `canonical_id` | Optional | Identity assertion from an authority the consumer explicitly trusts |
 
-Omission and an explicit sentinel mean different things:
+This revision separates manifest-format, package-requirement, and protocol
+version claims. A producer must not copy `openenv.yaml`'s `spec_version` into a
+runtime-protocol guarantee. A protocol `version` may be included in an interface
+descriptor only when its meaning and source are explicit.
 
-- Fields where silence may look permissive or safe, such as `license`, require
-  the explicit value `unknown`.
-- Optional capability claims are omitted when there is no evidence. Omission
-  means unknown, not absent.
+For the initial repository profile, `source` contains:
 
-`source` is a revision-bound locator, not canonical environment identity. A
-provider profile must define which identifier remains stable across mutable
-names or transfers, how an environment is located within a multi-environment
-record, and how a source revision is made immutable. One provider record may
-therefore yield multiple cards distinguished by locator and revision.
+- `provider`: the provider profile name.
+- `id`: its native record locator, not an asserted transfer-stable or canonical
+  identity.
+- `uri`: the source repository URI.
+- `path`: the normalized relative path to the environment; `.` means the
+  repository root. Absolute paths and parent traversal are invalid.
+- `revision`: the full immutable source revision when established.
 
-A resolvable card carries exactly one revision. Where present,
-`source.revision`, every `artifacts[].revision`, and every
-`interfaces[].source_revision` must be identical. `source.revision` is
-authoritative. A card whose revision fields disagree is invalid.
+A Git artifact uses its cloneable repository URI and full revision. Its `path`
+must preserve the selected environment within a monorepo. Multiple artifact
+representations require evidence binding them to the same source revision; an
+image tag is not such evidence.
 
-Adapters must preserve the authoritative source and revision for mapped
-claims. They must not promote provider heuristics to authoritative card claims.
-Missing or conflicting license evidence yields `unknown`; unsupported optional
-claims are omitted.
+#### Availability, access, and unknowns
 
-#### Example card
+- **`resolvable`** means an immutable artifact reference is supplied. It does not
+  mean that a deployment is running or that every caller has access.
+- **`external`** means the environment is described but the catalog does not
+  distribute a usable artifact. A known, sourced revision may still be
+  recorded. Distribution restrictions do not erase identity.
+- **`unknown`** means the producer cannot establish artifact availability.
 
-This example uses a real immutable source revision from the Echo Space. It
-intentionally reports `license: unknown` and makes no cross-provider canonical
-identity claim.
+Do not fabricate a revision for an external or unknown subject. A revision of a
+metadata declaration must not be passed off as the environment's revision.
+Only a claim bound to the identified artifact may be presented as validated.
 
-```json
-{
-  "schema_version": "0.1-draft",
-  "environment_spec_version": 1,
-  "name": "echo_env",
-  "description": "A deterministic environment for testing OpenEnv clients and training infrastructure.",
-  "owner": {
-    "authority": "huggingface.co",
-    "id": "openenv"
-  },
-  "source": {
-    "provider": "huggingface",
-    "id": "openenv/echo_env",
-    "revision": "2b73c927ac6e70a55555efeabdc58bf4c448dfba"
-  },
-  "artifact_availability": "resolvable",
-  "artifacts": [
-    {
-      "kind": "git",
-      "uri": "https://huggingface.co/spaces/openenv/echo_env",
-      "revision": "2b73c927ac6e70a55555efeabdc58bf4c448dfba"
-    }
-  ],
-  "license": "unknown",
-  "interfaces": [
-    {
-      "role": "orchestration",
-      "protocol": "openenv",
-      "version": "1"
-    },
-    {
-      "role": "agent-tools",
-      "protocol": "mcp",
-      "status": "declared",
-      "source_revision": "2b73c927ac6e70a55555efeabdc58bf4c448dfba"
-    }
-  ],
-  "requires_explicit_trust": true
-}
-```
+Required unknown-sensitive fields, such as `license`, use an explicit sentinel.
+An omitted optional tool descriptor means unknown, not "no tools."
 
-The example is not a normative schema file. A schema is an implementation
-artifact after RFC acceptance.
+### 4. A concrete GitHub-backed Echo example
 
-`source.id` in this example is the Hugging Face provider-native locator. A
-Hugging Face provider profile defining a transfer-stable identity remains part
-of Open Question 3.
+The following ARD entry contains the complete card in `data`. Its source is
+the public OpenEnv monorepo at commit
+[`b9d8c1f9`](https://github.com/huggingface/OpenEnv/tree/b9d8c1f953e0c3e0bbee2f3f6f6c73d8eae61f5f/envs/echo_env).
+The environment path is part of the selection; cloning the repository is not
+the same as selecting its root package.
 
-`environment_spec_version` is the integer compatibility claim derived from the
-OpenEnv manifest. `interfaces[].version` is the protocol descriptor's string
-version. They are separate version axes and must not be coerced into one field.
+The description and framework requirement come from Echo's
+[`pyproject.toml`](https://github.com/huggingface/OpenEnv/blob/b9d8c1f953e0c3e0bbee2f3f6f6c73d8eae61f5f/envs/echo_env/pyproject.toml).
+The `BSD-3-Clause` declaration is supported by the pinned
+[`LICENSE`](https://github.com/huggingface/OpenEnv/blob/b9d8c1f953e0c3e0bbee2f3f6f6c73d8eae61f5f/LICENSE)
+and Echo's source headers referring to that license. It describes this source,
+not a blanket assertion about every dependency or future dataset.
 
-### 4. Identity and relationships
-
-Several identities appear in one result:
-
-| Identity | Example | Authority |
-| --- | --- | --- |
-| ARD publisher claim | `huggingface.co` in `urn:air:huggingface.co:...` | Authority anchor claimed by the record; verified through ARD trust data |
-| Provider-native source | `openenv/echo_env` | Hugging Face |
-| Artifact owner claim | `openenv` | Card claim, checked against provider facts |
-| Immutable artifact | Commit `2b73c9...` | Source repository |
-| Optional canonical ID | Omitted in the example | Trusted asserting authority |
-| Deployment host | `*.hf.space` | Provider projection |
-
-The adapter must preserve both facts and claims. The publisher segment in an
-ARD identifier is an authority claim, not proof by itself. ARD's optional
-`trustManifest` carries publisher-identity and provenance inputs for
-verification under the applicable trust framework; presence alone proves
-nothing. A finder may display the publisher as verified only after that
-verification succeeds. A finder that verifies a `trustManifest` must enforce
-ARD section 4.5.1 publisher-authority binding. An entry whose trust domain does
-not align with its publisher segment is rejected from verified results or
-shown as unverified.
-
-The OpenEnv `owner` field is a separate artifact-owner claim. It may differ
-from the record publisher, as with republished upstream software.
-
-ARD trust data and OpenEnv trust fields do not duplicate each other:
-
-- ARD `trustManifest` supplies record-publisher identity and provenance inputs;
-  verified status is a finder result, not a card claim.
-- OpenEnv `owner` states who the card claims owns the environment artifact.
-- OpenEnv `requires_explicit_trust` tells a later executor whether
-  catalog-supplied remote code requires an explicit user decision.
-
-`canonical_id` is optional. A finder may use it only when its trust policy
-accepts the authority that made the assertion. An adapter must not synthesize a
-canonical ID from a display name, repository slug, or model-generated
-similarity.
-
-Deduplication is layer-specific:
-
-- Equal immutable digests establish artifact identity. They do not alone merge
-  two logical environments.
-- Logical environments merge only on a trusted canonical or `same_as`
-  assertion.
-- A provider adapter may emit a `version_of` relationship inside one verified
-  publisher namespace. This is a relationship, not a collapse.
-- Provider projections never merge.
-- Near matches without trusted identity evidence remain separate and may be
-  shown as related.
-
-### 5. Interface claims
-
-#### Orchestration
-
-Every card carries exactly one minimal orchestration descriptor:
-
-```json
-{
-  "role": "orchestration",
-  "protocol": "openenv",
-  "version": "1"
-}
-```
-
-The descriptor declares role and compatibility only. It does not list
-`reset`, `step`, `state`, endpoints, transports, server mode, or liveness.
-Those details either belong to the OpenEnv protocol or to a dynamic provider
-projection.
-
-Anything labelled `role: orchestration` must not be copied into an
-agent-facing capability list, tool list, or prompt. Root ARD `capabilities`
-must not contain simulation controls.
-
-#### Agent tools
-
-Agent-facing interfaces are optional. When an agent-tools descriptor is
-present, its `status` is:
-
-- `declared`: a publisher or manifest claim, with its source revision.
-- `validated`: evidence produced for the same artifact revision.
-
-The descriptor is omitted when there is no evidence. Omission means unknown.
-It must not be rendered as "no tools."
-
-A validated descriptor is legal only when the card-level `validation`
-reference resolves to an RFC 008 report whose
-`runtime.tool_declaration_accuracy` result passed and whose embedded source
-digest matches the artifact. The report also supplies its existing policy,
-lane, and verdict fields. The RFC 008 contract PR must define an immutable
-report reference before any adapter emits `status: validated`. Until then an
-adapter may emit `declared` or omit the agent-tools descriptor.
-
-Endpoint reachability is not MCP evidence. OpenEnv can expose an MCP endpoint
-even when an environment has no MCP tools. Validation must inspect the
-interface and bind its result to the artifact revision.
-
-An agent tool that provides simulation control is an invalid OpenEnv card,
-regardless of its name. Names such as `reset`, `step`, or `state` trigger a
-diagnostic because they are likely boundary violations, but a name alone is
-not a semantic proof. Conversely, a harmless name does not make a
-simulation-control tool safe. A consumer must not silently remove a suspect
-tool and upgrade the remaining card to valid.
-
-RFC 008's `runtime.tool_declaration_accuracy` can verify that the declared tool
-surface matches the runtime. It does not verify the semantic
-agent/orchestration boundary. Before any card claims that boundary was
-validated, RFC 008 needs a distinct check such as
-`runtime.orchestration_boundary`. Until then the boundary is a required card
-invariant reviewed by the adapter, not a mechanically certified claim.
-
-### 6. ARD carriage
-
-For v0.1, an Environment Card is carried inline as the `data` value of an ARD
-Entry. Carriage by `url`, and the authorization-preserving dereference it would
-require, are deferred to Open Question 13.
+`example.org` is a reserved illustrative publication authority. The source and
+license are real; this example does not claim that GitHub or Hugging Face has
+published or verified the card. A real publisher must choose an authority it
+can substantiate.
 
 ```json
 {
   "@context": "https://agenticresourcediscovery.org/context/v1",
-  "identifier": "urn:air:huggingface.co:space:openenv:echo_env",
+  "identifier": "urn:air:example.org:openenv:echo_env:b9d8c1f953e0c3e0bbee2f3f6f6c73d8eae61f5f",
   "displayName": "Echo Environment",
   "type": "application/vnd.openenv.environment-card+json",
   "data": {
     "schema_version": "0.1-draft",
-    "environment_spec_version": 1,
     "name": "echo_env",
-    "description": "A deterministic environment for testing OpenEnv clients and training infrastructure.",
+    "description": "Echo Environment for OpenEnv - simple test environment that echoes back messages",
     "owner": {
-      "authority": "huggingface.co",
-      "id": "openenv"
+      "authority": "github.com",
+      "id": "huggingface"
     },
     "source": {
-      "provider": "huggingface",
-      "id": "openenv/echo_env",
-      "revision": "2b73c927ac6e70a55555efeabdc58bf4c448dfba"
+      "provider": "github",
+      "id": "huggingface/OpenEnv",
+      "uri": "https://github.com/huggingface/OpenEnv.git",
+      "path": "envs/echo_env",
+      "revision": "b9d8c1f953e0c3e0bbee2f3f6f6c73d8eae61f5f"
     },
     "artifact_availability": "resolvable",
     "artifacts": [
       {
         "kind": "git",
-        "uri": "https://huggingface.co/spaces/openenv/echo_env",
-        "revision": "2b73c927ac6e70a55555efeabdc58bf4c448dfba"
+        "uri": "https://github.com/huggingface/OpenEnv.git",
+        "path": "envs/echo_env",
+        "revision": "b9d8c1f953e0c3e0bbee2f3f6f6c73d8eae61f5f"
       }
     ],
-    "license": "unknown",
+    "license": "BSD-3-Clause",
+    "license_url": "https://github.com/huggingface/OpenEnv/blob/b9d8c1f953e0c3e0bbee2f3f6f6c73d8eae61f5f/LICENSE",
+    "manifest_spec_version": 1,
+    "framework_requirement": "openenv>=0.3.1",
     "interfaces": [
       {
         "role": "orchestration",
-        "protocol": "openenv",
-        "version": "1"
+        "protocol": "openenv"
       },
       {
         "role": "agent-tools",
         "protocol": "mcp",
         "status": "declared",
-        "source_revision": "2b73c927ac6e70a55555efeabdc58bf4c448dfba"
+        "source_revision": "b9d8c1f953e0c3e0bbee2f3f6f6c73d8eae61f5f"
       }
-    ],
-    "requires_explicit_trust": true
+    ]
   },
-  "description": "A deterministic environment for testing OpenEnv clients and training infrastructure.",
-  "tags": [
-    "openenv",
-    "rl-environment",
-    "smoke-test"
-  ],
-  "capabilities": [
-    "deterministic-smoke-test",
-    "mcp-tool-environment"
-  ],
+  "description": "Echo Environment for OpenEnv - simple test environment that echoes back messages",
+  "tags": ["openenv", "rl-environment", "smoke-test"],
+  "capabilities": ["echo_message", "echo_with_length"],
   "representativeQueries": [
-    "find a minimal environment for testing an OpenEnv client",
-    "find a deterministic smoke test for an agent training pipeline",
-    "find an environment that echoes MCP tool calls"
+    "find an environment that echoes a message",
+    "find a minimal environment for checking OpenEnv tool calls",
+    "find an environment for a client smoke test"
   ]
 }
 ```
 
-The ARD Entry remains valid even for a consumer that does not understand the
-OpenEnv card. That consumer can still use the generic identifier, name, type,
-description, tags, and representative queries.
+The `owner` claim identifies the source repository account. It is separate from
+the ARD publisher and from legal copyright attribution. The MCP declaration is
+bound to the inspected source, not promoted to validated status.
 
-The example intentionally omits ARD `trustManifest`. A finder must display its
-publisher authority as unverified until trust data binds the publisher claim to
-`huggingface.co`.
+The two task-oriented query examples plus the smoke-test query are indexing
+hints, not evaluation labels or a training-quality claim. The root
+`capabilities` list contains no simulation controls.
 
-A provider projection may be attached to finder output as namespaced extension
-data. Its exact generic deployment shape is deferred to ARD issue #44. The
-static card never contains runtime state.
+A manifest wraps one or more such entries in its `entries` array. An ARD
+consumer that does not understand the OpenEnv payload may still display the
+generic fields, but must not invent card-specific facts.
 
-### 7. External and unknown artifacts
+### 5. Producer workflow and metadata precedence
 
-A pullable artifact is not required.
+The first producer consumes a frozen, explicitly defined source inventory. A
+repository-source producer may enumerate the maintained environment directories
+at one Git revision. A provider adapter may enumerate its native public records.
+Neither may use ranked search results or running status as the inventory
+definition.
 
-```mermaid
-flowchart LR
-  Record["Environment record"]
-  Kind{"Artifact availability"}
-  Resolvable["resolvable<br/>immutable reference"]
-  External["external<br/>named but not distributed"]
-  Unknown["unknown<br/>insufficient metadata"]
-
-  Record --> Kind
-  Kind --> Resolvable
-  Kind --> External
-  Kind --> Unknown
-```
-
-Examples:
-
-| State | Card behavior | Discovery behavior |
-| --- | --- | --- |
-| `resolvable` | Contains at least one immutable artifact reference | May offer a separate install or run command after trust review |
-| `external` | Names the external source and omits a catalog-distributed artifact | Shows requirements and ownership without claiming portability |
-| `unknown` | Preserves the provider record with explicit unknowns | Remains searchable but cannot be presented as runnable |
-
-This preserves external and dataset-bound environments without manufacturing a
-package, image, license, or runtime claim.
-
-The single-revision invariant applies only to `resolvable` cards. `external`
-and `unknown` cards are revision-unbound in v0.1 because the adapter cannot
-establish an immutable environment artifact. A provider snapshot revision may
-still appear in adapter evidence, but it is not an artifact revision.
-
-### 8. Relationship to RFC 008
-
-[RFC 008](./008-environment-auto-validation.md) defines a normalized manifest
-and validation report contract. The RFC document is merged into `main` with
-status **In Review**, while the contract and implementation PRs remain open. No
-`src/openenv/validation` package or normative RFC 008 report schema exists on
-`main` when this RFC is written.
-
-OpenEnv already has a narrower `openenv validate` command. Its current JSON
-output uses `standard_version`, `standard_profile`, `criteria`, and `passed`.
-That output predates the RFC 008 report contract. RFC 011 deliberately does not
-treat it as RFC 008 evidence or define an adapter between the two formats.
-
-RFC 011 therefore depends on RFC 008 contracts landing. It does not copy their
-schemas or define substitutes.
-
-The intended mapping is:
-
-| Source | Environment Card use |
+| Input | Permitted use |
 | --- | --- |
-| Normalized manifest `name`, `version`, `capabilities`, and type tags | Static descriptive inputs |
-| Provider metadata | Source owner, repository ID, and immutable revision |
-| RFC 008 validation report | Optional revision-bound evidence reference |
-| Discovery adapter | Description, license, canonical assertion, and artifact identity only when supported by authoritative source data |
+| `openenv.yaml` and package metadata | Names, manifest marker, declared framework requirements, and existing descriptions |
+| README or explicit author metadata | Reviewed task summary, prerequisites, documentation, and claims with a stated source |
+| Provider metadata | Native source identity, repository URI/revision, and separately dated provider facts |
+| Authoritative license source | The applicable declaration and evidence URL; conflicts remain unknown |
+| Stable RFC 008 contracts, when available | Reused normalization inputs and optional validation evidence |
 
-Current gaps are recorded rather than silently filled:
+The producer must preserve provenance and revision for mapped claims. It must
+not infer licenses, ownership verification, runtime support, or validation from
+names, tags, popularity, or generated prose.
 
-- Generic short description
-- License
-- Optional canonical cross-provider identity
-- Immutable artifact identity
-- Provider projection identity
+An explicit, reviewed declaration takes precedence over a heuristic. Conflicting
+authoritative inputs need a documented resolution or an explicit unknown/error.
+Missing task descriptions must be visible to maintainers; filling a string with
+a generic name is not evidence of task usefulness.
 
-A validation reference points to an immutable RFC 008 report and identifies the
-result used by the card. The referenced report remains the source of truth for
-`policy_version`, `lane`, `results`, `verdict`, and its embedded source digest.
-RFC 011 does not duplicate those fields. The storage URI, byte
-canonicalization, and integrity-addressing rule are dependencies on the RFC 008
-contract PR, not new fields defined here.
+The OpenEnv maintainers own the initial first-party publication policy and
+designate the producer and publication channel before the first public
+milestone. The implementation must publish a versioned metadata snapshot with a
+recorded source inventory and generation version. A moving "latest" pointer may
+aid browsing, but a selected result retains its snapshot and artifact references.
 
-Discovery does not filter an entry because of its validation verdict. A finder
-may expose and rank evidence. Gating remains operator policy, as RFC 008
-requires.
+The snapshot is not the environment artifact. Its own immutable reference or
+digest is recorded separately; a producer must not confuse its generation
+revision with an environment's revision.
 
-### 9. Read-only CLI boundary
+The publication process includes correction and removal. On refresh, a consumer
+must distinguish a superseded/withdrawn listing from a failed or incomplete
+fetch. Historical source identity need not be erased when a listing is removed.
+The first implementation must demonstrate this lifecycle, not merely an
+initial successful import.
 
-The future CLI flow is:
+### 6. Consumer and complete-result contract
+
+ARD v0.91 search results need only carry an identifier. Its `url`, when present,
+addresses the artifact document, not necessarily the ARD entry. A generic
+get-by-identifier operation is not defined by that draft.
+
+The first reference path therefore uses complete inline cards in a versioned
+catalog snapshot. The consumer may inspect a complete search result directly or
+look up its identifier in the same explicitly configured snapshot. The
+revision-qualified identifier must select exactly one card. The consumer
+validates the card and retains the complete metadata needed for selection.
+
+If neither a complete card nor an authoritative configured source is available,
+the result remains generic/incomplete metadata. The consumer must not guess a
+URL from the identifier, fabricate missing fields, or present a resolved
+environment. This is an explicit acceptance case, not an empty-success fallback.
+Partial search fields must not overwrite conflicting source/revision or other
+authoritative card facts from the configured snapshot.
+
+A later URL-carried card profile needs a bounded metadata-only retrieval
+contract: known metadata origins, size/time limits, redirect policy, and
+origin-scoped credentials. It must not turn a card lookup into a request to an
+arbitrary candidate deployment. Such a profile can be added without inventing
+an environment execution endpoint.
 
 ```mermaid
 sequenceDiagram
   participant U as User
-  participant C as openenv discover
-  participant F as ARD finder
-  participant R as Installer or runner
-
-  U->>C: Search by task and filters
-  C->>F: POST /search
-  F-->>C: Cards and provider projections
-  C-->>U: Ranked metadata
-  Note over C,R: Discovery stops here
-  U->>R: Separate explicit command
-  R-->>U: Pin artifact and review trust
+  participant C as Discovery consumer
+  participant S as Configured catalog source
+  participant R as Separate resolver or runner
+  U->>C: Task and explicit filters
+  C->>S: Read catalog metadata
+  S-->>C: Records and snapshot reference
+  C-->>U: Inspectable source, path, revision, unknowns
+  Note over C,R: Discovery stops before execution
+  U->>R: Separate explicit selection and approval
 ```
 
-`openenv discover` must not:
+The first consumer may use local list/filter/lexical search over the snapshot.
+That demonstrates the publication format, not a claim to implement every ARD
+registry feature. Integration with an existing public finder must state and
+exercise the supported result and filter profile.
 
-- Install a package.
-- Import candidate code.
-- Pull an image.
-- Start, wake, reset, or step an environment.
-- Probe arbitrary candidate endpoints by default.
-- Call an MCP tool.
-- Choose one candidate and execute it automatically.
+The eventual `openenv discover` command name remains a UI choice. Its output
+must preserve provider, repository URI, environment path, revision, and
+uncertainty. This GitHub example is not a Hugging Face Space ID: a later
+operation must not feed `source.id` alone into a known-Hub resolver and silently
+select another source or revision.
 
-A user-directed assistant may issue a metadata-only discovery query on behalf
-of a user. This does not give the agent being trained catalog access. Any
-assistant client must preserve the interface-role boundary in section 5 and
-treat catalog text as untrusted data under section 10.
-
-A local result cache is an implementation decision. If one is added, the
-implementation review must define versioning, expiry, user and credential
-scoping, `--offline`, and `--refresh` behavior. Private-result handling follows
-the credential-scope rule in section 10. A discovery cache must never contain
-executable candidate code.
-
-Any live reachability probe is opt-in. It must be restricted to the provider's
-declared host set and must report its observation time. Finder-reported runtime
-state remains a hint, not an artifact availability claim.
-
-Illustrative output:
+Illustrative output, not a command implemented by this RFC:
 
 ```text
-$ openenv discover "deterministic environment for testing a client"
+$ openenv discover "client smoke test"
 
-1. Echo Environment
-   publisher:  huggingface.co
-   source:     openenv/echo_env@2b73c927
-   artifact:   resolvable
-   license:    unknown
-   agent tools: MCP declared
-   validation: not supplied
-   trust:      remote code requires explicit approval
+Echo Environment
+source:      github / huggingface/OpenEnv
+path:        envs/echo_env
+revision:    b9d8c1f953e0c3e0bbee2f3f6f6c73d8eae61f5f
+artifact:    resolvable source reference
+license:     BSD-3-Clause (source evidence linked)
+agent tools: MCP declared
+validation:  not supplied
 
-Discovery returned metadata only. No code was installed or executed.
+Metadata only. Execution approval is a separate consumer decision.
 ```
 
-A later command may accept the pinned source. That execution path is outside
-this RFC and must retain the existing trust confirmation.
+### 7. Roles, validation, and policy authority
 
-### 10. Security model
+Every card has one orchestration descriptor. It declares the OpenEnv role; it
+does not list reset/step/state, transports, endpoints, or liveness. Orchestration
+must not be copied into an agent-facing prompt, capability list, or tool list.
 
-Catalog data is untrusted input.
+Agent tools are optional. An evidenced publisher claim may be `declared`; a
+`validated` claim needs a report for the same identified artifact and the named
+property. Omission is unknown. Endpoint reachability alone proves neither MCP
+support nor useful or safe tools.
 
-#### Prompt injection
+An agent-tools descriptor carries `role: agent-tools`, its `protocol`, and
+`status: declared` or `validated`. For a revision-bound subject,
+`source_revision` is required and must match the card's source revision.
+Revision-unbound claims must identify their declaration source and cannot be
+presented as validated evidence for an immutable artifact. Their
+`declaration_source` is a metadata reference, not an invocation endpoint, and
+follows the same bounded metadata-retrieval policy as other references.
 
-Names, descriptions, tags, representative queries, owner claims, and tool
-descriptions are publisher-controlled. A client that sends them to a model must
-delimit and escape them as data. Entry content must not alter system
-instructions, ranking policy, filters, or trust policy.
+An agent-facing operation that gives simulation control is incompatible with
+the OpenEnv boundary regardless of its name. Name checks can raise diagnostics,
+but do not prove semantic safety. A consumer must not silently remove a suspect
+tool and upgrade the rest of the card to validated.
 
-#### Remote code
+The initial revision-bound MCP validation integration reuses RFC 008's
+`runtime.tool_declaration_accuracy` result and a report whose embedded source
+digest matches the artifact. That check does not certify the semantic
+orchestration boundary. Any such future claim needs separately defined evidence.
 
-Discovery makes remote code easier to find, not safer to run. Every result
-shows whether a later operation requires explicit trust and identifies the
-immutable revision. Discovery output must not include a copy-and-run command
-that omits the revision or trust warning.
+**Basic discovery does not depend on RFC 008 implementation or reports.** The
+shared normalized manifest is a reusable producer input when stable. Until the
+report contract defines immutable evidence references and the relevant checks
+exist, producers emit `declared` or omit unsupported claims. This RFC does not
+duplicate the normalized manifest, grader registry, report schema, or operator
+quality policy.
 
-#### Identity spoofing
+As of September 6, 2026, the RFC 008 document is on main with status In Review.
+Its initial implementation stack was merged and reverted by
+[huggingface/OpenEnv#1108](https://github.com/huggingface/OpenEnv/pull/1108) on
+September 1. Restoration PRs
+[huggingface/OpenEnv#1110](https://github.com/huggingface/OpenEnv/pull/1110),
+[huggingface/OpenEnv#1111](https://github.com/huggingface/OpenEnv/pull/1111), and
+[huggingface/OpenEnv#1112](https://github.com/huggingface/OpenEnv/pull/1112)
+remain open. The older `openenv validate` output is not automatically equivalent
+to the proposed RFC 008 evidence format.
 
-Provider facts and card claims remain separate. Anyone can write a URN string,
-so a publisher segment is not trusted until ARD trust data verifies its
-binding. Similar names never establish identity.
+Publisher identity, artifact ownership claims, and local execution policy stay
+separate. ARD `trustManifest` supplies verification inputs, not authority by its
+presence. Verified publisher status requires the declared trust framework and
+ARD publisher-authority binding to succeed.
 
-#### Evidence laundering
+This revision removes the required publisher-supplied
+`requires_explicit_trust` field. Approval depends on the consumer, action, and
+local policy, not a boolean in untrusted static metadata. If an older
+experimental card contains the field, `false` or omission must never lower
+approval requirements; at most the field can add caution. A result, a score,
+or a provider observation does not grant execution permission.
 
-`declared` and `validated` are visibly different. Validated evidence resolves
-to an immutable RFC 008 report whose embedded source digest matches the
-artifact. A finder must not upgrade a publisher declaration to validated
-status.
+### 8. Security and failure behavior
 
-#### Network privacy
+Catalog descriptions, queries, tags, owner claims, and tool descriptions are
+untrusted data. Display and model inputs must preserve that distinction: record
+content cannot alter system instructions, filters, ranking policy, or trust
+policy.
 
-Default discovery does not contact candidate deployments. This avoids turning
-a search into an outbound scanner or disclosing user interest to every result.
+Default discovery contacts only configured metadata sources, not candidate
+deployments. It does not install/import code, pull artifacts, wake services,
+reset/step an environment, or call a tool. Any later opt-in reachability check
+is separate, origin-restricted, and timestamped.
 
-#### Credential scope
+Credentials and caches are scoped to the caller and configured origin.
+Credentials are not forwarded to a referral, provider, redirect target, or
+candidate unless separately authorized for that origin. The first public
+milestone does not add private inventory.
 
-Credentials are scoped to one configured finder or provider authority and
-caller identity. They must not be forwarded to another registry, referral,
-provider, or candidate endpoint unless separately configured for that origin.
-Caches must be partitioned by identity and credential scope.
+Malformed records, unsupported profile versions/filters, partial results, and
+unavailable sources produce explicit outcomes. Incomplete enumeration must not
+look like a complete empty inventory. Do not truncate a full card into a
+success-shaped partial one when a transport or storage limit is exceeded.
 
-#### License handling
+The implementation defines and tests input size, timeout, pagination, and
+cache-expiry limits. A URI or source commit establishes neither legal
+permission, trusted authorship, an identical build, nor safe runtime behavior.
 
-An SPDX expression is preserved as written after validation. `other` means an
-authoritative non-SPDX license exists and requires `license_url`. `unknown`
-means the adapter could not establish a license. Neither `other` nor `unknown`
-is permissive. A filter may exclude either state, but the exclusion must be
-visible to the user.
+## Acceptance and delivery
 
-### 11. Ranking and benchmark
+### 1. First-source discovery readiness
 
-The first implementation artifact is an offline benchmark, not a CLI command.
+The first milestone has an explicit, independently audited inventory scope. It
+may start with maintained repository definitions or a provider snapshot.
+Eligibility and exclusions are defined before evaluating the producer.
+Community sources are not claimed covered by a first-party sample.
 
-#### Inventory
+Acceptance requires:
 
-The first benchmark is intentionally first-party. Its universe is every public
-Space owned by the Hugging Face `openenv` organization at the snapshot time.
-Ground truth is frozen before adapter implementation. It is assembled from the
-existing OpenEnv collection, a provider browse/list export, and a manual audit
-of that organization. Two reviewers independently label every candidate and
-adjudicate disagreements. Each included and excluded record keeps its reason.
-Community-owned Spaces are a later, separately labeled expansion.
+1. **Inventory accounting:** every independently eligible fixture is represented
+   or has an explicit, reviewable failure/exclusion. Live incomplete reads are
+   labeled rather than silently treated as complete.
+2. **Record correctness:** required fields and source mappings are checked;
+   descriptions are useful for the stated task; unknowns remain explicit.
+3. **Identity and handoff:** source URI, environment path, and revision survive
+   production and consumption. Different revision cards do not collide or
+   inherit evidence from different code.
+4. **Complete-result handling:** a real, independently implemented consumer
+   inspects the full card or reports incomplete/unsupported metadata honestly.
+5. **Selection usefulness:** independently chosen task queries can lead users to
+   appropriate records without prior knowledge of repository names. A filled
+   schema or domain tag alone is not this evidence.
+6. **Read-only behavior:** no candidate installation, import, image pull, wake,
+   reset, step, or tool invocation during discovery.
+7. **Lifecycle:** publication, correction, new revision, and withdrawal are
+   demonstrated through the intended metadata path.
 
-For the first Hugging Face snapshot, eligibility is preregistered as:
+Positive and negative fixtures include a monorepo environment, different
+revisions, incomplete metadata, unknown license or interface evidence, an
+external subject, and a source/read failure. The implementation report publishes
+the scope, examples, outcomes, and limitations.
 
-1. Public Space.
-2. Docker SDK.
-3. Exact `openenv` tag.
-4. OpenEnv environment record, confirmed by the manual audit.
+The deterministic baseline is a valid first release outcome when it meets
+these criteria. Basic discovery is not gated on a new ranker beating it.
+An ingestion failure for an eligible record remains a completeness failure;
+documenting the failure does not turn a partial inventory into a complete one.
 
-Runtime state does not remove an otherwise eligible record. The snapshot stores
-the provider ID, immutable revision when available, tags, README metadata, and
-observation time. Adapter enumeration is then evaluated against this independent
-ground truth.
+### 2. Optional ranking experiments
 
-#### Query set
+A semantic ranker or other ranking change uses the same frozen inventory as
+the baseline. Pre-register task-oriented queries, relevance labels, the
+train/development/held-out split, metrics, latency/cost budgets, and the adoption
+decision. Group near-duplicate queries before splitting and do not tune against
+the held-out set.
 
-The query set is built before ranking work:
+Recall@k, nDCG@k, filter precision, per-query outcomes, and appropriate confidence
+intervals can assess incremental value. The decision should justify the added
+complexity and cost, not impose an unexplained fixed gain as permission for any
+metadata discovery to exist.
 
-- Environment authors or maintainers provide task-oriented queries without
-  seeing ranker output.
-- The dataset contains at least 40 queries, with at least 20 held out.
-- Near-duplicate queries are grouped before splitting.
-- A fixed held-out set is never used for prompt, embedding, weight, or filter
-  tuning.
-- The four queries used in the initial investigation remain diagnostic only
-  and do not count toward the held-out score.
-- Each held-out query is labeled by at least two people who did not author the
-  candidate environment. Disagreements are adjudicated.
-- Every relevance label records its authors and rationale.
+This revision removes the mandatory 0.10 nDCG@5 improvement and its
+implementation/CLI stop rule. A disappointing ranker is not evidence that a
+useful inventory and lexical consumer should be withheld. Publish negative
+ranking results and keep the working baseline.
 
-#### Baseline and metrics
-
-The baseline is complete tag enumeration followed by deterministic lexical
-ranking over name, description, and tags. The candidate system uses the same
-frozen inventory and may add semantic ranking.
-
-The published report includes:
-
-- Eligible inventory recall.
-- Recall@5 and nDCG@5 on held-out queries.
-- Precision@5 for the declared filters.
-- Card completeness by required field.
-- Artifact availability coverage.
-- License coverage, including explicit `unknown`.
-- Artifact-link and logical-dedup precision.
-- Stale provider-projection rate.
-- Per-query results, not only aggregate scores.
-
-The adapter experiment stops if it cannot enumerate every independently
-eligible record. The CLI work stops unless the candidate ranking improves
-held-out nDCG@5 by at least 0.10 over the lexical baseline without reducing
-recall@5. The report includes a paired bootstrap 95% confidence interval; the
-interval's lower bound must remain above zero. The report is published even
-when the proposal fails.
-
-These criteria prevent tuning to one provider's current ranking behavior or to
-the motivating queries.
-
-The ranking stop rule is evaluated on the frozen first-party Hugging Face
-inventory. The second-provider gate tests contract portability only and does
-not alter the preregistered ranking threshold.
-
-### 12. Delivery
-
-Each stage has a reviewable output:
+### 3. Milestones and claim boundaries
 
 ```mermaid
 flowchart LR
-  RFC["RFC 011 accepted"]
-  Benchmark["Frozen offline benchmark"]
-  Adapter["Hugging Face provider adapter"]
-  Entries["Public first-party ARD entries"]
-  Second["Second-provider portability spike"]
-  CLI["openenv discover"]
-  Registry{"Dedicated registry needed?"}
-
-  RFC --> Benchmark --> Adapter --> Entries --> Second --> CLI --> Registry
+  Contract["Profile and source agreement"] --> Slice["Producer and reference consumer"]
+  Slice --> First["Scoped first-source discovery"]
+  First --> Second["Second-source portability proof"]
+  First -.-> Ranking["Optional ranking and evidence"]
 ```
 
-1. **RFC 011** agrees on ownership, card semantics, identity, trust, and the
-   read-only boundary.
-2. **Offline benchmark** publishes the inventory, labels, baseline, held-out
-   results, and stop decision.
-3. **Hugging Face provider adapter** emits complete OpenEnv entries from
-   independently enumerated native inventory. Delivery does not assume an
-   in-process `hf-discover` server plugin.
-4. **Public entries** cover first-party environments with explicit unknowns
-   rather than inferred claims.
-5. **Second-provider portability spike** proves the card and adapter contract
-   are not Hugging Face-specific. Its minimum bar is independent enumeration,
-   complete card generation, and zero Hugging Face-specific card fields.
-6. **CLI client** queries configured ARD finders and renders metadata.
-7. **Registry decision** happens only after two providers expose the operational
-   need.
+- **Profile agreement:** OpenEnv owns the card semantics and designates the
+  initial producer, publication location, and consumer contract.
+- **Producer-consumer slice:** publish schema/fixtures and a versioned snapshot;
+  demonstrate the complete metadata path and the readiness criteria above.
+- **First-source use:** expose useful read-only browsing/search with its source
+  scope explicit. A local consumer is not automatically a hosted ARD registry.
+- **Finder integration:** coordinate one public finder/consumer implementation
+  and verify its actual type, result, retrieval, and filter support. Publication
+  alone does not guarantee indexing by every finder.
+- **Portability claim:** independently enumerate a second real source and apply
+  the same card contract without provider-specific assumptions in shared
+  semantics. A second finder over the same source is not this proof.
+- **Optional additions:** validation evidence, richer ranking, private
+  inventories, or operational services have their own contracts and evidence.
 
-Before CLI work, both public adapter paths must return complete inline
-Environment Cards and must prove that source hosting alone does not create a
-runtime provider projection.
+A second-source proof is required before a strong cross-provider claim, not
+before any clearly scoped first-source discovery is useful. A dedicated registry
+is considered only if actual operational needs justify one.
 
-Lifecycle, deletion, stale-state behavior, mapping provenance, and credential
-partitioning remain implementation-review requirements and benchmark metrics.
-The first two-provider prototype is public-only. Private inventory waits for
-the credential model in Open Question 15.
-
-The ARD conformance-tool change discussed in
-[ards-project/ard-spec#66](https://github.com/ards-project/ard-spec/issues/66)
-and implemented by
+The generic conformance adjustment in
 [ards-project/ard-spec#85](https://github.com/ards-project/ard-spec/pull/85)
-is useful for extension media types, but this RFC does not depend on it. A
-valid OpenEnv extension type is permitted by ARD regardless of that diagnostic.
+is coordinated with this work but not a prerequisite. ARD already permits the
+extension type. That PR changes diagnostics, not source publication, indexing,
+or execution support.
 
-At the time of this RFC, none of the 14 public first-party Spaces exposes a
-machine-readable license through its Space card metadata. The first published
-cards will therefore say `license: unknown` unless authoritative metadata is
-added before that stage.
+## Alternatives and trade-offs
 
-## Alternatives considered
+**Provider-native metadata only:** a useful first-source input and baseline. It
+can expose substantial metadata without a new service, but does not alone
+define provider-independent environment semantics or a full consumer journey.
 
-### Direct Hugging Face semantic search
+**Repository-generated static catalog:** simple, versionable, and appropriate
+for repository definitions. It must not claim to enumerate every deployment or
+community environment. Provider inventories cover a different population.
 
-This is useful for ranking but does not provide complete inventory, portable
-identity, cross-provider discovery, or static artifact evidence. It remains an
-adapter input, not the outer contract.
+**Reuse a provider Space media type:** useful for a Space hosting record, but
+not a substitute for an environment definition, its locator, or external
+artifact semantics. Both records may coexist without merging their identities.
 
-### Tag enumeration with OpenEnv-specific output
+**Hand-maintained second manifest:** can bootstrap reviewed examples, but risks
+drift. Prefer a generated projection of existing authoritative inputs, with a
+small explicit authoring surface for facts that are genuinely missing.
 
-This is the benchmark baseline and may be enough for one provider. It becomes a
-dead end once a second provider or private catalog is needed.
+**Add `agents.md` only to enter an agent index:** an environment is not
+necessarily an agent skill or MCP server. Do not change its declared meaning to
+fit a different resource category.
 
-### Reuse `application/vnd.huggingface.space+json`
+**New OpenEnv-specific network protocol or central registry:** unnecessary for
+the first producer-consumer milestone. ARD provides an open interchange path;
+operators remain free to implement services without making one operator the
+framework's standard.
 
-That media type describes one Hugging Face Space. It does not describe an
-external environment, a provider-independent logical identity, OpenEnv
-compatibility, or revision-bound interface evidence. A finder may emit both a
-Space projection and an OpenEnv Environment Card.
+## Compatibility and open decisions
 
-### Add `agents.md` to environments
+Existing environments, runtime APIs, CLI commands, and manifests do not change
+in this docs-only PR. The first implementation must preserve those boundaries.
+Experimental card consumers must pin the profile they understand and preserve
+generic metadata when the domain payload is unsupported.
 
-An OpenEnv RL environment is not an agent skill. Adding agent metadata only to
-enter an existing agent index would erase the orchestration boundary and
-misrepresent environments without agent-facing tools.
+Compared with earlier draft examples, this revision makes manifest version
+semantics explicit, removes a publisher-owned execution-policy decision, and
+allows known identity on external records without claiming distribution.
+No released Environment Card schema is being changed.
 
-### Dedicated OpenEnv registry now
+Decisions before the first producer-consumer milestone:
 
-This would choose an operator, ranking policy, and deployment model before the
-record contract and recall benchmark are proven. RFC 008 already establishes
-the better boundary: ship shared contracts and let operators run services.
+1. Which maintained source inventory and producer own the initial records, and
+   which existing publication channel exposes versioned snapshots?
+2. Where does OpenEnv publish the card schema/fixtures and its stable profile
+   references, and which independent consumer demonstrates the first contract?
+3. Do the proposed source URI/path/revision and revision-card identifier rules
+   cover the first source without an unsubstantiated canonical identity claim?
+4. What authoring/precedence policy resolves conflicting descriptions, license
+   declarations, and artifact claims?
+5. Which independently chosen tasks and observations establish useful selection
+   for this scoped milestone?
 
-### OpenEnv-specific discovery protocol
+Decisions before the stages they affect:
 
-This duplicates ARD search and federation while making private and second-Hub
-adapters less reusable. The OpenEnv-specific part belongs in the card.
-
-## Compatibility
-
-- Existing environments, manifests, clients, servers, and CLI commands do not
-  change in this RFC.
-- An ARD consumer that does not understand the OpenEnv media type can still use
-  generic entry fields.
-- An OpenEnv consumer that sees an unsupported card schema version keeps the
-  generic ARD metadata and marks card-specific fields unknown.
-- Provider endpoints and runtime state never become static compatibility data.
-- RFC 011 adds no claim that current OpenEnv communication is WebSocket-only.
-  The static card deliberately omits transport while OpenEnv completes its
-  transport migration.
-
-## Open questions
-
-Questions 1, 2, 3, and 8 are acceptance-blocking for this RFC. The remaining
-questions must be resolved before the implementation stage they affect.
-
-1. Should the normative Environment Card schema live in OpenEnv, while ARD
-   carries it as an extension, or should a later shared profile repository own
-   it?
-2. Should cards be generated from the RFC 008 normalized manifest plus provider
-   data, or should authors maintain a sidecar card? What precedence and
-   evidence policy governs conflicting metadata, especially artifact and
-   license claims? This RFC prefers generation to avoid a second source of
-   truth.
-3. Which second provider should prove portability, and which provider-profile
-   fields must each provider profile define for stable record identity, mutable
-   locator, environment path, and revision?
-4. Should `declared` agent-tools claims affect ranking, or only filtering and
-   display?
-5. Should the eventual command be `openenv discover` or
-   `openenv catalog search`, given the existing `EnvironmentDiscovery` class?
-6. What default UI treatment should `license: unknown` receive?
-7. Which provider-projection fields should move to a generic ARD deployment
-   profile after ards-project/ard-spec#44 is resolved?
-8. Do maintainers accept the proposed held-out nDCG@5 improvement threshold, or
-   prefer another preregistered stop rule?
-9. Where should first-party OpenEnv entries be published, and which operator is
-   responsible for that surface?
-10. How should the required `owner` and `requires_explicit_trust` fields relate
-    to ARD `trustManifest` without duplicating identity or provenance claims?
-11. Should a later card version represent harness-specific streaming surfaces
-    from RFC 005, or should those remain provider projection data?
-12. Should RFC 008 reserve `runtime.orchestration_boundary`, and what evidence
-    can verify that an agent-facing tool does not provide simulation control?
-13. How must a client retrieve a complete card when search returns only a
-    minimal result or URL, including authorization-preserving dereference?
-14. What lifecycle contract covers deletion, transfer, retraction, and stale
-    snapshots, and should tombstones be standardized outside the Environment
-    Card?
-15. What origin, caller-identity, cache, and referral credential model is
-    required before private inventories are enabled?
+6. What metadata-only URL retrieval and source-discovery contract is needed
+   beyond complete inline snapshots?
+7. Which second provider profile proves portability, including transfer,
+   deletion, and multiple-environment locators?
+8. Which immutable RFC 008 report/check contracts support validated interface
+   claims, including any distinct orchestration-boundary evidence?
+9. What credential, referral, cache, and revocation rules enable private
+   inventories?
+10. Should later profiles describe harness-specific surfaces, task collections,
+    or generic provider observations, without confusing them with the
+    environment artifact?
 
 ## References
 
 - [ARD v0.91 specification](https://github.com/ards-project/ard-spec/tree/aa3e598bb7752a9175897823234311216acfa864)
-- [ARD issue #44: deployment metadata](https://github.com/ards-project/ard-spec/issues/44)
-- [ARD issue #66: maintainer direction on extension media types](https://github.com/ards-project/ard-spec/issues/66)
-- [ARD PR #85: conformance reports extension media types as informational](https://github.com/ards-project/ard-spec/pull/85)
+- [ards-project/ard-spec#44: deployment metadata](https://github.com/ards-project/ard-spec/issues/44)
+- [ards-project/ard-spec#66: extension media-type guidance](https://github.com/ards-project/ard-spec/issues/66)
+- [ards-project/ard-spec#85: generic diagnostic adjustment](https://github.com/ards-project/ard-spec/pull/85)
 - [Hugging Face `hf-discover`](https://github.com/huggingface/hf-discover)
-- [RFC 002: OpenEnv framework specification](./002-env-spec.md)
+- [huggingface/OpenEnv#1024: docs/catalog completeness](https://github.com/huggingface/OpenEnv/pull/1024)
+- [huggingface/OpenEnv#1094: Task API documentation](https://github.com/huggingface/OpenEnv/pull/1094)
+- [huggingface/OpenEnv#366: external environments](https://github.com/huggingface/OpenEnv/issues/366)
+- [huggingface/OpenEnv#795: dataset-bound environments](https://github.com/huggingface/OpenEnv/pull/795)
+- [RFC 002: framework specification](./002-env-spec.md)
 - [RFC 003: MCP support](./003-mcp-support.md)
 - [RFC 005: agentic harness integration](./005-agentic-harnesses.md)
 - [RFC 008: environment auto-validation](./008-environment-auto-validation.md)
-- [Issue #778: environment auto-validation](https://github.com/huggingface/openenv/issues/778)
