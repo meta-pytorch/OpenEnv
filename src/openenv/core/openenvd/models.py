@@ -8,7 +8,7 @@ import enum
 import time
 from typing import Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
 class RestartPolicy(str, enum.Enum):
@@ -41,35 +41,53 @@ class TaskSpec(BaseModel):
     Attributes:
         name (`str`): Unique task name (lowercase alphanumerics, ``-``, ``_``).
         argv (`list[str]`): Command to execute.
-        env (`dict[str, str]`): Extra environment variables merged over the
-            daemon's own environment.
-        cwd (`Optional[str]`): Working directory for the child.
-        uid (`Optional[int]`): Run as this UID (overrides ``auto_uid``).
-        gid (`Optional[int]`): Run as this GID (overrides ``auto_uid``).
+        env (`dict[str, str]`): Explicit child environment. Only a standard
+            executable search path is supplied by default; daemon secrets
+            and interpreter settings are never inherited.
+        cwd (`str`, *optional*): Child working directory; defaults to ``/``.
+        uid (`int`, *optional*): Non-root UID; must be supplied with ``gid``.
+        gid (`int`, *optional*): Non-root GID; must be supplied with ``uid``.
         auto_uid (`bool`): When no explicit uid/gid is given and the daemon
-            is privileged, allocate a dedicated UID pair for this task so
-            sibling tasks cannot signal it or read its files.
-        network_isolated (`bool`): Run the child in its own network namespace
-            when the runtime allows it; falls back to the shared namespace
-            with a warning otherwise.
+            is privileged, allocate a dedicated UID pair. Registration fails
+            if that is unavailable. Set to ``False`` only for trusted tasks
+            that may run as the daemon user.
+        network_isolated (`bool`): Require a separate Linux network namespace
+            and an unprivileged UID/GID. Never falls back to shared networking.
         restart_policy (`RestartPolicy`): Restart behavior on exit.
         max_retries (`int`): Restart budget for ``ON_FAILURE``.
         backoff_s (`float`): Base delay between restarts (exponential).
         stop_grace_s (`float`): Seconds between SIGTERM and SIGKILL on stop.
     """
 
-    name: str = Field(pattern=r"^[a-z0-9][a-z0-9_-]*$")
+    model_config = ConfigDict(extra="forbid", allow_inf_nan=False)
+
+    name: str = Field(pattern=r"^[a-z0-9][a-z0-9_-]*$", max_length=128)
     argv: list[str] = Field(min_length=1)
     env: dict[str, str] = Field(default_factory=dict)
     cwd: Optional[str] = None
-    uid: Optional[int] = Field(default=None, ge=0)
-    gid: Optional[int] = Field(default=None, ge=0)
+    uid: Optional[int] = Field(default=None, gt=0, lt=2**32 - 1, strict=True)
+    gid: Optional[int] = Field(default=None, gt=0, lt=2**32 - 1, strict=True)
     auto_uid: bool = True
     network_isolated: bool = False
     restart_policy: RestartPolicy = RestartPolicy.NEVER
     max_retries: int = Field(default=3, ge=0)
     backoff_s: float = Field(default=0.5, gt=0)
     stop_grace_s: float = Field(default=5.0, ge=0)
+
+    @model_validator(mode="after")
+    def validate_process_settings(self) -> TaskSpec:
+        if (self.uid is None) != (self.gid is None):
+            raise ValueError("uid and gid must be supplied together")
+        if not self.argv[0] or any("\0" in arg for arg in self.argv):
+            raise ValueError("argv requires a nonempty executable and no NUL bytes")
+        if self.cwd is not None and (not self.cwd.startswith("/") or "\0" in self.cwd):
+            raise ValueError("cwd must be an absolute path without NUL bytes")
+        if any(
+            not key or "=" in key or "\0" in key or "\0" in value
+            for key, value in self.env.items()
+        ):
+            raise ValueError("invalid child environment")
+        return self
 
 
 class TaskStatus(BaseModel):
@@ -87,8 +105,8 @@ class TaskStatus(BaseModel):
 class SupervisorEvent(BaseModel):
     """A lifecycle event emitted by the supervisor.
 
-    ``seq`` is a daemon-monotonic sequence number; consumers use it to resume
-    an event stream without gaps or duplicates.
+    ``seq`` increases within one daemon lifetime. The event buffer is bounded
+    and resets with the daemon; this is not a durable or gap-free stream.
     """
 
     seq: int = 0

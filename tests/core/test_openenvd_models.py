@@ -47,6 +47,33 @@ class TestTaskSpec:
         with pytest.raises(ValidationError):
             TaskSpec(name="x", argv=["true"], stop_grace_s=-1.0)
 
+    @pytest.mark.parametrize(
+        "settings",
+        [
+            {"uid": 1000},
+            {"gid": 1000},
+            {"uid": 0, "gid": 1000},
+            {"uid": 1000, "gid": 0},
+            {"uid": True, "gid": 1000},
+            {"uid": 2**32 - 1, "gid": 1000},
+            {"backoff_s": float("inf")},
+            {"stop_grace_s": float("nan")},
+            {"network_isolation": True},
+            {"cwd": "relative/path"},
+            {"cwd": "/invalid\0path"},
+            {"env": {"BAD=KEY": "value"}},
+            {"env": {"KEY": "bad\0value"}},
+        ],
+    )
+    def test_unsafe_or_mistyped_settings_rejected(self, settings):
+        with pytest.raises(ValidationError):
+            TaskSpec(name="task", argv=["true"], **settings)
+
+    @pytest.mark.parametrize("argv", [[""], ["true", "bad\0argument"]])
+    def test_invalid_process_arguments_rejected(self, argv):
+        with pytest.raises(ValidationError):
+            TaskSpec(name="task", argv=argv)
+
 
 class TestTaskStatus:
     def test_defaults(self):

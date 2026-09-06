@@ -1,0 +1,61 @@
+name: openenvd isolation
+
+on:
+  pull_request:
+    branches: [main, release]
+    paths:
+      - src/openenv/core/openenvd/**
+      - tests/core/test_openenvd*.py
+      - pyproject.toml
+      - .github/workflows/openenvd.yml
+  push:
+    branches: [main]
+    paths:
+      - src/openenv/core/openenvd/**
+      - tests/core/test_openenvd*.py
+      - pyproject.toml
+      - .github/workflows/openenvd.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  linux-isolation:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    container:
+      image: python:3.12-slim
+      # Creating a network namespace and enabling its loopback need both caps.
+      options: --cap-add=SYS_ADMIN --cap-add=NET_ADMIN
+    env:
+      PYTHONPATH: src:envs
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Install process inspection tools
+        run: |
+          apt-get update
+          apt-get install -y --no-install-recommends procps
+
+      - name: Install dependencies
+        # Keep Python accessible to the unprivileged task UIDs used by the tests.
+        run: /usr/local/bin/python -m pip install -e . pytest pytest-asyncio
+
+      - name: Require real Linux isolation capabilities
+        run: |
+          /usr/local/bin/python - <<'PY'
+          from openenv.core.openenvd.isolation import detect_capabilities
+
+          caps = detect_capabilities()
+          assert caps.can_drop_uid and caps.can_allocate_uids and caps.can_unshare_net, (
+              f"Isolation tests require UID separation and network namespaces: {caps}"
+          )
+          PY
+
+      - name: Test openenvd including privileged isolation probes
+        run: /usr/local/bin/python -m pytest tests/core/test_openenvd*.py -q -rs --tb=short

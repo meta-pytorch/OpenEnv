@@ -1,166 +1,356 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Tests for openenvd isolation primitives (uid drop, network namespace)."""
+"""Isolation requests must succeed completely or never run the target."""
 
+import asyncio
+import errno
+import json
 import os
+import socket
+import sys
+from unittest.mock import Mock
 
 import pytest
 from openenv.core.openenvd import isolation
 from openenv.core.openenvd.models import TaskSpec
 
 
-@pytest.fixture
-def root_caps():
-    return isolation.IsolationCapabilities(can_drop_uid=True, can_unshare_net=True)
+ROOT_CAPS = isolation.IsolationCapabilities(True, True, True)
+USER_CAPS = isolation.IsolationCapabilities(False, False)
 
 
-@pytest.fixture
-def unprivileged_caps():
-    return isolation.IsolationCapabilities(can_drop_uid=False, can_unshare_net=False)
+def task(**kwargs):
+    return TaskSpec(name="test", argv=["true"], auto_uid=False, **kwargs)
 
 
-class TestDetectCapabilities:
-    def test_returns_capabilities(self):
-        caps = isolation.detect_capabilities()
-        assert isinstance(caps.can_drop_uid, bool)
-        assert isinstance(caps.can_unshare_net, bool)
+class TestIsolationRequirements:
+    @pytest.mark.parametrize(
+        "spec, message",
+        [
+            (task(uid=1234, gid=1234), "privileged"),
+            (task(network_isolated=True), "network namespace"),
+        ],
+    )
+    async def test_unavailable_isolation_never_spawns(self, spec, message, monkeypatch):
+        spawn = Mock()
+        monkeypatch.setattr(asyncio, "create_subprocess_exec", spawn)
+        with pytest.raises(isolation.IsolationError, match=message):
+            await isolation.spawn_task(spec, USER_CAPS, env={})
+        spawn.assert_not_called()
 
-    def test_matches_euid_for_uid_drop(self):
-        caps = isolation.detect_capabilities()
-        assert caps.can_drop_uid == (os.geteuid() == 0)
+    def test_network_isolation_cannot_retain_root(self, monkeypatch):
+        monkeypatch.setattr(sys, "platform", "linux")
+        with pytest.raises(isolation.IsolationError, match="dedicated UID"):
+            isolation.validate_isolation(task(network_isolated=True), ROOT_CAPS)
+
+    def test_kernel_namespace_failure_is_not_ignored(self, monkeypatch):
+        libc = Mock()
+        libc.unshare.return_value = -1
+        monkeypatch.setattr(isolation.ctypes, "CDLL", lambda *a, **kw: libc)
+        monkeypatch.setattr(isolation.ctypes, "get_errno", lambda: errno.EPERM)
+        with pytest.raises(OSError) as error:
+            isolation._unshare_net()
+        assert error.value.errno == errno.EPERM
+
+    def test_no_new_privileges_failure_is_not_ignored(self, monkeypatch):
+        libc = Mock()
+        libc.prctl.return_value = -1
+        monkeypatch.setattr(isolation.ctypes, "CDLL", lambda *a, **kw: libc)
+        monkeypatch.setattr(isolation.ctypes, "get_errno", lambda: errno.EPERM)
+        with pytest.raises(OSError) as error:
+            isolation._no_new_privileges()
+        assert error.value.errno == errno.EPERM
+
+    def test_capability_probe_never_uses_python_after_fork(self, monkeypatch):
+        monkeypatch.setattr(sys, "platform", "linux")
+        fork = Mock(side_effect=AssertionError("unsafe fork"))
+        monkeypatch.setattr(os, "fork", fork)
+        probe = Mock(return_value=Mock(returncode=0))
+        monkeypatch.setattr(isolation.subprocess, "run", probe)
+        assert isolation._probe_unshare_net()
+        fork.assert_not_called()
+        args, kwargs = probe.call_args
+        assert args[0][1:3] == ["-I", "-S"]
+        assert kwargs["env"] == {}
+        assert kwargs["cwd"] == "/"
+        assert "preexec_fn" not in kwargs
 
 
-class TestBuildPreexec:
-    def test_no_isolation_returns_none(self, root_caps):
-        spec = TaskSpec(name="x", argv=["true"])
-        preexec, warnings = isolation.build_preexec(spec, root_caps)
-        assert preexec is None
-        assert warnings == []
-
-    def test_network_isolation_without_capability_warns(self, unprivileged_caps):
-        spec = TaskSpec(name="x", argv=["true"], network_isolated=True)
-        preexec, warnings = isolation.build_preexec(spec, unprivileged_caps)
-        assert preexec is None
-        assert any("network" in w.lower() for w in warnings)
-
-    def test_uid_drop_without_capability_warns(self, unprivileged_caps):
-        spec = TaskSpec(name="x", argv=["true"], uid=1000, gid=1000)
-        preexec, warnings = isolation.build_preexec(spec, unprivileged_caps)
-        assert preexec is None
-        assert any("uid" in w.lower() for w in warnings)
-
-    def test_network_isolated_preexec_unshares(self, root_caps, monkeypatch):
+class TestHelperSetup:
+    def _run(self, monkeypatch, *, failure=None):
         calls = []
-        monkeypatch.setattr(
-            isolation, "_unshare_net", lambda: calls.append("unshare") or True
-        )
-        spec = TaskSpec(name="x", argv=["true"], network_isolated=True)
-        preexec, warnings = isolation.build_preexec(spec, root_caps)
-        assert preexec is not None
-        assert warnings == []
-        preexec()
-        assert calls == ["unshare"]
 
-    def test_uid_drop_preexec_sets_ids(self, root_caps, monkeypatch):
-        calls = []
-        monkeypatch.setattr(os, "setgid", lambda g: calls.append(("setgid", g)))
-        monkeypatch.setattr(os, "setuid", lambda u: calls.append(("setuid", u)))
-        monkeypatch.setattr(
-            os, "setgroups", lambda groups: calls.append(("setgroups", groups))
-        )
-        spec = TaskSpec(name="x", argv=["true"], uid=1234, gid=5678)
-        preexec, warnings = isolation.build_preexec(spec, root_caps)
-        assert preexec is not None
-        assert warnings == []
-        preexec()
-        assert ("setgroups", []) in calls
-        assert ("setgid", 5678) in calls
-        assert ("setuid", 1234) in calls
-        kinds = [c[0] for c in calls]
-        assert kinds.index("setgid") < kinds.index("setuid")
+        def unshare():
+            calls.append("network")
+            if failure == "network":
+                raise PermissionError(errno.EPERM, "denied")
 
-    def test_combined_isolation(self, root_caps, monkeypatch):
-        calls = []
+        def no_new_privileges():
+            calls.append("no_new_privileges")
+            if failure == "no_new_privileges":
+                raise PermissionError(errno.EPERM, "denied")
+
+        def execute(argv0, argv, env):
+            calls.append(("exec", argv, env))
+            raise FileNotFoundError(errno.ENOENT, "missing executable")
+
+        monkeypatch.setattr(isolation, "_unshare_net", unshare)
+        monkeypatch.setattr(isolation, "_no_new_privileges", no_new_privileges)
         monkeypatch.setattr(
-            isolation, "_unshare_net", lambda: calls.append("unshare") or True
+            os, "setgroups", lambda value: calls.append(("groups", value))
         )
-        monkeypatch.setattr(os, "setgid", lambda g: None)
-        monkeypatch.setattr(os, "setuid", lambda u: None)
-        monkeypatch.setattr(os, "setgroups", lambda groups: None)
+        monkeypatch.setattr(os, "setgid", lambda value: calls.append(("gid", value)))
+        monkeypatch.setattr(os, "setuid", lambda value: calls.append(("uid", value)))
+        monkeypatch.setattr(os, "chdir", lambda value: calls.append(("cwd", value)))
+        monkeypatch.setattr(os, "execvpe", execute)
+        config = {
+            "argv": ["missing-command", "argument"],
+            "env": {"LD_PRELOAD": "target-only", "SECRET": "private-value"},
+            "cwd": "/task",
+            "network_isolated": True,
+            "uid": 1234,
+            "gid": 5678,
+        }
+        parent, child = socket.socketpair()
+        with parent:
+            parent.sendall(json.dumps(config).encode())
+            parent.shutdown(socket.SHUT_WR)
+            assert isolation._run_helper(child.detach()) == 1
+            response = parent.recv(4096)
+        return calls, response
+
+    @pytest.mark.parametrize("failure", ["network", "no_new_privileges"])
+    def test_failed_setup_never_executes_target(self, monkeypatch, failure):
+        calls, response = self._run(monkeypatch, failure=failure)
+        assert not any(isinstance(call, tuple) for call in calls)
+        assert not response.startswith(isolation._READY)
+        assert b"could not" in response
+        assert b"private-value" not in response
+
+    def test_privileges_drop_before_target_cwd_and_environment(self, monkeypatch):
+        calls, response = self._run(monkeypatch)
+        assert calls[:6] == [
+            "network",
+            "no_new_privileges",
+            ("groups", []),
+            ("gid", 5678),
+            ("uid", 1234),
+            ("cwd", "/task"),
+        ]
+        assert calls[6] == (
+            "exec",
+            ["missing-command", "argument"],
+            {"LD_PRELOAD": "target-only", "SECRET": "private-value"},
+        )
+        assert response.startswith(isolation._READY + b"could not execute task")
+        assert b"private-value" not in response
+
+    async def test_native_credentials_drop_clears_supplementary_groups(
+        self, monkeypatch
+    ):
+        monkeypatch.setattr(sys, "platform", "darwin")
+        captured = {}
+
+        async def spawn(*args, **kwargs):
+            captured.update(kwargs)
+            return "process"
+
+        monkeypatch.setattr(asyncio, "create_subprocess_exec", spawn)
+        result = await isolation.spawn_task(task(uid=1234, gid=5678), ROOT_CAPS, env={})
+        assert result == "process"
+        assert captured["user"] == 1234
+        assert captured["group"] == 5678
+        assert captured["extra_groups"] == ()
+        assert captured["umask"] == 0o077
+        assert captured["stdin"] == asyncio.subprocess.DEVNULL
+        assert "preexec_fn" not in captured
+
+    @pytest.mark.parametrize("cancel", [False, True])
+    async def test_incomplete_setup_kills_and_reaps_helper(self, monkeypatch, cancel):
+        monkeypatch.setattr(sys, "platform", "linux")
+        monkeypatch.setattr(isolation, "_HELPER_TIMEOUT_S", 0.05)
+        monkeypatch.setattr(
+            isolation,
+            "_helper_command",
+            lambda: [sys.executable, "-I", "-S", "-c", "import time; time.sleep(30)"],
+        )
+        started = asyncio.Event()
+        processes = []
+        real_spawn = asyncio.create_subprocess_exec
+
+        async def spawn(*args, **kwargs):
+            process = await real_spawn(*args, **kwargs)
+            processes.append(process)
+            started.set()
+            return process
+
+        monkeypatch.setattr(asyncio, "create_subprocess_exec", spawn)
+        pending = asyncio.create_task(isolation.spawn_task(task(), USER_CAPS, env={}))
+        await started.wait()
+        if cancel:
+            pending.cancel()
+            expected = asyncio.CancelledError
+        else:
+            expected = isolation.IsolationError
+        with pytest.raises(expected):
+            await pending
+        assert len(processes) == 1
+        assert processes[0].returncode is not None
+
+
+class TestRealSpawn:
+    async def test_target_receives_exact_environment_cwd_and_private_umask(
+        self, tmp_path
+    ):
+        script = (
+            "import json,os,sys; "
+            "print(json.dumps([dict(os.environ),os.getcwd(),os.umask(0),sys.stdin.read()]))"
+        )
         spec = TaskSpec(
-            name="x", argv=["true"], uid=1000, gid=1000, network_isolated=True
+            name="probe",
+            argv=[sys.executable, "-I", "-S", "-c", script],
+            cwd=str(tmp_path),
+            auto_uid=False,
         )
-        preexec, _ = isolation.build_preexec(spec, root_caps)
-        preexec()
-        assert "unshare" in calls
+        proc = await isolation.spawn_task(
+            spec, USER_CAPS, env={"TASK_ONLY": "value"}, stdout=asyncio.subprocess.PIPE
+        )
+        stdout, _ = await proc.communicate()
+        assert proc.returncode == 0
+        env, cwd, umask, stdin = json.loads(stdout)
+        # Python may normalize locale variables itself; daemon secrets must not leak.
+        assert env.get("TASK_ONLY") == "value"
+        assert set(env) <= {"TASK_ONLY", "LC_CTYPE", "__CF_USER_TEXT_ENCODING"}
+        assert os.path.samefile(cwd, tmp_path)
+        assert umask == 0o077
+        assert stdin == ""
 
+    async def test_exec_failure_is_reported_to_caller(self):
+        spec = TaskSpec(
+            name="missing", argv=["/no/such/openenvd-command"], auto_uid=False
+        )
+        with pytest.raises(OSError):
+            await isolation.spawn_task(spec, USER_CAPS, env={})
 
-def _read_net_ns_link(pid=None):
-    pid = pid or os.getpid()
-    return os.readlink(f"/proc/{pid}/ns/net")
+    async def test_default_working_directory_is_root(self):
+        spec = TaskSpec(name="cwd", argv=["/bin/pwd"], auto_uid=False)
+        proc = await isolation.spawn_task(
+            spec, USER_CAPS, env={}, stdout=asyncio.subprocess.PIPE
+        )
+        stdout, _ = await proc.communicate()
+        assert proc.returncode == 0
+        assert stdout.strip() == b"/"
 
+    @pytest.mark.skipif(sys.platform != "linux", reason="Linux isolation helper")
+    async def test_target_python_configuration_cannot_execute_in_helper(self, tmp_path):
+        marker = tmp_path / "injected"
+        injection = f"open({str(marker)!r}, 'w').write('executed')\n"
+        (tmp_path / "sitecustomize.py").write_text(injection)
+        (tmp_path / "socket.py").write_text(injection)
+        spec = TaskSpec(
+            name="injection",
+            argv=["/bin/sh", "-c", 'printf "%s" "$PYTHONPATH"'],
+            cwd=str(tmp_path),
+            auto_uid=False,
+        )
+        proc = await isolation.spawn_task(
+            spec,
+            USER_CAPS,
+            env={"PYTHONPATH": str(tmp_path)},
+            stdout=asyncio.subprocess.PIPE,
+        )
+        stdout, _ = await proc.communicate()
+        assert proc.returncode == 0
+        assert stdout.decode() == str(tmp_path)
+        assert not marker.exists()
 
-def _in_initial_user_ns() -> bool:
+    @pytest.mark.skipif(sys.platform != "linux", reason="Linux no_new_privs")
+    async def test_linux_target_cannot_gain_privileges_on_exec(self):
+        spec = TaskSpec(
+            name="probe",
+            argv=["/bin/cat", "/proc/self/status"],
+            auto_uid=False,
+        )
+        proc = await isolation.spawn_task(
+            spec, USER_CAPS, env={}, stdout=asyncio.subprocess.PIPE
+        )
+        stdout, _ = await proc.communicate()
+        assert proc.returncode == 0
+        assert b"NoNewPrivs:\t1" in stdout
+
+    @pytest.mark.skipif(sys.platform != "linux", reason="Linux isolation helper")
+    async def test_target_inherits_neither_helper_socket_nor_daemon_descriptors(self):
+        script = """
+import json, os
+opened = []
+for name in os.listdir('/proc/self/fd'):
+    if int(name) <= 2:
+        continue
     try:
-        with open("/proc/self/uid_map") as f:
-            first = f.readline().split()
+        os.fstat(int(name))
     except OSError:
-        return False
-    return first == ["0", "0", "4294967295"]
-
-
-requires_root = pytest.mark.skipif(os.geteuid() != 0, reason="requires root")
-requires_real_root = pytest.mark.skipif(
-    os.geteuid() != 0 or not _in_initial_user_ns(),
-    reason="requires real root (initial user ns) for setuid to arbitrary uids",
-)
-
-
-class TestRealIsolation:
-    @requires_root
-    async def test_network_isolated_child_gets_new_netns(self):
-        import asyncio
-
-        parent_ns = _read_net_ns_link()
-        spec = TaskSpec(name="x", argv=["sleep", "5"], network_isolated=True)
-        preexec, warnings = isolation.build_preexec(spec)
-        assert preexec is not None
-        assert warnings == []
-        proc = await asyncio.create_subprocess_exec(
-            "sleep",
-            "5",
-            preexec_fn=preexec,
-            start_new_session=True,
+        continue
+    opened.append(name)
+print(json.dumps(opened))
+"""
+        spec = TaskSpec(
+            name="descriptors",
+            argv=[sys.executable, "-I", "-S", "-c", script],
+            auto_uid=False,
         )
-        try:
-            child_ns = _read_net_ns_link(proc.pid)
-            assert child_ns != parent_ns
-        finally:
-            proc.kill()
-            await proc.wait()
+        with socket.socket() as daemon_socket:
+            daemon_socket.set_inheritable(True)
+            proc = await isolation.spawn_task(
+                spec, USER_CAPS, env={}, stdout=asyncio.subprocess.PIPE
+            )
+            stdout, _ = await proc.communicate()
+        assert proc.returncode == 0
+        assert json.loads(stdout) == []
 
-    @requires_real_root
-    async def test_uid_dropped_child_runs_as_target_uid(self):
-        import asyncio
-
-        target_uid = 65534
-        target_gid = 65534
-        marker = "/tmp/openenvd-uid-test"
-        if os.path.exists(marker):
-            os.unlink(marker)
-        script = f"id -u > {marker}"
-        spec = TaskSpec(name="x", argv=["sh"], uid=target_uid, gid=target_gid)
-        preexec, warnings = isolation.build_preexec(spec)
-        assert preexec is not None
-        assert warnings == []
-        proc = await asyncio.create_subprocess_exec(
-            "sh",
-            "-c",
-            script,
-            preexec_fn=preexec,
+    @pytest.mark.skipif(
+        os.geteuid() != 0 or not isolation.in_initial_user_ns(),
+        reason="requires Linux root with mapped task IDs",
+    )
+    async def test_real_uid_drop_has_no_inherited_groups(self):
+        spec = TaskSpec(
+            name="probe",
+            argv=["/bin/cat", "/proc/self/status"],
+            uid=65534,
+            gid=65534,
         )
-        await proc.wait()
-        assert os.path.exists(marker), "child did not run"
-        with open(marker) as f:
-            assert int(f.read().strip()) == target_uid
-        os.unlink(marker)
+        proc = await isolation.spawn_task(
+            spec, ROOT_CAPS, env={}, stdout=asyncio.subprocess.PIPE
+        )
+        stdout, _ = await proc.communicate()
+        assert proc.returncode == 0
+        fields = dict(line.split(":", 1) for line in stdout.decode().splitlines())
+        assert fields["Uid"].split() == ["65534"] * 4
+        assert fields["Gid"].split() == ["65534"] * 4
+        assert fields["Groups"].strip() == ""
+
+    @pytest.mark.skipif(
+        os.geteuid() != 0 or not isolation.in_initial_user_ns(),
+        reason="requires Linux root with mapped task IDs",
+    )
+    async def test_real_network_namespace_and_loopback(self):
+        caps = isolation.detect_capabilities()
+        if not caps.can_unshare_net:
+            pytest.skip("runtime disallows network namespaces")
+        script = (
+            "import os,socket; "
+            "s=socket.socket(); s.bind(('127.0.0.1',0)); "
+            "print(os.readlink('/proc/self/ns/net'))"
+        )
+        spec = TaskSpec(
+            name="probe",
+            argv=[sys.executable, "-I", "-S", "-c", script],
+            uid=65534,
+            gid=65534,
+            network_isolated=True,
+        )
+        proc = await isolation.spawn_task(
+            spec, caps, env={}, stdout=asyncio.subprocess.PIPE
+        )
+        stdout, _ = await proc.communicate()
+        assert proc.returncode == 0
+        assert stdout.decode().strip() != os.readlink("/proc/self/ns/net")

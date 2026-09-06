@@ -2,18 +2,16 @@
 
 """openenvd: privileged environment sidecar daemon.
 
-Implements the supervision and isolation core of RFC 1053 (policy-scoped
-surfaces). openenvd runs as the parent of the environment workload inside
-the container, spawns de-privileged children, and exposes a control API for
-registering auxiliary sidecar tasks (observers, trajectory writers, agent
-buses, ...).
+Provides operator-only task supervision related to issue #1053. This is an
+opt-in building block inside an existing container, not an implementation
+of the proposed agent, grader, or observer policy surfaces.
 """
 
 from openenv.core.openenvd.daemon import create_app, main
 from openenv.core.openenvd.isolation import (
-    build_preexec,
     detect_capabilities,
     IsolationCapabilities,
+    IsolationError,
 )
 from openenv.core.openenvd.models import (
     RestartPolicy,
@@ -26,13 +24,13 @@ from openenv.core.openenvd.supervisor import Supervisor
 
 __all__ = [
     "IsolationCapabilities",
+    "IsolationError",
     "RestartPolicy",
     "Supervisor",
     "SupervisorEvent",
     "TaskSpec",
     "TaskState",
     "TaskStatus",
-    "build_preexec",
     "create_app",
     "detect_capabilities",
     "main",

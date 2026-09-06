@@ -1,51 +1,56 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Dedicated-UID allocation for supervised tasks.
+"""Assign task identities from a deployment-reserved UID/GID range.
 
-Every task registered under a privileged daemon gets its own UID/GID pair
-by default, so sibling tasks are mutually blind: they cannot signal each
-other, read each other's files, or tamper with another task's outputs.
-Explicit ``uid``/``gid`` on a TaskSpec always wins; ``auto_uid=False``
-opts out entirely.
+This is not a system account allocator: the container deployment must reserve the
+configured range exclusively for one daemon. IDs are never reused during this
+allocator's lifetime, because files or escaped descendants may outlive a task.
 """
 
 from __future__ import annotations
 
-from typing import Optional, Tuple
-
 
 DEFAULT_UID_BASE = 65536
 DEFAULT_UID_COUNT = 4096
+MAX_UID = 2**32 - 2  # The all-ones value means "leave unchanged" to setuid/setgid.
 
 
 class UidAllocator:
-    """Allocates the lowest free UID pair in a configured range."""
+    """Assign the lowest unused UID/GID pair from an exclusive reserved range."""
 
     def __init__(self, base: int = DEFAULT_UID_BASE, count: int = DEFAULT_UID_COUNT):
-        if count <= 0:
-            raise ValueError("count must be positive")
-        self._base = base
-        self._count = count
+        if base < 1 or count <= 0 or base + count - 1 > MAX_UID:
+            raise ValueError("UID range must contain positive, valid POSIX IDs")
         self._in_use: dict[str, int] = {}
+        self._issued: set[int] = set()
         self._free = set(range(base, base + count))
 
-    def acquire(self, name: str) -> Optional[Tuple[int, int]]:
-        """Return a free ``(uid, gid)`` for ``name``, or None if exhausted."""
+    def acquire(self, name: str) -> tuple[int, int]:
+        """Return a stable pair for a task; fail when the reserved range is full."""
         if name in self._in_use:
             uid = self._in_use[name]
-            return uid, uid
-        try:
+        elif self._free:
             uid = min(self._free)
-        except ValueError:
-            return None
-        self._free.discard(uid)
-        self._in_use[name] = uid
+            self.reserve(name, uid)
+        else:
+            raise ValueError("dedicated UID range exhausted")
         return uid, uid
 
+    def reserve(self, name: str, uid: int) -> None:
+        """Reserve an explicit UID so automatic allocation cannot collide with it."""
+        if not 1 <= uid <= MAX_UID:
+            raise ValueError("UID must be a positive, valid POSIX ID")
+        if self._in_use.get(name) == uid:
+            return
+        if name in self._in_use or uid in self._issued:
+            raise ValueError("UID is already assigned or was used by another task")
+        self._in_use[name] = uid
+        self._issued.add(uid)
+        self._free.discard(uid)
+
     def release(self, name: str) -> None:
-        uid = self._in_use.pop(name, None)
-        if uid is not None:
-            self._free.add(uid)
+        """Forget a task without recycling its potentially still-owned identity."""
+        self._in_use.pop(name, None)
 
     @property
     def available(self) -> int:
