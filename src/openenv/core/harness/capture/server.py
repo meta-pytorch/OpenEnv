@@ -50,6 +50,7 @@ from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse, StreamingResponse
 
 from . import sse
+from .contract import to_trace_entries
 from .detection import APIType, detect
 from .dialects import TransformManager
 from .export import export_session
@@ -733,6 +734,41 @@ def create_app(
             include_messages=include_messages,
             capture_level=_level_of(session),
         )
+
+    @app.get("/sessions/{session_id}/trace_entries")
+    async def trace_entries(session_id: str, request: Request) -> Any:
+        """The LOOP-OWNING training endpoint: `list[TraceEntry]`, one per captured model call.
+
+        `/rollout` returns the stitched document (input_ids + loss_mask + logprobs) for a consumer
+        that trains on whole sequences. A loop-owning consumer wants the per-call records instead --
+        the agent drove its own tool loop, so the unit is "one model call" and it re-derives the
+        prompt from `request`. That is what `LoopOwningSession.fetch_proxy_trace` is defined to
+        return, and `to_trace_entries` already produced this shape; it just had no way to be asked,
+        because it needs the session's graph and that is server-side state.
+
+        Same registry as every other session here, so this serves a rollout from ANY harness --
+        opencode, codex, claude-code, a Harbor task -- without knowing which produced it.
+        """
+        if not _admin_ok(request):
+            return _forbidden()
+        session = app.state.registry.get(session_id)
+        if session is None:
+            return JSONResponse({"error": "unknown session"}, status_code=404)
+        # `to_trace_entries` refuses a non-trainable document rather than silently handing back
+        # rows with empty token fields, which is the failure this whole contract exists to avoid.
+        document = export_session(
+            session, include_messages=True, capture_level=_level_of(session)
+        )
+        try:
+            return {
+                "session_id": session_id,
+                "entries": to_trace_entries(session.graph, document),
+            }
+        except Exception as exc:
+            return JSONResponse(
+                {"error": f"{type(exc).__name__}: {exc}", "session_id": session_id},
+                status_code=409,
+            )
 
     @app.delete("/sessions/{session_id}")
     async def delete_session(session_id: str, request: Request) -> Any:
