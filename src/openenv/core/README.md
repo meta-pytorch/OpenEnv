@@ -6,6 +6,8 @@ In addition to making it easier for researchers and RL framework writers, we als
 
 OpenEnv is openly governed by a technical committee that includes Meta-PyTorch, Reflection, Unsloth, Modal, Prime Intellect, Nvidia, Mercor, Fleet AI, Microsoft, Hugging Face, and RadixArk. The committee coordinates project direction, major technical decisions, RFCs, and release planning through the public issue tracker, pull requests, and RFC process.
 
+OpenEnv is also supported by [Nebius](https://nebius.com).
+
 
 ## Overview
 `openenv.core` provides the foundational building blocks for creating and interacting with containerized environments over HTTP. It enables you to build agent environments that can be deployed as Docker containers and accessed via a simple HTTP API.
