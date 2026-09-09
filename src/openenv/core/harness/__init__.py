@@ -12,7 +12,15 @@ import json
 import math
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
-from typing import Any, Callable, Generic, Protocol, TypeVar
+from typing import (
+    Any,
+    Callable,
+    Generic,
+    Protocol,
+    runtime_checkable,
+    TypedDict,
+    TypeVar,
+)
 
 from ..client_types import StepResult
 from ..env_server.mcp_types import JsonRpcErrorCode, JsonRpcResponse, Tool
@@ -107,6 +115,60 @@ class ModelStep(Protocol):
         tools: list[Tool],
         sampling: dict[str, Any],
     ) -> ModelStepResult: ...
+
+
+class TraceEntry(TypedDict, total=False):
+    """One captured model call from a loop-owning rollout: the request, the reply, and the tokens.
+
+    Defined HERE, not in the trainer. A loop-owning harness (the agent runs its own tool loop and
+    we read back what it did) is an OpenEnv concern, and OpenEnv is what produces this record --
+    `core.harness.capture.contract.to_trace_entries` emits exactly these keys. TRL carried a local
+    copy with a `TODO(@openenv)` asking for this, which left the trainer owning the schema for a
+    shape it neither produces nor can validate; the two could drift and nothing would notice until
+    the token fields came back empty.
+
+    `completion_token_ids` and `per_token_logps` must be equal length when both are present: they
+    are the sampled ids and their generator logprobs, in order. `completion_tokens` is a fallback
+    for engines that return token STRINGS (`"token_id:{id}"`) rather than ids.
+
+    NOTE there is deliberately no prompt field. Consumers re-derive the prompt from `request`. A
+    producer that has the engine's own prompt tokenization should prefer `to_turn_records`, which
+    keeps it -- see that function's docstring.
+    """
+
+    request: dict[
+        str, Any
+    ]  # forwarded chat body: {"messages": [...], "tools": [...] | None}
+    response: dict[str, Any]  # upstream reply: {"choices": [{"message": {...}, ...}]}
+    completion_token_ids: list[int]  # generated token ids for this turn
+    completion_tokens: list[str]  # fallback token strings when ids are absent
+    per_token_logps: list[float]  # generator logprobs, aligned with the ids above
+
+
+@runtime_checkable
+class LoopOwningSession(Protocol):
+    """What a session must offer BEYOND `ResourceSession` when the agent owns its own loop.
+
+    In the loop-owning path nothing calls `step()` per turn -- an external agent (opencode, codex,
+    claude-code, ...) drives itself to completion and the captured trace is read back afterwards.
+    So a factory used in that mode must return sessions that can be waited on and asked for their
+    trace. Neither method belongs on the base `ResourceSession`, which models the step-per-turn
+    contract.
+
+    `wait_for_completion` returns the agent's exit code. `fetch_proxy_trace` returns the captured
+    turns; where they come from is the session's business -- a file inside the sandbox, or an HTTP
+    call to a capture server that multiplexes many rollouts at once. That freedom is the point:
+    the consumer asks for `TraceEntry`s and does not learn how they were obtained.
+
+    `@runtime_checkable` so a factory can assert what it is about to return actually satisfies this
+    -- the alternative is discovering a missing `fetch_proxy_trace` several minutes into a paid
+    rollout. Note that only method PRESENCE is checked, never signatures, which is the right
+    strictness here: the two implementations legitimately differ in how they wait.
+    """
+
+    def wait_for_completion(self, timeout_s: float | None = ...) -> int: ...
+
+    def fetch_proxy_trace(self) -> list[TraceEntry]: ...
 
 
 class ResourceSession(ABC):
@@ -711,6 +773,7 @@ __all__ = [
     "HarnessAdapter",
     "HarnessRolloutResult",
     "HarnessRunLimits",
+    "LoopOwningSession",
     "MCPHarnessAdapter",
     "Message",
     "ModelStep",
@@ -723,6 +786,7 @@ __all__ = [
     "StepEnvSessionAdapter",
     "ToolResult",
     "ToolTraceEntry",
+    "TraceEntry",
     "VerifyResult",
     "build_harness_rollout_func",
 ]
