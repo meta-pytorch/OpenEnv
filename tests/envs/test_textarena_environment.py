@@ -65,3 +65,54 @@ def test_wordle_reset_clears_accumulated_state():
     # Verify the prompts are actually the same content
     assert obs1.prompt == obs2.prompt
     assert obs2.prompt == obs3.prompt
+
+
+def _secret_word(env: TextArenaEnvironment) -> str:
+    """Read the puzzle from TextArena's own game state, not from the prompt.
+
+    Wordle's prompt is static instructions, so hashing the observation would
+    report every episode as identical whether or not the seed took effect.
+    """
+    return env._ta_env.state.game_state["secret_word"]
+
+
+def test_reset_seed_is_forwarded_to_textarena():
+    """A fixed seed must give the same episode, and different seeds different ones."""
+    pytest.importorskip("textarena", reason="textarena not installed")
+    env = TextArenaEnvironment(env_id="Wordle-v0", num_players=1)
+
+    seeded = []
+    for _ in range(3):
+        env.reset(seed=1234)
+        seeded.append(_secret_word(env))
+
+    env.reset(seed=999)
+    other_seed = _secret_word(env)
+
+    assert len(set(seeded)) == 1, f"seed=1234 produced {sorted(set(seeded))}"
+    assert other_seed != seeded[0], "a different seed produced the same episode"
+
+
+def test_reset_seed_is_reproducible_across_instances():
+    """The same seed must survive constructing a fresh environment."""
+    pytest.importorskip("textarena", reason="textarena not installed")
+    first = TextArenaEnvironment(env_id="Wordle-v0", num_players=1)
+    first.reset(seed=1234)
+
+    second = TextArenaEnvironment(env_id="Wordle-v0", num_players=1)
+    second.reset(seed=1234)
+
+    assert _secret_word(first) == _secret_word(second)
+
+
+def test_reset_without_seed_still_varies():
+    """Forwarding the seed must not accidentally pin unseeded episodes."""
+    pytest.importorskip("textarena", reason="textarena not installed")
+    env = TextArenaEnvironment(env_id="Wordle-v0", num_players=1)
+
+    words = set()
+    for _ in range(8):
+        env.reset()
+        words.add(_secret_word(env))
+
+    assert len(words) > 1, "unseeded resets should not be deterministic"
