@@ -15,7 +15,7 @@
 - [ ] `Package CI` builds, checks, and smoke-tests wheel/sdist installs
 
 ### TestPyPI validation (before merging)
-- [ ] Manual dispatch of `publish-testpypi.yml` from this branch
+- [ ] `publish-testpypi.yml` ran from this branch's exact head (manual dispatch, or push of the head to a `testpypi/X.Y.Z` branch)
 - [ ] TestPyPI workflow published a unique pre/dev version such as `X.Y.Z.devN` or `X.Y.ZrcN`
 - [ ] TestPyPI workflow verified `pip install --index-url https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple/ openenv==X.Y.Z.devN`
 
