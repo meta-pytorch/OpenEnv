@@ -95,7 +95,7 @@ openenv validate my_env --level static --skip-build   # quick check against the 
 openenv push my_env       # deploy it to Hugging Face Spaces
 ```
 
-See [Your First Environment](https://huggingface.co/docs/openenv/guides/first-environment) and [Packaging & Deploying](https://huggingface.co/docs/openenv/getting_started/environment-builder). `openenv import` wraps an existing environment from ORS/OpenReward or Verifiers.
+See [Your First Environment](https://huggingface.co/docs/openenv/guides/first-environment) and [Packaging & Deploying](https://huggingface.co/docs/openenv/getting_started/environment-builder). `openenv import` wraps an existing environment from ORS/OpenReward or Verifiers. [Seahaven](https://github.com/Kiln-AI/Seahaven) builds stateful tool-use environments, such as a working copy of a CRM or a payments API, and serves them over OpenEnv: see [Build a Tool-Use Environment with Seahaven](https://huggingface.co/docs/openenv/tutorials/seahaven-environment).
 
 ## Environments
 

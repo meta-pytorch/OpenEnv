@@ -45,6 +45,8 @@
       title: Hello World
     - local: guides/first-environment
       title: Your First Environment
+    - local: tutorials/seahaven-environment
+      title: "Tool-Use Environments (Seahaven)"
     title: Basics
   - sections:
     - local: guides/training
