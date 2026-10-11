@@ -436,6 +436,8 @@ class BrowserGymEnvironment(Environment):
 
     def render_web(self, observation: Dict[str, Any]) -> Optional[str]:
         """Draw the page screenshot with the goal, the URL and the last action error."""
+        if "screenshot" not in observation:
+            return None
         screenshot = observation["screenshot"]
         goal = observation["goal"]
         if not screenshot and not goal:

@@ -39,6 +39,7 @@ def test_browsergym_web_playground(monkeypatch):
         browsergym_environment.gym, "make", lambda *_args, **_kwargs: _FakeGymEnv()
     )
     env = BrowserGymEnvironment(task_name="click-test", include_screenshot=True)
+    assert env.render_web({}) is None
 
     page = env.render_web(env.reset().model_dump())
     assert "Click the button." in page
