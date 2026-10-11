@@ -254,7 +254,9 @@ class TextArenaEnvironment(Environment):
         return observation
 
     def render_web(self, observation: Dict[str, Any]) -> Optional[str]:
-        """Draw the Wordle board (one row per guess, empty rows for those left); other games draw nothing."""
+        """Draw the Wordle board (one row per guess, empty rows for those left). Other games draw nothing."""
+        if "messages" not in observation:
+            return None
         text = "".join(message["content"] for message in observation["messages"])
         attempts = _WORDLE_ATTEMPTS.search(text)
         if attempts is None:

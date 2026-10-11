@@ -78,3 +78,4 @@ def test_textarena_web_playground():
     assert ">C</span>" in board and ">E</span>" in board
     assert "#" not in board  # theme colours only, so it reads in dark mode
     assert env.render_web({"messages": []}) is None
+    assert env.render_web({}) is None
