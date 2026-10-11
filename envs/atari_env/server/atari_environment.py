@@ -214,6 +214,8 @@ class AtariEnvironment(Environment):
 
     def render_web(self, observation: Dict[str, Any]) -> Optional[str]:
         """Draw the current game frame (RGB or grayscale) as a pixelated PNG."""
+        if "screen" not in observation:
+            return None
         if self.obs_type == "ram":
             return None
         shape = observation["screen_shape"]

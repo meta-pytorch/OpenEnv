@@ -31,5 +31,7 @@ def test_atari_web_playground():
     png = base64.b64decode(frame.split("base64,")[1].split('"')[0])
     assert Image.open(io.BytesIO(png)).size == (160, 210)
 
+    assert env.render_web({}) is None
+
     ram_env = AtariEnvironment(game_name="pong", obs_type="ram")
     assert ram_env.render_web(ram_env.reset().model_dump()) is None
