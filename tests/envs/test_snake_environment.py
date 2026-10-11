@@ -22,5 +22,6 @@ def test_snake_web_playground():
     board = env.render_web(obs)
     assert 'aria-label="Snake board"' in board
     assert board.count("<span") == 100
+    assert "radius:4px" in env.render_web({"grid": [[13]]})  # a second snake's head
     assert "#" not in board  # theme colours only, so it reads in dark mode
     assert env.render_web({}) is None

@@ -195,9 +195,9 @@ class SnakeEnvironment(Environment):
 
     def render_web(self, observation: Dict[str, Any]) -> Optional[str]:
         """Draw the grid: walls, the fruit, and the snake with its head highlighted."""
-        grid = observation.get("grid") or []
-        if not grid:
+        if "grid" not in observation:
             return None
+        grid = observation["grid"]
         styles = {
             0: "background:var(--background-fill-primary);border-radius:2px",
             1: "background:var(--border-color-primary);border-radius:2px",
