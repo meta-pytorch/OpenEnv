@@ -2,7 +2,7 @@
 
 **Status**: In Review
 **Created**: 2026-02-16
-**Revised**: 2026-10-07 — reconciled with the implementation merged in [#1097](https://github.com/huggingface/OpenEnv/pull/1097), [#1098](https://github.com/huggingface/OpenEnv/pull/1098), [#1099](https://github.com/huggingface/OpenEnv/pull/1099) and [#1100](https://github.com/huggingface/OpenEnv/pull/1100)
+**Revised**: 2026-10-07, reconciled with the implementation merged in [#1097](https://github.com/huggingface/OpenEnv/pull/1097), [#1098](https://github.com/huggingface/OpenEnv/pull/1098), [#1099](https://github.com/huggingface/OpenEnv/pull/1099) and [#1100](https://github.com/huggingface/OpenEnv/pull/1100)
 **Authors**: @Darktex
 **RFC ID**: 005
 
@@ -12,7 +12,7 @@ This RFC defines how OpenEnv integrates with external **agentic harnesses**—sy
 
 We propose a **wrapping pattern**: OpenEnv's container provides the filesystem and sandbox, the harness runs inside it, and any additional environment MCP tools are injected into the harness before the session starts. In production mode, OpenEnv gets out of the way and lets clients talk directly to the harness with streaming events. In simulation mode, the training loop retains episode control—each `step()` is one conversational turn, and the harness maintains context across turns within an episode.
 
-Concrete adapters live outside core; see [Implementation Status](#implementation-status).
+Concrete adapters live outside core. See [Implementation Status](#implementation-status).
 
 ### What changed in this revision
 
@@ -761,7 +761,7 @@ The implementation left these open. Each is a decision for this RFC.
 | PR 2: foundation types (`HarnessConfig`, the adapter ABC, events, `HarnessAction`, tool conflict resolution) | [#1097](https://github.com/huggingface/OpenEnv/pull/1097) (package split) and [#1098](https://github.com/huggingface/OpenEnv/pull/1098), merged |
 | PR 3: core implementation (`HarnessEnvironment`, `HarnessProcess`, the MCP bridge, production routing) | [#1100](https://github.com/huggingface/OpenEnv/pull/1100) and [#1099](https://github.com/huggingface/OpenEnv/pull/1099) (bridge shutdown), merged |
 | PR 4: OpenClaw adapter | not in core ([#389](https://github.com/huggingface/OpenEnv/pull/389) is open) |
-| PR 5: documentation and an example | [#1291](https://github.com/huggingface/OpenEnv/pull/1291), open: a Claude Code adapter and a τ²-bench evaluation recipe, with a tutorial |
+| PR 5: documentation and an example | [#1291](https://github.com/huggingface/OpenEnv/pull/1291), merged: a Claude Code adapter and a τ²-bench evaluation recipe, with a tutorial |
 
 ---
 
