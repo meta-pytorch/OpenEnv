@@ -124,7 +124,6 @@ def get_quick_start_markdown(
     if space_id:
         lines += [
             "```bash",
-            "# Works on public Spaces only.",
             f"pip install git+https://huggingface.co/spaces/{space_id}",
             "```",
             "",
