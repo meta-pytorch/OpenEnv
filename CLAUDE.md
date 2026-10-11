@@ -199,7 +199,7 @@ Each environment under `envs/` is self-contained: it can be read, changed and de
 
 ## Follow the Hugging Face ecosystem
 
-OpenEnv runs on the Hub and next to `huggingface_hub`, the `hf` CLI, transformers, TRL and Gradio. When OpenEnv wraps something these tools already do (uploading, deleting, deploying a Space, auth, caching, repo ids), keep their defaults, flag names and semantics. Do not invent new behavior.
+OpenEnv runs on the Hub and next to `huggingface_hub`, the `hf` CLI, transformers and Gradio. When OpenEnv wraps something these tools already do (uploading, deleting, deploying a Space, auth, caching, repo ids), keep their defaults, flag names and semantics. Do not invent new behavior.
 
 - Before adding or changing Hub-facing behavior, check what `huggingface_hub` and the `hf` CLI do and match it. For example, `openenv push` only deletes remote files with `--delete <pattern>`, like `hf upload --delete`.
 - Mention that comparison in the PR description.
