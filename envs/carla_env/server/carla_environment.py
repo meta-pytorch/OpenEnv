@@ -603,8 +603,7 @@ class CarlaEnvironment(Environment):
         # Connect to CARLA server
         if self.client is None:
             self.client = carla.Client(self.host, self.port)
-            # On a fresh server, the first camera frame takes ~11 s to render
-            # and the tick that waits for it would time out at 10 s.
+            # The first camera frame on a fresh server can take ~11 s to render.
             self.client.set_timeout(30.0)
 
         # Check if the scenario requests a specific map
@@ -957,7 +956,6 @@ class CarlaEnvironment(Environment):
             )
 
             from carla_env.server.carla_agents.navigation.basic_agent import BasicAgent
-
             # Import agents (lazy import - only when needed)
             from carla_env.server.carla_agents.navigation.behavior_agent import (
                 BehaviorAgent,

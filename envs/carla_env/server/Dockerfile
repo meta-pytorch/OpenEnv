@@ -2,7 +2,7 @@
 # Complete self-contained deployment with CARLA 0.10.0 server
 #
 # Requirements:
-#   - GPU: NVIDIA A10G (recommended; CARLA 0.10 crashed on start on a T4 in our test)
+#   - GPU: NVIDIA A10G or larger. CARLA 0.10 may crash on start on a T4.
 #   - RAM: 16GB+
 #   - Disk: ~15GB
 #   - HF Space Hardware: GPU A10G or better
@@ -139,7 +139,7 @@ echo "🚗 Starting CARLA Server 0.10.0 (UE5.5)..."\n\
 mkdir -p /tmp/carla_logs\n\
 chown carla:carla /tmp/carla_logs\n\
 \n\
-# Launch CARLA and wait until it answers (up to 5 min); some starts crash\n\
+# Launch CARLA and wait until it answers (up to 5 min). Some starts crash.\n\
 start_carla() {\n\
     su - carla -c "export XDG_RUNTIME_DIR=/run/user/1000 && cd /opt/carla && ./CarlaUnreal.sh -RenderOffScreen -opengl -quality-level=Low -carla-rpc-port=2000 -fps=20 > /tmp/carla_logs/carla.log 2>&1" &\n\
     CARLA_PID=$!\n\

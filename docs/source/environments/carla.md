@@ -279,7 +279,7 @@ docker run --gpus all -p 8000:8000 carla-env:latest
 
 | | Value |
 |---|---|
-| GPU | NVIDIA A10G (24GB, recommended). CARLA 0.10 crashed on start on a T4 in our test |
+| GPU | NVIDIA A10G (24GB) or larger. CARLA 0.10 may crash on start on a T4 |
 | CARLA | 0.10.0 + Unreal Engine 5.5, bundled in image |
 | Rendering | RenderOffScreen with OpenGL (offscreen, no display) |
 | Image size | ~15GB |
