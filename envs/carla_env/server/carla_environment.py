@@ -603,7 +603,9 @@ class CarlaEnvironment(Environment):
         # Connect to CARLA server
         if self.client is None:
             self.client = carla.Client(self.host, self.port)
-            self.client.set_timeout(10.0)
+            # On a fresh server, the first camera frame takes ~11 s to render
+            # and the tick that waits for it would time out at 10 s.
+            self.client.set_timeout(30.0)
 
         # Check if the scenario requests a specific map
         reqs = self.scenario.spawn_requirements()
