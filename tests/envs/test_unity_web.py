@@ -29,6 +29,7 @@ def test_unity_web_playground(tmp_path):
         action_spec_info={"is_continuous": True, "discrete_branches": []},
     ).model_dump()
     assert env.render_web(obs) is None
+    assert env.render_web({}) is None
     assert env.web_actions(obs) == []
 
     obs = UnityObservation(
@@ -39,7 +40,7 @@ def test_unity_web_playground(tmp_path):
 
 
 def test_unity_include_visual_default(tmp_path, monkeypatch):
-    monkeypatch.setenv("UNITY_INCLUDE_VISUAL", "1")
+    monkeypatch.setenv("UNITY_INCLUDE_VISUAL", "true")
     assert UnityMLAgentsEnvironment(cache_dir=str(tmp_path))._include_visual
     monkeypatch.delenv("UNITY_INCLUDE_VISUAL")
     assert not UnityMLAgentsEnvironment(cache_dir=str(tmp_path))._include_visual
