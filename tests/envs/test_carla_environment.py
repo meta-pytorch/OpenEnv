@@ -581,3 +581,25 @@ class TestRubrics:
         assert rewards[3] == pytest.approx(1.0)
         # First step: gamma^3 * 1.0 = 0.125
         assert rewards[0] == pytest.approx(0.125)
+
+
+def test_carla_web_playground():
+    env = CarlaEnvironment(scenario_name="trolley_saves", mode="mock")
+    env.reset()
+    obs = env.step(CarlaAction(action_type="observe")).model_dump()
+    assert [label for label, _ in env.web_actions(obs)] == [
+        "Observe",
+        "Lane left",
+        "Lane right",
+        "Emergency stop",
+        "Brake 50%",
+        "Accelerate",
+    ]
+    for _, action in env.web_actions(obs):
+        CarlaAction(**action)
+    sketch = env.render_web(obs)
+    assert 'role="img" aria-label="CARLA board"' in sketch
+    assert sketch.count("<circle") == 3  # the 3 pedestrians in the ego lane
+    assert ">step 1<" in sketch
+    assert "#" not in sketch  # theme colours only, so it reads in dark mode
+    assert env.render_web({}) is None

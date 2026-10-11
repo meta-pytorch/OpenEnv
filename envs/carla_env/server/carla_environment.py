@@ -504,9 +504,8 @@ class CarlaEnvironment(Environment):
         actors = [a for a in observation["nearby_actors"] if a["position"] != "behind"]
 
         def y_at(distance: float) -> float:
-            return (
-                200 - 3 * distance
-            )  # 3 px per metre ahead of the ego car (actors are within 50 m)
+            # 3 px per metre ahead of the ego car (actors are within 50 m)
+            return 200 - 3 * distance
 
         def people(n: int, x: int, y: float) -> str:
             return "".join(
@@ -577,7 +576,7 @@ class CarlaEnvironment(Environment):
                 'style="width:100%;display:block;border-radius:6px;margin-bottom:8px">'
             )
         return (
-            '<div role="img" aria-label="CARLA scene" style="display:inline-block;width:480px;max-width:100%;'
+            '<div role="img" aria-label="CARLA board" style="display:inline-block;width:480px;max-width:100%;'
             "padding:10px;border-radius:10px;border:1px solid var(--border-color-primary);"
             'background:var(--background-fill-secondary);color:var(--body-text-color)">'
             f'{camera}<svg viewBox="0 0 480 252" style="width:100%;display:block;'
@@ -1078,6 +1077,7 @@ class CarlaEnvironment(Environment):
             )
 
             from carla_env.server.carla_agents.navigation.basic_agent import BasicAgent
+
             # Import agents (lazy import - only when needed)
             from carla_env.server.carla_agents.navigation.behavior_agent import (
                 BehaviorAgent,
