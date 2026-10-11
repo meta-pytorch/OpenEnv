@@ -50,7 +50,7 @@ class OpenSpielEnvironment(Environment):
 
     Supported games:
     - Single-player: catch, cliff_walking, 2048, blackjack
-    - Multi-player: tic_tac_toe, kuhn_poker
+    - Multi-player: tic_tac_toe, kuhn_poker, connect_four
 
     Args:
         game_name: Name of the OpenSpiel game (e.g., "catch", "tic_tac_toe").
@@ -120,9 +120,9 @@ class OpenSpielEnvironment(Environment):
         self, observation: Dict[str, Any]
     ) -> List[Tuple[str, Dict[str, Any]]]:
         """The legal moves as buttons, named for the games this env draws."""
-        names = _ACTION_NAMES.get(self.game_name, [])
+        labels = _BUTTON_LABELS.get(self.game_name, [])
         return [
-            (f"{a} · {names[a]}" if a < len(names) else str(a), {"action_id": a})
+            (labels[a] if a < len(labels) else str(a), {"action_id": a})
             for a in observation.get("legal_actions") or []
         ]
 
@@ -292,32 +292,34 @@ class OpenSpielEnvironment(Environment):
         return obs
 
 
-_ACTION_NAMES = {
-    "catch": ["left", "stay", "right"],
-    "2048": ["up", "right", "down", "left"],
+_BUTTON_LABELS = {
+    "catch": ["0 · left", "1 · stay", "2 · right"],
+    "2048": ["0 · up", "1 · right", "2 · down", "3 · left"],
     "tic_tac_toe": [
-        "top left",
-        "top centre",
-        "top right",
-        "middle left",
-        "centre",
-        "middle right",
-        "bottom left",
-        "bottom centre",
-        "bottom right",
+        "0 · top left",
+        "1 · top centre",
+        "2 · top right",
+        "3 · middle left",
+        "4 · centre",
+        "5 · middle right",
+        "6 · bottom left",
+        "7 · bottom centre",
+        "8 · bottom right",
     ],
-    "connect_four": [f"column {c}" for c in range(7)],
-    "blackjack": ["hit", "stand"],
-    "kuhn_poker": ["pass", "bet"],
-    "cliff_walking": ["right", "up", "left", "down"],
+    "connect_four": [f"col {c}" for c in range(7)],  # same labels as connect4_env
+    "blackjack": ["0 · hit", "1 · stand"],
+    "kuhn_poker": ["0 · pass", "1 · bet"],
+    "cliff_walking": ["0 · right", "1 · up", "2 · left", "3 · down"],
 }
 
 
-def _grid(label: str, columns: int, cells: List[str], size: int = 26) -> str:
+def _grid(
+    label: str, columns: int, cells: List[str], size: int = 26, gap: int = 3
+) -> str:
     """Lay out square cells in a bordered grid labelled for screen readers."""
     return (
         f'<div role="img" aria-label="{label}" style="display:inline-grid;'
-        f"grid-template-columns:repeat({columns},{size}px);grid-auto-rows:{size}px;gap:3px;padding:10px;"
+        f"grid-template-columns:repeat({columns},{size}px);grid-auto-rows:{size}px;gap:{gap}px;padding:10px;"
         'border:1px solid var(--border-color-primary);border-radius:10px;background:var(--background-fill-secondary)">'
         + "".join(cells)
         + "</div>"
@@ -417,7 +419,7 @@ def _draw_connect_four(observation: Dict[str, Any]) -> Optional[str]:
     cells += [
         _cell("transparent", text=str(col), style="font-size:12px") for col in range(7)
     ]
-    return _grid("Connect Four board", 7, cells)
+    return _grid("Connect Four board", 7, cells, gap=4)  # same gap as connect4_env
 
 
 def _card(text: str) -> str:

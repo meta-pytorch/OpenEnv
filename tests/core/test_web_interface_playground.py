@@ -131,7 +131,7 @@ def test_openspiel_2048_web_playground():
     "game, label, button",
     [
         ("tic_tac_toe", "Tic-Tac-Toe board", ("4 · centre", {"action_id": 4})),
-        ("connect_four", "Connect Four board", ("3 · column 3", {"action_id": 3})),
+        ("connect_four", "Connect Four board", ("col 3", {"action_id": 3})),
         ("blackjack", "Blackjack board", ("0 · hit", {"action_id": 0})),
         ("kuhn_poker", "Kuhn Poker board", ("1 · bet", {"action_id": 1})),
         ("cliff_walking", "Cliff Walking board", ("1 · up", {"action_id": 1})),
