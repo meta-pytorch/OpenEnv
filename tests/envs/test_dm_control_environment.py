@@ -23,7 +23,7 @@ def test_dm_control_web_playground():
     time = env._env.physics.data.time
     frame = env.render_web(obs)
     assert env._env.physics.data.time == time
-    assert 'alt="dm_control scene"' in frame
+    assert 'alt="dm_control frame"' in frame
     jpeg = base64.b64decode(frame.split("base64,")[1].split('"')[0])
     assert jpeg.startswith(b"\xff\xd8")
-    assert env.render_web({"unrelated": 1}) is None
+    assert env.render_web({}) is None

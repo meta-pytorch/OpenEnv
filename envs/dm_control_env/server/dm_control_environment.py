@@ -363,7 +363,7 @@ class DMControlEnvironment(Environment):
         buffer = io.BytesIO()
         Image.fromarray(frame).save(buffer, format="JPEG", quality=85)
         return (
-            '<img alt="dm_control scene" '
+            '<img alt="dm_control frame" '
             f'src="data:image/jpeg;base64,{base64.b64encode(buffer.getvalue()).decode()}" '
             'style="width:320px;max-width:100%;border-radius:10px;'
             'border:1px solid var(--border-color-primary)">'
