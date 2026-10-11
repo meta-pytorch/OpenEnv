@@ -784,6 +784,7 @@ class TestEnvironment:
         )
         assert "<svg" not in drawing  # never inlined, so its scripts can't run
         assert "reward 1.00" in drawing
+        assert environment.render_web({}) is None
 
     def test_task_can_be_pinned_by_id(self):
         """A benchmark run must ask every model the same question."""
