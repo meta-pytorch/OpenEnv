@@ -10,6 +10,7 @@ import itertools
 import os
 
 import httpx
+import pytest
 from openenv.core.env_server.http_server import create_fastapi_app
 from openenv.core.env_server.security import _build_security_config
 from openenv.core.env_server.interfaces import Environment
@@ -133,3 +134,36 @@ async def test_rate_limit_returns_429(monkeypatch):
     assert (await _request(app, "/metadata", client_ip=ip)).status_code == 200
     assert (await _request(app, "/metadata", client_ip=ip)).status_code == 200
     assert (await _request(app, "/metadata", client_ip=ip)).status_code == 429
+
+
+async def test_default_config_zero_trust(monkeypatch):
+    for name in list(os.environ):
+        if name.startswith("OPENENV_GUARD_"):
+            monkeypatch.delenv(name, raising=False)
+    config = _build_security_config()
+    # No implicit trust in RFC1918 peers: an unlisted proxy means
+    # X-Forwarded-For is not honored, so LAN clients cannot spoof their
+    # way past the blocklist or rate limits.
+    assert config.trusted_proxies == ()
+    # Request bodies are model input, not commands: scanning them is opt-in.
+    assert config.detection_scan_body is False
+    # Repeated rate-limit violations feed the ban engine by default.
+    assert config.enable_rate_limit_auto_ban is True
+
+
+async def test_trusted_proxies_from_env(monkeypatch):
+    for name in list(os.environ):
+        if name.startswith("OPENENV_GUARD_"):
+            monkeypatch.delenv(name, raising=False)
+    monkeypatch.setenv("OPENENV_GUARD_TRUSTED_PROXIES", "10.0.0.1,10.0.0.2")
+    config = _build_security_config()
+    assert config.trusted_proxies == ("10.0.0.1", "10.0.0.2")
+
+
+async def test_invalid_boolean_env_raises(monkeypatch):
+    for name in list(os.environ):
+        if name.startswith("OPENENV_GUARD_"):
+            monkeypatch.delenv(name, raising=False)
+    monkeypatch.setenv("OPENENV_GUARD_SCAN_BODY", "sometimes")
+    with pytest.raises(ValueError, match="OPENENV_GUARD_SCAN_BODY"):
+        _build_security_config()

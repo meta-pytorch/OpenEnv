@@ -22,7 +22,11 @@ import os
 from typing import Any
 
 DEFAULT_EXCLUDED_PATHS = "/health,/schema,/metadata,/docs,/redoc,/openapi.json"
-DEFAULT_TRUSTED_PROXIES = "10.0.0.0/8,172.16.0.0/12,192.168.0.0/16"
+# Empty by default on purpose: trusting private-range peers would let
+# any of them spoof X-Forwarded-For past the blocklist and rate limits.
+# Behind a reverse proxy, list the proxy's addresses in
+# OPENENV_GUARD_TRUSTED_PROXIES.
+DEFAULT_TRUSTED_PROXIES = ""
 
 
 def _env_list(name: str, default: str = "") -> list[str]:
@@ -35,14 +39,14 @@ def _env_str(name: str, default: str | None = None) -> str | None:
     return raw if raw not in (None, "") else default
 
 
-def _env_bool(name: str) -> bool:
+def _env_bool(name: str, *, default: bool = False) -> bool:
     raw = os.environ.get(name)
-    if raw is None:
-        return False
+    if raw is None or not raw.strip():
+        return default
     normalized = raw.strip().lower()
     if normalized in ("1", "true", "yes", "on"):
         return True
-    if normalized in ("", "0", "false", "no", "off"):
+    if normalized in ("0", "false", "no", "off"):
         return False
     msg = f"{name} must be a boolean (1/true/yes/on or 0/false/no/off), got {raw!r}"
     raise ValueError(msg)
@@ -64,7 +68,15 @@ def _build_security_config() -> Any:
         "auto_ban_duration": int(
             os.environ.get("OPENENV_GUARD_AUTO_BAN_DURATION", "300")
         ),
-        "enable_rate_limit_auto_ban": _env_bool("OPENENV_GUARD_RATE_LIMIT_AUTO_BAN"),
+        # On by default: repeated rate-limit violations feed the ban engine (OPENENV_GUARD_RATE_LIMIT_AUTO_BAN=0 keeps 429-only enforcement).
+        "enable_rate_limit_auto_ban": _env_bool(
+            "OPENENV_GUARD_RATE_LIMIT_AUTO_BAN", default=True
+        ),
+        # Environment/request bodies are model input (observations, prompts,
+        # completions), not commands this server executes: signature-scanning
+        # them false-positives on ordinary content. URL, query, and header
+        # screening stay on; body scanning is opt-in.
+        "detection_scan_body": _env_bool("OPENENV_GUARD_SCAN_BODY"),
         "enable_penetration_detection": True,
         # In-memory state unless a Redis URL is configured: never implicitly
         # depend on a Redis server being reachable at localhost.
