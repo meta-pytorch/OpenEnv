@@ -724,36 +724,42 @@ class DockerRunningSubject:
             self._bridge.close()
             self._bridge = None
         # Helpers share the subject's namespace; remove them before the subject.
+        auxiliary_cleanup_failed = False
         for name in reversed(self._auxiliary):
             try:
                 self._remove_owned(name)
             except ProviderError:
-                raise ProviderError("Could not verify network helper cleanup") from None
+                # One failed helper must not leave the other containers running.
+                auxiliary_cleanup_failed = True
         try:
             owner = self._owner()
         except ProviderError:
             raise ProviderError(
                 "Could not verify container ownership for cleanup"
             ) from None
-        if owner is None:
-            self._stopped = True
-            return
-        if owner != self.run_id:
-            raise ProviderError("Refusing cleanup of a container with another owner")
-        code, _, stderr = _command(
-            ["docker", "rm", "--force", "--volumes", self.name], 10
-        )
-        try:
-            remaining = self._owner()
-        except ProviderError:
-            raise ProviderError(
-                "Container removal could not be independently verified"
-            ) from None
-        if remaining is not None:
-            if code:
+        if owner is not None:
+            if owner != self.run_id:
                 raise ProviderError(
-                    "Could not remove validation container: "
-                    + _safe_text(stderr[-4096:], self._secrets)
+                    "Refusing cleanup of a container with another owner"
                 )
-            raise ProviderError("Container removal could not be independently verified")
+            code, _, stderr = _command(
+                ["docker", "rm", "--force", "--volumes", self.name], 10
+            )
+            try:
+                remaining = self._owner()
+            except ProviderError:
+                raise ProviderError(
+                    "Container removal could not be independently verified"
+                ) from None
+            if remaining is not None:
+                if code:
+                    raise ProviderError(
+                        "Could not remove validation container: "
+                        + _safe_text(stderr[-4096:], self._secrets)
+                    )
+                raise ProviderError(
+                    "Container removal could not be independently verified"
+                )
+        if auxiliary_cleanup_failed:
+            raise ProviderError("Could not verify network helper cleanup")
         self._stopped = True

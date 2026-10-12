@@ -178,6 +178,52 @@ def test_helpers_are_removed_before_the_subject(engine):
     assert engine.containers == {}
 
 
+@pytest.mark.parametrize("subject_present", [True, False])
+@pytest.mark.parametrize("failure", ["removal", "timeout", "ownership"])
+def test_auxiliary_cleanup_failure_still_removes_subject_and_can_retry(
+    engine, monkeypatch, subject_present, failure
+):
+    subject = docker.DockerValidationProvider().start(launch_spec())
+    failed = f"{subject.name}-control"
+    subject._auxiliary.append(failed)
+    engine.containers[failed] = (
+        "other-run" if failure == "ownership" else subject.run_id
+    )
+    if not subject_present:
+        engine.containers.pop(subject.name)
+
+    def fail_auxiliary_removal(argv, *args):
+        if argv[1] == "rm" and argv[-1] == failed:
+            engine.calls.append(argv)
+            if failure == "timeout":
+                raise ProviderError("Docker operation exceeded its deadline")
+            return 1, "", "removal failed"
+        return engine(argv, *args)
+
+    monkeypatch.setattr(docker, "_command", fail_auxiliary_removal)
+    with pytest.raises(ProviderError, match="network helper cleanup"):
+        subject.stop()
+
+    removed = [call[-1] for call in engine.calls if call[1] == "rm"]
+    expected = [] if failure == "ownership" else [failed]
+    expected.append(f"{subject.name}-netns")
+    if subject_present:
+        expected.append(subject.name)
+    assert removed == expected
+    assert set(engine.containers) == {failed}
+    assert not subject._stopped
+
+    # An incomplete teardown remains retryable, including after the subject is gone.
+    engine.containers[failed] = subject.run_id
+    monkeypatch.setattr(docker, "_command", engine)
+    subject.stop()
+    assert engine.containers == {}
+    assert subject._stopped
+    calls = len(engine.calls)
+    subject.stop()
+    assert len(engine.calls) == calls
+
+
 def test_measure_network_assembles_validated_evidence(engine):
     subject = docker.DockerValidationProvider().start(launch_spec())
     measured = subject.measure_network()
