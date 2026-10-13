@@ -94,6 +94,15 @@ class _Sandbox:
         self.stop_task: asyncio.Future | None = None
 
 
+class _LoopHandler:
+    """A signal callback that was registered on an event loop with `add_signal_handler`."""
+
+    def __init__(self, loop: asyncio.AbstractEventLoop, callback: Any, args: tuple):
+        self.loop = loop
+        self.callback = callback
+        self.args = args
+
+
 class SandboxSupervisor:
     """Track the sandboxes this process starts and tear them down on request or on a signal.
 
@@ -109,6 +118,8 @@ class SandboxSupervisor:
         self._owned: set[_Sandbox] = set()
         self._lock = threading.Lock()
         self._previous: dict[int, Any] = {}
+        # Signals whose previous handler the event loop delivers by itself; see `install_signal_handlers`.
+        self._loop_delivers: set[int] = set()
         self._handling = False
         self._cleanup: asyncio.Future | None = None
         # Set by `aclose` under `_lock`. A start that has not registered yet must not open a sandbox
@@ -219,16 +230,49 @@ class SandboxSupervisor:
         handlers, so this returns `False` elsewhere; a process that starts every sandbox from worker
         threads should call it once from the main thread. Installing late is deliberate: a server
         such as uvicorn replaces handlers when it starts serving, and this one has to wrap its.
+
+        A handler registered with `loop.add_signal_handler` (uvicorn before 0.29) is delivered by
+        the loop through the wakeup fd, whatever `signal.signal` holds, so wrapping that would let
+        the server start shutting down while cleanup is still running and then see the signal a
+        second time. On an asyncio loop the supervisor takes the loop's slot instead and puts the
+        callback back when cleanup is done. A loop that does not expose its callbacks (uvloop)
+        cannot be wrapped: cleanup then runs alongside the server's shutdown, and the signal is not
+        delivered again.
         """
         if threading.current_thread() is not threading.main_thread():
             return False
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            loop = None
         for sig in signals:
             current = signal.getsignal(sig)
-            if current == self._on_signal:
+            # Private, but unchanged since asyncio was added: the public API can replace a loop's
+            # signal callback, not read it back.
+            handle = getattr(loop, "_signal_handlers", {}).get(sig)
+            if current == self._on_signal or (
+                handle is not None and handle._callback == self._on_loop_signal
+            ):
                 continue
+            if handle is not None:
+                self._previous[sig] = _LoopHandler(loop, handle._callback, handle._args)
+                loop.add_signal_handler(sig, self._on_loop_signal, sig)
+                continue
+            if isinstance(
+                getattr(current, "__self__", None), asyncio.AbstractEventLoop
+            ):
+                self._loop_delivers.add(sig)
             self._previous[sig] = current
             signal.signal(sig, self._on_signal)
         return True
+
+    def _on_loop_signal(self, sig: int) -> None:
+        # Runs as an ordinary loop callback, so unlike `_on_signal` it may start the cleanup itself.
+        if self._handling:
+            self._chain(sig)
+            return
+        self._handling = True
+        self._start_cleanup(sig)
 
     def _on_signal(self, sig: int, frame: Any) -> None:
         if self._handling:
@@ -271,7 +315,16 @@ class SandboxSupervisor:
         """
         self._handling = False
         previous = self._previous.pop(sig, signal.SIG_DFL)
-        signal.signal(sig, signal.SIG_DFL if previous is None else previous)
+        if isinstance(previous, _LoopHandler):
+            if previous.loop.is_closed():
+                return
+            previous.loop.add_signal_handler(sig, previous.callback, *previous.args)
+        else:
+            signal.signal(sig, signal.SIG_DFL if previous is None else previous)
+            if sig in self._loop_delivers:
+                # The loop already ran its callback for this signal.
+                self._loop_delivers.discard(sig)
+                return
         signal.raise_signal(sig)
 
 

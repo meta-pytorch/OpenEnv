@@ -284,6 +284,62 @@ async def test_second_signal_skips_the_wait():
     assert seen == [signal.SIGTERM]  # chained once, not again when cleanup finished
 
 
+async def test_signal_reaches_a_loop_level_handler_only_after_cleanup():
+    # uvicorn before 0.29 registers its handler with `loop.add_signal_handler`. The loop delivers
+    # that one itself, so a `signal.signal` wrapper would let it run at once, and a second time
+    # when the signal is chained.
+    log: list = []
+    loop = asyncio.get_running_loop()
+
+    def previous(sig):
+        log.append(("previous", sig))
+
+    loop.add_signal_handler(signal.SIGTERM, previous, signal.SIGTERM)
+    try:
+        sup = SandboxSupervisor()
+        env = FakeEnv(log)
+        sup.adopt(make_trial(env))
+        await env.start(force_build=False)
+
+        signal.raise_signal(signal.SIGTERM)
+        await _until(lambda: ("previous", signal.SIGTERM) in log)
+        await asyncio.sleep(0.05)
+
+        assert log[-2:] == [("env", "stop", True), ("previous", signal.SIGTERM)]
+        assert log.count(("previous", signal.SIGTERM)) == 1
+        assert loop._signal_handlers[signal.SIGTERM]._callback is previous
+    finally:
+        loop.remove_signal_handler(signal.SIGTERM)
+
+
+async def test_signal_a_loop_delivers_by_itself_is_not_delivered_again():
+    # uvloop does not expose its signal callbacks, so the supervisor cannot take their place. Its
+    # Python-level handler is a method of the loop; the loop has already run its callback by the
+    # time cleanup ends, and re-raising would hand the server a second signal.
+    class OpaqueLoop(asyncio.SelectorEventLoop):
+        def sighandler(self, sig, frame):
+            seen.append(sig)
+
+    seen: list[int] = []
+    log: list = []
+    opaque = OpaqueLoop()
+    try:
+        signal.signal(signal.SIGTERM, opaque.sighandler)
+        sup = SandboxSupervisor()
+        env = FakeEnv(log)
+        sup.adopt(make_trial(env))
+        await env.start(force_build=False)
+
+        signal.raise_signal(signal.SIGTERM)
+        await _until(lambda: stops(log))
+        await asyncio.sleep(0.05)
+
+        assert signal.getsignal(signal.SIGTERM) == opaque.sighandler
+        assert seen == []
+    finally:
+        opaque.close()
+
+
 def test_max_starts_comes_from_the_environment(monkeypatch):
     monkeypatch.setattr(supervisor_mod, "_supervisor", None)
     monkeypatch.setenv("OPENENV_HARBOR_MAX_SANDBOX_STARTS", "lots")
