@@ -2,8 +2,8 @@
 
 """`openenv check enforcement`: test a live unit instead of trusting its configuration.
 
-For each zone, openenvd starts a throwaway container with that zone's real
-isolation profile and runs a probe that tries what the zone must not be able to
+For each zone, openenvd starts a throwaway container the way it starts that
+zone's real containers and runs a probe that tries what the zone must not be able to
 do. Any success is a failure of the check.
 """
 
@@ -41,7 +41,6 @@ PROBE = textwrap.dedent(
             s.connect((host, port))
         finally:
             s.close()
-    attempt("inet_socket", lambda: socket.socket(socket.AF_INET, socket.SOCK_STREAM).close())
     for host, port in json.loads(sys.argv[2]):
         attempt(f"connect_{host}_{port}", lambda h=host, p=port: connect(h, p))
     attempt("write_root", lambda: open("/probe-write", "w").write("x"))
@@ -99,7 +98,7 @@ class CheckReport:
         }
 
 
-def evaluate(zone: ZoneKind, results: dict[str, Any], *, strict: bool) -> list[str]:
+def evaluate(zone: ZoneKind, results: dict[str, Any]) -> list[str]:
     """Turn one zone's probe results into a list of violated expectations."""
     failures = []
     for key, value in results.items():
@@ -108,8 +107,6 @@ def evaluate(zone: ZoneKind, results: dict[str, Any], *, strict: bool) -> list[s
             failures.append(f"{key}: control-plane state is readable")
         elif key.startswith("connect_") and allowed:
             failures.append(f"{key}: reached a host outside the unit")
-        elif key == "inet_socket" and allowed and strict:
-            failures.append("inet_socket: strict zone can open AF_INET sockets")
         elif key in ("write_root", "write_usr") and allowed:
             failures.append(f"{key}: root filesystem is writable")
         elif key == "fork_past_pids_max" and allowed:
@@ -137,7 +134,6 @@ async def run_check(unit: Any) -> CheckReport:
     hidden = getattr(unit.launcher, "hidden", None) or unit.paths.hidden
     unit.episode_id = "check"
     for index, kind in enumerate(ZoneKind):
-        zone = unit.manifest.zones.get(kind)
         spec = ContainerSpec(
             argv=[
                 unit.python,
@@ -178,8 +174,7 @@ async def run_check(unit: Any) -> CheckReport:
             unit.cgroups.kill(c.cgroup)
             await unit.cgroups.wait_empty(c.cgroup, 5)
             unit.cgroups.remove(c.cgroup)
-        strict = zone.isolation.seccomp == "strict"
-        failures = evaluate(kind, results, strict=strict)
+        failures = evaluate(kind, results)
         if not results:
             failures.append("probe produced no result")
         checks.append(ZoneCheck(kind, results, failures))

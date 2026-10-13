@@ -98,11 +98,6 @@ def test_harness_sees_only_loopback_relays_and_a_placeholder_key(tmp_path, monke
     assert spec["env"]["MCP_URL"].startswith("http://127.0.0.1:")
     ports = sorted(HARNESS_PORTS.values())
     assert sorted(f["port"] for f in spec["forwards"]) == ports
-    # Strict means "only the relay ports", not an AF_INET ban, so the harness
-    # can still reach its forwarders.
-    assert spec["landlock"]["connect_tcp"] == ports
-    assert spec["landlock"]["bind_tcp"] == []
-    assert spec["principal_filter"] == {}
 
 
 def test_env_reaches_services_through_its_own_socket_dir(tmp_path, monkeypatch):
@@ -124,11 +119,11 @@ def test_env_reaches_services_through_its_own_socket_dir(tmp_path, monkeypatch):
 
 def test_services_and_observers_cannot_connect_anywhere(tmp_path, monkeypatch):
     unit = _unit(tmp_path, monkeypatch)
-    sim = _shim(unit, "services-sim")
-    assert sim["landlock"]["connect_tcp"] == []
-    assert sim["landlock"]["bind_tcp"] == [8080]
-    grader = _shim(unit, "observers-grader")
-    assert grader["landlock"]["connect_tcp"] == []
+    for key in ("services-sim", "observers-grader"):
+        outbound = [
+            f for f in _shim(unit, key)["forwards"] if f["kind"] == "tcp_to_unix"
+        ]
+        assert outbound == [], key
 
 
 def test_observer_mounts_are_read_only_and_nosymfollow(tmp_path, monkeypatch):
@@ -174,18 +169,17 @@ def test_verdict_reports_observer_results_and_no_internals(tmp_path, monkeypatch
 
 
 @pytest.mark.parametrize(
-    "results, strict, failure",
+    "results, failure",
     [
-        ({"read_hidden_0": "allowed"}, False, "read_hidden_0"),
-        ({"connect_1.1.1.1_53": "allowed"}, False, "connect_1.1.1.1_53"),
-        ({"inet_socket": "allowed"}, True, "inet_socket"),
-        ({"fork_past_pids_max": "allowed"}, False, "fork_past_pids_max"),
-        ({"visible_pids": 40}, False, "visible_pids"),
-        ({"uid": 0}, False, "uid"),
+        ({"read_hidden_0": "allowed"}, "read_hidden_0"),
+        ({"connect_1.1.1.1_53": "allowed"}, "connect_1.1.1.1_53"),
+        ({"fork_past_pids_max": "allowed"}, "fork_past_pids_max"),
+        ({"visible_pids": 40}, "visible_pids"),
+        ({"uid": 0}, "uid"),
     ],
 )
-def test_check_evaluation(results, strict, failure):
-    failures = evaluate(ZoneKind.AGENT, results, strict=strict)
+def test_check_evaluation(results, failure):
+    failures = evaluate(ZoneKind.AGENT, results)
     assert [f.split(":")[0] for f in failures] == [failure]
 
 
@@ -195,4 +189,3 @@ def test_check_report_passes_only_without_failures():
     dirty = CheckReport([ZoneCheck(ZoneKind.AGENT, {}, ["visible_pids: x"])])
     assert dirty.to_json()["passed"] is False
     assert dirty.failures == ["agent: visible_pids: x"]
-    assert evaluate(ZoneKind.AGENT, {"inet_socket": "allowed"}, strict=False) == []

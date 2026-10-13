@@ -11,10 +11,6 @@ openenvd:
     oracle: assets/oracle.json
   zones:
     agent:
-      isolation:
-        seccomp: strict
-        read_write: [/workspace, /tmp]
-        read_only: [/opt/envs, /opt/unit/harness.py]
       resources: { memory_mb: 1024, pids: 512 }
       containers:
         env:
@@ -31,9 +27,6 @@ openenvd:
           port: 8080
           state: /var/lib/sim
     observers:
-      isolation:
-        read_write: [/tmp, /out]
-        read_only: [/opt/unit/observers]
       containers:
         runner:
           argv: [/usr/local/bin/python3, /opt/unit/observers/runner.py]

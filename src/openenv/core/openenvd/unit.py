@@ -33,7 +33,6 @@ import httpx
 from .cgroups import CgroupTree
 from .contract import AGENT_PHASES, ContainerSpec, Manifest, Phase, ZoneKind
 from .custody import copy_validated, CustodyError
-from .landlock import LandlockSpec
 from .oci import ContainerPlan, MountPlan, write_bundle
 from .phases import Actor, PhaseError, PhaseMachine, Transition
 from .relays import (
@@ -50,7 +49,6 @@ from .runtime import (
     RuntimeFailure,
     unmount,
 )
-from .seccomp import principal_filter_spec
 from .shim import shim_spec
 
 logger = logging.getLogger(__name__)
@@ -426,39 +424,6 @@ class Unit:
         exposed = [c for c in self._zone_containers(ZoneKind.SERVICES) if c.spec.expose]
         return [(c, f"127.0.0.{10 + i}") for i, c in enumerate(exposed)]
 
-    def _landlock(self, c: _Container) -> LandlockSpec | None:
-        zone = self.manifest.zones.get(c.zone)
-        isolation = c.spec.isolation or zone.isolation
-        if not isolation.landlock:
-            return None
-        read_write = list(isolation.read_write) + [SOCKET_DIR]
-        if c.zone is ZoneKind.SERVICES and c.spec.state:
-            read_write.append(c.spec.state)
-        if c.zone is ZoneKind.OBSERVERS:
-            read_write.append("/out")
-        read_only = ["/usr", "/lib", "/lib64", "/bin", "/sbin", "/etc", "/proc"]
-        read_only += list(isolation.read_only)
-        read_only += ["/dev/null", "/dev/urandom", "/dev/zero"]
-        if c.zone is ZoneKind.OBSERVERS:
-            read_only += ["/workspace", "/assets", "/services", "/inputs"]
-        if c.zone is ZoneKind.AGENT and c.name == "env":
-            read_only.append(WORKSPACE)
-        bind = [c.spec.port] if c.spec.port else []
-        network = c.spec.network or zone.network
-        connect = None
-        if network.egress != "allowlist":
-            # Only the loopback forwarders. The network namespace already holds
-            # nothing but `lo`; this is a second fence.
-            connect = sorted(
-                {f["port"] for f in self._forwards(c) if f["kind"] == "tcp_to_unix"}
-            )
-        return LandlockSpec(
-            read_only=read_only,
-            read_write=read_write,
-            connect_tcp=connect,
-            bind_tcp=bind,
-        )
-
     def _rootfs(self, rootfs: str) -> str:
         """`/` can't be pivoted onto, so containers get a recursive bind of it."""
         if rootfs != "/":
@@ -471,7 +436,6 @@ class Unit:
 
     def _plan(self, c: _Container) -> tuple[ContainerPlan, dict]:
         zone = self.manifest.zones.get(c.zone)
-        isolation = c.spec.isolation or zone.isolation
         resources = zone.resources.narrowed(c.spec.resources)
         sock = self._sock_dir(c)
         plan = ContainerPlan(
@@ -486,31 +450,15 @@ class Unit:
             cgroups_path="/" + c.cgroup,
             mounts=self._mounts_for(c),
             resources=resources,
-            isolation=isolation,
             shim_spec_path=f"{SOCKET_DIR}/shim.json",
             python=self.python,
             userns=True,
         )
         workdir = WORKSPACE if c.zone is ZoneKind.AGENT and c.name == "env" else "/tmp"
-        forwards = self._forwards(c)
-        landlock = self._landlock(c)
-        principal_filter = principal_filter_spec(c.zone, isolation)
-        relay_ports = sorted(
-            {f["port"] for f in forwards if f["kind"] == "tcp_to_unix"}
-        )
-        if isolation.seccomp == "strict" and relay_ports and landlock is not None:
-            # The principal's only exits are loopback forwarders, so `strict`
-            # means "connect to the relay ports and nothing else" rather than a
-            # ban on AF_INET. The network namespace holds only `lo` either way.
-            principal_filter = {}
-            landlock.connect_tcp = relay_ports
-            landlock.bind_tcp = []
         spec = shim_spec(
             argv=plan.argv,
             env=plan.env,
-            landlock=landlock,
-            forwards=forwards,
-            principal_filter=principal_filter,
+            forwards=self._forwards(c),
             workdir=workdir,
         )
         (sock / "shim.json").write_text(json.dumps(spec))

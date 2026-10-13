@@ -24,8 +24,8 @@ The orchestrator talks to one listener (`:8100`): `/ws` (Gym, token), `/mcp`
 | `preflight.py` | Can openenvd isolate here? Root, namespaces, a writable cgroup v2 root and an OCI runtime |
 | `cgroups.py` | Zone subtrees: limits, freeze, atomic kill, `populated 0` |
 | `oci.py`, `seccomp.py`, `runtime.py` | OCI bundles and the `crun` driver |
-| `shim.py`, `landlock.py`, `forwarder.py` | Container PID 1: Landlock, a socket-family filter, loopback forwarders |
-| `relays.py`, `surfaces.py`, `peercred.py` | Relays (placeholder model keys, hidden-service proxying) and the external listener |
+| `shim.py`, `forwarder.py` | Container PID 1: reaps children, runs the loopback forwarders |
+| `relays.py`, `surfaces.py` | Relays (placeholder model keys, hidden-service proxying) and the external listener |
 | `custody.py` | Validated copies of agent output for graders |
 | `check.py` | `openenv check enforcement`: probe containers try what each zone must not do |
 
@@ -55,11 +55,11 @@ Container paths are also exposed as `OPENENVD_WORKSPACE`, `OPENENVD_OUT`,
 `OPENENVD_SOCKETS`. The env container gets `OPENENVD_SERVICE_<NAME>` for each
 hidden service.
 
-The image must provide empty mountpoints at
-`/workspace`, `/assets`, `/inputs`, `/services`, `/out` and `/run/openenvd`, and
-each service's `state` path. List any extra code directories a zone needs under
-`isolation.read_only`. Anything else outside the system directories is invisible
-to the zone's Landlock domain.
+Containers run on a read-only bind of the image's `/`, so they can read
+everything in the image except the control-plane state, secrets and declared
+assets, which are hidden. openenvd creates any missing mountpoints itself.
+Only the mounts it makes are writable: `/tmp`, `/workspace` (env), `/out`
+(observers) and each service's `state` path.
 
 ## Tests
 
