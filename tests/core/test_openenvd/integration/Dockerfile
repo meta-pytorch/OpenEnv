@@ -12,5 +12,6 @@ COPY envs/echo_env /opt/envs/echo_env
 ENV PYTHONPATH=/opt/envs
 COPY tests/core/test_openenvd/integration/unit /opt/unit
 COPY tests/core/test_openenvd/integration/test_live_unit.py /opt/tests/test_live_unit.py
+COPY tests/core/test_openenvd/test_cgroups.py /opt/tests/test_cgroups.py
 RUN mkdir -p /workspace /assets /inputs /services /run/openenvd /var/lib/sim /out \
     && chmod 0755 /opt/unit/observers/*.py && chown -R 1000:1000 /opt/unit/assets && chmod -R go-rwx /opt/unit/assets
