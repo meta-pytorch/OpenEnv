@@ -24,8 +24,6 @@ from .contract import Resources
 
 CONTROLLERS: tuple[str, ...] = ("cpu", "memory", "pids")
 CPU_PERIOD_US = 100_000
-FAKE_MARKER = ".fake-cgroup"
-"""A file tests put in fake cgroup dirs so `remove` may delete regular files."""
 
 _POLL_S = 0.02
 _KILL_PASSES = 50
@@ -341,49 +339,6 @@ def _rmdir(group: Path) -> None:
     except FileNotFoundError:
         return
     except OSError as exc:
-        if exc.errno == errno.ENOTEMPTY and (group / FAKE_MARKER).exists():
-            for f in group.iterdir():
-                if f.is_file():
-                    f.unlink()
-            group.rmdir()
-            return
         if exc.errno == errno.EBUSY:
             raise CgroupError(f"{group} is still populated") from exc
         raise CgroupError(f"rmdir {group}: {exc.strerror}") from exc
-
-
-def cgroup_of_pid(pid: int, proc: Path = Path("/proc")) -> str | None:
-    """The cgroup v2 path of `pid`, relative to the namespace root.
-
-    Args:
-        pid (`int`):
-            Process id.
-        proc (`Path`, *optional*, defaults to `Path("/proc")`):
-            procfs mount point.
-
-    Returns:
-        `str` or `None`: e.g. `zones/agent/env`, `""` for the root, `None` if unreadable.
-    """
-    text = _read(Path(proc) / str(pid) / "cgroup")
-    for line in (text or "").splitlines():
-        if line.startswith("0::"):
-            return line[3:].strip().strip("/")
-    return None
-
-
-def is_within(cgroup: str | None, prefix: str) -> bool:
-    """Whether `cgroup` is `prefix` or one of its descendants.
-
-    Args:
-        cgroup (`str`, *optional*):
-            A relative cgroup path, as returned by [`cgroup_of_pid`].
-        prefix (`str`):
-            A relative cgroup path. Empty matches everything.
-
-    Returns:
-        `bool`: Compared by path component, so `zones/agentx` is not in `zones/agent`.
-    """
-    if cgroup is None:
-        return False
-    cgroup, prefix = cgroup.strip("/"), prefix.strip("/")
-    return not prefix or cgroup == prefix or cgroup.startswith(prefix + "/")

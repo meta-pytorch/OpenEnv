@@ -11,13 +11,7 @@ import sys
 from pathlib import Path
 
 import pytest
-from openenv.core.openenvd.cgroups import (
-    cgroup_of_pid,
-    CgroupError,
-    CgroupTree,
-    FAKE_MARKER,
-    is_within,
-)
+from openenv.core.openenvd.cgroups import CgroupError, CgroupTree
 from openenv.core.openenvd.contract import Resources
 
 
@@ -25,7 +19,6 @@ def fake_group(path: Path, controllers: str = "cpu memory pids") -> Path:
     """Make `path` look like a cgroup v2 directory."""
     path.mkdir(parents=True, exist_ok=True)
     files = {
-        FAKE_MARKER: "",
         "cgroup.controllers": controllers,
         "cgroup.subtree_control": "",
         "cgroup.procs": "",
@@ -38,7 +31,17 @@ def fake_group(path: Path, controllers: str = "cpu memory pids") -> Path:
 
 
 @pytest.fixture
-def tree(tmp_path: Path) -> CgroupTree:
+def tree(tmp_path: Path, monkeypatch) -> CgroupTree:
+    real_rmdir = Path.rmdir
+
+    def rmdir(self: Path) -> None:
+        # cgroupfs removes a group's interface files with it; a plain dir doesn't.
+        for f in self.iterdir():
+            if f.is_file():
+                f.unlink()
+        real_rmdir(self)
+
+    monkeypatch.setattr(Path, "rmdir", rmdir)
     fake_group(tmp_path / "cg")
     return CgroupTree(tmp_path / "cg")
 
@@ -141,7 +144,7 @@ async def test_freeze_and_wait_frozen(tree: CgroupTree):
     assert (group / "cgroup.freeze").read_text() == "0"
 
 
-def test_kill_with_cgroup_kill_is_prevented(tree: CgroupTree, monkeypatch):
+def test_kill_uses_cgroup_kill_when_available(tree: CgroupTree, monkeypatch):
     group = fake_group(tree.root / "agent")
     (group / "cgroup.kill").write_text("0")
     monkeypatch.setattr(os, "kill", lambda *a: pytest.fail("must not signal"))
@@ -232,32 +235,6 @@ def test_remove_busy_raises(tree: CgroupTree, monkeypatch):
         tree.remove("agent")
 
 
-def test_cgroup_of_pid(tmp_path: Path):
-    (tmp_path / "7").mkdir()
-    (tmp_path / "7" / "cgroup").write_text("0::/zones/agent/env\n")
-    (tmp_path / "8").mkdir()
-    (tmp_path / "8" / "cgroup").write_text("1:name=systemd:/x\n0::/\n")
-    assert cgroup_of_pid(7, proc=tmp_path) == "zones/agent/env"
-    assert cgroup_of_pid(8, proc=tmp_path) == ""
-    assert cgroup_of_pid(9, proc=tmp_path) is None
-
-
-@pytest.mark.parametrize(
-    "cgroup, prefix, expected",
-    [
-        ("zones/agent/env", "zones/agent", True),
-        ("zones/agent", "zones/agent", True),
-        ("zones/agentx", "zones/agent", False),
-        ("zones", "zones/agent", False),
-        ("/zones/agent/env", "/zones/agent/", True),
-        ("control", "", True),
-        (None, "zones", False),
-    ],
-)
-def test_is_within(cgroup, prefix, expected):
-    assert is_within(cgroup, prefix) is expected
-
-
 def _real_cgroup_root() -> Path | None:
     root = Path("/sys/fs/cgroup")
     if sys.platform != "linux" or os.geteuid() != 0:
@@ -280,14 +257,20 @@ async def test_real_subtree_lifecycle():
     proc = None
     try:
         if "pids" not in (top / "cgroup.controllers").read_text().split():
-            pytest.skip("pids controller not delegated to this cgroup")
+            # In a throwaway container the namespace root holds this process, so
+            # it can't delegate controllers until processes move out of it.
+            # Never do this on a real host: it moves every process in the root.
+            if os.environ.get("OPENENVD_TEST_ADOPT_CGROUP_ROOT") != "1":
+                pytest.skip("pids controller not delegated to this cgroup")
+            CgroupTree(real).adopt_self("pytest")
         tree.create("zones/agent")
         tree.set_limits("zones/agent", Resources(pids=16))
         assert tree.path("zones/agent").joinpath("pids.max").read_text() == "16\n"
         proc = subprocess.Popen(["sleep", "60"])
         tree.move(proc.pid, "zones/agent")
         assert tree.pids("zones") == [proc.pid]
-        assert cgroup_of_pid(proc.pid).endswith(f"{top.name}/zones/agent")
+        membership = Path(f"/proc/{proc.pid}/cgroup").read_text()
+        assert membership.strip().endswith(f"{top.name}/zones/agent")
         tree.kill("zones/agent")
         proc.wait(timeout=5)
         assert await tree.wait_empty("zones/agent", timeout=5.0)
