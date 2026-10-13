@@ -25,7 +25,8 @@ def readable(path):
     try:
         if os.path.isdir(path):
             return bool(os.listdir(path))
-        open(path, "rb").read(1)
+        with open(path, "rb") as f:
+            f.read(1)
         return True
     except OSError:
         return False
