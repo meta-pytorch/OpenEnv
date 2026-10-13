@@ -5,9 +5,8 @@
 The container-wide profile (`linux.seccomp` in the OCI config) allows by
 default and denies the syscalls that reach kernel attack surface or leave the
 container's namespaces. It never denies `AF_INET`: the shim's loopback
-forwarders need it. The `strict` socket-family restriction is a second filter,
-described by [`principal_filter_spec`], that the shim installs on the principal
-alone right before `exec`.
+forwarders need it, and the network namespace already holds nothing else.
+Every zone gets the same profile.
 """
 
 from __future__ import annotations
@@ -15,13 +14,9 @@ from __future__ import annotations
 import platform
 from typing import Any
 
-from .contract import IsolationPolicy, ZoneKind
-
 EPERM = 1
 ENOSYS = 38
 
-AF_INET = 2
-AF_INET6 = 10
 AF_PACKET = 17
 
 CLONE_NAMESPACE_FLAGS: dict[str, int] = {
@@ -111,23 +106,16 @@ def _deny(names: list[str], errno: int = EPERM, args: list | None = None) -> dic
     return rule
 
 
-def seccomp_profile(
-    zone: ZoneKind, isolation: IsolationPolicy, arch: str | None = None
-) -> dict:
+def seccomp_profile(arch: str | None = None) -> dict:
     """Build the container-wide OCI `linux.seccomp` object.
 
     Args:
-        zone ([`ZoneKind`]):
-            The container's zone. Every zone currently gets the same profile.
-        isolation (`IsolationPolicy`):
-            The container's effective isolation policy.
         arch (`str`, *optional*):
             A `platform.machine()` value. Defaults to the running machine.
 
     Returns:
         `dict`: An OCI runtime-spec `LinuxSeccomp` object.
     """
-    del zone, isolation  # strict socket families are enforced per principal
     syscalls = [
         _deny(list(DENIED_SYSCALLS)),
         # glibc falls back to clone(2) on ENOSYS, where the flag filter applies.
@@ -158,21 +146,3 @@ def seccomp_profile(
         "architectures": seccomp_architectures(arch),
         "syscalls": syscalls,
     }
-
-
-def principal_filter_spec(zone: ZoneKind, isolation: IsolationPolicy) -> dict:
-    """Describe the extra filter the shim installs on the principal before `exec`.
-
-    Args:
-        zone ([`ZoneKind`]):
-            The container's zone.
-        isolation (`IsolationPolicy`):
-            The container's effective isolation policy.
-
-    Returns:
-        `dict`: `{"deny_socket_families": [2, 10]}` for `strict`, else `{}`.
-    """
-    del zone
-    if isolation.seccomp == "strict":
-        return {"deny_socket_families": [AF_INET, AF_INET6]}
-    return {}

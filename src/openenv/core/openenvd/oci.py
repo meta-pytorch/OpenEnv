@@ -5,8 +5,7 @@
 Every container runs the openenvd shim as its PID 1 in fresh pid, mount, net,
 ipc, uts and cgroup namespaces (plus a user namespace when allowed), on a
 read-only root, with no capabilities and the container-wide seccomp profile.
-The shim then applies Landlock and the principal's socket filter and `exec`s
-the principal.
+The shim then `exec`s the principal.
 """
 
 from __future__ import annotations
@@ -16,7 +15,7 @@ import os
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from .contract import IsolationPolicy, Resources, ZoneKind
+from .contract import Resources, ZoneKind
 from .seccomp import seccomp_profile
 
 OCI_VERSION = "1.0.2"
@@ -114,8 +113,6 @@ class ContainerPlan:
             Mounts after the defaults, in order. Must include the socket directory.
         resources (`Resources`):
             Effective cgroup limits.
-        isolation (`IsolationPolicy`):
-            Effective isolation policy.
         shim_spec_path (`str`):
             Path inside the container to the shim's JSON spec.
         python (`str`, *optional*, defaults to `"/usr/bin/python3"`):
@@ -135,7 +132,6 @@ class ContainerPlan:
     cgroups_path: str
     mounts: list[MountPlan]
     resources: Resources
-    isolation: IsolationPolicy
     shim_spec_path: str
     python: str = "/usr/bin/python3"
     userns: bool = True
@@ -234,7 +230,7 @@ def build_spec(plan: ContainerPlan) -> dict:
         "namespaces": namespaces,
         "resources": _resources(plan.resources),
         "cgroupsPath": plan.cgroups_path,
-        "seccomp": seccomp_profile(plan.zone, plan.isolation),
+        "seccomp": seccomp_profile(),
         "sysctl": {"net.ipv4.ip_unprivileged_port_start": "0"},
         "maskedPaths": list(MASKED_PATHS),
         "readonlyPaths": list(READONLY_PATHS),

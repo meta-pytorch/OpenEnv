@@ -3,7 +3,7 @@
 import json
 import stat
 
-from openenv.core.openenvd.contract import IsolationPolicy, Resources, ZoneKind
+from openenv.core.openenvd.contract import Resources, ZoneKind
 from openenv.core.openenvd.oci import (
     build_spec,
     ContainerPlan,
@@ -57,7 +57,6 @@ def _plan(**overrides):
             ),
         ],
         resources=Resources(memory_mb=512, pids=128, cpu=1.5),
-        isolation=IsolationPolicy(seccomp="strict"),
         shim_spec_path="/run/openenvd/shim.json",
     )
     fields.update(overrides)

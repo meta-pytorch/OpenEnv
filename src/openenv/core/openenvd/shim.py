@@ -3,12 +3,10 @@
 """The container shim: PID 1 of every openenvd container.
 
 Run as `python -m openenv.core.openenvd.shim --spec <path>`. It starts the
-socket forwarders, then `exec`s the principal in a forked child after applying
-Landlock and the principal's socket-family filter there, so the shim keeps its
-own sockets. It reaps every child, forwards `SIGTERM`/`SIGINT` to the
+socket forwarders, then `exec`s the principal in a forked child. It reaps every child, forwards `SIGTERM`/`SIGINT` to the
 principal's process group and exits with the principal's status.
 
-Stdlib only (plus `landlock` and `forwarder`), since it runs inside minimal
+Stdlib only (plus `forwarder`), since it runs inside minimal
 containers.
 """
 
@@ -20,7 +18,6 @@ import ctypes
 import fcntl
 import json
 import os
-import platform
 import signal
 import socket
 import struct
@@ -29,28 +26,8 @@ import threading
 from typing import Any
 
 from . import forwarder
-from .landlock import LandlockSpec, restrict_self
 
-PR_SET_SECCOMP = 22
 PR_SET_CHILD_SUBREAPER = 36
-PR_SET_NO_NEW_PRIVS = 38
-SECCOMP_MODE_FILTER = 2
-
-BPF_LD_W_ABS = 0x20
-BPF_JMP_JEQ_K = 0x15
-BPF_RET_K = 0x06
-SECCOMP_RET_ALLOW = 0x7FFF0000
-SECCOMP_RET_ERRNO = 0x00050000
-EPERM = 1
-
-_X32_SYSCALL_BIT = 0x40000000
-# machine -> (AUDIT_ARCH_*, socket syscall numbers)
-_SOCKET_SYSCALLS = {
-    "x86_64": (0xC000003E, (41, 41 | _X32_SYSCALL_BIT)),
-    "amd64": (0xC000003E, (41, 41 | _X32_SYSCALL_BIT)),
-    "aarch64": (0xC00000B7, (198,)),
-    "arm64": (0xC00000B7, (198,)),
-}
 
 SIOCGIFFLAGS = 0x8913
 SIOCSIFFLAGS = 0x8914
@@ -68,9 +45,7 @@ def _warn(message: str) -> None:
 def shim_spec(
     argv: list[str],
     env: dict[str, str],
-    landlock: LandlockSpec | None,
     forwards: list[dict],
-    principal_filter: dict,
     workdir: str | None,
     uid: int | None = None,
     gid: int | None = None,
@@ -82,15 +57,11 @@ def shim_spec(
             The principal's command, resolved against `PATH` in `env`.
         env (`dict[str, str]`):
             The principal's full environment.
-        landlock ([`LandlockSpec`], *optional*):
-            Landlock domain for the principal. `None` skips Landlock.
         forwards (`list[dict]`):
             Forwarders the shim runs for the container's lifetime. Each is one of
             `{"kind": "tcp_to_unix", "host", "port", "path"}`,
             `{"kind": "unix_to_tcp", "path", "host", "port"}` or
             `{"kind": "unix_to_unix", "path", "target"}`.
-        principal_filter (`dict`):
-            Output of [`~openenv.core.openenvd.seccomp.principal_filter_spec`].
         workdir (`str`, *optional*):
             Working directory of the principal.
         uid (`int`, *optional*):
@@ -121,84 +92,11 @@ def shim_spec(
     return {
         "argv": list(argv),
         "env": dict(env),
-        "landlock": landlock.to_json() if landlock is not None else None,
         "forwards": [dict(f) for f in forwards],
-        "principal_filter": dict(principal_filter),
         "workdir": workdir,
         "uid": uid,
         "gid": gid,
     }
-
-
-def socket_filter_program(families: list[int], machine: str | None = None) -> bytes:
-    """Assemble a classic-BPF seccomp program that denies `socket(family, ...)`.
-
-    Syscalls from a foreign architecture are denied too, so a 32-bit ABI can't
-    bypass the filter.
-
-    Args:
-        families (`list[int]`):
-            Address families to deny with `EPERM`.
-        machine (`str`, *optional*):
-            A `platform.machine()` value. Defaults to the running machine.
-
-    Returns:
-        `bytes`: Packed `struct sock_filter` instructions.
-
-    Raises:
-        `ValueError`: If the architecture is not x86_64 or aarch64.
-    """
-    key = (machine or platform.machine()).lower()
-    if key not in _SOCKET_SYSCALLS:
-        raise ValueError(f"unsupported architecture {key!r}")
-    audit_arch, socket_nrs = _SOCKET_SYSCALLS[key]
-    deny = SECCOMP_RET_ERRNO | EPERM
-    n = len(families)
-
-    def ins(code: int, jt: int, jf: int, k: int) -> bytes:
-        return struct.pack("=HBBI", code, jt, jf, k)
-
-    prog = [
-        ins(BPF_LD_W_ABS, 0, 0, 4),  # seccomp_data.arch
-        ins(BPF_JMP_JEQ_K, 1, 0, audit_arch),
-        ins(BPF_RET_K, 0, 0, deny),
-        ins(BPF_LD_W_ABS, 0, 0, 0),  # seccomp_data.nr
-    ]
-    for i, nr in enumerate(socket_nrs):
-        # Match: jump to the arg0 load. Miss on the last: jump to ALLOW.
-        remaining = len(socket_nrs) - i - 1
-        prog.append(ins(BPF_JMP_JEQ_K, remaining, 0 if remaining else n + 1, nr))
-    prog.append(ins(BPF_LD_W_ABS, 0, 0, 16))  # low 32 bits of args[0]
-    for i, family in enumerate(families):
-        prog.append(ins(BPF_JMP_JEQ_K, n - i, 0, family))
-    prog.append(ins(BPF_RET_K, 0, 0, SECCOMP_RET_ALLOW))
-    prog.append(ins(BPF_RET_K, 0, 0, deny))
-    return b"".join(prog)
-
-
-def install_socket_filter(families: list[int]) -> None:
-    """Install a seccomp filter on the calling thread denying the given families.
-
-    Args:
-        families (`list[int]`):
-            Address families `socket()` must refuse with `EPERM`.
-    """
-    program = socket_filter_program(families)
-    count = len(program) // 8
-    buf = ctypes.create_string_buffer(program, len(program))
-
-    class SockFprog(ctypes.Structure):
-        _fields_ = [("len", ctypes.c_ushort), ("filter", ctypes.c_void_p)]
-
-    fprog = SockFprog(count, ctypes.addressof(buf))
-    libc = ctypes.CDLL(None, use_errno=True)
-    for args in (
-        (PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0),
-        (PR_SET_SECCOMP, SECCOMP_MODE_FILTER, ctypes.addressof(fprog), 0, 0),
-    ):
-        if libc.prctl(*(ctypes.c_ulong(a) for a in args)) != 0:
-            err = ctypes.get_errno()
-            raise OSError(err, os.strerror(err))
 
 
 def _set_subreaper() -> None:
@@ -270,12 +168,6 @@ def _exec_principal(spec: dict, go_fd: int) -> None:
             os.setgid(spec["gid"])
         if spec.get("uid") is not None:
             os.setuid(spec["uid"])
-        families = spec.get("principal_filter", {}).get("deny_socket_families") or []
-        if _is_linux():
-            if spec.get("landlock") is not None:
-                restrict_self(LandlockSpec.from_json(spec["landlock"]))
-            if families:
-                install_socket_filter(families)
         if spec.get("workdir"):
             os.chdir(spec["workdir"])
         argv = spec["argv"]
@@ -304,12 +196,7 @@ def run(spec: dict[str, Any]) -> int:
         _set_subreaper()
         _bring_up_lo()
     else:
-        skipped = ["child subreaper"]
-        if spec.get("landlock") is not None:
-            skipped.append("Landlock")
-        if spec.get("principal_filter", {}).get("deny_socket_families"):
-            skipped.append("seccomp socket filter")
-        _warn(f"not Linux, skipping: {', '.join(skipped)}")
+        _warn("not Linux, skipping: child subreaper")
 
     # Fork before starting the forwarder thread; the child waits for the go byte.
     go_read, go_write = os.pipe()
