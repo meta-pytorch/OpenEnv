@@ -11,7 +11,9 @@ import json
 import pytest
 from openenv.core.openenvd.check import CheckReport, evaluate, ZoneCheck
 from openenv.core.openenvd.contract import parse_manifest, Phase, ZoneKind
+from openenv.core.openenvd.oci import MountPlan
 from openenv.core.openenvd.unit import (
+    _ensure_mountpoints,
     HARNESS_PORTS,
     PLACEHOLDER_KEY,
     SOCKET_DIR,
@@ -137,6 +139,20 @@ def test_observer_mounts_are_read_only_and_nosymfollow(tmp_path, monkeypatch):
         assert {"ro", "nosymfollow", "nodev", "nosuid", "noexec"} <= set(by_dest[dest])
     assert "ro" not in by_dest["/out"]
     assert "/workspace" not in by_dest
+
+
+def test_missing_mountpoints_are_created_on_the_root(tmp_path):
+    """A fresh tmpfs on /run hides the image's /run/openenvd (as in a microVM)."""
+    src_dir, src_file = tmp_path / "sock", tmp_path / "hosts"
+    src_dir.mkdir()
+    src_file.write_text("")
+    root = tmp_path / "root"
+    _ensure_mountpoints(
+        [MountPlan(str(src_dir), SOCKET_DIR), MountPlan(str(src_file), "/etc/hosts")],
+        root,
+    )
+    assert (root / SOCKET_DIR.lstrip("/")).is_dir()
+    assert (root / "etc/hosts").is_file()
 
 
 def test_runner_runs_before_the_verdict(tmp_path, monkeypatch):

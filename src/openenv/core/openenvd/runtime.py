@@ -23,6 +23,7 @@ _MS_REMOUNT = 32
 _MS_NOSYMFOLLOW = 256
 _MS_BIND = 4096
 _MS_REC = 16384
+_MS_PRIVATE = 262144
 _MNT_DETACH = 2
 
 
@@ -197,6 +198,9 @@ def bind_mount(
         target.parent.mkdir(parents=True, exist_ok=True)
         target.touch(exist_ok=True)
     _mount(str(source), str(target), None, _MS_BIND | _MS_REC, None)
+    # A bind of a shared mount (systemd makes `/` shared) joins its peer group,
+    # so unmounting the bind would also unmount the originals. Leave the group.
+    _mount("none", str(target), None, _MS_REC | _MS_PRIVATE, None)
     flags = _MS_BIND | _MS_REMOUNT
     flags |= _MS_RDONLY if read_only else 0
     flags |= _MS_NOSYMFOLLOW if nosymfollow else 0

@@ -153,6 +153,24 @@ class OciLauncher:
             return False
 
 
+def _ensure_mountpoints(mounts: list[MountPlan], root: Path = Path("/")) -> None:
+    """Create missing mount destinations under `root`.
+
+    A container whose rootfs is a read-only bind of `/` can't create its own
+    mountpoints, and an image's directories under a tmpfs such as `/run` are
+    hidden once the machine boots, so openenvd makes them before the start.
+    """
+    for m in mounts:
+        dest = root / m.destination.lstrip("/")
+        if dest.exists():
+            continue
+        if Path(m.source).is_dir():
+            dest.mkdir(mode=0o755, parents=True)
+        else:
+            dest.parent.mkdir(mode=0o755, parents=True, exist_ok=True)
+            dest.touch()
+
+
 @dataclass
 class _Container:
     zone: ZoneKind
@@ -615,6 +633,8 @@ class Unit:
 
     async def _start(self, c: _Container) -> None:
         plan, _ = self._plan(c)
+        if c.spec.rootfs == "/":
+            _ensure_mountpoints(plan.mounts)
         self.cgroups.create(c.cgroup)
         self.cgroups.set_limits(c.cgroup, plan.resources)
         bundle = self.paths.run / "bundles" / c.key
