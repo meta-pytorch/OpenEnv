@@ -3,10 +3,9 @@
 """The `openenvd:` contract: zones, per-zone policies and phases.
 
 A manifest declares three zones. Each zone sets a policy ceiling (network,
-isolation, resources, OCI runtime) and each container narrows it. The kernel
-enforces the narrowing on its own (cgroup limits, stacked seccomp filters,
-stacked Landlock domains); `validate_manifest` reports violations early with a
-readable error.
+resources, OCI runtime) and each container narrows it. The kernel enforces the
+narrowing on its own (nested cgroup limits, per-container network namespaces);
+`validate_manifest` reports violations early with a readable error.
 """
 
 from __future__ import annotations
@@ -118,41 +117,6 @@ class NetworkPolicy(_Strict):
         return problems
 
 
-class IsolationPolicy(_Strict):
-    """Filesystem and syscall isolation.
-
-    Attributes:
-        seccomp (`str`, *optional*, defaults to `"default"`):
-            `default` or `strict` (also denies `AF_INET`/`AF_INET6` sockets).
-        read_write (`list[str]`, *optional*):
-            Writable paths inside the container.
-        read_only (`list[str]`, *optional*):
-            Extra read-only paths beyond the rootfs.
-        landlock (`bool`, *optional*, defaults to `True`):
-            Apply a Landlock domain in the container shim.
-    """
-
-    seccomp: Literal["default", "strict"] = "default"
-    read_write: list[str] = Field(default_factory=lambda: ["/tmp"])
-    read_only: list[str] = Field(default_factory=list)
-    landlock: bool = True
-
-    def within(self, ceiling: "IsolationPolicy") -> list[str]:
-        problems = []
-        if ceiling.seccomp == "strict" and self.seccomp != "strict":
-            problems.append("seccomp 'default' is looser than the zone's 'strict'")
-        if ceiling.landlock and not self.landlock:
-            problems.append("landlock can't be turned off below the zone")
-        outside = [
-            p
-            for p in self.read_write
-            if not any(_is_under(p, c) for c in ceiling.read_write)
-        ]
-        if outside:
-            problems.append(f"read_write {outside} is outside the zone's read_write")
-        return problems
-
-
 class RuntimePolicy(_Strict):
     """Which OCI runtime creates the zone's containers.
 
@@ -186,8 +150,6 @@ class ContainerSpec(_Strict):
             Leaf cgroup limits.
         network (`NetworkPolicy`, *optional*):
             Narrows the zone's network policy.
-        isolation (`IsolationPolicy`, *optional*):
-            Narrows the zone's isolation policy.
         phases (`list[Phase]`, *optional*):
             Observers only: the phases this container lives in.
         reads (`list[str]`, *optional*):
@@ -210,7 +172,6 @@ class ContainerSpec(_Strict):
     env: dict[str, str] = Field(default_factory=dict)
     resources: Resources = Field(default_factory=Resources)
     network: NetworkPolicy | None = None
-    isolation: IsolationPolicy | None = None
     phases: list[Phase] | None = None
     reads: list[str] = Field(default_factory=list)
     expose: Expose | None = None
@@ -226,8 +187,6 @@ class ZoneSpec(_Strict):
     Attributes:
         runtime (`RuntimePolicy`, *optional*):
             OCI runtime for every container in the zone.
-        isolation (`IsolationPolicy`, *optional*):
-            Ceiling for the containers' isolation.
         network (`NetworkPolicy`, *optional*):
             Ceiling for the containers' network.
         resources (`Resources`, *optional*):
@@ -239,14 +198,10 @@ class ZoneSpec(_Strict):
     """
 
     runtime: RuntimePolicy = Field(default_factory=RuntimePolicy)
-    isolation: IsolationPolicy = Field(default_factory=IsolationPolicy)
     network: NetworkPolicy = Field(default_factory=NetworkPolicy)
     resources: Resources = Field(default_factory=Resources)
     containers: dict[str, ContainerSpec] = Field(default_factory=dict)
     during_grading: Literal["frozen", "serve-observers"] = "frozen"
-
-    def effective_isolation(self, name: str) -> IsolationPolicy:
-        return self.containers[name].isolation or self.isolation
 
     def effective_resources(self, name: str) -> Resources:
         return self.resources.narrowed(self.containers[name].resources)
@@ -255,19 +210,14 @@ class ZoneSpec(_Strict):
 def _default_agent_zone() -> ZoneSpec:
     return ZoneSpec(
         network=NetworkPolicy(egress="relays-only"),
-        isolation=IsolationPolicy(seccomp="strict", read_write=["/workspace", "/tmp"]),
         containers={"env": ContainerSpec()},
     )
-
-
-def _default_observer_zone() -> ZoneSpec:
-    return ZoneSpec(isolation=IsolationPolicy(read_write=["/tmp", "/out"]))
 
 
 class Zones(_Strict):
     agent: ZoneSpec = Field(default_factory=_default_agent_zone)
     services: ZoneSpec = Field(default_factory=ZoneSpec)
-    observers: ZoneSpec = Field(default_factory=_default_observer_zone)
+    observers: ZoneSpec = Field(default_factory=ZoneSpec)
 
     @model_validator(mode="before")
     @classmethod
@@ -276,19 +226,12 @@ class Zones(_Strict):
         if not isinstance(data, dict):
             return data
         data = dict(data)
-        defaults = {
-            "agent": _default_agent_zone(),
-            "observers": _default_observer_zone(),
-        }
-        for name, zone in defaults.items():
-            given = data.get(name)
-            if isinstance(given, dict):
-                merged = dict(given)
-                for key in ("isolation", "network"):
-                    merged.setdefault(key, getattr(zone, key).model_dump())
-                if name == "agent":
-                    merged.setdefault("containers", {"env": {}})
-                data[name] = merged
+        given = data.get("agent")
+        if isinstance(given, dict):
+            merged = dict(given)
+            merged.setdefault("network", _default_agent_zone().network.model_dump())
+            merged.setdefault("containers", {"env": {}})
+            data["agent"] = merged
         return data
 
     def get(self, kind: ZoneKind) -> ZoneSpec:
@@ -368,10 +311,6 @@ def validate_manifest(manifest: Manifest) -> list[str]:
             where = f"zones.{kind.value}.containers.{name}"
             if spec.network is not None:
                 problems += [f"{where}: {p}" for p in spec.network.within(zone.network)]
-            if spec.isolation is not None:
-                problems += [
-                    f"{where}: {p}" for p in spec.isolation.within(zone.isolation)
-                ]
             problems += [f"{where}: {p}" for p in spec.resources.within(zone.resources)]
 
     agent = zones.agent
@@ -411,9 +350,6 @@ def validate_manifest(manifest: Manifest) -> list[str]:
             problems.append(f"{where}: observers must list at least one phase")
         if spec.expose or spec.state:
             problems.append(f"{where}: expose/state are service fields")
-        isolation = observers.effective_isolation(name)
-        if any(p not in ("/tmp", "/out") for p in isolation.read_write):
-            problems.append(f"{where}: observers may only write /tmp and /out")
         phases = set(spec.phases or ())
         for read in spec.reads:
             head, rest = _read_target(read)

@@ -11,14 +11,12 @@ from openenv.core.openenvd.contract import (
 
 def test_defaults_are_strict_for_the_agent_zone():
     m = parse_manifest({})
-    assert m.zones.agent.isolation.seccomp == "strict"
     assert m.zones.agent.network.egress == "relays-only"
     assert "env" in m.zones.agent.containers
 
 
 def test_partial_agent_zone_keeps_agent_defaults():
     m = parse_manifest({"zones": {"agent": {"resources": {"pids": 10}}}})
-    assert m.zones.agent.isolation.seccomp == "strict"
     assert m.zones.agent.network.egress == "relays-only"
     assert m.zones.agent.resources.pids == 10
 
