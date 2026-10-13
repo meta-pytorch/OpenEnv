@@ -4,7 +4,14 @@ import json
 import stat
 
 from openenv.core.openenvd.contract import IsolationPolicy, Resources, ZoneKind
-from openenv.core.openenvd.oci import build_spec, ContainerPlan, MountPlan, write_bundle
+from openenv.core.openenvd.oci import (
+    build_spec,
+    ContainerPlan,
+    MountPlan,
+    SHIM_BOOTSTRAP,
+    SHIM_DIR,
+    write_bundle,
+)
 
 # A hand-written subset of the OCI runtime-spec 1.0.2 schema: required keys and types.
 _SCHEMA = {
@@ -68,8 +75,10 @@ def test_process_runs_shim_unprivileged():
     proc = build_spec(_plan(python="/opt/py/bin/python3"))["process"]
     assert proc["args"] == [
         "/opt/py/bin/python3",
-        "-m",
-        "openenv.core.openenvd.shim",
+        "-I",
+        "-c",
+        SHIM_BOOTSTRAP,
+        SHIM_DIR,
         "--spec",
         "/run/openenvd/shim.json",
     ]

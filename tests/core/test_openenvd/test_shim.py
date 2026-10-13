@@ -66,7 +66,23 @@ def test_principal_runs_with_forward_and_exit_code(tmp_path, sock_dir):
     spec = shim_spec(
         argv=[sys.executable, "-c", principal],
         env={"PATH": os.environ.get("PATH", "")},
-        landlock=LandlockSpec(read_write=["/tmp"]),
+        # The interpreter and its stdlib must stay readable once Landlock applies.
+        landlock=LandlockSpec(
+            read_only=sorted(
+                {
+                    sys.prefix,
+                    sys.base_prefix,
+                    os.path.dirname(os.path.dirname(os.path.realpath(sys.executable))),
+                    "/usr",
+                    "/lib",
+                    "/lib64",
+                    "/etc",
+                    "/proc",
+                    "/dev",
+                }
+            ),
+            read_write=["/tmp"],
+        ),
         forwards=[
             {
                 "kind": "tcp_to_unix",

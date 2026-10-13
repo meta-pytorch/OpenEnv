@@ -25,6 +25,17 @@ USERNS_SIZE = 65536
 PRINCIPAL_ID = 1000
 DEFAULT_PATH = "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
 
+SHIM_DIR = str(Path(__file__).resolve().parent)
+# Loads only the shim and its two stdlib-only helpers, under a private package
+# name, so the `openenv` package (and the threads its imports start) never
+# loads in a process that forks the principal.
+SHIM_BOOTSTRAP = (
+    "import sys,types;"
+    "p=types.ModuleType('openenvd_shim');p.__path__=[sys.argv.pop(1)];"
+    "sys.modules['openenvd_shim']=p;"
+    "from openenvd_shim.shim import main;sys.exit(main())"
+)
+
 MASKED_PATHS = [
     "/proc/acpi",
     "/proc/asound",
@@ -244,8 +255,10 @@ def build_spec(plan: ContainerPlan) -> dict:
             "user": user,
             "args": [
                 plan.python,
-                "-m",
-                "openenv.core.openenvd.shim",
+                "-I",
+                "-c",
+                SHIM_BOOTSTRAP,
+                SHIM_DIR,
                 "--spec",
                 plan.shim_spec_path,
             ],
