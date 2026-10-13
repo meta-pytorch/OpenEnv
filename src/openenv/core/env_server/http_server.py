@@ -1282,7 +1282,9 @@ class HTTPEnvServer:
                             request_id=request_id,
                         )
 
-                    if hasattr(_env, "_mode_tools") and tool_name in _env._mode_tools:
+                    if hasattr(_env, "_mode_tools") and any(
+                        m is not None for m in _env._mode_tools.get(tool_name, {})
+                    ):
                         obs = await _env._async_handle_call_tool(
                             CallToolAction(tool_name=tool_name, arguments=arguments)
                         )

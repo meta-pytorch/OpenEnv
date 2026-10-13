@@ -22,7 +22,7 @@ import httpx
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
-from fastmcp import FastMCP
+from fastmcp import Context, FastMCP
 from openenv.core.env_server.http_server import HTTPEnvServer
 from openenv.core.env_server.mcp_environment import MCPEnvironment
 from openenv.core.env_server.mcp_types import (
@@ -47,6 +47,12 @@ class ModeAwareTestEnvironment(MCPEnvironment):
         def shared_tool(value: int) -> int:
             """Tool available in all modes."""
             return value * 2
+
+        @self.tool()
+        def all_mode_tool(ctx: Context, message: str) -> str:
+            """Tool registered with @self.tool() (no mode) requiring FastMCP Context."""
+            ctx.info(f"Processing {message}")
+            return f"ECHO: {message}"
 
         @self.tool(mode="production")
         def search_live(query: str) -> str:
@@ -318,6 +324,89 @@ class TestModeAwareMCPRouting:
         )
         assert call_resp.status_code == 200
         assert call_resp.json()["result"]["data"] == "PRODUCTION_OVERRIDE"
+
+    def test_all_mode_tool_registered_without_mode_takes_fastmcp_path(
+        self, prod_server_app, sim_server_app
+    ):
+        """A tool registered with @self.tool() (no mode) uses FastMCP execution path with Context."""
+        # Test in production mode
+        prod_client = TestClient(prod_server_app)
+        create_resp = prod_client.post(
+            "/mcp",
+            json={"jsonrpc": "2.0", "method": "openenv/session/create", "id": 1},
+        )
+        assert create_resp.status_code == 200
+        session_id = create_resp.json()["result"]["session_id"]
+
+        call_resp = prod_client.post(
+            "/mcp",
+            json={
+                "jsonrpc": "2.0",
+                "method": "tools/call",
+                "params": {
+                    "name": "all_mode_tool",
+                    "arguments": {"message": "hello-prod"},
+                    "session_id": session_id,
+                },
+                "id": 2,
+            },
+        )
+        assert call_resp.status_code == 200
+        res = call_resp.json()
+        assert "result" in res, (
+            f"Expected successful FastMCP call, got error: {res.get('error')}"
+        )
+        assert res["result"]["data"] == "ECHO: hello-prod"
+
+        # FastMCP argument validation rejects invalid parameters
+        invalid_resp = prod_client.post(
+            "/mcp",
+            json={
+                "jsonrpc": "2.0",
+                "method": "tools/call",
+                "params": {
+                    "name": "all_mode_tool",
+                    "arguments": {},
+                    "session_id": session_id,
+                },
+                "id": 3,
+            },
+        )
+        assert invalid_resp.status_code == 200
+        invalid_data = invalid_resp.json()
+        assert "error" in invalid_data
+        assert invalid_data["error"]["code"] == -32603
+        assert "validation error" in invalid_data["error"]["message"].lower()
+        assert "result" not in invalid_data
+
+        # Test in simulation mode
+        sim_client = TestClient(sim_server_app)
+        create_sim = sim_client.post(
+            "/mcp",
+            json={"jsonrpc": "2.0", "method": "openenv/session/create", "id": 4},
+        )
+        assert create_sim.status_code == 200
+        sim_session_id = create_sim.json()["result"]["session_id"]
+
+        call_sim = sim_client.post(
+            "/mcp",
+            json={
+                "jsonrpc": "2.0",
+                "method": "tools/call",
+                "params": {
+                    "name": "all_mode_tool",
+                    "arguments": {"message": "hello-sim"},
+                    "session_id": sim_session_id,
+                },
+                "id": 5,
+            },
+        )
+        assert call_sim.status_code == 200
+        res_sim = call_sim.json()
+        assert "result" in res_sim, (
+            f"Expected successful FastMCP call, got error: {res_sim.get('error')}"
+        )
+        assert res_sim["result"]["data"] == "ECHO: hello-sim"
 
     def test_direct_websocket_mcp_parity(self, prod_server_app):
         """Direct /mcp WebSocket transport lists and calls mode-aware tools with parity."""
