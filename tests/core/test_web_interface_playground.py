@@ -14,6 +14,7 @@ from openenv.core.env_server.gradio_ui import (
     _description,
     _Form,
     _params,
+    _readme_body,
     _result_html,
     build_gradio_app,
 )
@@ -435,3 +436,8 @@ def test_new_env_from_the_template_gets_a_working_playground(
     assert "hello" in outputs[3]
     assert outputs[6][-1][1] == 'step(message="hello")'
     assert json.loads(fns["show_state"]())["step_count"] == 1
+
+
+def test_readme_drops_the_space_front_matter():
+    readme = "---\ntitle: Catch\nsdk: docker\n---\n\n# Catch\n\nMove the paddle.\n"
+    assert _readme_body(readme) == "\n# Catch\n\nMove the paddle.\n"
