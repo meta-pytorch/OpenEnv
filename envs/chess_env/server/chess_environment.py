@@ -305,15 +305,18 @@ class ChessEnvironment(Environment):
             for file in range(8):
                 square = chess.square(file, rank)
                 piece = board.piece_at(square)
+                # Fixed board colours, so a1 stays dark in both themes.
                 if square == checked:
                     bg = "var(--color-accent)"
                 elif (file + rank) % 2:
-                    bg = "var(--background-fill-primary)"
+                    bg = "hsl(37 50% 84%)"
                 else:
-                    bg = "var(--border-color-primary)"
+                    bg = "hsl(28 33% 55%)"
                 # U+FE0E keeps the pawn as a text glyph instead of an emoji.
                 glyph = piece.unicode_symbol() + "\ufe0e" if piece else ""
-                cells.append(f'<span style="background:{bg}">{glyph}</span>')
+                cells.append(
+                    f'<span style="background:{bg};color:black">{glyph}</span>'
+                )
         cells.append("<span></span>")
         cells += [
             f'<span style="opacity:.6;font-size:12px;line-height:20px">{f}</span>'
