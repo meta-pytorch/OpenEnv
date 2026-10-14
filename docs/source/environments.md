@@ -24,6 +24,13 @@ The OpenEnv community has built a catalog of ready-to-run environments that cove
       </div>
     </div>
     <div class="border dark:border-gray-700 p-5 rounded-lg shadow">
+      <div class="font-bold mb-2">Harbor</div>
+      <p class="text-sm">Serve Harbor tasks across agent harnesses and sandboxes, with captured traces for evaluation and exact-token training.</p>
+      <div class="flex gap-2 mt-3">
+        <a href="environments/harbor" class="!no-underline border dark:border-gray-700 px-3 py-1 rounded text-sm hover:shadow">📄 Docs</a>
+      </div>
+    </div>
+    <div class="border dark:border-gray-700 p-5 rounded-lg shadow">
       <div class="font-bold mb-2">Jupyter</div>
       <p class="text-sm">Notebook-style coding environment backed by E2B with setup/verify hooks and a web UI for interactive runs.</p>
       <div class="flex gap-2 mt-3">
@@ -115,7 +122,7 @@ The OpenEnv community has built a catalog of ready-to-run environments that cove
     </div>
     <div class="border dark:border-gray-700 p-5 rounded-lg shadow">
       <div class="font-bold mb-2">Web Search</div>
-      <p class="text-sm">Web search environment for RL research with configurable grids, partial observability, and customizable rewards.</p>
+      <p class="text-sm">Web search environment that lets agents query Google Search through the Serper.dev API and receive formatted results.</p>
       <div class="flex gap-2 mt-3">
         <a href="environments/websearch" class="!no-underline border dark:border-gray-700 px-3 py-1 rounded text-sm hover:shadow">📄 Docs</a>
         <a href="https://huggingface.co/spaces/lawhy/web_search" class="!no-underline border dark:border-gray-700 px-3 py-1 rounded text-sm hover:shadow">🤗 HF</a>
@@ -223,10 +230,24 @@ The OpenEnv community has built a catalog of ready-to-run environments that cove
       </div>
     </div>
     <div class="border dark:border-gray-700 p-5 rounded-lg shadow">
+      <div class="font-bold mb-2">τ²-bench</div>
+      <p class="text-sm">Customer-service conversations with an LLM-simulated user: the agent solves airline, retail or telecom requests with tools while following the domain policy, scored from the final database state.</p>
+      <div class="flex gap-2 mt-3">
+        <a href="environments/tau2" class="!no-underline border dark:border-gray-700 px-3 py-1 rounded text-sm hover:shadow">📄 Docs</a>
+      </div>
+    </div>
+    <div class="border dark:border-gray-700 p-5 rounded-lg shadow">
       <div class="font-bold mb-2">TB2</div>
       <p class="text-sm">OpenEnv wrapper for Terminal-Bench 2 tasks with local and Docker execution modes for terminal-based agent evaluation.</p>
       <div class="flex gap-2 mt-3">
         <a href="environments/tbench2" class="!no-underline border dark:border-gray-700 px-3 py-1 rounded text-sm hover:shadow">📄 Docs</a>
+      </div>
+    </div>
+    <div class="border dark:border-gray-700 p-5 rounded-lg shadow">
+      <div class="font-bold mb-2">ThinkingBox</div>
+      <p class="text-sm">Evaluation-only adapter for public ThinkingBox-Bench and user-supplied ThinkingBox scenarios, preserving isolated MCP tools, simulated users, and native state and side-effect grading.</p>
+      <div class="flex gap-2 mt-3">
+        <a href="environments/thinkingbox" class="!no-underline border dark:border-gray-700 px-3 py-1 rounded text-sm hover:shadow">📄 Docs</a>
       </div>
     </div>
     <div class="border dark:border-gray-700 p-5 rounded-lg shadow">
@@ -252,25 +273,11 @@ The OpenEnv community has built a catalog of ready-to-run environments that cove
       </div>
     </div>
     <div class="border dark:border-gray-700 p-5 rounded-lg shadow">
-      <div class="font-bold mb-2">OpenCode</div>
-      <p class="text-sm"><code>opencode_env</code> runs the OpenCode coding agent inside an isolated E2B sandbox against any OpenAI-compatible LLM endpoint, optionally capturing per-token logprobs.</p>
-      <div class="flex gap-2 mt-3">
-        <a href="environments/opencode" class="!no-underline border dark:border-gray-700 px-3 py-1 rounded text-sm hover:shadow">📄 Docs</a>
-      </div>
-    </div>
-    <div class="border dark:border-gray-700 p-5 rounded-lg shadow">
       <div class="font-bold mb-2">Pelican SVG</div>
       <p class="text-sm"><code>pelican_svg_env</code> scores blind SVG drawings of an animal riding a vehicle in three layers: a source gate against cheats, deterministic geometry checks and a vision judge. 30 subject-vehicle tasks, with eval and GRPO training examples included.</p>
       <div class="flex gap-2 mt-3">
         <a href="environments/pelican_svg" class="!no-underline border dark:border-gray-700 px-3 py-1 rounded text-sm hover:shadow">📄 Docs</a>
         <a href="https://huggingface.co/spaces/sergiopaniego/pelican-svg-env" class="!no-underline border dark:border-gray-700 px-3 py-1 rounded text-sm hover:shadow">🤗 HF</a>
-      </div>
-    </div>
-    <div class="border dark:border-gray-700 p-5 rounded-lg shadow">
-      <div class="font-bold mb-2">Pi</div>
-      <p class="text-sm"><code>pi_env</code> runs the Pi coding agent inside an isolated Hugging Face sandbox against any OpenAI-compatible LLM endpoint, optionally capturing per-token logprobs.</p>
-      <div class="flex gap-2 mt-3">
-        <a href="environments/pi" class="!no-underline border dark:border-gray-700 px-3 py-1 rounded text-sm hover:shadow">📄 Docs</a>
       </div>
     </div>
     <div class="border dark:border-gray-700 p-5 rounded-lg shadow">
@@ -280,11 +287,18 @@ The OpenEnv community has built a catalog of ready-to-run environments that cove
         <a href="environments/sophistry_bench_sprint" class="!no-underline border dark:border-gray-700 px-3 py-1 rounded text-sm hover:shadow">📄 Docs</a>
       </div>
     </div>
+    <div class="border dark:border-gray-700 p-5 rounded-lg shadow">
+      <div class="font-bold mb-2">QED Math</div>
+      <p class="text-sm"><code>qed_math_env</code> serves math problems and grades submitted proofs with an LLM rubric (0–7 scale, normalized rewards), with process-based answer verification and multi-attempt feedback. Ported from QED-Nano.</p>
+      <div class="flex gap-2 mt-3">
+        <a href="environments/qed_math" class="!no-underline border dark:border-gray-700 px-3 py-1 rounded text-sm hover:shadow">📄 Docs</a>
+      </div>
+    </div>
   </div>
 </div>
 
 > [!TIP]
-> Want to publish your own environment? Head over to the [Build Your Own Environment](getting_started/environment-builder.md) guide for a step-by-step walkthrough.
+> Want to publish your own environment? [Your First Environment](guides/first-environment) walks through building one, and [Deploying an Environment](getting_started/environment-builder) covers publishing it.
 
 ## Community Environments
 
