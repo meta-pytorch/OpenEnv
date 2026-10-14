@@ -118,6 +118,20 @@ def test_sessions_are_independent(sparc_rows):
     assert len(one.state.path) == 2 and len(two.state.path) == 1
 
 
+def test_web_playground_draws_the_board(sparc_rows):
+    row = one_per_level(sparc_rows)[4]
+    env = SpatialGymEnvironment()
+    assert env.render_web({}) is None
+    obs = env.reset(puzzle_id=row["id"])
+    buttons = env.web_actions(obs.model_dump())
+    assert [action["action"] for _, action in buttons] == sorted(obs.legal_actions)
+    obs = env.step(SpatialGymAction(action=gold_moves(row)[0]))
+    assert obs.path == env.state.path and len(obs.path) == 2
+    html = env.render_web(obs.model_dump())
+    assert html.count("<svg") == 1 and 'stroke="#ffffff"' in html
+    assert f"level {row['difficulty_level']}" in html
+
+
 def test_action_parsing():
     assert parse_action("I go up.\nFinal: 1") == 1
     assert SpatialGymAction.from_reply("<think>maybe 0</think> Final: left").action == 2

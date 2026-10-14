@@ -28,14 +28,17 @@ import Spatial_Gym  # noqa: F401  (registers the "Spatial-Gym" gymnasium id)
 
 try:
     from ..models import SpatialGymAction, SpatialGymObservation, SpatialGymState
+    from .board_svg import board_svg
     from .prompts import STEP_USER_TEMPLATE, step_backtrack_prompt, step_prompt
 except ImportError:
     from models import SpatialGymAction, SpatialGymObservation, SpatialGymState
+    from server.board_svg import board_svg
     from server.prompts import STEP_USER_TEMPLATE, step_backtrack_prompt, step_prompt
 
 DATASET = "lkaesberg/SPaRC"
 SPLITS = ("test", "train")
 ACTION_NAMES = {0: "RIGHT", 1: "UP", 2: "LEFT", 3: "DOWN"}
+ARROWS = {0: "→", 1: "↑", 2: "←", 3: "↓"}
 MAX_STEPS_LIMIT = 10_000
 RESET_OPTIONS = {"puzzle_id", "difficulty", "split", "backtracking", "max_steps"}
 PROMPT_FIELDS = ("id", "grid_size", "puzzle_array", "polyshapes", "difficulty_level")
@@ -210,6 +213,33 @@ class SpatialGymEnvironment(
     def close(self) -> None:
         self._env = None
 
+    def web_actions(
+        self, observation: Dict[str, Any]
+    ) -> List[Tuple[str, Dict[str, Any]]]:
+        """The legal moves as buttons, named by direction."""
+        return [
+            (f"{ARROWS[a]} {ACTION_NAMES[a].lower()}", {"action": a})
+            for a in sorted(observation.get("legal_actions") or [])
+        ]
+
+    def render_web(self, observation: Dict[str, Any]) -> Optional[str]:
+        """Draw this episode's puzzle with the observation's line on it."""
+        if self._row is None:
+            return None
+        row = self._row
+        polyshapes = json.loads(row["polyshapes"]) if row["polyshapes"] else {}
+        label = f"SPaRC puzzle {row['id']}, level {row['difficulty_level']}"
+        status = f"Level {row['difficulty_level']} · step {observation.get('step', 0)}"
+        if observation.get("done"):
+            status += " · solved" if observation.get("solved") else " · not solved"
+        return (
+            '<div style="display:inline-flex;flex-direction:column;gap:6px">'
+            + board_svg(
+                row["puzzle_array"], observation.get("path") or [], polyshapes, label
+            )
+            + f'<span style="font-size:13px;opacity:0.8">{status}</span></div>'
+        )
+
     def _path(self) -> List[List[int]]:
         return [[int(x), int(y)] for x, y in self._env.unwrapped.path]
 
@@ -234,6 +264,7 @@ class SpatialGymEnvironment(
             difficulty=self._state.difficulty,
             step=self._state.step_count,
             position=[x, y],
+            path=self._path(),
             legal_actions=legal,
             grid=grid,
             system_prompt=system_prompt,

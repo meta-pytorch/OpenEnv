@@ -19,6 +19,10 @@ tags:
 
 [Spatial-Gym](https://github.com/lkaesberg/Spatial-Gym) turns the [SPaRC](https://sparc.gipplab.org/) grid puzzles into a step-by-step environment. The agent draws one line from the start node to the exit, one move at a time, and the line has to follow every rule on the board. In the [Spatial-Gym paper](https://arxiv.org/abs/2604.09338), humans solve 98.0% of the test puzzles, and the best model, GPT-OSS 120B, solves 16.0%.
 
+![Spatial-Gym web playground](https://raw.githubusercontent.com/lkaesberg/Spatial-Gym/main/environments/spatial_gym_openenv/assets/spatial-gym-playground.png)
+
+*The `/web` playground mid-episode: the board with the line so far, and one button per legal move.*
+
 This environment serves Spatial-Gym through OpenEnv. It uses the same prompts and the same scoring as the paper, and the reward matches the [Prime Intellect version](https://github.com/lkaesberg/Spatial-Gym/tree/main/environments/spatial_gym).
 
 ## One episode
@@ -27,6 +31,10 @@ This environment serves Spatial-Gym through OpenEnv. It uses the same prompts an
 - `step(SpatialGymAction(action=...))` makes one move: `0`=RIGHT, `1`=UP, `2`=LEFT, `3`=DOWN. A move that is not legal leaves the line where it is but still counts as a step.
 - The episode ends when the line reaches the exit, when no legal move is left, or after `max_steps` moves.
 - The reward is `1.0` when the episode ends with a line that exactly matches one of the puzzle's stored solutions, and `0.0` otherwise. `metadata["rule_status"]` shows which rules the line meets so far.
+
+![A SPaRC puzzle solved one move per step](https://raw.githubusercontent.com/lkaesberg/Spatial-Gym/main/environments/spatial_gym_openenv/assets/spatial-gym-solve.gif)
+
+*A level-5 puzzle solved move by move: the line starts at the big circle and has to reach the exit at the bottom left while following every rule on the board.*
 
 ## Quick start
 
@@ -78,6 +86,7 @@ with SpatialGymEnv(base_url="http://localhost:8000").sync() as env:
 | `puzzle_id`, `difficulty` | The puzzle and its level |
 | `step` | Moves taken so far |
 | `position` | Current node as `[x, y]` |
+| `path` | The line so far, as `[x, y]` nodes from the start |
 | `legal_actions` | Moves allowed from here |
 | `grid` | Board rows in SPaRC notation; `V` marks visited nodes and `L` the current one |
 | `system_prompt` | Rules and symbol legend from the paper, sent on reset only |

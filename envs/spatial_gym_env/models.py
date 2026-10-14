@@ -72,6 +72,10 @@ class SpatialGymObservation(Observation):
     position: List[int] = Field(
         default_factory=list, description="Current node as [x, y]"
     )
+    path: List[List[int]] = Field(
+        default_factory=list,
+        description="The line so far, as [x, y] nodes from the start",
+    )
     legal_actions: List[int] = Field(
         default_factory=list, description="Moves allowed from here"
     )
