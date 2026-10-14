@@ -28,6 +28,8 @@ Usage:
     python -m server.app
 """
 
+import os
+
 # Support both in-repo and standalone imports
 try:
     # In-repo imports (when running from OpenEnv repository)
@@ -53,11 +55,11 @@ app = create_app(
     MazeAction,
     MazeObservation,
     env_name="maze_env",
-    max_concurrent_envs=1,  # increase this number to allow more concurrent WebSocket sessions
+    max_concurrent_envs=int(os.getenv("MAX_CONCURRENT_ENVS", "8")),
 )
 
 
-def main(host: str = "0.0.0.0", port: int = 8000):
+def main():
     """
     Entry point for direct execution via uv run or python -m.
 
@@ -66,17 +68,19 @@ def main(host: str = "0.0.0.0", port: int = 8000):
         uv run --project . server --port 8001
         python -m maze_env.server.app
 
-    Args:
-        host: Host address to bind to (default: "0.0.0.0")
-        port: Port number to listen on (default: 8000)
-
     For production deployments, consider using uvicorn directly with
     multiple workers:
         uvicorn maze_env.server.app:app --workers 4
     """
+    import argparse
+
     import uvicorn
 
-    uvicorn.run(app, host=host, port=port)
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--host", default="0.0.0.0")
+    parser.add_argument("--port", type=int, default=8000)
+    args = parser.parse_args()
+    uvicorn.run(app, host=args.host, port=args.port)
 
 
 if __name__ == "__main__":
