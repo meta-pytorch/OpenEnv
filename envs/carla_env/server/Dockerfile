@@ -124,7 +124,7 @@ ENV SDL_VIDEODRIVER=offscreen
 ENV DISPLAY=
 
 # Health check
-HEALTHCHECK --interval=30s --timeout=10s --start-period=300s --retries=3 \
+HEALTHCHECK --interval=30s --timeout=10s --start-period=600s --retries=3 \
     CMD curl -f http://localhost:8000/health || exit 1
 
 EXPOSE 8000
