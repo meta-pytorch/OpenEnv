@@ -27,19 +27,22 @@ From the repository root:
 
 ```bash
 PYTHONPATH=src:envs:examples/claude_code_harness_eval \
-    python examples/claude_code_harness_eval/run_eval.py --domain airline --tasks 3 --model haiku
+    python examples/claude_code_harness_eval/run_eval.py --domain airline --task-ids 8 16 19 26 --model haiku
 ```
 
+Tasks 8, 16 and 19 book, change and cancel a reservation, and in task 26 the policy makes the agent refuse a cancellation:
+
 ```
-=== airline task 2
-customer: Hi, I'd like to book a flight from San Francisco to New York for three passengers.
+=== airline task 26
+customer: Hi, I need to cancel my flights from Orlando to Charlotte. I'd like to get a refund for them, please.
 [...]
-  -> get_user_details({'user_id': 'noah_muller_9847'})
-  -> get_reservation_details({'reservation_id': '4OG6T3'})
-  [...]
+  -> get_user_details({'user_id': 'amelia_sanchez_4739'})
+  -> get_reservation_details({'reservation_id': '3FRNFB'})
+[...]
+agent: I'm sorry, but I can't cancel reservation 3FRNFB. It was booked on May 6, more than 24 hours ago. [...]
 reward: 1.00 {'DB': 1.0, 'COMMUNICATE': 1.0}
 ...
-pass^1: 3/3
+pass^1: 4/4
 ```
 
 In production mode, you are the customer:

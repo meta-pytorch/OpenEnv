@@ -311,8 +311,16 @@ class Tau2Environment(MCPEnvironment):
         observation, reward, terminated, _, info = self._gym.step(action)
         if terminated:
             self._state.done = True
+            reward_info = json.loads(info["reward_info"])
+            # τ²-bench only logs why, e.g. the user's model failed.
+            if not reward_info:
+                raise RuntimeError(
+                    "The τ²-bench simulation failed (often the simulated user's model, "
+                    f"{self.user_llm}), so the conversation ended without a score. "
+                    "See the server log."
+                )
             self._state.reward = reward
-            self._state.reward_info = json.loads(info["reward_info"])
+            self._state.reward_info = reward_info
         return observation.removeprefix("user: ").removeprefix("tool: ")
 
     def _end_conversation(self) -> None:

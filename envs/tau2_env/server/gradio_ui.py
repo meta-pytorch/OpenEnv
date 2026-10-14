@@ -108,7 +108,9 @@ def model_choices() -> list[tuple[str, str]]:
         label = f"{model['id']} · {plural(len(providers), 'provider')}{price}"
         models.append((len(providers), model["id"], label))
     models.sort(key=lambda m: (m[1] != DEFAULT_MODEL, -m[0]))
-    return [(label, model_id) for _, model_id, label in models]
+    return [(label, model_id) for _, model_id, label in models] or [
+        (m, m) for m in FALLBACK_MODELS
+    ]
 
 
 class Catalog:
@@ -200,8 +202,17 @@ class Episode:
         if name == "respond_to_user":
             self.messages += 1
             self.events.append({"kind": "agent", "text": arguments.get("message", "")})
-            reply = without_end_tokens(result)
-            if reply:
+            # A failed reply is shown as a failed call, not as the customer.
+            if observation.error is not None:
+                self.events.append(
+                    {
+                        "kind": "tool",
+                        "name": name,
+                        "arguments": arguments,
+                        "result": result,
+                    }
+                )
+            elif reply := without_end_tokens(result):
                 self.events.append({"kind": "customer", "text": reply})
         elif name != "done":
             self.tool_calls += 1
@@ -219,6 +230,8 @@ class Episode:
 
     def side(self, observation, running: bool = False) -> str:
         if observation is not None and observation.done:
+            if not observation.metadata["reward_info"]:  # the simulated customer failed
+                return status_html(f"Ended without a score · {self.stats()}", False)
             return result_html(
                 observation.reward, observation.metadata["reward_info"], self.stats()
             )
@@ -243,11 +256,12 @@ class Episode:
 
 
 def parse_arguments(raw: str | None) -> dict | None:
-    """A tool call's arguments, or `None` when the model sent invalid JSON."""
+    """A tool call's arguments, or `None` when the model sent invalid JSON or not an object."""
     try:
-        return json.loads(raw or "{}")
+        arguments = json.loads(raw or "{}")
     except ValueError:
         return None
+    return arguments if isinstance(arguments, dict) else None
 
 
 def build_ui(make_env: Callable[..., Tau2Environment]) -> Callable[..., gr.Blocks]:
@@ -417,13 +431,17 @@ def build_ui(make_env: Callable[..., Tau2Environment]) -> Callable[..., gr.Block
                         {"role": "tool", "tool_call_id": call_id, "content": result}
                     )
                     if observation.done:
-                        run = episode.record(
-                            f"run-{len(runs) + 1}", model, cat, observation
-                        )
+                        # Only scored runs go to the history.
+                        if observation.metadata["reward_info"]:
+                            runs = runs + [
+                                episode.record(
+                                    f"run-{len(runs) + 1}", model, cat, observation
+                                )
+                            ]
                         yield (
                             timeline_html(episode.events, RUN_PLACEHOLDER),
                             episode.side(observation),
-                            runs + [run],
+                            runs,
                         )
                         return
                     yield (

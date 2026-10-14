@@ -1,13 +1,24 @@
 # Evaluate Claude Code in an Environment
 
-This tutorial runs [Claude Code](https://docs.anthropic.com/en/docs/claude-code) *inside* an OpenEnv environment and evaluates it on [τ²-bench](../environments/tau2). It uses `HarnessEnvironment`, the agentic harness wrapper from [RFC 005](https://github.com/huggingface/OpenEnv/blob/main/rfcs/005-agentic-harnesses.md): the harness runs its own agent loop, the environment injects its tools into it over MCP, and each `step()` is one conversational turn.
+This tutorial measures how well an existing agent, [Claude Code](https://docs.anthropic.com/en/docs/claude-code), does a job that only your environment's tools can do, over a conversation with a simulated user. The job comes from [τ²-bench](../environments/tau2): Claude Code is an airline's customer service agent, it has to follow the airline's policy, and τ²-bench checks the database it leaves behind.
 
-The tools keep running in the environment's process: `HarnessEnvironment` serves them on a local MCP bridge, and Claude Code calls them over HTTP. This is the environment-side harness API, which is different from the trainer-side session runtime in the [BrowserGym harness tutorial](browsergym-harness).
+It uses `HarnessEnvironment`, the agentic harness wrapper from [RFC 005](https://github.com/huggingface/OpenEnv/blob/main/rfcs/005-agentic-harnesses.md). Claude Code keeps its own agent loop and runs inside the environment, the environment serves its tools to it over MCP, and each `step()` is one message from the customer:
+
+```
+step(customer message)
+   |
+   v
+Claude Code  --tool calls over MCP-->  MCP bridge  -->  environment tools  -->  τ²-bench database
+   |
+   |  reply
+   v
+simulated customer  -->  next message, or done  -->  rubric scores the database and the conversation
+```
 
 The full code is in [`examples/claude_code_harness_eval`](https://github.com/huggingface/OpenEnv/tree/main/examples/claude_code_harness_eval).
 
 > [!NOTE]
-> RFC 005 does not capture token ids, so this is an evaluation path. To train a harness's policy, use [Harbor](../environments/harbor).
+> Use this path when the job is a conversation and the agent has to use your environment's tools. RFC 005 does not capture token ids, so it evaluates and serves, but does not train. To train the model behind an agent, or to evaluate it on tasks that a verifier checks, use [Harbor](harbor-harness). [Harnesses in OpenEnv](harnesses) compares the options.
 
 ## What You'll Build
 
@@ -76,30 +87,39 @@ Each customer message is one `step(HarnessAction(message=...))`, and Claude Code
 
 ```bash
 PYTHONPATH=src:envs:examples/claude_code_harness_eval \
-    python examples/claude_code_harness_eval/run_eval.py --domain airline --tasks 3 --model haiku
+    python examples/claude_code_harness_eval/run_eval.py --domain airline --task-ids 8 16 19 26 --model haiku
 ```
 
+These four tasks each end in a different state of the database. In task 8 the agent books a flight, in 16 it changes one, in 19 it cancels one, and in 26 the policy doesn't allow the cancellation the customer asks for, so the agent has to refuse, even when the customer pushes back. In task 26 the output looks like this:
+
 ```
-=== airline task 2
-customer: Hi, I'd like to book a flight from San Francisco to New York for three passengers.
+=== airline task 26
+customer: Hi, I need to cancel my flights from Orlando to Charlotte. I'd like to get a refund for them, please.
 [...]
-customer: [...] Can you look it up under my account? The delay was really frustrating.
-  -> get_user_details({'user_id': 'noah_muller_9847'})
-  -> get_reservation_details({'reservation_id': '4OG6T3'})
-  -> get_flight_status({'flight_number': 'HAT018', 'date': '2024-05-11'})
-  [...]
+  -> get_user_details({'user_id': 'amelia_sanchez_4739'})
+  -> get_reservation_details({'reservation_id': '3FRNFB'})
+  -> get_reservation_details({'reservation_id': 'Q4L9HS'})
+[...]
+customer: It's a change of plans. I still want to cancel and get a refund, please.
+agent: I'm sorry, but I can't cancel reservation 3FRNFB. It was booked on May 6, more than 24 hours ago. [...]
+customer: I really need to cancel and get a refund. If you can't do it, please transfer me to someone who can.
+agent: I understand this is frustrating, but I can't transfer you for this request. [...]
 reward: 1.00 {'DB': 1.0, 'COMMUNICATE': 1.0}
-...
-pass^1: 3/3
+
+PASS  task 8
+PASS  task 16
+PASS  task 19
+PASS  task 26
+pass^1: 4/4
 ```
 
-The first airline test tasks are a gentle start. Tasks 2 and 6 only look things up, so they pass as long as the agent leaves the database as it found it. Task 8 books a reservation, and τ²-bench checks the database it leaves behind.
+τ²-bench scores a task 1.0 when the database ends up as the task expects (`DB`) and the agent told the customer what it had to (`COMMUNICATE`). pass^1 is the fraction of tasks that score 1.0 in a single attempt. τ²-bench's pass^k asks for k successes out of k attempts of the same task, so running each task several times measures how consistent the agent is.
 
 `--domain` takes any τ²-bench domain, `--task-ids` picks tasks, and `--user-model` changes the simulated customer's model. Each task uses a fresh `tau2_env` and a fresh Claude Code process.
 
 ## Serve It in Production Mode
 
-The same harness can be served over the `WS /harness` route ([production mode](../guides/simulation-vs-production)). The server takes one connection at a time, each with a fresh Claude Code process and a fresh copy of the task's database. `/harness` sends your messages straight to Claude Code, without the environment's turn logic, so you play the customer and nothing is scored. The server has no authentication, and every connection spends your credentials, so keep it on localhost or behind your own auth:
+The same harness can be served over the `WS /harness` route ([production mode](../guides/simulation-vs-production)), so a person, or another application, talks to Claude Code with the environment's tools behind it. Use it to try the agent by hand, debug a task, or put the agent in front of real users once the evaluation looks good. The server takes one connection at a time, each with a fresh Claude Code process and a fresh copy of the task's database. `/harness` sends your messages straight to Claude Code, without the environment's turn logic, so you play the customer and nothing is scored. The server has no authentication, and every connection spends your credentials, so keep it on localhost or behind your own auth:
 
 ```bash
 PYTHONPATH=src:envs:examples/claude_code_harness_eval \

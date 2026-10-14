@@ -169,7 +169,7 @@ def test_each_conversation_has_its_own_judge(monkeypatch):
         def step(self, action):
             both_stepping.wait()
             nl_assertions.generate(model="default", messages=[], call_name="judge")
-            return "user: bye", 1.0, True, False, {"reward_info": "{}"}
+            return "user: bye", 1.0, True, False, {"reward_info": '{"reward": 1.0}'}
 
     def converse(token):
         env = Tau2Environment(domain="airline", hf_token=token)
@@ -187,6 +187,66 @@ def test_each_conversation_has_its_own_judge(monkeypatch):
         "hf_a": "hf_a",
         "hf_b": "hf_b",
     }
+
+
+def test_a_failed_user_ends_the_conversation_without_a_score(env, monkeypatch):
+    replies = iter(["Hi, my user id is noah_muller_9847."])
+
+    def completion(**kwargs):
+        reply = next(replies, None)
+        if reply is None:
+            raise litellm.APIConnectionError("the provider is down", "openai", "x")
+        return litellm.completion(
+            model="openai/scripted", messages=kwargs["messages"], mock_response=reply
+        )
+
+    monkeypatch.setattr(llm_utils, "completion", completion)
+    import tau2_env.server.gradio_ui as ui
+
+    episode = ui.Episode(env, "2")
+    observation, result = episode.act("respond_to_user", {"message": "Hello."})
+    assert observation.error is not None
+    assert "simulation failed" in result
+    assert env.state.done and env.state.reward_info == {}
+    # The web UI says so instead of showing a score.
+    assert "Ended without a score" in episode.side(observation)
+
+
+def test_tool_arguments_must_be_a_json_object():
+    import tau2_env.server.gradio_ui as ui
+
+    assert ui.parse_arguments('{"user_id": "x"}') == {"user_id": "x"}
+    assert ui.parse_arguments(None) == {}
+    for raw in ["not json", "[]", '"x"', "3"]:
+        assert ui.parse_arguments(raw) is None
+
+
+def test_ui_falls_back_when_no_model_calls_tools(monkeypatch):
+    import io
+
+    import tau2_env.server.gradio_ui as ui
+
+    monkeypatch.setattr(
+        ui.urllib.request, "urlopen", lambda *a, **k: io.BytesIO(b'{"data": []}')
+    )
+    # Uncached, so the test leaves the real model list alone.
+    assert ui.model_choices.__wrapped__() == [(m, m) for m in ui.FALLBACK_MODELS]
+
+
+def test_a_failed_reply_is_not_shown_as_the_customer(env, scripted_user, monkeypatch):
+    import tau2_env.server.gradio_ui as ui
+
+    scripted_user.append("Hi, my user id is noah_muller_9847.")
+    episode = ui.Episode(env, "2")
+
+    def fail(action):
+        raise TimeoutError("the customer did not answer")
+
+    monkeypatch.setattr(env, "act", fail)
+    episode.act("respond_to_user", {"message": "Anything else?"})
+    agent, failed = episode.events[-2:]
+    assert agent == {"kind": "agent", "text": "Anything else?"}
+    assert failed["kind"] == "tool" and failed["result"].startswith("Error")
 
 
 def test_server_and_ui_start_without_credentials(monkeypatch):
