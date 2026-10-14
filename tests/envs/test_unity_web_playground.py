@@ -40,7 +40,7 @@ def test_unity_web_playground(tmp_path):
 
 
 def test_unity_include_visual_default(tmp_path, monkeypatch):
-    monkeypatch.setenv("UNITY_INCLUDE_VISUAL", "true")
+    monkeypatch.setenv("UNITY_INCLUDE_VISUAL", "1")
     assert UnityMLAgentsEnvironment(cache_dir=str(tmp_path))._include_visual
     monkeypatch.delenv("UNITY_INCLUDE_VISUAL")
     assert not UnityMLAgentsEnvironment(cache_dir=str(tmp_path))._include_visual
