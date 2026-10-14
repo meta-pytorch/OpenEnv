@@ -75,8 +75,9 @@ Options:
 - `--count/-n`: deploy several Space instances, each with a numeric suffix
 - `--create-pr`: open a Pull Request instead of pushing to the default branch
 - `--exclude`: an ignore file with globs to leave out of the upload
+- `--delete <pattern>`: delete matching remote Space files that are not uploaded again (repeatable), as in `hf upload --delete`
 
-The command logs you in if needed, validates `openenv.yaml`, adds the Hugging Face frontmatter to the README when needed and uploads the bundle. It deletes the remote files the environment no longer ships: files at the root of the Space or under a top-level directory of the bundle (e.g. `server/`) that are not uploaded again. Each one is listed before the upload. Files under other directories (e.g. `assets/` added by hand on the Space) and files matching the ignore patterns (the defaults and `--exclude`) are kept, so list in `--exclude` any root-level file you manage on the Space directly. Local build artifacts (`build/`, `*.egg-info`, `__pycache__`, dotfiles) are never uploaded.
+The command logs you in if needed, validates `openenv.yaml`, adds the Hugging Face frontmatter to the README when needed and uploads the bundle. Like `hf upload`, it never deletes remote files on its own. Pass `--delete <pattern>` (repeatable) to remove matching Space files that are not uploaded again, e.g. `--delete "*"` to make the Space match the bundle exactly. Local build artifacts (`build/`, `*.egg-info`, `__pycache__`, dotfiles) are never uploaded.
 
 Space variables and secrets are only applied on direct Hugging Face Space pushes. They are not available with `--registry` and cannot be staged through `--create-pr`.
 
