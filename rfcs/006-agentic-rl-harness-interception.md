@@ -365,7 +365,7 @@ The dialect transformers are adapted from the **Polar** gateway (Apache-2.0) and
 ### Interception topology
 
 ```
-Previously shipped, still shipping (opencode_env, pi_env):
+Previously shipped (opencode_env, pi_env, removed in 0.9.0):
   [sandbox]  agent → in-sandbox proxy →(HTTPS egress)→ vLLM  [trainer host]
              records inside the sandbox; the trainer reads the trace back afterwards
 
@@ -374,7 +374,7 @@ This RFC, implemented by #1036:
              records canonical ids on the trainer host, live; OpenEnv assembles
 ```
 
-The in-sandbox proxy remains a *supported* mode rather than a legacy one — it is the simpler deployment — but it is no longer the *recommended* one, and Problem 1 is not closed until both shipped harness envs are adapters over `core.harness.capture`. Both modes can share the graph and the export contract, differing only in where the process runs.
+The in-sandbox proxy left with `opencode_env` and `pi_env` (#1346). OpenCode, Pi and the other installed agents now train through Harbor (`harbor_env`), on the trainer-host capture proxy above.
 
 ### Request lifecycle
 
