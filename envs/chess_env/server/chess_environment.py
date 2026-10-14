@@ -13,6 +13,7 @@ and opponent play.
 """
 
 import random
+import threading
 import uuid
 
 import chess
@@ -22,6 +23,9 @@ from openenv.core.env_server import Environment
 
 from ..models import ChessAction, ChessObservation, ChessState
 from .rubrics import ChessWinLossRubric
+
+# moonfish keeps one evaluation cache per process, so sessions take turns with it.
+_MOONFISH_LOCK = threading.Lock()
 
 
 class ChessEnvironment(Environment):
@@ -77,7 +81,8 @@ class ChessEnvironment(Environment):
         """
         self._reset_rubric()
         # moonfish's module-level evaluation cache is never trimmed.
-        BOARD_EVALUATION_CACHE.clear()
+        with _MOONFISH_LOCK:
+            BOARD_EVALUATION_CACHE.clear()
 
         if fen:
             self._board = chess.Board(fen)
@@ -178,8 +183,10 @@ class ChessEnvironment(Environment):
         if done:
             result = self._get_result_string()
 
+        with _MOONFISH_LOCK:
+            evaluation = board_evaluation(self._board)
         metadata = {
-            "evaluation": board_evaluation(self._board),
+            "evaluation": evaluation,
             "fullmove_number": self._board.fullmove_number,
             "halfmove_clock": self._board.halfmove_clock,
         }
@@ -263,7 +270,8 @@ class ChessEnvironment(Environment):
             return
 
         if self._opponent == "moonfish":
-            move = search_move(self._board, depth=self._opponent_depth)
+            with _MOONFISH_LOCK:
+                move = search_move(self._board, depth=self._opponent_depth)
         elif self._opponent == "random":
             move = random.choice(list(self._board.legal_moves))
         else:
