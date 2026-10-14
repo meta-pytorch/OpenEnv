@@ -63,10 +63,6 @@
       title: "Black-Box: Train Real Agents with Harbor"
     - local: tutorials/claude-code-harness
       title: Evaluate Claude Code in an Environment
-    - local: tutorials/opencode-agent-grpo
-      title: OpenCode (deprecated)
-    - local: tutorials/pi-agent-grpo
-      title: Pi (deprecated)
     title: Harnesses
   - sections:
     - local: tutorials/evaluation-inspect
@@ -155,12 +151,8 @@
     title: Wildfire
   - local: environments/agent_world_model
     title: Agent World Model
-  - local: environments/opencode
-    title: OpenCode (deprecated)
   - local: environments/pelican_svg
     title: Pelican SVG
-  - local: environments/pi
-    title: Pi (deprecated)
   - local: environments/sophistry_bench_sprint
     title: Sophistry Bench Sprint
   title: Environments
