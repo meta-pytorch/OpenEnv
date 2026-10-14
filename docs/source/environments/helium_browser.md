@@ -12,6 +12,44 @@ focus.
 
 ![illustrated](https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/helium_demo.png)
 
+## How to run the browser agent
+
+The actual browser loop is [browser.py](OpenEnv/envs/helium_browser_env/browser.py). You can run it with following steps. First publish the environment. Make sure to authenticate yourself with a write token.
+
+```bash
+hf auth login
+openenv push envs/helium_browser_env \
+  --repo-id YOUR_USERNAME/helium-browser-env
+```
+
+Then you can deploy the model and provide your endpoint.
+
+```bash
+export HELIUM_BROWSER_IMAGE='hf.co/spaces/YOUR_USERNAME/helium-browser-env'
+export BASE_URL='https://YOUR_ENDPOINT.endpoints.huggingface.cloud/v1'
+export MODEL_ID="HF-MODEL-ID" # replace with the model you run endpoint with
+```
+
+Run browser.py loop inside Hugging Face Sandboxes.
+
+```python
+import os
+import runpy
+from openenv.core.containers.runtime.hf_sandbox_provider import HFSandboxProvider
+
+with HFSandboxProvider(
+    image=os.environ["HELIUM_BROWSER_IMAGE"],
+    flavor="cpu-basic",
+    env_vars={"BROWSER_SANDBOX": "hf"},
+) as provider:
+    url = provider.start_container()
+    provider.wait_for_ready(url, timeout_s=300)
+    os.environ["BROWSER_BASE_URL"] = url
+    runpy.run_path("envs/helium_browser_env/browser.py", run_name="__main__")
+```
+
+Rest of this tutorial goes through OpenEnv basics and how to build a multimodal browser agent.
+
 ## How browser agents work
 
 A natively multimodal browser agent operates in a loop:
@@ -52,8 +90,9 @@ decides how to turn an observation into the next `BrowserAction`.
 ## Tasks
 
 Websites always keep on changing so using a regular dataset doesn't work. You can try the samples [in this dataset](https://huggingface.co/datasets/merve/browser-tasks) as they are created late 2026. They are divided into three:
+
 - **Information:** getting an information from a website by browsing it.
-- **Navigation:** navigating a specific part of the website. 
+- **Navigation:** navigating a specific part of the website.
 - **Interaction:** clicking, filtering etc.
 
 ## The OpenEnv pieces
@@ -98,7 +137,6 @@ class BrowserState(State):
 Actions are taken by the agent and observations are the result of the actions in the environment. On the other hand, OpenEnv uses state to report episode
 metadata such as the episode ID and step count, without adding those fields to
 every browser observation.
-
 
 | Operation | Fields | What it does |
 | --- | --- | --- |
@@ -181,8 +219,7 @@ class BrowserClient(EnvClient[BrowserAction, BrowserObservation, BrowserState]):
     def _step_payload(self, action):
         return action.model_dump()
 
-    def _parse_result(self, payload):
-        ...
+    def _parse_result(self, payload): ...
 
     def _parse_state(self, payload):
         return BrowserState.model_validate(payload)
@@ -205,10 +242,9 @@ calls `BrowserEnvironment.step()`, and serializes the returned
 `BrowserObservation`. The client then rebuilds a typed `StepResult` containing
 the observation, reward, and `done` flag.
 
-
 ## The OpenEnv loop
 
-Here's how OpenEnv loop works: once the model server is running, reset the browser to a URL and send one action at a time. 
+Here's how OpenEnv loop works: once the model server is running, reset the browser to a URL and send one action at a time.
 
 ```python
 from helium_browser_env.client import BrowserClient
