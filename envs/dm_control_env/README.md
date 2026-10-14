@@ -15,6 +15,10 @@ tags:
 
 A generic OpenEnv environment for [dm_control.suite](https://github.com/google-deepmind/dm_control), providing access to all MuJoCo-based continuous control tasks.
 
+![dm_control web playground](https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/openenv/dm_control.png)
+
+*The `/web` playground on cartpole balance after a few steps: the rendered camera frame.*
+
 <p align="center">
   <img src="assets/cartpole.png" width="45%" alt="Cartpole Balance"/>
   <img src="assets/quadruped.png" width="45%" alt="Quadruped Walk"/>
