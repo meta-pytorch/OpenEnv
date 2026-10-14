@@ -475,6 +475,7 @@ def _upload_to_hf_space(
     private: bool = False,
     create_pr: bool = False,
     commit_message: str | None = None,
+    delete_patterns: list[str] | None = None,
 ) -> None:
     """Upload files to Hugging Face Space."""
     if create_pr:
@@ -490,31 +491,12 @@ def _upload_to_hf_space(
         "repo_type": "space",
         "create_pr": create_pr,
         "ignore_patterns": ignore_patterns,
+        "delete_patterns": delete_patterns,
     }
     if commit_message:
         upload_kwargs["commit_message"] = commit_message
 
     try:
-        # Delete remote files the env no longer ships: files at the root or under a top-level
-        # directory of the upload that are not uploaded again. Files matching the ignore
-        # patterns (or under a directory that does) and files under other directories (e.g.
-        # added by hand on the Space) are kept.
-        stale_files = [
-            path
-            for path in api.list_repo_files(repo_id, repo_type="space")
-            if not (staging_dir / path).is_file()
-            and ("/" not in path or (staging_dir / path.split("/")[0]).is_dir())
-            and not any(
-                _should_exclude_path(part, ignore_patterns)
-                for part in [Path(path), *Path(path).parents[:-1]]
-            )
-        ]
-        for path in stale_files:
-            console.print(
-                f"[bold yellow]Deleting remote file no longer in the env:[/bold yellow] {path}"
-            )
-        upload_kwargs["delete_patterns"] = stale_files
-
         result = api.upload_folder(**upload_kwargs)
         console.print("[bold green]✓[/bold green] Upload completed successfully")
         if create_pr and result is not None and hasattr(result, "pr_url"):
@@ -591,6 +573,13 @@ def push(
         typer.Option(
             "--exclude",
             help="Optional additional ignore file with newline-separated glob patterns to exclude from Hugging Face uploads",
+        ),
+    ] = None,
+    delete: Annotated[
+        list[str] | None,
+        typer.Option(
+            "--delete",
+            help="Glob pattern of remote Space files to delete in the same commit, as in `hf upload --delete` (repeatable). Use '*' to remove every file not uploaded again.",
         ),
     ] = None,
     hardware: Annotated[
@@ -866,6 +855,7 @@ def push(
                     private=private,
                     create_pr=False,
                     ignore_patterns=ignore_patterns,
+                    delete_patterns=delete,
                 )
                 _apply_space_variables_and_secrets(
                     instance_repo_id, merged_variables, cli_secrets, api
@@ -891,6 +881,7 @@ def push(
                 private=private,
                 create_pr=create_pr,
                 ignore_patterns=ignore_patterns,
+                delete_patterns=delete,
             )
 
             # Skip variable/secret configuration in PR mode since the target
