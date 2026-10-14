@@ -440,7 +440,8 @@ class Environment(ABC, Generic[ActT, ObsT, StateT]):
 
         Args:
             observation (`dict`):
-                The serialized observation, as returned by `reset()` or `step()`.
+                The serialized observation, as returned by `reset()` or `step()`,
+                plus top-level `reward` and `done`.
         """
         return None
 
@@ -456,7 +457,8 @@ class Environment(ABC, Generic[ActT, ObsT, StateT]):
 
         Args:
             observation (`dict`):
-                The serialized observation, as returned by `reset()` or `step()`.
+                The serialized observation, as returned by `reset()` or `step()`,
+                plus top-level `reward` and `done`.
         """
         return []
 
