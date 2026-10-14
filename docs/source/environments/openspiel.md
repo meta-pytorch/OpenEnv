@@ -1,11 +1,11 @@
 <!-- openenv-source: openspiel_env -->
 # OpenSpiel Environment
 
+Integration of OpenSpiel games with the OpenEnv framework. [OpenSpiel](https://github.com/google-deepmind/open_spiel) is DeepMind's collection of 70+ game environments for RL research.
+
 ![OpenSpiel web playground](https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/openenv/openspiel.png)
 
 *The `/web` playground on 2048 after some moves: the board and one button per legal move.*
-
-Integration of OpenSpiel games with the OpenEnv framework. [OpenSpiel](https://github.com/google-deepmind/open_spiel) is DeepMind's collection of 70+ game environments for RL research.
 
 ## Supported Games
 

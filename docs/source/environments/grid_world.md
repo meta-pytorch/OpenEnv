@@ -1,11 +1,11 @@
 <!-- openenv-source: grid_world_env -->
 # Grid World Environment
 
+A deterministic 5x5 grid world. The agent starts in the top-left corner and must reach the goal in the bottom-right corner. It's a small testbed for RL agents and a compact example of an OpenEnv environment (models, environment, server and client in a few files).
+
 ![Grid World web playground](https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/openenv/grid_world.png)
 
 *The `/web` playground after a few steps: the agent, the goal and one button per direction.*
-
-A deterministic 5x5 grid world. The agent starts in the top-left corner and must reach the goal in the bottom-right corner. It's a small testbed for RL agents and a compact example of an OpenEnv environment (models, environment, server and client in a few files).
 
 ## Quick Start
 

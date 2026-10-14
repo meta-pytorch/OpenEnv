@@ -1,11 +1,11 @@
 <!-- openenv-source: chess_env -->
 # Chess Environment
 
+A chess reinforcement learning environment for OpenEnv, powered by the [moonfish](https://github.com/luccabb/moonfish) chess engine.
+
 ![Chess web playground](https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/openenv/chess.png)
 
 *The `/web` playground after a few moves: the board and one button per legal move.*
-
-A chess reinforcement learning environment for OpenEnv, powered by the [moonfish](https://github.com/luccabb/moonfish) chess engine.
 
 ## Features
 

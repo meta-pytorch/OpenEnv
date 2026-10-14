@@ -1,11 +1,11 @@
 <!-- openenv-source: textarena_env -->
 # TextArena Environment
 
+An OpenEnv wrapper for [TextArena](https://github.com/textarena/textarena) game environments. Supports text-based games like Wordle, providing a standardized API for agent interaction.
+
 ![TextArena web playground](https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/openenv/textarena.png)
 
 *The `/web` playground after three Wordle guesses: each tile shows whether the letter is correct, misplaced or absent.*
-
-An OpenEnv wrapper for [TextArena](https://github.com/textarena/textarena) game environments. Supports text-based games like Wordle, providing a standardized API for agent interaction.
 
 > [!NOTE]
 > Generic wrapper for any [TextArena](https://www.textarena.ai/docs/overview) game inside OpenEnv. This module exposes the TextArena `Env` interface through the standard HTTP server/client APIs used by other OpenEnv environments, enabling quick experimentation with the full suite of word, reasoning, and multi-agent games.

@@ -13,11 +13,11 @@ tags:
 
 # Maze Environment
 
+A gridworld maze where the agent must navigate from a start cell to an exit while avoiding walls.
+
 ![Maze web playground](https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/openenv/maze.png)
 
 *The `/web` playground after a few steps: the maze, the agent, the exit and one button per legal move.*
-
-A gridworld maze where the agent must navigate from a start cell to an exit while avoiding walls.
 
 ## Maze Layout
 
