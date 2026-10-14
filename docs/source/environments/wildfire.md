@@ -1,6 +1,10 @@
 <!-- openenv-source: wildfire_env -->
 # Wildfire Environment
 
+![Wildfire web playground](https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/openenv/wildfire.png)
+
+*The `/web` playground after a few steps: the spreading fire, a line of firebreaks and the episode stats.*
+
 A wildfire-control simulation for reinforcement learning. The agent contains spreading fires with **water** and **firebreaks** under **wind** and **humidity**, with limited resources. The spread model is inspired by the Rothermel surface fire spread model and MITRE Fireline's SimFire.
 
 ## Quick Start

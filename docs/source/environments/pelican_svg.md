@@ -1,6 +1,10 @@
 <!-- openenv-source: pelican_svg_env -->
 # Pelican SVG Environment
 
+![Pelican SVG web playground](https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/openenv/pelican_svg.png)
+
+*The `/web` playground after submitting an SVG: the rendered drawing and its reward breakdown.*
+
 Blind vector drawing, scored. The model is asked for an SVG of an animal riding
 a vehicle and never sees the result, so it has to hold the spatial arrangement
 in its head and emit coordinates for it. This is the check Simon Willison

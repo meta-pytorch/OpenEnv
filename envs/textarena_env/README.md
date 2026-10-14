@@ -13,6 +13,10 @@ tags:
 
 # TextArena Environment
 
+![TextArena web playground](https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/openenv/textarena.png)
+
+*The `/web` playground after three Wordle guesses: each tile shows whether the letter is correct, misplaced or absent.*
+
 An OpenEnv wrapper for [TextArena](https://github.com/textarena/textarena) game environments. Supports text-based games like Wordle, providing a standardized API for agent interaction.
 
 > [!NOTE]

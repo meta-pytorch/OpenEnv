@@ -17,6 +17,10 @@ tags:
 
 # CARLA Environment for OpenEnv
 
+![CARLA web playground](https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/openenv/carla.jpg)
+
+*The `/web` playground on `trolley_saves`: the camera frame, a top-down view of the lanes and the episode stats.*
+
 Embodied evaluation environment for testing LLM decision-making in a full 3D driving simulator with **irreversible consequences**.
 
 **Built on OpenEnv framework** with scenarios and navigation agents adapted from [sinatras/carla-env](https://github.com/SinatrasC/carla-env). This implementation provides:
