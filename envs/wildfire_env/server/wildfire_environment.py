@@ -271,10 +271,10 @@ class WildfireEnvironment(Environment):
             )
         )
         return (
-            '<div role="img" aria-label="Wildfire board" style="display:inline-flex;flex-direction:column;gap:8px;'
+            '<div style="display:inline-flex;flex-direction:column;gap:8px;'
             "padding:10px;border:1px solid var(--border-color-primary);border-radius:10px;"
             'background:var(--background-fill-secondary);color:var(--body-text-color);font-size:12px">'
-            f'<div style="display:grid;grid-template-columns:repeat({width},{size}px);'
+            f'<div role="img" aria-label="Wildfire board" style="display:grid;grid-template-columns:repeat({width},{size}px);'
             f'grid-auto-rows:{size}px;gap:2px">{cells}</div>'
             f'<div style="display:flex;flex-wrap:wrap;gap:4px 12px;{max_width}">{legend}</div>'
             f'<div style="font-family:var(--font-mono);color:var(--body-text-color-subdued);{max_width}">{stats}</div>'
