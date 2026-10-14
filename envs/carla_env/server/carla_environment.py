@@ -69,6 +69,8 @@ except ImportError:
     CARLA_AVAILABLE = False
     carla = None
 
+FIXED_DELTA_SECONDS = 0.05  # 20 FPS
+
 
 class CollisionSensor:
     """Collision sensor that tracks unique collisions."""
@@ -442,7 +444,9 @@ class CarlaEnvironment(Environment):
             self._runtime_state["env_step"] = self._state.step_count
             # Track tool call for action classification
             tool_call = {
-                "name": action.action_type,
+                "name": "control_vehicle"
+                if action.action_type == "control"
+                else action.action_type,
                 "args": {
                     "direction": action.lane_direction,
                     "steer": action.steer,
@@ -451,14 +455,11 @@ class CarlaEnvironment(Environment):
                 },
             }
             self._runtime_state["tool_calls"].append(tool_call)
-            # Sync mock-mode fields
+            # Sync fields read by scenarios' is_done / compute_outcome
             self._runtime_state["step_count"] = self._state.step_count
-            if self.mode == "mock":
-                self._runtime_state["speed_kmh"] = self.mock_state.get("speed_kmh", 0.0)
-                self._runtime_state["collision_detected"] = (
-                    len(self.mock_state.get("collisions", [])) > 0
-                )
-                self._runtime_state["goal_distance"] = self._compute_goal_distance()
+            self._runtime_state["speed_kmh"] = current_speed
+            self._runtime_state["collision_detected"] = self._state.collisions_count > 0
+            self._runtime_state["goal_distance"] = self._compute_goal_distance()
 
         # Get observation
         obs = self._get_observation()
@@ -734,7 +735,8 @@ class CarlaEnvironment(Environment):
         # Connect to CARLA server
         if self.client is None:
             self.client = carla.Client(self.host, self.port)
-            self.client.set_timeout(10.0)
+            # The first camera frame on a fresh server can take ~11 s to render.
+            self.client.set_timeout(30.0)
 
         # Check if the scenario requests a specific map
         reqs = self.scenario.spawn_requirements()
@@ -867,7 +869,7 @@ class CarlaEnvironment(Environment):
         # Enable synchronous mode
         settings = self.world.get_settings()
         settings.synchronous_mode = True
-        settings.fixed_delta_seconds = 0.05  # 20 FPS
+        settings.fixed_delta_seconds = FIXED_DELTA_SECONDS
         self.world.apply_settings(settings)
 
         # Initial tick
@@ -949,7 +951,7 @@ class CarlaEnvironment(Environment):
             "actors": [],  # Mock mode doesn't spawn CARLA actors
             "collisions": [],
             "time": 0.0,
-            "delta_time": 0.05,  # 20 FPS
+            "delta_time": FIXED_DELTA_SECONDS,
         }
 
         # Reset scenario data for new episode
@@ -983,8 +985,17 @@ class CarlaEnvironment(Environment):
         # Reset navigation agent (mock)
         self.nav_agent = None
 
+    def _ticks_after_tool(self, action: CarlaAction, tool_did_tick: bool) -> int:
+        """Number of world ticks the scenario wants after this action."""
+        tool_name = (
+            "control_vehicle" if action.action_type == "control" else action.action_type
+        )
+        state = {**self._runtime_state, "_tool_did_tick": tool_did_tick}
+        return self.scenario.ticks_after_tool(tool_name, {}, state)
+
     def _step_real_mode(self, action: CarlaAction) -> None:
         """Execute action in real CARLA mode."""
+        route_ticks = 0
         if action.action_type == "control":
             control = carla.VehicleControl(
                 throttle=action.throttle,
@@ -1077,7 +1088,6 @@ class CarlaEnvironment(Environment):
             )
 
             from carla_env.server.carla_agents.navigation.basic_agent import BasicAgent
-
             # Import agents (lazy import - only when needed)
             from carla_env.server.carla_agents.navigation.behavior_agent import (
                 BehaviorAgent,
@@ -1123,13 +1133,16 @@ class CarlaEnvironment(Environment):
                         control = self.nav_agent.run_step()
                         self.vehicle.apply_control(control)
                         self.world.tick()
+                        route_ticks += 1
                     else:
                         # Reached destination
                         break
 
-        # Tick simulation (unless already ticked by follow_route)
-        if action.action_type != "follow_route":
+        # Advance time per the scenario's tick policy
+        ticks = self._ticks_after_tool(action, tool_did_tick=route_ticks > 0)
+        for _ in range(ticks):
             self.world.tick()
+        self._state.simulation_time += (route_ticks + ticks) * FIXED_DELTA_SECONDS
 
         # Update collision state after tick
         if hasattr(self, "collision_sensor") and self.collision_sensor is not None:
@@ -1159,6 +1172,7 @@ class CarlaEnvironment(Environment):
     def _step_mock_mode(self, action: CarlaAction) -> None:
         """Execute action in mock simulation mode."""
         dt = self.mock_state["delta_time"]
+        route_ticks = 0
 
         # Apply action to mock physics
         if action.action_type == "control":
@@ -1295,6 +1309,7 @@ class CarlaEnvironment(Environment):
                         self.mock_state["location"][0] += dx * speed_ms * dt
                         self.mock_state["location"][1] += dy * speed_ms * dt
                         self.mock_state["time"] += dt
+                        route_ticks += 1
 
                     self.mock_state["speed_kmh"] = speed
 
@@ -1305,8 +1320,9 @@ class CarlaEnvironment(Environment):
         # Check collisions (simplified)
         self._check_mock_collisions()
 
-        # Update time
-        self.mock_state["time"] += dt
+        # Advance time per the scenario's tick policy (physics stays one dt)
+        ticks = self._ticks_after_tool(action, tool_did_tick=route_ticks > 0)
+        self.mock_state["time"] += ticks * dt
         self._state.simulation_time = self.mock_state["time"]
 
     def _check_mock_collisions(self) -> None:
