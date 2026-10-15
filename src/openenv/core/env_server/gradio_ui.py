@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import html
 import json
+import math
 import re
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
@@ -42,6 +43,11 @@ def get_gradio_display_title(
     return f"OpenEnv Agentic Environment: {name}"
 
 
+def _readme_body(readme: str) -> str:
+    """The README without the Hugging Face Space front matter."""
+    return re.sub(r"\A---\n.*?\n---\n", "", readme, flags=re.S)
+
+
 def _description(metadata: Optional[EnvironmentMetadata]) -> str:
     """The metadata description, or the README's first paragraph when it's the default."""
     if not metadata:
@@ -51,8 +57,7 @@ def _description(metadata: Optional[EnvironmentMetadata]) -> str:
         or not metadata.readme_content
     ):
         return metadata.description
-    readme = re.sub(r"\A---\n.*?\n---\n", "", metadata.readme_content, flags=re.S)
-    for paragraph in re.split(r"\n\s*\n", readme):
+    for paragraph in re.split(r"\n\s*\n", _readme_body(metadata.readme_content)):
         text = paragraph.strip()
         if text and not text.startswith(("#", "<", "[!", "!", "|", "```", ">")):
             return re.sub(r"\[([^\]]+)\]\([^)]+\)", r"\1", " ".join(text.split()))
@@ -80,6 +85,24 @@ def _rounded(value: Any) -> Any:
     if isinstance(value, dict):
         return {k: _rounded(v) for k, v in value.items()}
     return value
+
+
+def _folded(value: Any) -> Any:
+    """
+    The value with each array of more than 64 numbers (a grid, a screen, a screenshot)
+    shown as its shape, so the page stays light. Smaller boards and lists keep their values.
+    """
+    if isinstance(value, dict):
+        return {k: _folded(v) for k, v in value.items()}
+    if not isinstance(value, list):
+        return value
+    shape, first = [], value
+    while isinstance(first, list) and first:
+        shape.append(len(first))
+        first = first[0]
+    if isinstance(first, (int, float)) and math.prod(shape) > 64:
+        return f"list · {'×'.join(map(str, shape))}"
+    return [_folded(v) for v in value]
 
 
 def _short(value: Any, limit: int = 160) -> str:
@@ -201,9 +224,9 @@ def _params(schema: Dict[str, Any]) -> List[Tuple[str, Dict[str, Any], bool]]:
 
 
 def _call_args(arguments: Dict[str, Any]) -> str:
-    """Arguments as `name=value` for the episode log, with secrets masked."""
+    """Arguments as `name=value` for the episode log, with secrets masked and long values cut."""
     return ", ".join(
-        f"{k}={'***' if k.lower().endswith(_SECRET_NAMES) else json.dumps(v)}"
+        f"{k}={'***' if k.lower().endswith(_SECRET_NAMES) else _short(json.dumps(v), 60)}"
         for k, v in arguments.items()
     )
 
@@ -226,8 +249,10 @@ def _param_input(
     info = (schema.get("description") or "").strip()[:200] or None
 
     if "enum" in schema:
+        # A required choice starts on its first option, so the form can run as is.
+        value = schema["enum"][0] if required else default
         return (
-            gr.Dropdown(choices=schema["enum"], value=default, label=label, info=info),
+            gr.Dropdown(choices=schema["enum"], value=value, label=label, info=info),
             lambda v: None if _blank(v) else v,
         )
     if kind == "boolean":
@@ -356,9 +381,13 @@ def build_gradio_app(
 
     def render(data: Dict[str, Any]):
         """The env's drawing and its one-click actions for this observation."""
-        obs = data.get("observation", {}) or {}
+        obs = {
+            **(data.get("observation") or {}),
+            "reward": data.get("reward"),
+            "done": data.get("done"),
+        }
         drawing = env.render_web(obs)
-        actions = env.web_actions(obs) if not data.get("done") else []
+        actions = env.web_actions(obs) if not obs["done"] else []
         return (
             gr.update(value=drawing or "", visible=bool(drawing)),
             gr.update(
@@ -413,12 +442,13 @@ def build_gradio_app(
             ["R", "reset()", f"error: {_short(error)}" if error else "new episode"]
         ]
         visual_update, quick_update, actions = render(data)
+        shown = _folded(data)
         return (
             visual_update,
             quick_update,
             actions,
-            _result_html(data, 0),
-            json.dumps(data, indent=2, default=str),
+            _result_html(shown, 0),
+            json.dumps(shown, indent=2, default=str, ensure_ascii=False),
             _episode_html(entries),
             entries,
             "",
@@ -457,12 +487,13 @@ def build_gradio_app(
         )
         entries = entries + [[str(steps_in(entries) + 1), call, _short(summary)]]
         visual_update, quick_update, actions = render(data)
+        shown = _folded(data)
         return (
             visual_update,
             quick_update,
             actions,
-            _result_html(data, steps_in(entries)),
-            json.dumps(data, indent=2, default=str),
+            _result_html(shown, steps_in(entries)),
+            json.dumps(shown, indent=2, default=str, ensure_ascii=False),
             _episode_html(entries),
             entries,
         )
@@ -630,7 +661,7 @@ def build_gradio_app(
 
         if metadata and metadata.readme_content:
             with gr.Accordion("README", open=False, elem_classes="oe-raw"):
-                gr.Markdown(metadata.readme_content)
+                gr.Markdown(_readme_body(metadata.readme_content))
 
         quick_state = gr.State([])
 

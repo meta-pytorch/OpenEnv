@@ -124,6 +124,7 @@ OpenEnv works with a growing ecosystem of RL frameworks and platforms. If your p
 | Oumi | [GRPO notebook](https://github.com/oumi-ai/oumi/blob/main/notebooks/Oumi%20-%20OpenEnv%20GRPO%20with%20trl.ipynb) |
 | SkyRL | [SkyRL example](https://skyrl.readthedocs.io/en/latest/examples/openenv.html) |
 | torchforge | [GRPO BlackJack](https://github.com/huggingface/OpenEnv/tree/main/examples/grpo_blackjack) |
+| TorchTitan-RL (TitanRL) | [OpenEnv bridge and Muse Glimmer 30B chess recipe](examples/titanrl_openenv/) for GRPO/DAPO, with a CPU demo and tests |
 | TRL | [OpenEnv guide](https://huggingface.co/docs/trl/openenv) (GRPO with `environment_factory`, and harness training) |
 | Unsloth | [2048 with gpt-oss](https://colab.research.google.com/github/unslothai/notebooks/blob/main/nb/OpenEnv_gpt_oss_(20B)_Reinforcement_Learning_2048_Game.ipynb) |
 
