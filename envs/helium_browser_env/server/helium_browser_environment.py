@@ -196,7 +196,7 @@ class BrowserEnvironment(Environment):
             '<div style="font-size:12px;opacity:0.7;word-break:break-all">'
             f"{html.escape(observation['url'])}</div>",
             f'<img alt="Helium Browser page" src="data:image/png;base64,{observation["screenshot"]}" '
-            'style="display:block;width:100%;max-width:800px;border:1px solid var(--border-color-primary);border-radius:6px">',
+            'style="display:block;width:520px;max-width:100%;border:1px solid var(--border-color-primary);border-radius:6px">',
         ]
         if observation["error"]:
             parts.append(
