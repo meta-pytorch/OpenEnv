@@ -25,3 +25,9 @@ def test_helium_browser_web_playground(monkeypatch):
     assert "TimeoutException" in board
     assert "#" not in board
     assert env.render_web({}) is None
+    assert [label for label, _ in env.web_actions({})] == [
+        "↓ scroll",
+        "↑ scroll",
+        "← back",
+        "wait",
+    ]
