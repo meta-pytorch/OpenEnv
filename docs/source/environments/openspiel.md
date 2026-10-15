@@ -3,9 +3,17 @@
 
 Integration of OpenSpiel games with the OpenEnv framework. [OpenSpiel](https://github.com/google-deepmind/open_spiel) is DeepMind's collection of 70+ game environments for RL research.
 
+![OpenSpiel web playground](https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/openenv/openspiel.png)
+
+*The `/web` playground on 2048 after some moves: the board and one button per legal move.*
+
 ## Supported Games
 
 This environment supports 6 games across different categories:
+
+![OpenSpiel games in the web playground](https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/openenv/openspiel-games.png)
+
+*The `/web` playground drawing for the OpenSpiel games, each after a few moves.*
 
 ### Single-Player Games (No Opponent)
 1. **Catch** - Move horizontally to catch a falling ball
