@@ -193,7 +193,7 @@ same roles they would have in a game, simulator, or other environment:
 - `reset(...)` starts a new episode and returns its first observation. Here it
   creates a temporary browser profile, opens `start_url`, and takes a
   screenshot. Without `start_url` it opens `BROWSER_START_URL`
-  (default `https://example.com`), so the `/web` playground's Reset works.
+  (default `https://huggingface.co`), so the `/web` playground's Reset works.
 - `step(action)` applies exactly one validated action and returns the next
   observation.
 - `state` exposes the current `BrowserState`, including OpenEnv's episode ID

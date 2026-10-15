@@ -76,7 +76,7 @@ class BrowserEnvironment(Environment):
 
     def reset(self, seed=None, episode_id=None, start_url=None, **kwargs):
         self.close()
-        start_url = start_url or os.getenv("BROWSER_START_URL", "https://example.com")
+        start_url = start_url or os.getenv("BROWSER_START_URL", "https://huggingface.co")
         parsed = urlsplit(start_url)
         if parsed.scheme not in ("http", "https") or not parsed.hostname or parsed.username or parsed.password:
             raise ValueError("expected an HTTP(S) URL without credentials")
