@@ -1,5 +1,7 @@
 """FastAPI application for the Connect4 Environment."""
 
+import os
+
 from openenv.core.env_server import create_app
 
 # Support both in-repo and standalone imports
@@ -22,6 +24,7 @@ app = create_app(
     Connect4Observation,
     env_name="connect4_env",
     state_cls=Connect4State,
+    max_concurrent_envs=int(os.getenv("MAX_CONCURRENT_ENVS", "8")),
 )
 
 

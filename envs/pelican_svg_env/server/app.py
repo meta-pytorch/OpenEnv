@@ -2,6 +2,8 @@
 
 """FastAPI application for the Pelican SVG environment."""
 
+import os
+
 from openenv.core.env_server import create_app
 
 from ..models import PelicanSvgAction, PelicanSvgObservation, PelicanSvgState
@@ -15,6 +17,7 @@ app = create_app(
     PelicanSvgObservation,
     env_name="pelican_svg_env",
     state_cls=PelicanSvgState,
+    max_concurrent_envs=int(os.getenv("MAX_CONCURRENT_ENVS", "8")),
 )
 
 

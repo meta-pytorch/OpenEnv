@@ -28,6 +28,7 @@ Environment variables:
     ATARI_DIFFICULTY: Game difficulty (optional)
     ATARI_REPEAT_ACTION_PROB: Sticky action probability (default: "0.0")
     ATARI_FRAMESKIP: Frameskip (default: "4")
+    MAX_CONCURRENT_ENVS: Maximum concurrent WebSocket sessions (default: "8")
 """
 
 import os
@@ -84,6 +85,7 @@ app = create_app(
     AtariObservation,
     env_name="atari_env",
     state_cls=AtariState,
+    max_concurrent_envs=int(os.getenv("MAX_CONCURRENT_ENVS", "8")),
 )
 
 
