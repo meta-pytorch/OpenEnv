@@ -188,15 +188,6 @@ class BrowserEnvironment(Environment):
             reward=0,
         )
 
-    def web_actions(self, observation):
-        """Scroll, back and wait as buttons. Clicks and typing go through the form."""
-        return [
-            ("↓ scroll", {"op": "scroll", "dy": 500}),
-            ("↑ scroll", {"op": "scroll", "dy": -500}),
-            ("← back", {"op": "back"}),
-            ("wait", {"op": "wait"}),
-        ]
-
     def render_web(self, observation):
         """Draw the page screenshot with the URL and the last action error."""
         if not observation.get("screenshot"):
