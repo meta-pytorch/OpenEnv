@@ -2,12 +2,12 @@ import json
 import os
 
 from huggingface_hub import InferenceClient
+
 from helium_browser_env.client import BrowserClient
 from helium_browser_env.models import BrowserAction
 
 llm = InferenceClient(
     base_url=os.environ["BASE_URL"],
-    token=os.environ["HF_TOKEN_INFERENCE"],
     timeout=180,
 )
 prompt = """Use the screenshot to complete the task. Return one JSON action:

@@ -22,7 +22,9 @@ openenv push envs/helium_browser_env \
   --repo-id YOUR_USERNAME/helium-browser-env
 ```
 
-Then you can deploy the model and provide your endpoint.
+The agent uses the token saved by `hf auth login`, or `HF_TOKEN` if it is set.
+Make sure that token can access your inference endpoint. Then deploy the model
+and provide your endpoint.
 
 ```bash
 export HELIUM_BROWSER_IMAGE='hf.co/spaces/YOUR_USERNAME/helium-browser-env'
