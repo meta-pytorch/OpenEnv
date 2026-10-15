@@ -43,6 +43,11 @@ def get_gradio_display_title(
     return f"OpenEnv Agentic Environment: {name}"
 
 
+def _readme_body(readme: str) -> str:
+    """The README without the Hugging Face Space front matter."""
+    return re.sub(r"\A---\n.*?\n---\n", "", readme, flags=re.S)
+
+
 def _description(metadata: Optional[EnvironmentMetadata]) -> str:
     """The metadata description, or the README's first paragraph when it's the default."""
     if not metadata:
@@ -52,8 +57,7 @@ def _description(metadata: Optional[EnvironmentMetadata]) -> str:
         or not metadata.readme_content
     ):
         return metadata.description
-    readme = re.sub(r"\A---\n.*?\n---\n", "", metadata.readme_content, flags=re.S)
-    for paragraph in re.split(r"\n\s*\n", readme):
+    for paragraph in re.split(r"\n\s*\n", _readme_body(metadata.readme_content)):
         text = paragraph.strip()
         if text and not text.startswith(("#", "<", "[!", "!", "|", "```", ">")):
             return re.sub(r"\[([^\]]+)\]\([^)]+\)", r"\1", " ".join(text.split()))
@@ -657,7 +661,7 @@ def build_gradio_app(
 
         if metadata and metadata.readme_content:
             with gr.Accordion("README", open=False, elem_classes="oe-raw"):
-                gr.Markdown(metadata.readme_content)
+                gr.Markdown(_readme_body(metadata.readme_content))
 
         quick_state = gr.State([])
 

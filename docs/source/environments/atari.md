@@ -3,6 +3,10 @@
 
 Integration of Atari 2600 games with the OpenEnv framework via the Arcade Learning Environment (ALE). ALE provides access to 100+ classic Atari games for RL research.
 
+![Atari web playground](https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/openenv/atari.png)
+
+*The `/web` playground mid-rally in Pong: the current frame and one button per action.*
+
 ## Supported Games
 
 ALE supports 100+ Atari 2600 games including:
