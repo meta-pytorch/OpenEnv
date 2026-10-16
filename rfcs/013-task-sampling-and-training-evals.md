@@ -3,7 +3,7 @@
 **Status**: In Review
 **Created**: 2026-09-26
 **Updated**: 2026-10-16
-**Revised**: 2026-10-12 — removed a CLI limitation fixed by #1237, updated the RFC 008 reference to #1321, and corrected four small inaccuracies; 2026-10-16 — added results on three more seeds, replaced the token-weighted formula, scoped the first evaluation to environments whose turns the trainer drives, listed the gaps in the collect pipeline, offered the curriculum as an example, and linked the trial's code and logs
+**Revised**: 2026-10-12 — removed a CLI limitation fixed by #1237, updated the RFC 008 reference to #1321, and corrected four small inaccuracies; 2026-10-16 — added results on three more seeds, replaced the token-weighted formula, scoped the first evaluation to environments whose turns the trainer drives, listed the gaps in the collect pipeline, offered the curriculum as an example, linked the trial's code and logs, and stated how the token weights treat unseen keys and many keys
 **Authors**: @Matheus-F-Scatolin, @tiagoperrupato
 **RFC ID**: 013
 
@@ -13,7 +13,7 @@ This RFC adds two trainer-side capabilities on top of the existing Task API: **t
 
 It introduces a small `TaskSampler` protocol with two implementations in core (`SequentialSampler`, `UniformSampler`), a generic Task API client helper, an `EnvEvalHarness` that implements the existing `EvalHarness` base class with the same pieces as the `openenv collect` rollout pipeline, and an `openenv eval` CLI command. A third sampler, `CurriculumSampler`, is offered as an example; whether it belongs in core is a question for the maintainers. The environment boundary does not change: environments keep computing rewards, and samplers only consume them.
 
-The protocol and the evaluation harness are the core of the proposal and are useful with any sampler. The curriculum is one pluggable sampler, and we measured it on a laptop (see [Preliminary Results](#preliminary-results)): a single-seed pilot, then a trial on three more seeds. A curriculum that targets GRPO signal reached higher test accuracy than uniform sampling per environment episode on all four seeds, and per generated token on the three new ones. The pilot's seed had pointed the other way per token, because its curriculum run happened to produce much longer answers; on the other seeds, answer length did not follow the method. Dividing the curriculum's weights by the token cost of each tier, as the first version of this RFC proposed, made it worse; a corrected form matched the curriculum that counts episodes but did not beat it. So the `CurriculumSampler` weights by signal, counts cost in the unit the trainer chooses, and reports signal per unit of cost.
+The protocol and the evaluation harness are the core of the proposal and are useful with any sampler. The curriculum is one pluggable sampler, and we measured it on a laptop (see [Preliminary Results](#preliminary-results)): a single-seed pilot, then a trial on three more seeds. A curriculum that targets GRPO signal reached higher test accuracy than uniform sampling per environment episode on all four seeds, and per generated token on the three new ones. The pilot's seed had pointed the other way per token, because its curriculum run happened to produce much longer answers; on the other seeds, answer length did not follow the method. Dividing the curriculum's weights by the token cost of each tier, as the first version of this RFC proposed, made it worse; a corrected form matched the curriculum that counts episodes per generated token, without beating it, and was ahead of it per episode. So the `CurriculumSampler` weights by signal, counts cost in the unit the trainer chooses, and reports signal per unit of cost.
 
 ## Motivation
 
@@ -178,13 +178,15 @@ where `G` is the trainer's group size and `ε` (default `0.05`) keeps every key 
 The `cost` argument selects the unit in which the sampler counts and reports cost:
 
 - `"episodes"` (default): every rollout costs 1. The weights are the ones above.
-- `"tokens"`: the trainer passes the number of generated tokens per rollout. The sampler keeps a decayed mean cost per rollout, `ĉ_k ← γ · ĉ_k + (1 - γ) · mean(costs)`, and weights by signal per token, in this form:
+- `"tokens"`: the trainer passes the number of generated tokens per rollout. The sampler keeps a decayed mean cost per rollout, `ĉ_k ← γ · ĉ_k + (1 - γ) · mean(costs)`; a key with no cost yet uses the mean of the keys that have one, or 1 before any has. It weights by signal per token, in this form:
 
 ```
 w_k = (1 - p̂_k^G - (1 - p̂_k)^G) / ĉ_k
 P_k = (1 - K·ε) · w_k / Σ_j w_j + ε        # K keys: each keeps at least ε
 s_k, f_k start at 1 and decay like the data  # p̂_k = s_k / (s_k + f_k) reaches 1 on a solved key
 ```
+
+The floor needs `K·ε ≤ 1`: at most 20 keys with the default `ε`. The sampler rejects a larger `K`, so tasks keyed by `id` use `cost="episodes"` or a smaller `ε`.
 
 The first version of this RFC divided `(signal + ε)` by `ĉ_k`, with the fixed prior above. Measured, that sends many episodes to keys the policy already solves: their completions are the shortest, the fixed prior leaves them a signal of about 0.09 that never reaches 0, and `ε` divided by a small cost is large. In a 100-step probe it gave the solved tier 28.5% of the episodes; in full runs, 14% to 22%, against 7% for the episode weights. The form above keeps `ε` out of the division and lets the prior fade; it gave that tier 5% to 8%. The floor alone is not enough: with the fixed prior it still gave the solved tier 21.2% in its probe. In the trial, the corrected token weights matched the episode weights per generated token, without beating them (Preliminary Results). They stay available for environments where completion length varies much more across tasks than in that experiment.
 
