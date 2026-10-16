@@ -107,6 +107,19 @@ def test_an_unsatisfied_user_scores_minus_one(env, scripted_user):
     assert final.metadata["termination_reason"] == "user_unsatisfied"
 
 
+def test_a_failed_simulation_ends_the_episode_unscored(env, scripted_user):
+    scripted_user += ["Hi, I need help."]  # the user's model fails on the next turn
+    env.reset(task_id=TASK)
+    final = env.step(
+        CallToolAction(tool_name="respond_to_user", arguments={"message": "Hello."})
+    )
+    assert "simulation failed" in final.error.message
+    assert final.done and env.state.done
+    assert final.reward is None and env.state.reward is None
+    assert final.metadata["termination_reason"] == "infrastructure_error"
+    assert final.metadata["reward_info"] == {}
+
+
 def test_done_ends_the_episode_from_the_agents_side(env, scripted_user):
     scripted_user += ["Hi, I need help."]
     env.reset(task_id=TASK)

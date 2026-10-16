@@ -49,6 +49,7 @@ The episode ends when the user is done (or gives up), when the agent calls `done
 | `1.0` | The database ends in the expected state (the task is solved). |
 | `0.0` | It does not. |
 | `-1.0` | The user gave up on the agent (`termination_reason` is `user_unsatisfied`). |
+| `null` | The conversation ended unscored because the simulation failed, usually the user's model (`termination_reason` is `infrastructure_error`, and the observation carries the error). Not an agent failure: rerun the task. |
 
 ## The simulated user
 

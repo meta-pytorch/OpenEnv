@@ -43,6 +43,7 @@ from tau_emotion.data_model.message import (
     MultiToolMessage,
     ToolCall,
 )
+from tau_emotion.data_model.simulation import TerminationReason
 from tau_emotion.registry import registry
 from tau_emotion.utils.utils import DATA_DIR
 
@@ -333,8 +334,12 @@ class TauEmotionEnvironment(MCPEnvironment):
         if self._simulation.done:
             self._state.done = True
             run = self._simulation.run
-            # τ-emotion-bench only logs why, e.g. the user's model failed.
+            # τ-emotion-bench only logs why, e.g. the user's model failed. The episode
+            # ends unscored: `reward` stays None, and the error reaches the client.
             if run is None or run.reward_info is None:
+                self._state.termination_reason = (
+                    TerminationReason.INFRASTRUCTURE_ERROR.value
+                )
                 raise RuntimeError(
                     "The τ-emotion-bench simulation failed (often the simulated user's "
                     f"model, {self.user_llm}), so the conversation ended without a score. "
