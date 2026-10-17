@@ -269,7 +269,7 @@ The grader reads only what changed, so it doesn't depend on how the agent got th
 
 ## A Real Example: Stripe World
 
-[Stripe World](https://github.com/Kiln-AI/stripe_world) is a Seahaven world of Stripe's Billing and Payments API: 24 tables, 155 API operations, a billing engine for subscriptions and invoices, and eight of the ten tools on Stripe's MCP server. It is built and served the same way as the CRM above, and is also hosted as a [Hugging Face Space](https://huggingface.co/spaces/scosman/stripe_world). Its README has a script that runs 100 graded episodes against one server.
+[Stripe World](https://github.com/Kiln-AI/stripe_world) is a Seahaven world of Stripe's Billing and Payments API: 25 tables, 155 API operations, a billing engine for subscriptions and invoices, and eight of the ten tools on Stripe's MCP server. It is built and served the same way as the CRM above, and is also hosted as a [Hugging Face Space](https://huggingface.co/spaces/scosman/stripe_world). Its README has a script that runs 100 graded episodes against one server.
 
 ## Learn More
 
