@@ -15,7 +15,7 @@ with Stripe.
 
 ## What it models
 
-- **API surface:** 155 Stripe API operations across 24 tables, pinned to Stripe API version
+- **API surface:** 155 Stripe API operations across 25 tables, pinned to Stripe API version
   `2026-08-26.dahlia`. Object shapes follow Stripe's OpenAPI spec.
 - **Resources:** customers, payment methods, products, prices, coupons, promotion codes, tax rates,
   payment intents, charges, refunds, disputes, setup intents, balance and balance transactions,
@@ -34,13 +34,33 @@ Webhook delivery and the parts of Stripe outside Billing and Payments are not mo
 
 ## Episodes and grading
 
-- `reset()` creates a fresh account. Pass `fixture` to start from a saved state (the repository
-  ships `empty`), `seed` to make ids and timestamps reproducible, and
-  `startup={"livemode": False}` for a test-mode account.
+- `reset()` creates a fresh account. Pass `fixture` to start from a saved state (see
+  [Fixtures](#fixtures)) and `seed` to make ids and timestamps reproducible. Without a fixture the
+  account is empty and in live mode; pass `startup={"livemode": False}` for a test-mode account.
 - `step()` takes `list_tools` and `call_tool` actions.
 - The environment does not compute a reward. `state()` returns the change log of the episode
   under `["state"]["db"]["log"]`: one entry per changed row, with its table, operation, and the
   row before and after. Grade the episode from those rows.
+
+## Fixtures
+
+Stripe World ships three fixtures, all frozen at `2026-09-01T14:00:00Z`:
+
+- **`empty`:** an account with no history, in live mode.
+- **`small_co`:** Wrenfield Labs, a two-person company selling booking and payment tools to
+  tutors, music teachers and coaches. A test-mode account with 45 hand-written customers, from a
+  private beta through a public launch, with renewals, a failed payment in dunning, refunds and a
+  dispute.
+- **`big_co`:** Ostrander Systems, a company selling field-service software to HVAC, plumbing and
+  electrical contractors. A test-mode account with about 380 simulated business customers over 18
+  months, with per-technician seat plans, annual contracts invoiced on terms, sales tax, dunning,
+  refunds, disputes and credit notes. Suited to tasks that need pagination, search and
+  aggregation.
+
+Select one with `env.reset(fixture="small_co", seed=7)`. A fixture opens in the mode it was saved
+in, so leave out `startup={"livemode": ...}`: asking for the other mode is refused.
+[docs/fixtures.md](https://github.com/Kiln-AI/stripe_world/blob/main/docs/fixtures.md) describes
+each company's catalog and its scripted loose ends, with queries that find them.
 
 ## Quick start
 
