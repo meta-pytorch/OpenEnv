@@ -214,5 +214,7 @@ class TestResetSeed:
         env = _make_env(dataset_path)
         env.reset(episode_id="episode-1")
         assert env.state.episode_id == "episode-1"
+        env.reset(episode_id="")
+        assert env.state.episode_id == ""
         env.reset()
-        assert env.state.episode_id not in (None, "episode-1")
+        assert env.state.episode_id not in (None, "", "episode-1")

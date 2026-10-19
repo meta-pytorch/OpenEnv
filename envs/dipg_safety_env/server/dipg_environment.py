@@ -129,7 +129,8 @@ class DIPGEnvironment(Environment):
         if seed is not None:
             self._rng = random.Random(seed)
             self._start_new_pass()
-        episode_id = episode_id or str(uuid.uuid4())
+        if episode_id is None:
+            episode_id = str(uuid.uuid4())
 
         max_attempts = len(self._shuffled_dataset)
         if max_attempts == 0:

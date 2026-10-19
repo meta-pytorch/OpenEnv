@@ -170,7 +170,7 @@ class WildfireEnvironment(Environment):
 
         # Use model_construct to bypass Pydantic validation for dataclass/Pydantic compatibility
         self._state = WildfireState.model_construct(
-            episode_id=episode_id or str(uuid.uuid4()),
+            episode_id=episode_id if episode_id is not None else str(uuid.uuid4()),
             step_count=0,
             total_burned=0,
             total_extinguished=0,

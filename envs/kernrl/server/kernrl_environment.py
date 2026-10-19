@@ -260,7 +260,7 @@ Device: {self.gpu}
             self._current_problem = self._rng.choice(self.problems)
 
         self._state = KernelState(
-            episode_id=episode_id or str(uuid4()),
+            episode_id=episode_id if episode_id is not None else str(uuid4()),
             step_count=0,
             problem_id=self._current_problem.id,
             turn=0,
