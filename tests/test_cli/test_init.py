@@ -551,6 +551,9 @@ def test_init_environment_reset_accepts_seed_and_episode_id(tmp_path: Path) -> N
         env.reset(seed=1, episode_id="ep-123")
         assert env.state.episode_id == "ep-123"
 
+        env.reset(episode_id="")
+        assert env.state.episode_id == ""
+
         env.reset()
         assert env.state.episode_id not in (None, "", "ep-123")
 

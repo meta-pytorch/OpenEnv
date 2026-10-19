@@ -64,7 +64,10 @@ class __ENV_CLASS_NAME__Environment(Environment):
         Returns:
             __ENV_CLASS_NAME__Observation with a ready message
         """
-        self._state = State(episode_id=episode_id or str(uuid4()), step_count=0)
+        self._state = State(
+            episode_id=episode_id if episode_id is not None else str(uuid4()),
+            step_count=0,
+        )
         self._reset_count += 1
 
         return __ENV_CLASS_NAME__Observation(
