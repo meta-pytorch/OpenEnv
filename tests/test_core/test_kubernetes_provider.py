@@ -885,7 +885,7 @@ class TestDefaultAdapter:
             namespace="openenv", kubeconfig=None, context=None
         )
         status = adapter.pod_status("openenv-echo", timeout_s=0.25)
-        assert calls["read_pod_kwargs"] == {"_request_timeout": 0.25}
+        assert calls["read_pod_kwargs"] == {"_request_timeout": (0.125, 0.125)}
         assert status["phase"] == "Pending"
         assert status["reason"] == "ImagePullBackOff"
         assert "secret-status-text" not in str(status)
@@ -946,6 +946,25 @@ class TestDefaultAdapter:
             _DefaultKubernetesAdapter(
                 namespace="openenv", kubeconfig=None, context=None
             )
+
+
+def test_pod_status_bounds_real_sdk_transport(monkeypatch):
+    client = pytest.importorskip("kubernetes.client")
+    configuration = client.Configuration()
+    configuration.retries = 0
+    with client.ApiClient(configuration=configuration) as api_client:
+        adapter = _DefaultKubernetesAdapter.__new__(_DefaultKubernetesAdapter)
+        adapter._namespace = "openenv"
+        adapter._api = client.CoreV1Api(api_client)
+        request = MagicMock(side_effect=TimeoutError("transport timeout"))
+        monkeypatch.setattr(api_client.rest_client.pool_manager, "request", request)
+
+        with pytest.raises(_TransientStatusError):
+            adapter.pod_status("openenv-echo", timeout_s=0.25)
+
+        timeout = request.call_args.kwargs["timeout"]
+        assert timeout is not None
+        assert timeout.connect_timeout + timeout.read_timeout <= 0.25
 
 
 def test_module_import_does_not_import_kubernetes():

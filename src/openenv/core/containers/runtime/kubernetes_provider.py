@@ -296,8 +296,12 @@ class _DefaultKubernetesAdapter:
         from urllib3.exceptions import HTTPError
 
         try:
+            # Older supported SDKs ignore a float timeout. Split the budget
+            # between connect and read using their supported tuple form.
             pod = self._api.read_namespaced_pod(
-                name, self._namespace, _request_timeout=timeout_s
+                name,
+                self._namespace,
+                _request_timeout=(timeout_s / 2, timeout_s / 2),
             )
         except Exception as exc:
             status = getattr(exc, "status", None)
