@@ -160,6 +160,10 @@ class _CreateConflict(RuntimeError):
     """Creating a namespaced object returned 409: the name is already taken."""
 
 
+class _TransientStatusError(RuntimeError):
+    """A Pod status read can be retried within the readiness deadline."""
+
+
 def _incluster_base_url(name: str, namespace: str, port: int) -> str:
     # *name* and *namespace* are already DNS-1123 labels and *port* is an int,
     # so this cannot be steered by a status field from the API server.
@@ -289,11 +293,22 @@ class _DefaultKubernetesAdapter:
     def pod_status(
         self, name: str, timeout_s: float = 30.0
     ) -> dict[str, Optional[str]]:
+        from urllib3.exceptions import HTTPError
+
         try:
             pod = self._api.read_namespaced_pod(
                 name, self._namespace, _request_timeout=timeout_s
             )
         except Exception as exc:
+            status = getattr(exc, "status", None)
+            if (
+                isinstance(exc, (TimeoutError, HTTPError))
+                or status == 429
+                or (isinstance(status, int) and 500 <= status < 600)
+            ):
+                raise _TransientStatusError(
+                    "Kubernetes Pod status read failed"
+                ) from None
             self._api_error(exc, "read Pod", missing_ok=False)
             raise RuntimeError("Failed to read Kubernetes Pod") from None
         status = getattr(pod, "status", None)
@@ -791,7 +806,10 @@ class KubernetesProvider(ContainerProvider):
         proxies = {"http": "", "https": "", "all": ""}
         deadline = time.monotonic() + timeout_s
         while (remaining := deadline - time.monotonic()) > 0:
-            phase, reason = self._phase(remaining)
+            try:
+                phase, reason = self._phase(remaining)
+            except _TransientStatusError:
+                phase, reason = "Unknown", None
             if phase in ("Failed", "Succeeded"):
                 raise RuntimeError(self._ended_message(phase, reason))
             remaining = deadline - time.monotonic()

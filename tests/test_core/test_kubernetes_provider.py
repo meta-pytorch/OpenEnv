@@ -21,6 +21,7 @@ from openenv.core.containers.runtime.kubernetes_provider import (
     _CreateConflict,
     _DefaultKubernetesAdapter,
     _NamespaceMissing,
+    _TransientStatusError,
     KubernetesProvider,
 )
 from openenv.core.containers.runtime.providers import ContainerProvider
@@ -557,6 +558,35 @@ class TestWaitForReady:
         assert adapter.status_timeout == 1.0
         assert get.call_args.kwargs["timeout"] == 0.5
 
+    def test_transient_status_error_retries_without_teardown(self, provider, adapter):
+        url = provider.start_container("echo-env:latest")
+        with (
+            patch.object(
+                adapter,
+                "pod_status",
+                side_effect=[_TransientStatusError("retry"), {"phase": "Running"}],
+            ) as status,
+            patch("requests.get", return_value=MagicMock(status_code=200)) as get,
+        ):
+            provider.wait_for_ready(url, timeout_s=5)
+        assert status.call_count == 2
+        get.assert_called_once()
+        assert adapter.deleted_pods == adapter.deleted_services == 0
+
+    def test_transient_status_errors_still_obey_deadline(self, provider, adapter):
+        url = provider.start_container("echo-env:latest")
+        with (
+            patch.object(
+                adapter, "pod_status", side_effect=_TransientStatusError("retry")
+            ),
+            patch(
+                "openenv.core.containers.runtime.kubernetes_provider.time.monotonic",
+                side_effect=[0, 1, 5],
+            ),
+            pytest.raises(TimeoutError, match="did not become ready"),
+        ):
+            provider.wait_for_ready(url, timeout_s=5)
+
     def test_failed_pod_raises_immediately_without_url(self, provider, adapter):
         url = provider.start_container("echo-env:latest")
         adapter.phase = "Failed"
@@ -705,6 +735,8 @@ def _install_fake_kubernetes(monkeypatch, *, incluster_fails: bool = False):
         def read_namespaced_pod(self, name, namespace, **kwargs):
             calls["read_pod"].append((name, namespace))
             calls["read_pod_kwargs"] = kwargs
+            if calls.get("read_pod_status"):
+                raise ApiException(status=calls["read_pod_status"], body="secret-body")
             waiting = _Obj(reason="ImagePullBackOff", message="secret-status-text")
             return _Obj(
                 status=_Obj(
@@ -869,11 +901,34 @@ class TestDefaultAdapter:
                 "read_namespaced_pod",
                 side_effect=TimeoutError("https://private-api.example/secret"),
             ),
-            pytest.raises(RuntimeError, match="Failed to read Pod") as exc_info,
+            pytest.raises(
+                _TransientStatusError, match="status read failed"
+            ) as exc_info,
         ):
             adapter.pod_status("openenv-echo", timeout_s=0.25)
         assert "secret" not in str(exc_info.value)
         assert exc_info.value.__suppress_context__
+
+    @pytest.mark.parametrize("status", [429, 500, 503])
+    def test_status_api_errors_are_retryable(self, monkeypatch, status):
+        calls = _install_fake_kubernetes(monkeypatch)
+        calls["read_pod_status"] = status
+        adapter = _DefaultKubernetesAdapter(
+            namespace="openenv", kubeconfig=None, context=None
+        )
+        with pytest.raises(_TransientStatusError) as exc_info:
+            adapter.pod_status("openenv-echo")
+        assert "secret" not in str(exc_info.value)
+
+    def test_status_permission_error_is_not_retryable(self, monkeypatch):
+        calls = _install_fake_kubernetes(monkeypatch)
+        calls["read_pod_status"] = 403
+        adapter = _DefaultKubernetesAdapter(
+            namespace="openenv", kubeconfig=None, context=None
+        )
+        with pytest.raises(RuntimeError, match="Failed to read Pod") as exc_info:
+            adapter.pod_status("openenv-echo")
+        assert not isinstance(exc_info.value, _TransientStatusError)
 
     def test_missing_client_names_the_extra(self, monkeypatch):
         real_import = __import__
