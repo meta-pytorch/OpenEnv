@@ -300,20 +300,24 @@ class TextArenaEnvironment(Environment):
     def _build_observation(self) -> TextArenaObservation:
         player_id, messages = self._ta_env.get_observation()
 
-        ta_messages = self._convert_messages(messages)
-
         # TextArena keeps how the game ended in game_info, out of the observation.
         state = self._ta_env.state
-        if state.done:
-            reason = state.game_info.get(player_id, {}).get("reason")
-            if reason:
-                ta_messages.append(
-                    TextArenaMessage(
-                        sender_id=-1,
-                        content=f"\n[GAME] {reason}",
-                        category="GAME_ADMIN",
-                    )
+        reason = (
+            state.game_info.get(player_id, {}).get("reason") if state.done else None
+        )
+        if reason and isinstance(messages, str):
+            # LLMObservationWrapper clients diff this single cumulative message.
+            messages += f"\n[GAME] {reason}"
+
+        ta_messages = self._convert_messages(messages)
+        if reason and not isinstance(messages, str):
+            ta_messages.append(
+                TextArenaMessage(
+                    sender_id=-1,
+                    content=f"\n[GAME] {reason}",
+                    category="GAME_ADMIN",
                 )
+            )
 
         # Extract prompt from the appropriate messages.
         # TextArena PROMPT type messages contain the game instructions added during reset.
