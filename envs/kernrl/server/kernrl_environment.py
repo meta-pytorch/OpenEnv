@@ -23,20 +23,24 @@ try:
     # In-repo imports (when running from OpenEnv repository)
     from openenv.core.env_server.interfaces import Environment
     from openenv.core.env_server.types import State
+
     from ..models import KernelAction, KernelObservation, KernelState
     from .evaluator import LocalGPUEvaluator
 except ImportError:
+    from models import KernelAction, KernelObservation, KernelState
+
     # Standalone imports (when environment is standalone with openenv from pip)
     from openenv.core.env_server.interfaces import Environment
     from openenv.core.env_server.types import State
-    from models import KernelAction, KernelObservation, KernelState
     from server.evaluator import LocalGPUEvaluator
 
 
 class Problem:
     """A kernel optimization problem."""
 
-    def __init__(self, id: str, level: int, name: str, description: str, reference_code: str):
+    def __init__(
+        self, id: str, level: int, name: str, description: str, reference_code: str
+    ):
         self.id = id
         self.level = level
         self.name = name
@@ -96,7 +100,9 @@ class KernelOptEnvironment(Environment):
             enable_ncu: Enable NSight Compute profiling
             timeout: Timeout in seconds for kernel execution
         """
-        self.problems_dir = Path(problems_dir) if problems_dir else self._default_problems_dir()
+        self.problems_dir = (
+            Path(problems_dir) if problems_dir else self._default_problems_dir()
+        )
         self.max_turns = max_turns
         self.gpu = gpu
         self.levels = levels or [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
@@ -156,13 +162,15 @@ class KernelOptEnvironment(Environment):
                 code = problem_file.read_text()
                 name = problem_file.stem
 
-                problems.append(Problem(
-                    id=f"L{level}_{name}",
-                    level=level,
-                    name=name,
-                    description=self._make_description(code, level),
-                    reference_code=code,
-                ))
+                problems.append(
+                    Problem(
+                        id=f"L{level}_{name}",
+                        level=level,
+                        name=name,
+                        description=self._make_description(code, level),
+                        reference_code=code,
+                    )
+                )
 
         return problems
 
@@ -198,6 +206,7 @@ Device: {self.gpu}
         """Get GPU info string."""
         try:
             import torch
+
             if torch.cuda.is_available():
                 idx = int(self.gpu.split(":")[-1]) if ":" in self.gpu else 0
                 name = torch.cuda.get_device_name(idx)
@@ -219,14 +228,12 @@ Device: {self.gpu}
         """
         if problem_id:
             self._current_problem = next(
-                (p for p in self.problems if p.id == problem_id),
-                None
+                (p for p in self.problems if p.id == problem_id), None
             )
             if not self._current_problem:
                 # Try partial match
                 self._current_problem = next(
-                    (p for p in self.problems if problem_id in p.id),
-                    None
+                    (p for p in self.problems if problem_id in p.id), None
                 )
             if not self._current_problem:
                 raise ValueError(f"Problem {problem_id} not found")
@@ -290,11 +297,18 @@ Device: {self.gpu}
         self._feedbacks.append(feedback)
 
         # Update state
-        if eval_result.benchmark and eval_result.benchmark.speedup > self._state.best_speedup:
+        if (
+            eval_result.benchmark
+            and eval_result.benchmark.speedup > self._state.best_speedup
+        ):
             self._state.best_speedup = eval_result.benchmark.speedup
 
-        if (eval_result.correctness and eval_result.correctness.correct and
-            eval_result.benchmark and eval_result.benchmark.speedup > 1.05):
+        if (
+            eval_result.correctness
+            and eval_result.correctness.correct
+            and eval_result.benchmark
+            and eval_result.benchmark.speedup > 1.05
+        ):
             self._state.solved = True
 
         # Calculate reward
@@ -313,8 +327,12 @@ Device: {self.gpu}
             feedback=feedback,
             compilation_success=eval_result.compilation.success,
             compilation_error=eval_result.compilation.error,
-            correctness_pass=eval_result.correctness.correct if eval_result.correctness else None,
-            max_diff=eval_result.correctness.max_diff if eval_result.correctness else None,
+            correctness_pass=eval_result.correctness.correct
+            if eval_result.correctness
+            else None,
+            max_diff=eval_result.correctness.max_diff
+            if eval_result.correctness
+            else None,
             speedup=eval_result.benchmark.speedup if eval_result.benchmark else None,
             done=done,
             reward=reward,

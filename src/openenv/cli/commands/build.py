@@ -1,17 +1,14 @@
-# Copyright (c) Meta Platforms, Inc. and affiliates.
-# All rights reserved.
-#
-# This source code is licensed under the BSD-style license found in the
-# LICENSE file in the root directory of this source tree.
+# SPDX-License-Identifier: BSD-3-Clause
 
 """Build Docker images for OpenEnv environments."""
 
 from __future__ import annotations
 
+import re
 import shutil
 import subprocess
-import tempfile
 import sys
+import tempfile
 from pathlib import Path
 from typing import Annotated
 
@@ -26,16 +23,36 @@ from .._cli_utils import console
 
 app = typer.Typer(help="Build Docker images for OpenEnv environments")
 
+_OPENENV_RUNTIME_DEP_RE = re.compile(r"^openenv(?:\s*(?:$|[<>=!~@;])|\[)")
+
+
+def _is_openenv_runtime_dependency(dep: str) -> bool:
+    """Return True for the OpenEnv runtime distribution, not openenv-* envs."""
+    normalized = dep.strip().lower()
+    return (
+        _OPENENV_RUNTIME_DEP_RE.match(normalized) is not None
+        or normalized.startswith("openenv-core")
+        or normalized.startswith("openenv_core")
+    )
+
+
+def _is_in_repo_env_path(env_path: Path, repo_root: Path) -> bool:
+    """Return whether env_path points to an environment below repo_root/envs."""
+    try:
+        rel_path = env_path.relative_to(repo_root)
+    except ValueError:
+        return False
+    return len(rel_path.parts) > 1 and rel_path.parts[0] == "envs"
+
 
 def _detect_build_context(env_path: Path) -> tuple[str, Path, Path | None]:
     """
     Detect whether we're building a standalone or in-repo environment.
 
     Returns:
-        tuple: (build_mode, build_context_path, repo_root)
-            - build_mode: "standalone" or "in-repo"
-            - build_context_path: Path to use as Docker build context
-            - repo_root: Path to repo root (None for standalone)
+        `tuple` of `(build_mode, build_context_path, repo_root)` where `build_mode` is
+        `"standalone"` or `"in-repo"`, `build_context_path` is the path to use as Docker
+        build context, and `repo_root` is the path to the repo root (`None` for standalone).
     """
     # Ensure env_path is absolute for proper comparison
     env_path = env_path.absolute()
@@ -54,15 +71,8 @@ def _detect_build_context(env_path: Path) -> tuple[str, Path, Path | None]:
         # Not in a git repo = standalone
         return "standalone", env_path, None
 
-    # Check if environment is under envs/ (in-repo pattern)
-    try:
-        rel_path = env_path.relative_to(repo_root)
-        rel_str = str(rel_path)
-        if rel_str.startswith("envs/") or rel_str.startswith("envs\\"):
-            # In-repo environment
-            return "in-repo", repo_root, repo_root
-    except ValueError:
-        pass
+    if _is_in_repo_env_path(env_path, repo_root):
+        return "in-repo", repo_root, repo_root
 
     # Otherwise, it's standalone (environment outside repo structure)
     return "standalone", env_path, None
@@ -77,7 +87,7 @@ def _prepare_standalone_build(env_path: Path, temp_dir: Path) -> Path:
     2. Ensure pyproject.toml depends on openenv
 
     Returns:
-        Path to the prepared build directory
+        `Path` to the prepared build directory.
     """
     console.print("[cyan]Preparing standalone build...[/cyan]")
 
@@ -92,18 +102,12 @@ def _prepare_standalone_build(env_path: Path, temp_dir: Path) -> Path:
     if pyproject_path.exists():
         with open(pyproject_path, "rb") as f:
             pyproject = tomllib.load(f)
-            deps = pyproject.get("project", {}).get("dependencies", [])
-
-            # Check if openenv dependency is declared
-            has_openenv = any(dep.startswith("openenv") for dep in deps)
-
-            if not has_openenv:
-                console.print(
-                    "[yellow]Warning:[/yellow] pyproject.toml doesn't list the openenv dependency",
-                )
-                console.print(
-                    "[yellow]You may need to add:[/yellow] openenv>=0.2.0",
-                )
+        deps = pyproject.get("project", {}).get("dependencies", [])
+        if not any(dep.startswith("openenv") for dep in deps):
+            console.print(
+                "[yellow]Warning:[/yellow] pyproject.toml doesn't list the openenv dependency",
+            )
+            console.print("[yellow]You may need to add:[/yellow] openenv>=0.2.0")
 
     return build_dir
 
@@ -117,7 +121,7 @@ def _prepare_inrepo_build(env_path: Path, repo_root: Path, temp_dir: Path) -> Pa
     2. Set up structure that matches expected layout
 
     Returns:
-        Path to the prepared build directory
+        `Path` to the prepared build directory.
     """
     console.print("[cyan]Preparing in-repo build...[/cyan]")
 
@@ -146,25 +150,10 @@ def _prepare_inrepo_build(env_path: Path, repo_root: Path, temp_dir: Path) -> Pa
             with open(pyproject_path, "rb") as f:
                 pyproject = tomllib.load(f)
             deps = pyproject.get("project", {}).get("dependencies", [])
+            pyproject["project"]["dependencies"] = [
+                dep for dep in deps if not _is_openenv_runtime_dependency(dep)
+            ] + ["openenv @ file:///app/env/openenv"]
 
-            # Replace openenv/openenv-core with local reference
-            new_deps = []
-            for dep in deps:
-                if (
-                    dep.startswith("openenv-core")
-                    or dep.startswith("openenv_core")
-                    or dep.startswith("openenv")
-                ):
-                    # Skip - we'll use local core
-                    continue
-                new_deps.append(dep)
-
-            # Write back with local core reference
-            pyproject["project"]["dependencies"] = new_deps + [
-                "openenv-core @ file:///app/env/openenv"
-            ]
-
-            # Write updated pyproject.toml
             try:
                 import tomli_w
             except ImportError:
@@ -174,14 +163,12 @@ def _prepare_inrepo_build(env_path: Path, repo_root: Path, temp_dir: Path) -> Pa
             else:
                 with open(pyproject_path, "wb") as out_f:
                     tomli_w.dump(pyproject, out_f)
-
                 console.print("[cyan]Updated pyproject.toml to use local core[/cyan]")
-
-                # Remove old lockfile since dependencies changed
                 lockfile = build_dir / "uv.lock"
                 if lockfile.exists():
                     lockfile.unlink()
                     console.print("[cyan]Removed outdated uv.lock[/cyan]")
+
     else:
         console.print(
             "[yellow]Warning:[/yellow] OpenEnv package not found, building without it"
@@ -280,19 +267,36 @@ def _build_docker_image(
         build_args["BUILD_MODE"] = build_mode
         build_args["ENV_NAME"] = env_path.name.replace("_env", "")
 
-        # Build Docker command
-        cmd = ["docker", "build", "-t", tag, "-f", str(dockerfile)]
-
-        if no_cache:
-            cmd.append("--no-cache")
-
-        for key, value in build_args.items():
-            cmd.extend(["--build-arg", f"{key}={value}"])
-
-        cmd.append(str(build_dir))
+        cmd = _docker_build_command(
+            tag=tag,
+            dockerfile=dockerfile,
+            build_dir=build_dir,
+            build_args=build_args,
+            no_cache=no_cache,
+        )
 
         result = _run_command(cmd, check=False)
         return result.returncode == 0
+
+
+def _docker_build_command(
+    tag: str,
+    dockerfile: Path,
+    build_dir: Path,
+    build_args: dict[str, str],
+    no_cache: bool,
+) -> list[str]:
+    """Build the docker build command for an OpenEnv environment."""
+    cmd = ["docker", "build", "-t", tag, "-f", str(dockerfile)]
+
+    if no_cache:
+        cmd.append("--no-cache")
+
+    for key, value in build_args.items():
+        cmd.extend(["--build-arg", f"{key}={value}"])
+
+    cmd.append(str(build_dir))
+    return cmd
 
 
 def _push_docker_image(tag: str, registry: str | None = None) -> bool:
@@ -306,6 +310,23 @@ def _push_docker_image(tag: str, registry: str | None = None) -> bool:
     console.print(f"[bold cyan]Pushing image:[/bold cyan] {tag}")
     result = _run_command(["docker", "push", tag], check=False)
     return result.returncode == 0
+
+
+def _parse_build_args(raw_args: list[str] | None) -> dict[str, str]:
+    """Parse Docker build args from repeated KEY=VALUE CLI options."""
+    build_args: dict[str, str] = {}
+
+    for arg in raw_args or []:
+        if "=" in arg:
+            key, value = arg.split("=", 1)
+            build_args[key] = value
+        else:
+            print(
+                f"Warning: Invalid build arg format: {arg}",
+                file=sys.stderr,
+            )
+
+    return build_args
 
 
 @app.command()
@@ -362,6 +383,8 @@ def build(
     and uv for dependency management. Run from the environment root directory.
 
     Examples:
+
+        ```bash
         # Build from environment root (recommended)
         $ cd my_env
         $ openenv build
@@ -377,6 +400,7 @@ def build(
 
         # Build from different directory
         $ openenv build envs/echo_env
+        ```
     """
     # Determine environment path (default to current directory)
     if env_path is None:
@@ -415,18 +439,7 @@ def build(
     console.print(f"[bold]Building Docker image for:[/bold] {env_path_obj.name}")
     console.print("=" * 60)
 
-    # Parse build args
-    build_args = {}
-    if build_arg:
-        for arg in build_arg:
-            if "=" in arg:
-                key, value = arg.split("=", 1)
-                build_args[key] = value
-            else:
-                print(
-                    f"Warning: Invalid build arg format: {arg}",
-                    file=sys.stderr,
-                )
+    build_args = _parse_build_args(build_arg)
 
     # Convert string paths to Path objects
     context_path_obj = Path(context) if context else None

@@ -1,8 +1,4 @@
-# Copyright (c) Meta Platforms, Inc. and affiliates.
-# All rights reserved.
-#
-# This source code is licensed under the BSD-style license found in the
-# LICENSE file in the root directory of this source tree.
+# SPDX-License-Identifier: BSD-3-Clause
 
 """Tests for pre-hook and container execution bugs.
 
@@ -14,11 +10,11 @@ These tests verify:
 These tests currently FAIL due to implementation bugs.
 """
 
-import pytest
 from typing import Any
 
+import pytest
 from openenv.core.rubrics.base import Rubric
-from openenv.core.rubrics.containers import Sequential, Gate, WeightedSum
+from openenv.core.rubrics.containers import Gate, Sequential, WeightedSum
 
 
 class TrackingRubric(Rubric):

@@ -21,11 +21,16 @@ Usage:
     uv run --project . server
 """
 
+import os
+
+from openenv.core.env_server.types import Observation
+
 # Support both in-repo and standalone imports
 try:
     # In-repo imports (when running from OpenEnv repository)
     from openenv.core.env_server.http_server import create_app
     from openenv.core.env_server.mcp_types import CallToolAction, CallToolObservation
+
     from .echo_environment import EchoEnvironment
 except ImportError:
     # Standalone imports (when environment is standalone with openenv from pip)
@@ -36,8 +41,15 @@ except ImportError:
 # Create the app with web interface and README integration
 # Pass the class (factory) instead of an instance for WebSocket session support
 # Use MCP types for action/observation since this is a pure MCP environment
+max_concurrent = int(os.getenv("MAX_CONCURRENT_ENVS", "8"))
+
 app = create_app(
-    EchoEnvironment, CallToolAction, CallToolObservation, env_name="echo_env"
+    EchoEnvironment,
+    CallToolAction,
+    CallToolObservation,
+    reset_observation_cls=Observation,
+    env_name="echo_env",
+    max_concurrent_envs=max_concurrent,
 )
 
 

@@ -1,8 +1,4 @@
-# Copyright (c) Meta Platforms, Inc. and affiliates.
-# All rights reserved.
-#
-# This source code is licensed under the BSD-style license found in the
-# LICENSE file in the root directory of this source tree.
+# SPDX-License-Identifier: BSD-3-Clause
 
 """Container rubrics for composing reward computations.
 
@@ -35,20 +31,23 @@ class Sequential(Rubric):
     and returns 0. This implements hierarchical gating patterns where
     syntax checks run before execution checks.
 
-    Usage:
+    Examples:
+
+        ```python
         rubric = Sequential(
             Gate(Compiles()),
             Gate(PassesTests(), threshold=0.5),
             WeightedSum([PassesTests(), StyleRubric()], weights=[0.7, 0.3])
         )
+        ```
     """
 
     def __init__(self, *rubrics: Rubric):
         """Initialize with rubrics to run in sequence.
 
         Args:
-            *rubrics: Rubrics to run in order. Stops and returns 0 if any
-                child returns 0.
+            *rubrics (`Rubric`):
+                Rubrics to run in order. Stops and returns 0 if any child returns 0.
         """
         super().__init__()
         for i, rubric in enumerate(rubrics):
@@ -72,14 +71,8 @@ class Sequential(Rubric):
             if _in_async_context():
                 return self._empty_async(action, observation)
             else:
-                # Pre-hooks
-                for hook in self._forward_pre_hooks:
-                    hook(self, action, observation)
-                result = 1.0
-                self.last_score = result
-                for hook in self._forward_hooks:
-                    hook(self, action, observation, result)
-                return result
+                self._run_forward_pre_hooks(action, observation)
+                return self._finish_forward(action, observation, 1.0)
 
         # Call first rubric to see if it's async
         first_result = self._rubric_list[0](action, observation)
@@ -89,13 +82,8 @@ class Sequential(Rubric):
         else:
             # Continue with sync path
             if first_result == 0.0:
-                # Pre-hooks
-                for hook in self._forward_pre_hooks:
-                    hook(self, action, observation)
-                self.last_score = 0.0
-                for hook in self._forward_hooks:
-                    hook(self, action, observation, 0.0)
-                return 0.0
+                self._run_forward_pre_hooks(action, observation)
+                return self._finish_forward(action, observation, 0.0)
 
             final_result = first_result
             for i, rubric in enumerate(self._rubric_list[1:], start=1):
@@ -106,127 +94,57 @@ class Sequential(Rubric):
                     return self._call_async_mid(
                         action,
                         observation,
-                        final_result,
                         score,
                         self._rubric_list[i + 1 :],
                     )
                 if score == 0.0:
-                    # Pre-hooks
-                    for hook in self._forward_pre_hooks:
-                        hook(self, action, observation)
-                    self.last_score = 0.0
-                    for hook in self._forward_hooks:
-                        hook(self, action, observation, 0.0)
-                    return 0.0
+                    self._run_forward_pre_hooks(action, observation)
+                    return self._finish_forward(action, observation, 0.0)
                 final_result = score
 
             # All sync - check if in async context
             if _in_async_context():
                 return self._wrap_sync_result(action, observation, final_result)
             else:
-                # Pre-hooks
-                for hook in self._forward_pre_hooks:
-                    hook(self, action, observation)
-                self.last_score = final_result
-                for hook in self._forward_hooks:
-                    hook(self, action, observation, final_result)
-                return final_result
+                self._run_forward_pre_hooks(action, observation)
+                return self._finish_forward(action, observation, final_result)
 
     async def _empty_async(self, action, observation):
         """Async path for empty sequential."""
-        for hook in self._forward_pre_hooks:
-            if inspect.iscoroutinefunction(hook):
-                await hook(self, action, observation)
-            else:
-                hook(self, action, observation)
-
-        result = 1.0
-        self.last_score = result
-
-        for hook in self._forward_hooks:
-            if inspect.iscoroutinefunction(hook):
-                await hook(self, action, observation, result)
-            else:
-                hook(self, action, observation, result)
-        return result
+        await self._run_forward_pre_hooks_async(action, observation)
+        return await self._finish_forward_async(action, observation, 1.0)
 
     async def _wrap_sync_result(self, action, observation, result):
         """Wrap sync result for async context."""
-        for hook in self._forward_pre_hooks:
-            if inspect.iscoroutinefunction(hook):
-                await hook(self, action, observation)
-            else:
-                hook(self, action, observation)
-
-        self.last_score = result
-
-        for hook in self._forward_hooks:
-            if inspect.iscoroutinefunction(hook):
-                await hook(self, action, observation, result)
-            else:
-                hook(self, action, observation, result)
-        return result
+        await self._run_forward_pre_hooks_async(action, observation)
+        return await self._finish_forward_async(action, observation, result)
 
     async def _call_async_detected(self, action, observation, first_coro):
         """Async path when first child is async."""
-        for hook in self._forward_pre_hooks:
-            if inspect.iscoroutinefunction(hook):
-                await hook(self, action, observation)
-            else:
-                hook(self, action, observation)
+        await self._run_forward_pre_hooks_async(action, observation)
 
         result = await first_coro
         if result == 0.0:
-            self.last_score = 0.0
-            for hook in self._forward_hooks:
-                if inspect.iscoroutinefunction(hook):
-                    await hook(self, action, observation, result)
-                else:
-                    hook(self, action, observation, result)
-            return 0.0
+            return await self._finish_forward_async(action, observation, result)
 
         for rubric in self._rubric_list[1:]:
             score = rubric(action, observation)
             if inspect.iscoroutine(score):
                 score = await score
             if score == 0.0:
-                self.last_score = 0.0
-                for hook in self._forward_hooks:
-                    if inspect.iscoroutinefunction(hook):
-                        await hook(self, action, observation, 0.0)
-                    else:
-                        hook(self, action, observation, 0.0)
-                return 0.0
+                return await self._finish_forward_async(action, observation, 0.0)
             result = score
 
-        self.last_score = result
-        for hook in self._forward_hooks:
-            if inspect.iscoroutinefunction(hook):
-                await hook(self, action, observation, result)
-            else:
-                hook(self, action, observation, result)
-        return result
+        return await self._finish_forward_async(action, observation, result)
 
-    async def _call_async_mid(
-        self, action, observation, current_result, first_async_coro, remaining
-    ):
+    async def _call_async_mid(self, action, observation, first_async_coro, remaining):
         """Async path when async detected mid-execution."""
-        for hook in self._forward_pre_hooks:
-            if inspect.iscoroutinefunction(hook):
-                await hook(self, action, observation)
-            else:
-                hook(self, action, observation)
+        await self._run_forward_pre_hooks_async(action, observation)
 
         # Await the first async rubric (already called)
         result = await first_async_coro
         if result == 0.0:
-            self.last_score = 0.0
-            for hook in self._forward_hooks:
-                if inspect.iscoroutinefunction(hook):
-                    await hook(self, action, observation, 0.0)
-                else:
-                    hook(self, action, observation, 0.0)
-            return 0.0
+            return await self._finish_forward_async(action, observation, 0.0)
 
         # Continue with remaining rubrics
         for rubric in remaining:
@@ -234,22 +152,10 @@ class Sequential(Rubric):
             if inspect.iscoroutine(score):
                 score = await score
             if score == 0.0:
-                self.last_score = 0.0
-                for hook in self._forward_hooks:
-                    if inspect.iscoroutinefunction(hook):
-                        await hook(self, action, observation, 0.0)
-                    else:
-                        hook(self, action, observation, 0.0)
-                return 0.0
+                return await self._finish_forward_async(action, observation, 0.0)
             result = score
 
-        self.last_score = result
-        for hook in self._forward_hooks:
-            if inspect.iscoroutinefunction(hook):
-                await hook(self, action, observation, result)
-            else:
-                hook(self, action, observation, result)
-        return result
+        return await self._finish_forward_async(action, observation, result)
 
     def __len__(self) -> int:
         return len(self._rubric_list)
@@ -263,18 +169,22 @@ class Gate(Rubric):
 
     Useful for hard constraints like "must pass 50% of tests".
 
-    Usage:
+    Examples:
+
+        ```python
         rubric = Gate(PassesTests(), threshold=0.5)
         # Returns PassesTests() score if >= 0.5, else 0.0
+        ```
     """
 
     def __init__(self, rubric: Rubric, threshold: float = 1.0):
         """Initialize with a rubric and threshold.
 
         Args:
-            rubric: The rubric to gate.
-            threshold: Minimum score required. If child returns less than
-                this, Gate returns 0. Default is 1.0 (must pass completely).
+            rubric (`Rubric`):
+                The rubric to gate.
+            threshold (`float`, *optional*, defaults to `1.0`):
+                Minimum score required. If child returns less than this, Gate returns 0.
         """
         super().__init__()
         self.rubric = rubric
@@ -297,33 +207,17 @@ class Gate(Rubric):
             return self._call_async(action, observation, score)
         else:
             # Child is sync
-            # Pre-hooks
-            for hook in self._forward_pre_hooks:
-                hook(self, action, observation)
+            self._run_forward_pre_hooks(action, observation)
             result = 0.0 if score < self.threshold else score
-            self.last_score = result
-            for hook in self._forward_hooks:
-                hook(self, action, observation, result)
-            return result
+            return self._finish_forward(action, observation, result)
 
     async def _call_async(self, action, observation, score_coro):
         """Async path."""
-        for hook in self._forward_pre_hooks:
-            if inspect.iscoroutinefunction(hook):
-                await hook(self, action, observation)
-            else:
-                hook(self, action, observation)
+        await self._run_forward_pre_hooks_async(action, observation)
 
         score = await score_coro
         result = 0.0 if score < self.threshold else score
-        self.last_score = result
-
-        for hook in self._forward_hooks:
-            if inspect.iscoroutinefunction(hook):
-                await hook(self, action, observation, result)
-            else:
-                hook(self, action, observation, result)
-        return result
+        return await self._finish_forward_async(action, observation, result)
 
 
 class WeightedSum(Rubric):
@@ -331,19 +225,24 @@ class WeightedSum(Rubric):
 
     Standard aggregation pattern for multi-criteria evaluation.
 
-    Usage:
+    Examples:
+
+        ```python
         rubric = WeightedSum(
             [PassesTests(), StyleRubric()],
             weights=[0.7, 0.3]
         )
+        ```
     """
 
     def __init__(self, rubrics: List[Rubric], weights: List[float]):
         """Initialize with rubrics and weights.
 
         Args:
-            rubrics: List of rubrics to combine.
-            weights: Weight for each rubric. Must sum to 1.0.
+            rubrics (`list[``Rubric``]`):
+                List of rubrics to combine.
+            weights (`list[float]`):
+                Weight for each rubric. Must sum to 1.0.
 
         Raises:
             ValueError: If lengths don't match or weights don't sum to 1.0.
@@ -383,24 +282,15 @@ class WeightedSum(Rubric):
             return self._call_async(action, observation, results)
         else:
             # Sync path
-            # Pre-hooks
-            for hook in self._forward_pre_hooks:
-                hook(self, action, observation)
+            self._run_forward_pre_hooks(action, observation)
             total = 0.0
             for score, weight in zip(results, self._weights):
                 total += score * weight
-            self.last_score = total
-            for hook in self._forward_hooks:
-                hook(self, action, observation, total)
-            return total
+            return self._finish_forward(action, observation, total)
 
     async def _call_async(self, action, observation, results):
         """Async path with parallel execution."""
-        for hook in self._forward_pre_hooks:
-            if inspect.iscoroutinefunction(hook):
-                await hook(self, action, observation)
-            else:
-                hook(self, action, observation)
+        await self._run_forward_pre_hooks_async(action, observation)
 
         # Separate sync and async results
         async_tasks = []
@@ -425,14 +315,7 @@ class WeightedSum(Rubric):
         for score, weight in zip(scores, self._weights):
             total += score * weight
 
-        self.last_score = total
-
-        for hook in self._forward_hooks:
-            if inspect.iscoroutinefunction(hook):
-                await hook(self, action, observation, total)
-            else:
-                hook(self, action, observation, total)
-        return total
+        return await self._finish_forward_async(action, observation, total)
 
     @property
     def weights(self) -> List[float]:
@@ -446,7 +329,9 @@ class RubricList(Rubric):
     Analogous to nn.ModuleList. Does not define aggregation - use within
     a parent rubric that implements custom logic.
 
-    Usage:
+    Examples:
+
+        ```python
         class MultiGameRubric(Rubric):
             def __init__(self, games: List[str]):
                 super().__init__()
@@ -454,13 +339,15 @@ class RubricList(Rubric):
 
             def forward(self, action, obs) -> float:
                 return self.games[obs.game_index](action, obs)
+        ```
     """
 
     def __init__(self, rubrics: List[Rubric] = None):
         """Initialize with optional list of rubrics.
 
         Args:
-            rubrics: Optional list of rubrics to start with.
+            rubrics (`list[``Rubric``]`, *optional*):
+                List of rubrics to start with.
         """
         super().__init__()
         self._rubrics: List[Rubric] = []
@@ -502,7 +389,9 @@ class RubricDict(Rubric):
     Analogous to nn.ModuleDict. Enables keyed access for multi-task
     environments where different tasks require different rubrics.
 
-    Usage:
+    Examples:
+
+        ```python
         class AtariRubric(Rubric):
             def __init__(self):
                 super().__init__()
@@ -516,13 +405,15 @@ class RubricDict(Rubric):
                 return self.games[obs.game_id](action, obs)
 
         # Access: env.rubric.games["pong"]
+        ```
     """
 
     def __init__(self, rubrics: Dict[str, Rubric] = None):
         """Initialize with optional dictionary of rubrics.
 
         Args:
-            rubrics: Optional dictionary mapping names to rubrics.
+            rubrics (`dict[str, ``Rubric``]`, *optional*):
+                Dictionary mapping names to rubrics.
         """
         super().__init__()
         self._rubric_dict: Dict[str, Rubric] = {}

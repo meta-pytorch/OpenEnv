@@ -1,8 +1,4 @@
-# Copyright (c) Meta Platforms, Inc. and affiliates.
-# All rights reserved.
-#
-# This source code is licensed under the BSD-style license found in the
-# LICENSE file in the root directory of this source tree.
+# SPDX-License-Identifier: BSD-3-Clause
 
 """
 __ENV_TITLE_NAME__ Environment Implementation.
@@ -16,7 +12,10 @@ from uuid import uuid4
 from openenv.core.env_server.interfaces import Environment
 from openenv.core.env_server.types import State
 
-from models import __ENV_CLASS_NAME__Action, __ENV_CLASS_NAME__Observation
+try:
+    from ..models import __ENV_CLASS_NAME__Action, __ENV_CLASS_NAME__Observation
+except ImportError:
+    from models import __ENV_CLASS_NAME__Action, __ENV_CLASS_NAME__Observation
 
 
 class __ENV_CLASS_NAME__Environment(Environment):
@@ -79,8 +78,8 @@ class __ENV_CLASS_NAME__Environment(Environment):
         message = action.message
         length = len(message)
 
-        # Simple reward: longer messages get higher rewards
-        reward = length * 0.1
+        # Simple bounded reward: longer messages get higher rewards up to 1.0
+        reward = min(length * 0.1, 1.0)
 
         return __ENV_CLASS_NAME__Observation(
             echoed_message=message,
