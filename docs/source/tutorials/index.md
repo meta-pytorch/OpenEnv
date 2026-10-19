@@ -4,10 +4,12 @@ Choose a learning path from the sidebar:
 
 - **Basics:** start with [Hello World](openenv-tutorial), build [Your First Environment](../guides/first-environment) and [deploy it](../getting_started/environment-builder).
 - **Training:** [the ways to train and the supported frameworks](../guides/training), then train a [reasoning model](end-to-end-walkthrough), play [Wordle](wordle-grpo) or [2048](rl-training-2048) with GRPO, or [collect rollouts for SFT](sft-warmup). Each framework's own examples (ART, Miles, Oumi, SkyRL, torchforge, TRL, Unsloth, …) are listed in [Integrations](../guides/training#integrations).
-- **Harnesses:** [pick a path](harnesses): train with the trainer's own loop on [BrowserGym](browsergym-harness) (white-box), train real agents through [Harbor](harbor-harness) (black-box), or [evaluate Claude Code inside an environment](claude-code-harness). The [OpenCode](opencode-agent-grpo) and [Pi](pi-agent-grpo) tutorials are deprecated.
+- **Harnesses:** [pick a path](harnesses): train with the trainer's own loop on [BrowserGym](browsergym-harness) (white-box), train real agents through [Harbor](harbor-harness) (black-box), or [evaluate Claude Code inside an environment](claude-code-harness).
 - **Evals:** follow [Evaluating with Environments](evaluation-inspect).
 
 For [MCP environments](mcp-environment) and [rubrics](rubrics), see Concepts in the sidebar.
+
+For end-to-end projects built on OpenEnv environments, from designing an environment to training against it at scale, see [FineEnvs](https://github.com/adithya-s-k/FineEnvs) and its environments, datasets and models on [the Hub](https://huggingface.co/FineEnvs).
 
 ## New to OpenEnv? Start Here
 
@@ -37,6 +39,4 @@ Already familiar with the basics? These tutorials cover specific workflows in de
 | [White-Box: Train a Web Agent on BrowserGym](browsergym-harness) | Train a vision-language model on BrowserGym web tasks with TRL's `GRPOTrainer` and `environment_factory`, so TRL runs the multi-turn tool loop. | Yes | — |
 | [Black-Box: Train Real Agents with Harbor](harbor-harness) | Run real agents (OpenCode, Claude Code, Codex, …) on Harbor tasks with their token ids and logprobs captured, and train the model behind them with TRL's `AsyncGRPOTrainer`. | Yes | — |
 | [Evaluate Claude Code in an Environment](claude-code-harness) | Run Claude Code inside an OpenEnv environment with `HarnessEnvironment` (RFC 005), inject the environment's tools over MCP, and evaluate it on τ²-bench against a simulated customer. Also serves it in production mode. | No | — |
-| [Training a Real Coding Agent (deprecated)](opencode-agent-grpo) | Deprecated, removed in OpenEnv 0.9.0: use [Harbor](https://huggingface.co/docs/openenv/environments/harbor) with `harness="opencode"`. Train the actual OpenCode agent (black-box, loop-owning) with TRL's `AsyncGRPOTrainer`: a transparent proxy captures each turn's token ids and logprobs while the agent runs its own tool loop. | Yes | — |
 | [Collect Rollouts for SFT](sft-warmup) | Run a teacher model to collect reward-labeled rollouts, filter them, and fine-tune a student with TRL's `SFTTrainer` as a warm-start for GRPO. | Yes | [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/huggingface/OpenEnv/blob/main/examples/sft_warmup.ipynb) |
-| [Training a Real Coding Agent (Pi, deprecated)](pi-agent-grpo) | Deprecated, removed in OpenEnv 0.9.0: use [Harbor](https://huggingface.co/docs/openenv/environments/harbor) with `harness="pi"`. Train the actual Pi agent (black-box, loop-owning) with TRL's AsyncGRPOTrainer: a transparent proxy captures each turn's token ids and logprobs while the agent runs its own tool loop. | Yes | — |
