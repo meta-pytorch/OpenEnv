@@ -13,8 +13,6 @@ ENV_APPS = [
     "echo_env.server.app",
     "finqa_env.server.app",
     "jupyter_env.server.app",
-    "opencode_env.server.app",
-    "pi_env.server.app",
     "terminus_env.server.app",
 ]
 
