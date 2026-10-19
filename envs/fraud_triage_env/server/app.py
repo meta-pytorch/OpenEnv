@@ -11,13 +11,13 @@ from openenv.core.env_server import create_app
 # Support both in-repo and standalone imports
 try:
     # In-repo imports (when running from OpenEnv repository)
-    from ..models import FraudTriageAction, FraudTriageObservation
+    from ..models import FraudTriageAction, FraudTriageObservation, FraudTriageState
     from .fraud_triage_environment import FraudTriageEnvironment
 except ImportError as e:
     if "relative import" not in str(e) and "no known parent package" not in str(e):
         raise
     # Standalone imports (when running via uvicorn server.app:app)
-    from models import FraudTriageAction, FraudTriageObservation
+    from models import FraudTriageAction, FraudTriageObservation, FraudTriageState
     from server.fraud_triage_environment import FraudTriageEnvironment
 
 # Create the FastAPI app.
@@ -28,6 +28,7 @@ app = create_app(
     FraudTriageAction,
     FraudTriageObservation,
     env_name="fraud_triage_env",
+    state_cls=FraudTriageState,
 )
 
 
