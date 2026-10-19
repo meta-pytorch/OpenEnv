@@ -15,6 +15,10 @@ tags:
 
 A gridworld maze where the agent must navigate from a start cell to an exit while avoiding walls.
 
+![Maze web playground](https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/openenv/maze.png)
+
+*The `/web` playground after a few steps: the maze, the agent, the exit and one button per legal move.*
+
 ## Maze Layout
 
 The default environment ships with a single 8x8 maze:
