@@ -9,7 +9,7 @@ on:
 
 jobs:
   build:
-    uses: huggingface/doc-builder/.github/workflows/build_main_documentation.yml@6108e850ae1cf2f71bb0815a600bcd50c39abfa7  # main
+    uses: huggingface/doc-builder/.github/workflows/build_main_documentation.yml@90ddd199e07144a13408c523680c76987343c95f  # main
     with:
       commit_sha: ${{ github.sha }}
       package: openenv

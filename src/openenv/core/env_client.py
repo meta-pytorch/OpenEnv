@@ -39,6 +39,7 @@ import json
 import os
 import time
 from abc import ABC, abstractmethod
+from collections.abc import Coroutine
 from contextlib import suppress
 from typing import Any, Callable, Dict, Generic, Optional, Type, TYPE_CHECKING, TypeVar
 from urllib.parse import urlsplit
@@ -54,6 +55,8 @@ if TYPE_CHECKING:
     from .sync_client import SyncEnvClient
 
 from websockets.asyncio.client import connect as ws_connect
+from websockets.exceptions import ConnectionClosed
+from websockets.protocol import State
 
 ActT = TypeVar("ActT")
 ObsT = TypeVar("ObsT")
@@ -99,6 +102,87 @@ class _AutoAsyncResult(Generic[ResultT]):
         if self._resolved:
             return repr(self._result)
         return f"<{type(self).__name__} pending>"
+
+
+class _BootstrapResult(Coroutine, Generic[EnvClientT]):
+    """Bootstrap handle returned by the client factory methods.
+
+    Returned by [`~openenv.core.EnvClient.from_docker_image`] and
+    [`~openenv.core.EnvClient.from_env`]. Resolving the handle is what actually
+    starts the container / Space and connects the WebSocket, so a single factory
+    call serves both execution modes:
+
+    - `await handle` connects on the running event loop and returns the connected
+      async client (unchanged async behavior).
+    - `handle.sync()` connects on the sync background loop and returns a
+      `SyncEnvClient`, mirroring the instance-level [`~openenv.core.EnvClient.sync`].
+
+    The handle is a full coroutine (it implements `send` / `throw` / `close`), so
+    it is a drop-in for the previous `async def` factories: `asyncio.run(...)`,
+    `run_async_safely(...)`, and bare `await` all accept it, in addition to the
+    new `.sync()` chain. Bootstrap is lazy — the underlying coroutine (and the
+    container/Space start) is created only when the handle is driven or `.sync()`
+    is called.
+    """
+
+    def __init__(self, bootstrap: Callable[[], EnvClientT]):
+        self._bootstrap = bootstrap
+        self._coro: Optional[Coroutine[Any, Any, EnvClientT]] = None
+        self._used = False
+
+    def _consume(self) -> EnvClientT:
+        """Run the bootstrap exactly once; a second resolve is a programming error.
+
+        Mirrors native coroutine semantics (a coroutine cannot be awaited twice)
+        so that a handle re-driven via a second `.sync()`, or `await` followed by
+        `.sync()`, raises instead of silently starting a second container/Space.
+        """
+        if self._used:
+            raise RuntimeError(
+                "This bootstrap handle has already been resolved; call the "
+                "factory again to start a new environment."
+            )
+        self._used = True
+        return self._bootstrap()
+
+    async def _resolve_async(self) -> EnvClientT:
+        client = self._consume()
+        await client.connect()
+        return client
+
+    def _ensure_coro(self) -> "Coroutine[Any, Any, EnvClientT]":
+        if self._coro is None:
+            self._coro = self._resolve_async()
+        return self._coro
+
+    def __await__(self):
+        return self._ensure_coro().__await__()
+
+    def send(self, value: Any) -> Any:
+        return self._ensure_coro().send(value)
+
+    def throw(self, *args: Any, **kwargs: Any) -> Any:
+        return self._ensure_coro().throw(*args, **kwargs)
+
+    def close(self) -> None:
+        if self._coro is not None:
+            self._coro.close()
+
+    def sync(self) -> "SyncEnvClient":
+        client = self._consume()
+        try:
+            client._run_sync(client._connect_async)
+        except Exception:
+            # _consume() already started the provider. On the async path
+            # _connect_async releases it, but here the failure may be the sync
+            # loop setup itself (before _connect_async runs), so stop the
+            # provider directly rather than routing through the broken loop.
+            client._stop_provider_best_effort()
+            raise
+        return client.sync()
+
+    def __repr__(self) -> str:
+        return f"<{type(self).__name__} pending (await, run, or call .sync())>"
 
 
 def _normalize_mode(mode: Optional[str]) -> str:
@@ -153,6 +237,34 @@ def _required_start_container_parameters(provider: Any) -> list[str]:
     ]
 
 
+async def _best_effort_close(ws: ClientConnection) -> None:
+    """Close a socket without letting a slow handshake or failure propagate.
+
+    Scheduled as a background task (never awaited directly) so a dropped
+    socket's close handshake can't hold up the caller that triggered the
+    drop -- see `EnvClient._receive()`. `EnvClient._close_async()` awaits
+    any still-running instance of this task before it returns, so a real
+    `close()` call does wait for the handshake; only the caller that
+    happened to trigger the drop is spared. `CancelledError` is caught
+    alongside `Exception` because that awaiting is exactly what would
+    otherwise cancel this mid-handshake if a caller called `close()`
+    concurrently.
+    """
+    try:
+        await ws.close()
+    except (Exception, asyncio.CancelledError):
+        pass  # Best effort
+
+
+async def _best_effort_graceful_close(ws: ClientConnection) -> None:
+    """Notify the server, then close a socket without propagating failures."""
+    try:
+        await ws.send(json.dumps({"type": "close"}))
+    except (Exception, asyncio.CancelledError):
+        pass  # Best effort
+    await _best_effort_close(ws)
+
+
 class EnvClient(ABC, Generic[ActT, ObsT, StateT]):
     """
     Async environment client for persistent sessions.
@@ -204,6 +316,7 @@ class EnvClient(ABC, Generic[ActT, ObsT, StateT]):
         websocket_ping_timeout_s: Optional[float] = 20.0,
         provider: Optional["ContainerProvider | RuntimeProvider"] = None,
         mode: Optional[str] = None,
+        headers: Optional[Dict[str, str]] = None,
     ):
         """
         Initialize environment client.
@@ -231,6 +344,9 @@ class EnvClient(ABC, Generic[ActT, ObsT, StateT]):
                 `'production'` for MCP JSON-RPC protocol. Can also be set via the
                 `OPENENV_CLIENT_MODE` environment variable. Constructor parameter takes
                 precedence over environment variable. Case-insensitive.
+            headers (`dict[str, str]`, *optional*):
+                Extra HTTP headers sent when opening the connection, e.g.
+                `{"Authorization": f"Bearer {hf_token}"}` for a private Hugging Face Space.
         """
         if base_url is None and provider is None:
             raise ValueError("EnvClient requires either base_url or provider.")
@@ -247,15 +363,35 @@ class EnvClient(ABC, Generic[ActT, ObsT, StateT]):
         )  # Convert MB to bytes
         self._websocket_ping_interval_s = websocket_ping_interval_s
         self._websocket_ping_timeout_s = websocket_ping_timeout_s
+        self._headers = headers
         self._provider = provider
+        self._provider_stopped = False
+        self._provider_cleanup_pending = False
         self._start_provider_on_connect = base_url is None
         self._child_clients: list[EnvClient[Any, Any, Any]] = []
         self._ws: Optional[ClientConnection] = None
         self._execution_mode: Optional[str] = None
         self._sync_client: Optional["SyncEnvClient[ActT, ObsT, StateT]"] = None
         self._ws_loop: Optional[asyncio.AbstractEventLoop] = None
+        # Strong references for fire-and-forget socket closes (see _receive),
+        # so the task isn't garbage-collected mid-close. Discarded on done.
+        self._pending_close_tasks: set[asyncio.Task] = set()
         if base_url is not None:
             self._set_base_url(base_url)
+
+    @property
+    def base_url(self) -> Optional[str]:
+        """Public read-only URL of the environment server this client targets.
+
+        Returns the normalized `http(s)`/`ws(s)` base URL (no trailing slash),
+        or `None` when the client was created with a provider but has not yet
+        started its container (the URL is assigned lazily on `connect()`).
+
+        This is the public counterpart to the private `self._base_url`; the
+        previously-public `base_url` attribute was dropped in the `core`
+        refactor, leaving sync consumers with no way to read the URL back.
+        """
+        return self._base_url
 
     def _set_base_url(self, base_url: str) -> None:
         self._base_url = base_url.rstrip("/")
@@ -263,6 +399,16 @@ class EnvClient(ABC, Generic[ActT, ObsT, StateT]):
         self._ws_url = f"{ws_url}/ws"
 
     def _start_provider_if_needed(self) -> None:
+        # A missing URL does not mean the previous resource was released.
+        # Retry its cleanup before start can overwrite the provider's handle.
+        if self._provider_cleanup_pending:
+            if not self._start_provider_on_connect:
+                raise RuntimeError(
+                    "Provider cleanup is pending for this client with an existing "
+                    "base URL. Retry close() to finish cleanup, then create a new "
+                    "client instead of reconnecting to the old URL."
+                )
+            self._stop_provider()
         if self._ws_url is not None:
             return
         if self._provider is None:
@@ -277,9 +423,11 @@ class EnvClient(ABC, Generic[ActT, ObsT, StateT]):
                     f"{required}. Start the provider manually and pass base_url, "
                     "or configure a provider with a constructor-owned image/source."
                 )
+            self._provider_stopped = False
             base_url = self._provider.start_container()
             self._provider.wait_for_ready(base_url)
         elif hasattr(self._provider, "start"):
+            self._provider_stopped = False
             base_url = self._provider.start()
             self._provider.wait_for_ready()
         else:
@@ -287,31 +435,39 @@ class EnvClient(ABC, Generic[ActT, ObsT, StateT]):
         self._set_base_url(base_url)
 
     def _create_session_client(self) -> "EnvClient[Any, Any, Any]":
-        self._start_provider_if_needed()
-        if self._base_url is None:
-            raise RuntimeError("EnvClient has no base URL.")
+        # Match _start_provider_if_needed's startup condition. A provider with
+        # an existing URL may already be serving the parent or other children.
+        starts_provider_here = self._provider is not None and self._ws_url is None
+        try:
+            self._start_provider_if_needed()
+            if self._base_url is None:
+                raise RuntimeError("EnvClient has no base URL.")
 
-        signature = inspect.signature(type(self))
-        accepts_kwargs = any(
-            parameter.kind == inspect.Parameter.VAR_KEYWORD
-            for parameter in signature.parameters.values()
-        )
-        candidate_kwargs = {
-            "base_url": self._base_url,
-            "connect_timeout_s": self._connect_timeout,
-            "message_timeout_s": self._message_timeout,
-            "max_message_size_mb": self._max_message_size / (1024 * 1024),
-            "websocket_ping_interval_s": self._websocket_ping_interval_s,
-            "websocket_ping_timeout_s": self._websocket_ping_timeout_s,
-            "mode": self._mode,
-        }
-        constructor_kwargs = {}
-        for name, value in candidate_kwargs.items():
-            if accepts_kwargs or name in signature.parameters:
-                constructor_kwargs[name] = value
+            signature = inspect.signature(type(self))
+            accepts_kwargs = any(
+                parameter.kind == inspect.Parameter.VAR_KEYWORD
+                for parameter in signature.parameters.values()
+            )
+            candidate_kwargs = {
+                "base_url": self._base_url,
+                "connect_timeout_s": self._connect_timeout,
+                "message_timeout_s": self._message_timeout,
+                "max_message_size_mb": self._max_message_size / (1024 * 1024),
+                "websocket_ping_interval_s": self._websocket_ping_interval_s,
+                "websocket_ping_timeout_s": self._websocket_ping_timeout_s,
+                "mode": self._mode,
+                "headers": self._headers,
+            }
+            constructor_kwargs = {}
+            for name, value in candidate_kwargs.items():
+                if accepts_kwargs or name in signature.parameters:
+                    constructor_kwargs[name] = value
 
-        client = type(self)(**constructor_kwargs)
-        return client
+            return type(self)(**constructor_kwargs)
+        except Exception:
+            if starts_provider_here and not self._provider_cleanup_pending:
+                self._stop_provider_best_effort()
+            raise
 
     async def new_session(self) -> "EnvClient[Any, Any, Any]":
         """
@@ -396,7 +552,16 @@ class EnvClient(ABC, Generic[ActT, ObsT, StateT]):
             ConnectionError: If connection cannot be established
         """
         if self._ws is not None:
-            if self._ws_loop is asyncio.get_running_loop():
+            if self._ws.state in (State.CLOSING, State.CLOSED):
+                # Closed by the far end: a keepalive timeout, a tunnel dropping
+                # the socket, the server restarting. The object is still not
+                # None, so without this check it stays cached and every later
+                # call raises `ConnectionClosed` for the rest of the process's
+                # life. Only a demonstrably closed socket is dropped, so one
+                # still CONNECTING is left alone.
+                self._ws = None
+                self._ws_loop = None
+            elif self._ws_loop is asyncio.get_running_loop():
                 return self
             # Connected from a different event loop than the one running
             # now -- e.g. `client = await Client.from_env(...)` inside
@@ -410,10 +575,21 @@ class EnvClient(ABC, Generic[ActT, ObsT, StateT]):
             self._ws = None
             self._ws_loop = None
 
+        # A timed-out request drops its socket immediately but closes it in the
+        # background so the timeout itself remains prompt. Wait for that close
+        # before opening a replacement: the old server-side session continues
+        # occupying a capacity slot until the close handshake finishes, and
+        # many environments allow only one session.
+        await self._drain_pending_close_tasks()
+
         try:
             self._start_provider_if_needed()
         except Exception:
-            await self.close()
+            # A failed cleanup retry must propagate without attempting stop
+            # again. For a new startup failure, preserve its original error.
+            if not self._provider_cleanup_pending:
+                with suppress(Exception):
+                    await self.close()
             raise
 
         assert self._ws_url is not None
@@ -433,6 +609,7 @@ class EnvClient(ABC, Generic[ActT, ObsT, StateT]):
                 max_size=self._max_message_size,
                 ping_interval=self._websocket_ping_interval_s,
                 ping_timeout=self._websocket_ping_timeout_s,
+                additional_headers=self._headers,
                 **connect_kwargs,
             )
             self._ws_loop = asyncio.get_running_loop()
@@ -445,24 +622,51 @@ class EnvClient(ABC, Generic[ActT, ObsT, StateT]):
     def disconnect(self) -> Any:
         return self._dispatch(self._disconnect_async)
 
+    def _schedule_socket_close(
+        self, ws: ClientConnection, *, notify_server: bool = False
+    ) -> asyncio.Task[None]:
+        """Schedule and track a socket close until its handshake finishes."""
+        close_coro = (
+            _best_effort_graceful_close(ws) if notify_server else _best_effort_close(ws)
+        )
+        close_task = asyncio.create_task(close_coro)
+        self._pending_close_tasks.add(close_task)
+        close_task.add_done_callback(self._pending_close_tasks.discard)
+        return close_task
+
     async def _disconnect_async(self) -> None:
         """Close the WebSocket connection."""
         if self._ws is not None:
             ws = self._ws
             ws_loop = self._ws_loop
-            same_loop = ws_loop is asyncio.get_running_loop()
-            try:
-                if same_loop:
-                    await ws.send(json.dumps({"type": "close"}))
-            except Exception:
-                pass  # Best effort
-            try:
-                if same_loop:
-                    await ws.close()
-            except Exception:
-                pass
+            # Detach first so cancellation during the close handshake cannot
+            # leave a stale socket cached for a later operation.
             self._ws = None
             self._ws_loop = None
+            same_loop = ws_loop is asyncio.get_running_loop()
+            if same_loop:
+                # Keep ownership of the handshake if this caller is cancelled.
+                # A later close/reconnect drains the task before tearing down
+                # the loop or opening a replacement server session.
+                close_task = self._schedule_socket_close(ws, notify_server=True)
+                await asyncio.shield(close_task)
+
+    async def _drain_pending_close_tasks(self) -> None:
+        """Wait for background socket closes owned by the current event loop.
+
+        Shielding keeps cancellation of the caller from cancelling the close
+        tasks themselves. This matters both before reconnecting, when the old
+        server session must release its capacity slot, and during explicit
+        client shutdown.
+        """
+        loop = asyncio.get_running_loop()
+        tasks = [
+            task
+            for task in tuple(self._pending_close_tasks)
+            if not task.done() and task.get_loop() is loop
+        ]
+        if tasks:
+            await asyncio.shield(asyncio.gather(*tasks, return_exceptions=True))
 
     async def _ensure_connected(self) -> None:
         """Ensure WebSocket connection is established on the current loop.
@@ -482,14 +686,49 @@ class EnvClient(ABC, Generic[ActT, ObsT, StateT]):
         await self._ws.send(json.dumps(message))
 
     async def _receive(self) -> Dict[str, Any]:
-        """Receive and parse a message from the WebSocket."""
+        """Receive the response on the same WebSocket that carried the request.
+
+        Reconnecting here would wait on a fresh socket where the request was
+        never sent. The next complete operation may reconnect in `_send()`.
+        """
         assert self._ws is not None
-        raw = await asyncio.wait_for(self._ws.recv(), timeout=self._message_timeout)
+        try:
+            raw = await asyncio.wait_for(self._ws.recv(), timeout=self._message_timeout)
+        except (asyncio.TimeoutError, asyncio.CancelledError):
+            # The server may still write the response for this request to the
+            # socket after we give up waiting on it. If we left the socket
+            # open, the next call's `_receive()` would read that stale frame
+            # and silently pair it with an unrelated request -- and every
+            # response after that would be shifted by one for the life of
+            # the connection. Drop the socket so the next `_send()` opens a
+            # fresh one instead of reusing a desynced one.
+            #
+            # An outer `asyncio.wait_for` around the whole call (e.g. a
+            # caller-imposed deadline on step()) cancels this await with
+            # CancelledError, not our own message_timeout's TimeoutError --
+            # same desync, different exception, so both are caught here.
+            ws = self._ws
+            self._ws = None
+            self._ws_loop = None
+            # Fire-and-forget: `close()` waits out the library's close
+            # handshake (`close_timeout`, 10s by default) if the server is
+            # slow to ack, and *awaiting* that here would hold up this
+            # exception -- so an outer `asyncio.wait_for(..., timeout=50ms)`
+            # would actually block for up to 10s before its deadline was
+            # honored. Scheduling it lets the exception propagate
+            # immediately while the close still happens in the background.
+            self._schedule_socket_close(ws)
+            raise
         return json.loads(raw)
 
     async def _send_and_receive(self, message: Dict[str, Any]) -> Dict[str, Any]:
         """Send a message and wait for response."""
-        await self._send(message)
+        try:
+            await self._send(message)
+        except ConnectionClosed:
+            # A refused session (e.g. at capacity) sends an error frame then closes. If
+            # the close beats our send, read the queued frame (recv() re-raises if none).
+            pass
         response = await self._receive()
 
         # Check for error response
@@ -503,14 +742,48 @@ class EnvClient(ABC, Generic[ActT, ObsT, StateT]):
         return response
 
     @classmethod
-    async def from_docker_image(
+    def _bootstrap_container(
         cls: Type[EnvClientT],
         image: str,
         provider: Optional["ContainerProvider"] = None,
         **kwargs: Any,
     ) -> EnvClientT:
+        """Start a Docker container and build an *unconnected* client for it.
+
+        Invoked lazily by the `from_docker_image` bootstrap handle when it is
+        awaited or `.sync()`'d: the container start / readiness wait is plain
+        blocking code, so the only thing that differs between the async and sync
+        resolution paths is how the WebSocket is connected (awaited vs. run sync).
+        """
+        if provider is None:
+            provider = LocalDockerProvider()
+
+        try:
+            # Start container, wait for readiness, then build the client.
+            base_url = provider.start_container(image, **kwargs)
+            provider.wait_for_ready(base_url)
+            return cls(base_url=base_url, provider=provider)
+        except Exception:
+            # No EnvClient exists yet for the caller to close(), so release the
+            # container here if start / readiness / construction fails.
+            provider.stop_container()
+            raise
+
+    @classmethod
+    def from_docker_image(
+        cls: Type[EnvClientT],
+        image: str,
+        provider: Optional["ContainerProvider"] = None,
+        **kwargs: Any,
+    ) -> "_BootstrapResult[EnvClientT]":
         """
         Create an environment client by spinning up a Docker container.
+
+        Returns a bootstrap handle so the same call works from both async and
+        synchronous code: `await` it for the connected async client, or chain
+        `.sync()` for a connected `SyncEnvClient` (e.g. a TRL GRPO rollout loop
+        that cannot `await`). Bootstrap is lazy — the container starts when the
+        handle is resolved.
 
         Args:
             image (`str`):
@@ -521,25 +794,26 @@ class EnvClient(ABC, Generic[ActT, ObsT, StateT]):
                 Additional arguments to pass to `provider.start_container()`.
 
         Returns:
-            Connected client instance
+            `_BootstrapResult`: `await` for a connected async client, or call
+            `.sync()` for a connected `SyncEnvClient`.
+
+        Examples:
+
+        ```python
+        # Async
+        env = await MyEnv.from_docker_image("coding-env:latest")
+
+        # Sync
+        env = MyEnv.from_docker_image("coding-env:latest").sync()
+        result = env.reset()
+        ```
         """
-        if provider is None:
-            provider = LocalDockerProvider()
-
-        # Start container
-        base_url = provider.start_container(image, **kwargs)
-
-        # Wait for server to be ready
-        provider.wait_for_ready(base_url)
-
-        # Create and connect client
-        client = cls(base_url=base_url, provider=provider)
-        await client.connect()
-
-        return client
+        return _BootstrapResult(
+            lambda: cls._bootstrap_container(image, provider, **kwargs)
+        )
 
     @classmethod
-    async def from_env(
+    def _bootstrap_env(
         cls: Type[EnvClientT],
         repo_id: str,
         *,
@@ -547,43 +821,13 @@ class EnvClient(ABC, Generic[ActT, ObsT, StateT]):
         provider: Optional["ContainerProvider | RuntimeProvider"] = None,
         **provider_kwargs: Any,
     ) -> EnvClientT:
-        """
-        Create a client from a Hugging Face Space.
+        """Start a HF Space (docker or uv) and build an *unconnected* client.
 
-        Args:
-            repo_id (`str`):
-                Hugging Face space identifier `{org}/{space}`.
-            use_docker (`bool`, *optional*, defaults to `True`):
-                When `True`, pull from the HF registry and launch via `LocalDockerProvider`.
-                When `False`, run the space locally with `UVProvider`.
-            provider (`ContainerProvider` or `RuntimeProvider`, *optional*):
-                Provider instance to reuse. Must be a `ContainerProvider` when
-                `use_docker=True` and a `RuntimeProvider` otherwise.
-            **provider_kwargs:
-                Additional keyword arguments forwarded to either the container provider's
-                `start_container` (docker) or to the `UVProvider` constructor/start (uv).
-                When `use_docker=False`, the `project_path` argument can be used to override
-                the default git URL (`git+https://huggingface.co/spaces/{repo_id}`).
-
-        Returns:
-            Connected client instance
-
-        Examples:
-
-            ```python
-            # Pull and run from HF Docker registry
-            env = await MyEnv.from_env("openenv/echo-env")
-
-            # Run locally with UV (clones the space)
-            env = await MyEnv.from_env("openenv/echo-env", use_docker=False)
-
-            # Run from a local checkout
-            env = await MyEnv.from_env(
-                "openenv/echo-env",
-                use_docker=False,
-                project_path="/path/to/local/checkout"
-            )
-            ```
+        Invoked lazily by the `from_env` bootstrap handle; see
+        `_bootstrap_container` for the same split rationale. On a startup
+        failure the spawned process (and, for a git+ `project_path`, the temp
+        clone directory) is released before re-raising; a later *connection*
+        failure is cleaned up by `_connect_async` via `close()`.
         """
         # Extract start args that apply to both providers
         start_args = {}
@@ -596,14 +840,17 @@ class EnvClient(ABC, Generic[ActT, ObsT, StateT]):
             docker_provider = provider or LocalDockerProvider()
             tag = provider_kwargs.pop("tag", "latest")
             image = f"registry.hf.space/{repo_id.replace('/', '-')}:{tag}"
-            base_url = docker_provider.start_container(
-                image, **start_args, **provider_kwargs
-            )
-            docker_provider.wait_for_ready(base_url)
-
-            client = cls(base_url=base_url, provider=docker_provider)
-            await client.connect()
-            return client
+            try:
+                base_url = docker_provider.start_container(
+                    image, **start_args, **provider_kwargs
+                )
+                docker_provider.wait_for_ready(base_url)
+                return cls(base_url=base_url, provider=docker_provider)
+            except Exception:
+                # No EnvClient exists yet for the caller to close(), so release
+                # the container here if start / readiness / construction fails.
+                docker_provider.stop_container()
+                raise
         else:
             # UV mode: clone and run with uv
             if provider is None:
@@ -633,16 +880,78 @@ class EnvClient(ABC, Generic[ActT, ObsT, StateT]):
                     provider.wait_for_ready(
                         timeout_s=max(0.0, deadline - time.monotonic())
                     )
-
-                client = cls(base_url=base_url, provider=provider)
-                await client.connect()
+                return cls(base_url=base_url, provider=provider)
             except Exception:
-                # No EnvClient may exist yet for the caller to close(), so
-                # this is the only chance to release the spawned process and
-                # (for a git+ project_path) the temp clone directory.
+                # No EnvClient exists yet for the caller to close(), so this is
+                # the only chance to release the spawned process and (for a
+                # git+ project_path) the temp clone directory. Covers start,
+                # readiness, and client construction (e.g. an invalid mode).
                 provider.stop()
                 raise
-            return client
+
+    @classmethod
+    def from_env(
+        cls: Type[EnvClientT],
+        repo_id: str,
+        *,
+        use_docker: bool = True,
+        provider: Optional["ContainerProvider | RuntimeProvider"] = None,
+        **provider_kwargs: Any,
+    ) -> "_BootstrapResult[EnvClientT]":
+        """
+        Create a client from a Hugging Face Space.
+
+        Returns a bootstrap handle: `await` it for the connected async client, or
+        chain `.sync()` for a connected `SyncEnvClient`. Bootstrap is lazy — the
+        Space starts when the handle is resolved.
+
+        Args:
+            repo_id (`str`):
+                Hugging Face space identifier `{org}/{space}`.
+            use_docker (`bool`, *optional*, defaults to `True`):
+                When `True`, pull from the HF registry and launch via `LocalDockerProvider`.
+                When `False`, run the space locally with `UVProvider`.
+            provider (`ContainerProvider` or `RuntimeProvider`, *optional*):
+                Provider instance to reuse. Must be a `ContainerProvider` when
+                `use_docker=True` and a `RuntimeProvider` otherwise.
+            **provider_kwargs:
+                Additional keyword arguments forwarded to either the container provider's
+                `start_container` (docker) or to the `UVProvider` constructor/start (uv).
+                When `use_docker=False`, the `project_path` argument can be used to override
+                the default git URL (`git+https://huggingface.co/spaces/{repo_id}`).
+
+        Returns:
+            `_BootstrapResult`: `await` for a connected async client, or call
+            `.sync()` for a connected `SyncEnvClient`.
+
+        Examples:
+
+            ```python
+            # Async: pull and run from HF Docker registry
+            env = await MyEnv.from_env("openenv/echo-env")
+
+            # Sync: chain .sync()
+            env = MyEnv.from_env("openenv/echo-env").sync()
+
+            # Run locally with UV (clones the space)
+            env = await MyEnv.from_env("openenv/echo-env", use_docker=False)
+
+            # Run from a local checkout
+            env = await MyEnv.from_env(
+                "openenv/echo-env",
+                use_docker=False,
+                project_path="/path/to/local/checkout"
+            )
+            ```
+        """
+        return _BootstrapResult(
+            lambda: cls._bootstrap_env(
+                repo_id,
+                use_docker=use_docker,
+                provider=provider,
+                **provider_kwargs,
+            )
+        )
 
     @abstractmethod
     def _step_payload(self, action: ActT) -> Dict[str, Any]:
@@ -720,6 +1029,40 @@ class EnvClient(ABC, Generic[ActT, ObsT, StateT]):
     def close(self) -> Any:
         return self._dispatch(self._close_async)
 
+    async def _close_child_clients(self) -> asyncio.CancelledError | None:
+        """Close every captured child while deferring caller cancellation."""
+        children = list(self._child_clients)
+        self._child_clients.clear()
+        close_tasks = []
+        deferred_cancellation: asyncio.CancelledError | None = None
+
+        for child in children:
+            try:
+                close_tasks.append(asyncio.ensure_future(child.close()))
+            except asyncio.CancelledError as exc:
+                if deferred_cancellation is None:
+                    deferred_cancellation = exc
+            except Exception:
+                pass  # Best effort
+
+        if close_tasks:
+            close_group = asyncio.gather(*close_tasks, return_exceptions=True)
+            while not close_group.done():
+                try:
+                    await asyncio.shield(close_group)
+                except asyncio.CancelledError as exc:
+                    if deferred_cancellation is None:
+                        deferred_cancellation = exc
+
+            for result in close_group.result():
+                if (
+                    isinstance(result, asyncio.CancelledError)
+                    and deferred_cancellation is None
+                ):
+                    deferred_cancellation = result
+
+        return deferred_cancellation
+
     async def _close_async(self) -> None:
         """
         Close the WebSocket connection and clean up resources.
@@ -727,25 +1070,72 @@ class EnvClient(ABC, Generic[ActT, ObsT, StateT]):
         If this client was created via from_docker_image() or from_env(),
         this will also stop and remove the associated container/process.
         """
-        for child in list(self._child_clients):
-            with suppress(Exception):
-                await child.close()
-        self._child_clients.clear()
-
+        deferred_cancellation: asyncio.CancelledError | None = None
         try:
-            await self._disconnect_async()
-        finally:
             try:
-                if self._provider is not None:
-                    # Handle both ContainerProvider and RuntimeProvider
-                    if hasattr(self._provider, "stop_container"):
-                        self._provider.stop_container()
-                    elif hasattr(self._provider, "stop"):
-                        self._provider.stop()
+                try:
+                    child_cancellation = await self._close_child_clients()
+                except asyncio.CancelledError as exc:
+                    child_cancellation = exc
+                if child_cancellation is not None:
+                    deferred_cancellation = child_cancellation
+
+                # A real close waits out backgrounded closes, while shielding
+                # their socket handshakes from cancellation.
+                try:
+                    await self._drain_pending_close_tasks()
+                except asyncio.CancelledError as exc:
+                    if deferred_cancellation is None:
+                        deferred_cancellation = exc
             finally:
-                if self._start_provider_on_connect:
-                    self._base_url = None
-                    self._ws_url = None
+                # Run even when child or pending-close cleanup is cancelled. A
+                # client may already have reconnected, and that current socket
+                # must not remain cached or open during teardown.
+                try:
+                    await self._disconnect_async()
+                except asyncio.CancelledError as exc:
+                    if deferred_cancellation is None:
+                        deferred_cancellation = exc
+        finally:
+            self._stop_provider()
+
+        if deferred_cancellation is not None:
+            raise deferred_cancellation
+
+    def _stop_provider(self) -> None:
+        """Stop the provider once, retaining it for retries and later startup."""
+        try:
+            provider = self._provider
+            if provider is None or self._provider_stopped:
+                return
+
+            if hasattr(provider, "stop_container"):
+                stop = provider.stop_container
+            elif hasattr(provider, "stop"):
+                stop = provider.stop
+            else:
+                return
+
+            self._provider_cleanup_pending = True
+            stop()
+            # Only a successful stop discharges our cleanup responsibility.
+            self._provider_cleanup_pending = False
+            self._provider_stopped = True
+        finally:
+            if self._start_provider_on_connect:
+                self._base_url = None
+                self._ws_url = None
+
+    def _stop_provider_best_effort(self) -> None:
+        """Stop the underlying provider directly, ignoring any errors.
+
+        Releases a started container/process when there is no connected client
+        to `close()` through the normal path — e.g. sync bootstrap setup fails
+        after the provider started but before the connection is established, so
+        routing cleanup through the (possibly broken) sync loop is not an option.
+        """
+        with suppress(Exception):
+            self._stop_provider()
 
     async def __aenter__(self) -> "EnvClient":
         """Enter async context manager, ensuring connection is established."""

@@ -8,7 +8,11 @@
 
 from __future__ import annotations
 
+import os
+import re
+import subprocess
 import sys
+import urllib.request
 from typing import Any, Dict, Iterable, List, Optional
 from uuid import uuid4
 
@@ -38,6 +42,18 @@ _TEXTARENA_MODULE: Any | None = None
 _TEXTARENA_IMPORT_ERROR: Exception | None = None
 _NLTK_DOWNLOADED: bool = False
 
+# TextArena's Wordle feedback, e.g. "You submitted [crane].\nFeedback:\nC R A N E\nG X Y X G".
+_WORDLE_FEEDBACK = re.compile(
+    r"You submitted \[(\w+)\]\.\nFeedback:\n[^\n]*\n([GYX ]+)"
+)
+_WORDLE_ATTEMPTS = re.compile(r"You have (\d+) attempts")
+_WORDLE_TILES = {
+    "G": "background:var(--color-accent);color:var(--background-fill-primary);border-color:var(--color-accent)",
+    "Y": "color:var(--color-accent);border-color:var(--color-accent);border-style:dashed",
+    "X": "background:var(--background-fill-primary);color:var(--body-text-color-subdued);border-color:var(--border-color-primary)",
+    "-": "",
+}
+
 
 def _ensure_nltk_data() -> None:
     """Download NLTK data once per process."""
@@ -51,8 +67,46 @@ def _ensure_nltk_data() -> None:
             "NLTK is required for TextArena environments. "
             "Install textarena_env dependencies (including nltk)."
         ) from exc
-    nltk.download("words", quiet=True)
-    nltk.download("averaged_perceptron_tagger_eng", quiet=True)
+    packages = ("words", "averaged_perceptron_tagger_eng")
+    opener = urllib.request._opener
+    explicit_proxy = opener is not None and any(
+        isinstance(handler, urllib.request.ProxyHandler)
+        and any(scheme != "no" for scheme in handler.proxies)
+        for handler in opener.handlers
+    )
+    if (
+        nltk.__version__ == "3.10.3"
+        and set(urllib.request.getproxies()) == {"no"}
+        and not explicit_proxy
+    ):
+        # NLTK #3748 mistakes NO_PROXY alone for a carrying proxy. Isolate the
+        # workaround so other server threads retain their proxy configuration.
+        # Real proxies still use NLTK's normal, security-enforcing download path.
+        download_env = os.environ.copy()
+        download_env.pop("NO_PROXY", None)
+        download_env.pop("no_proxy", None)
+        subprocess.run(
+            [
+                sys.executable,
+                "-m",
+                "nltk.downloader",
+                "--quiet",
+                "--exit-on-error",
+                "--dir",
+                nltk.downloader.Downloader().default_download_dir(),
+                *packages,
+            ],
+            env=download_env,
+            check=True,
+            timeout=120,
+        )
+    else:
+        for package in packages:
+            nltk.download(package, quiet=True, raise_on_error=True)
+    # NLTK 3.10.3's CLI can exit zero after a failed download. Verify the
+    # resources in this process before caching successful initialization.
+    nltk.data.find("corpora/words")
+    nltk.data.find("taggers/averaged_perceptron_tagger_eng")
     _NLTK_DOWNLOADED = True
 
 
@@ -198,6 +252,35 @@ class TextArenaEnvironment(Environment):
         self._state.raw_state = self._snapshot_state()
 
         return observation
+
+    def render_web(self, observation: Dict[str, Any]) -> Optional[str]:
+        """Draw the Wordle board (one row per guess, empty rows for those left). Other games draw nothing."""
+        if "messages" not in observation:
+            return None
+        text = "".join(message["content"] for message in observation["messages"])
+        attempts = _WORDLE_ATTEMPTS.search(text)
+        if attempts is None:
+            return None
+        guesses = _WORDLE_FEEDBACK.findall(text)
+        length = len(guesses[0][0]) if guesses else 5
+        rows = [(word.upper(), marks.split()) for word, marks in guesses]
+        rows += [(" " * length, ["-"] * length)] * (int(attempts.group(1)) - len(rows))
+        tile = (
+            '<span style="display:flex;align-items:center;justify-content:center;font-weight:700;font-size:18px;'
+            'border:2px solid var(--border-color-primary);border-radius:4px;{}">{}</span>'
+        )
+        cells = [
+            tile.format(_WORDLE_TILES[mark], letter)
+            for word, marks in rows
+            for letter, mark in zip(word, marks)
+        ]
+        return (
+            f'<div role="img" aria-label="Wordle board" style="display:inline-grid;'
+            f"grid-template-columns:repeat({length},38px);grid-auto-rows:38px;gap:5px;padding:10px;"
+            'border:1px solid var(--border-color-primary);border-radius:10px;background:var(--background-fill-secondary)">'
+            + "".join(cells)
+            + "</div>"
+        )
 
     @property
     def state(self) -> TextArenaState:

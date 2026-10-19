@@ -257,6 +257,42 @@ class DetectedEnvironment:
         return f"{self.module_path}:{self.class_name}"
 
 
+@dataclass(frozen=True)
+class ImportPackageContext:
+    """Shared details produced while scaffolding an imported environment package."""
+
+    class_name_prefix: str
+    vendor_dir: str
+
+
+def prepare_import_package(
+    source: Path, destination: Path, env_name: str
+) -> ImportPackageContext:
+    from openenv.cli.commands.init import (
+        _copy_template_directory,
+        _create_template_replacements,
+    )
+
+    replacements = _create_template_replacements(env_name)
+    _copy_template_directory(
+        "openenv.cli.templates.openenv_env",
+        "",
+        destination,
+        replacements,
+        env_name,
+    )
+
+    vendor_dir = safe_vendor_dir_name(source)
+    vendor_path = destination / "vendor" / vendor_dir
+    copy_source_tree(source, vendor_path)
+    ensure_vendor_package(vendor_path)
+
+    return ImportPackageContext(
+        class_name_prefix=replacements["__ENV_CLASS_NAME__"],
+        vendor_dir=vendor_dir,
+    )
+
+
 class EnvironmentImporter(Protocol):
     source_type: str
 

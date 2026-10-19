@@ -13,19 +13,23 @@ on:
 env:
   UV_VERSION: "0.9.3"
 
+permissions: {}
+
 jobs:
   validate-env-locks:
+    permissions:
+      contents: read
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v7
+        uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
         with:
           version: ${{ env.UV_VERSION }}
 
@@ -61,6 +65,8 @@ jobs:
           done
 
   test:
+    permissions:
+      contents: read
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -69,10 +75,10 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v7
+        uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
         with:
           version: ${{ env.UV_VERSION }}
 
@@ -82,7 +88,8 @@ jobs:
       - name: Install dependencies
         run: |
           uv sync --all-extras
-          uv pip install pytest pytest-asyncio numpy nltk smolagents python-chess moonfish
+          uv pip install pytest pytest-asyncio numpy nltk smolagents python-chess moonfish \
+            langdetect "math-verify[antlr4_13_2]" datasets open_spiel
 
       - name: Run tests
         run: |
@@ -96,14 +103,89 @@ jobs:
         env:
           PYTHONPATH: src:envs
 
+  test-thinkingbox-env:
+    permissions:
+      contents: read
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.12"]
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
+        with:
+          version: ${{ env.UV_VERSION }}
+
+      - name: Set up Python ${{ matrix.python-version }}
+        run: uv python install ${{ matrix.python-version }}
+
+      - name: Install ThinkingBox environment dependencies
+        working-directory: envs/thinkingbox_env
+        run: |
+          uv sync --python ${{ matrix.python-version }} \
+            --frozen --all-groups --all-extras
+
+      - name: Run ThinkingBox environment tests
+        run: |
+          uv run --python ${{ matrix.python-version }} \
+            --frozen --project envs/thinkingbox_env \
+            --all-groups --all-extras \
+            pytest tests/envs/test_thinkingbox_env.py -v --tb=short
+        env:
+          PYTHONPATH: src:envs
+
+  test-tau2-env:
+    permissions:
+      contents: read
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
+        with:
+          version: ${{ env.UV_VERSION }}
+
+      # τ²-bench requires Python 3.12+.
+      - name: Install τ²-bench environment dependencies
+        working-directory: envs/tau2_env
+        run: uv sync --python 3.12 --frozen --all-extras
+
+      # The tasks and databases live in τ²-bench's repository, at the commit pinned in
+      # envs/tau2_env/pyproject.toml.
+      - name: Fetch τ²-bench data
+        run: |
+          git clone --filter=blob:none --no-checkout https://github.com/sierra-research/tau2-bench "$RUNNER_TEMP/tau2-bench"
+          cd "$RUNNER_TEMP/tau2-bench"
+          git sparse-checkout set --no-cone data/tau2/domains data/tau2/user_simulator
+          git checkout 5bfa7e37b36656b37dc6d022156be6563c1007f3
+
+      - name: Run τ²-bench environment and Claude Code recipe tests
+        run: |
+          uv run --python 3.12 --frozen --project envs/tau2_env --all-extras \
+            pytest tests/envs/test_tau2_env.py \
+            tests/scripts/test_claude_code_harness_eval_example.py -v --tb=short
+        env:
+          PYTHONPATH: src:envs:examples/claude_code_harness_eval
+          TAU2_DATA_DIR: ${{ runner.temp }}/tau2-bench/data
+
   check-env-docs:
+    permissions:
+      contents: read
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Set up Python
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: "3.11"
 
@@ -111,13 +193,15 @@ jobs:
         run: python scripts/sync_env_docs.py --check
 
   lint:
+    permissions:
+      contents: read
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v7
+        uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
         with:
           version: ${{ env.UV_VERSION }}
 

@@ -9,6 +9,7 @@ from unittest.mock import MagicMock, patch
 
 import yaml
 from openenv.cli.__main__ import app
+from openenv.cli.commands.push import _rewrite_dockerfile_for_space
 from typer.testing import CliRunner
 
 
@@ -39,7 +40,7 @@ def _create_test_openenv_env(env_dir: Path, env_name: str = "test_env") -> None:
     pyproject_content = f"""[project]
 name = "{env_name}"
 version = "0.1.0"
-dependencies = ["openenv[core]>=0.2.0"]
+dependencies = ["openenv>=0.2.0"]
 """
     (env_dir / "pyproject.toml").write_text(pyproject_content)
 
@@ -49,7 +50,7 @@ dependencies = ["openenv[core]>=0.2.0"]
     # Create client.py (required by validate_env_structure)
     (env_dir / "client.py").write_text("# Test client\n")
 
-    # Create models.py (required by validate_env_structure)
+    # Create models.py
     (env_dir / "models.py").write_text("# Test models\n")
 
     # Create server directory and files
@@ -470,6 +471,32 @@ def test_push_accepts_dockerfile_at_env_root(tmp_path: Path) -> None:
         assert "server/Dockerfile" not in files
 
 
+def test_push_accepts_env_without_models(tmp_path: Path) -> None:
+    """Test that push works without models.py, as in MCP environments like echo_env."""
+    _create_test_openenv_env(tmp_path)
+    (tmp_path / "models.py").unlink()
+
+    with (
+        patch("openenv.cli.commands.push.whoami") as mock_whoami,
+        patch("openenv.cli.commands.push.login") as mock_login,
+        patch("openenv.cli.commands.push.HfApi") as mock_hf_api_class,
+    ):
+        mock_whoami.return_value = {"name": "testuser"}
+        mock_login.return_value = None
+        mock_api = MagicMock()
+        mock_hf_api_class.return_value = mock_api
+
+        old_cwd = os.getcwd()
+        try:
+            os.chdir(str(tmp_path))
+            result = runner.invoke(app, ["push"])
+        finally:
+            os.chdir(old_cwd)
+
+        assert result.exit_code == 0, result.output
+        assert mock_api.upload_folder.called
+
+
 def test_push_handles_missing_dockerfile(tmp_path: Path) -> None:
     """Test that push fails when Dockerfile is missing (required for deployment)."""
     _create_test_openenv_env(tmp_path)
@@ -809,6 +836,32 @@ def test_push_handles_base_image_not_found_in_dockerfile(tmp_path: Path) -> None
         assert mock_api.upload_folder.called
 
 
+def test_rewrite_dockerfile_skips_healthcheck_cmd() -> None:
+    """Test that web-interface ENV is not inserted before a HEALTHCHECK CMD."""
+    dockerfile = "\n".join(
+        [
+            "FROM openenv-base:latest",
+            "HEALTHCHECK --interval=30s \\",
+            "  CMD curl -f http://localhost:8000/health || exit 1",
+            'CMD ["uvicorn", "server.app:app"]',
+        ]
+    )
+
+    rewritten, changes = _rewrite_dockerfile_for_space(
+        dockerfile,
+        base_image=None,
+        enable_interface=True,
+    )
+
+    assert changes == ["enabled web interface"]
+    assert (
+        "HEALTHCHECK --interval=30s \\\n"
+        "  CMD curl -f http://localhost:8000/health || exit 1\n"
+        "ENV ENABLE_WEB_INTERFACE=true\n"
+        'CMD ["uvicorn", "server.app:app"]'
+    ) in rewritten
+
+
 def test_push_excludes_files_from_ignore_file(tmp_path: Path) -> None:
     """Test that push excludes files using patterns loaded via --exclude."""
     _create_test_openenv_env(tmp_path)
@@ -902,6 +955,75 @@ def test_push_does_not_use_gitignore_as_default_excludes(tmp_path: Path) -> None
 
         assert result.exit_code == 0
         assert mock_api.upload_folder.called
+
+
+def test_push_excludes_build_artifacts_by_default(tmp_path: Path) -> None:
+    """Test that local build artifacts are never uploaded to the Space."""
+    _create_test_openenv_env(tmp_path)
+    (tmp_path / "build" / "lib" / "test_env").mkdir(parents=True)
+    (tmp_path / "build" / "lib" / "test_env" / "client.py").write_text("# stale\n")
+    (tmp_path / "test_env.egg-info").mkdir()
+    (tmp_path / "test_env.egg-info" / "PKG-INFO").write_text("Name: test_env\n")
+
+    with (
+        patch("openenv.cli.commands.push.whoami") as mock_whoami,
+        patch("openenv.cli.commands.push.login") as mock_login,
+        patch("openenv.cli.commands.push.HfApi") as mock_hf_api_class,
+    ):
+        mock_whoami.return_value = {"name": "testuser"}
+        mock_login.return_value = None
+        mock_api = MagicMock()
+        mock_hf_api_class.return_value = mock_api
+
+        def _assert_upload_payload(*_unused_args, **kwargs):
+            staged = Path(kwargs["folder_path"])
+            assert not (staged / "build").exists()
+            assert not (staged / "test_env.egg-info").exists()
+            assert (staged / "client.py").exists()
+
+        mock_api.upload_folder.side_effect = _assert_upload_payload
+
+        old_cwd = os.getcwd()
+        try:
+            os.chdir(str(tmp_path))
+            result = runner.invoke(app, ["push"])
+        finally:
+            os.chdir(old_cwd)
+
+        assert result.exit_code == 0
+        assert mock_api.upload_folder.called
+
+
+def test_push_deletes_remote_files_only_with_delete(tmp_path: Path) -> None:
+    """Test that push deletes nothing by default and forwards --delete patterns, as `hf upload` does."""
+    _create_test_openenv_env(tmp_path)
+
+    with (
+        patch("openenv.cli.commands.push.whoami") as mock_whoami,
+        patch("openenv.cli.commands.push.login") as mock_login,
+        patch("openenv.cli.commands.push.HfApi") as mock_hf_api_class,
+    ):
+        mock_whoami.return_value = {"name": "testuser"}
+        mock_login.return_value = None
+        mock_api = MagicMock()
+        mock_hf_api_class.return_value = mock_api
+
+        old_cwd = os.getcwd()
+        try:
+            os.chdir(str(tmp_path))
+            default = runner.invoke(app, ["push"])
+            default_kwargs = mock_api.upload_folder.call_args[1]
+            with_delete = runner.invoke(
+                app, ["push", "--delete", "*.py", "--delete", "server/*"]
+            )
+            delete_kwargs = mock_api.upload_folder.call_args[1]
+        finally:
+            os.chdir(old_cwd)
+
+        assert default.exit_code == 0
+        assert default_kwargs["delete_patterns"] is None
+        assert with_delete.exit_code == 0
+        assert delete_kwargs["delete_patterns"] == ["*.py", "server/*"]
 
 
 def test_push_fails_when_exclude_file_missing(tmp_path: Path) -> None:
@@ -1012,10 +1134,11 @@ def test_push_count_deploys_multiple_spaces(tmp_path: Path) -> None:
         ]
 
         # Verify progress messages in output
-        assert "[1/3]" in result.output
-        assert "[2/3]" in result.output
-        assert "[3/3]" in result.output
-        assert "All 3 instances deployed" in result.output
+        clean_output = _strip_ansi(result.output)
+        assert "[1/3]" in clean_output
+        assert "[2/3]" in clean_output
+        assert "[3/3]" in clean_output
+        assert "All 3 instances deployed" in clean_output
 
 
 def test_push_count_one_is_default_behavior(tmp_path: Path) -> None:
