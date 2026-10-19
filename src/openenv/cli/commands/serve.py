@@ -114,12 +114,19 @@ def serve(
     env_root = str(env_path_obj)
     app_dir = env_path_obj
     module_name = app_spec.split(":", 1)[0]
-    if module_name.startswith(f"{env_path_obj.name}."):
-        app_dir = env_path_obj.parent
-    elif env_path_obj.parent.name == "envs" and module_name.startswith(
-        f"envs.{env_path_obj.name}."
+    # Prefer a module inside the environment, even when its package name matches
+    # the environment directory (for example, /work/server/server/app.py).
+    local_module = env_path_obj.joinpath(*module_name.split("."))
+    if not (
+        local_module.with_suffix(".py").is_file()
+        or (local_module / "__init__.py").is_file()
     ):
-        app_dir = env_path_obj.parent.parent
+        if env_path_obj.parent.name == "envs" and module_name.startswith(
+            f"envs.{env_path_obj.name}."
+        ):
+            app_dir = env_path_obj.parent.parent
+        elif module_name.startswith(f"{env_path_obj.name}."):
+            app_dir = env_path_obj.parent
 
     try:
         os.chdir(env_root)

@@ -83,11 +83,20 @@ def test_serve_echo_env_health_subprocess(reload) -> None:
 @pytest.mark.integration
 @pytest.mark.parametrize("reload", [False, True])
 @pytest.mark.parametrize(
-    "app_spec",
-    ["server.app:app", "sample_env.server.app:app", "envs.sample_env.server.app:app"],
+    ("env_name", "app_spec"),
+    [
+        ("sample_env", "server.app:app"),
+        ("sample_env", "sample_env.server.app:app"),
+        ("sample_env", "envs.sample_env.server.app:app"),
+        ("server", "server.app:app"),
+        ("server", "server.server.app:app"),
+        ("server", "envs.server.server.app:app"),
+        ("envs", "envs.server.app:app"),
+        ("envs", "envs.envs.server.app:app"),
+    ],
 )
-def test_serve_manifest_import_layouts(tmp_path, app_spec, reload):
-    env_dir = tmp_path / "envs" / "sample_env"
+def test_serve_manifest_import_layouts(tmp_path, env_name, app_spec, reload):
+    env_dir = tmp_path / "envs" / env_name
     (env_dir / "server").mkdir(parents=True)
     for name in (
         "__init__.py",
