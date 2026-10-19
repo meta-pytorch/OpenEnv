@@ -305,11 +305,15 @@ class TextArenaEnvironment(Environment):
         # TextArena keeps how the game ended in game_info, out of the observation.
         state = self._ta_env.state
         if state.done:
-            reason = state.game_info[player_id]["reason"]
-            last = ta_messages[-1]
-            ta_messages[-1] = last.model_copy(
-                update={"content": f"{last.content}\n[GAME] {reason}"}
-            )
+            reason = state.game_info.get(player_id, {}).get("reason")
+            if reason:
+                ta_messages.append(
+                    TextArenaMessage(
+                        sender_id=-1,
+                        content=f"\n[GAME] {reason}",
+                        category="GAME_ADMIN",
+                    )
+                )
 
         # Extract prompt from the appropriate messages.
         # TextArena PROMPT type messages contain the game instructions added during reset.

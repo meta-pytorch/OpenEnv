@@ -1,3 +1,5 @@
+from types import SimpleNamespace
+
 import pytest
 from textarena_env.models import TextArenaAction, TextArenaMessage
 from textarena_env.server.environment import TextArenaEnvironment
@@ -126,3 +128,24 @@ def test_wordle_first_guess_win_uses_word_length():
     assert "grid-template-columns:repeat(6,38px)" in board
     assert board.count("<span") == 36
     assert board.count("var(--color-accent);color") == 6
+
+
+@pytest.mark.parametrize("game_info", [{}, {0: {}}, {0: {"reason": "Finished"}}])
+@pytest.mark.parametrize("messages", [[], [(0, "[guess]", "PLAYER_ACTION")]])
+def test_terminal_observation_handles_optional_reason(game_info, messages):
+    env = object.__new__(TextArenaEnvironment)
+    env.env_id = "test-game"
+    env._ta_env = SimpleNamespace(
+        state=SimpleNamespace(done=True, game_info=game_info, turn=1),
+        get_observation=lambda: (0, messages),
+    )
+
+    observation = env._build_observation()
+    original = env._convert_messages(messages)
+    if game_info.get(0, {}).get("reason"):
+        assert observation.messages[:-1] == original
+        assert observation.messages[-1] == TextArenaMessage(
+            sender_id=-1, content="\n[GAME] Finished", category="GAME_ADMIN"
+        )
+    else:
+        assert observation.messages == original
