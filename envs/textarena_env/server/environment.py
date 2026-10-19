@@ -47,6 +47,9 @@ _WORDLE_FEEDBACK = re.compile(
     r"You submitted \[(\w+)\]\.\nFeedback:\n[^\n]*\n([GYX ]+)"
 )
 _WORDLE_ATTEMPTS = re.compile(r"You have (\d+) attempts")
+_WORDLE_WIN = re.compile(
+    r"\[(\w+)\]\n\[GAME\] Congratulations! You guessed the word correctly!"
+)
 _WORDLE_TILES = {
     "G": "background:var(--color-accent);color:var(--background-fill-primary);border-color:var(--color-accent)",
     "Y": "color:var(--color-accent);border-color:var(--color-accent);border-style:dashed",
@@ -264,6 +267,10 @@ class TextArenaEnvironment(Environment):
         guesses = _WORDLE_FEEDBACK.findall(text)
         length = len(guesses[0][0]) if guesses else 5
         rows = [(word.upper(), marks.split()) for word, marks in guesses]
+        # A winning guess gets no feedback line, only the end-of-game message.
+        won = _WORDLE_WIN.search(text)
+        if won:
+            rows.append((won.group(1).upper(), ["G"] * len(won.group(1))))
         rows += [(" " * length, ["-"] * length)] * (int(attempts.group(1)) - len(rows))
         tile = (
             '<span style="display:flex;align-items:center;justify-content:center;font-weight:700;font-size:18px;'
@@ -293,6 +300,18 @@ class TextArenaEnvironment(Environment):
         player_id, messages = self._ta_env.get_observation()
 
         ta_messages = self._convert_messages(messages)
+
+        # TextArena keeps the end-of-game reason (a win, or the answer after a loss) in
+        # game_info without adding it to the observation, so the player would not see
+        # how the game ended.
+        state = self._ta_env.state
+        game_info = getattr(state, "game_info", {}).get(player_id, {})
+        reason = game_info.get("reason") if getattr(state, "done", False) else None
+        if reason and ta_messages:
+            last = ta_messages[-1]
+            ta_messages[-1] = last.model_copy(
+                update={"content": f"{last.content}\n[GAME] {reason}"}
+            )
 
         # Extract prompt from the appropriate messages.
         # TextArena PROMPT type messages contain the game instructions added during reset.
