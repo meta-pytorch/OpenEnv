@@ -44,22 +44,23 @@ def _load_env_file() -> None:
 _load_env_file()
 os.environ.setdefault("ENABLE_WEB_INTERFACE", "true")
 
-# Older openenv-core releases lack `reset_observation_cls`.
-_reset_observation_kwargs = (
+# Older openenv-core releases lack these model parameters.
+_create_app_kwargs = (
     {"reset_observation_cls": Observation}
     if "reset_observation_cls" in inspect.signature(create_app).parameters
     else {}
 )
+if "state_cls" in inspect.signature(create_app).parameters:
+    _create_app_kwargs["state_cls"] = TerminusState
 
 app = create_app(
     TerminusEnvironment,
     CallToolAction,
     CallToolObservation,
     env_name="terminus_env",
-    **_reset_observation_kwargs,
+    **_create_app_kwargs,
     max_concurrent_envs=int(os.getenv("MAX_CONCURRENT_ENVS", "4")),
     gradio_builder=terminus_ui_builder,
-    state_cls=TerminusState,
 )
 
 

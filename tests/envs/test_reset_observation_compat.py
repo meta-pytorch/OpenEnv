@@ -75,10 +75,18 @@ def test_app_declares_reset_observation_when_core_supports_it(
 ):
     calls = []
 
-    def current_create_app(*args, reset_observation_cls=None, **kwargs):
-        calls.append(reset_observation_cls)
+    def current_create_app(*args, reset_observation_cls=None, state_cls=None, **kwargs):
+        calls.append((reset_observation_cls, state_cls))
         return FastAPI()
 
     monkeypatch.setattr(http_server, "create_app", current_create_app)
-    import_fresh(module_name)
-    assert calls == [Observation]
+    module = import_fresh(module_name)
+    state_models = {
+        "coding_tools_env.server.app": "CodingToolsState",
+        "finqa_env.server.app": "FinQAState",
+        "jupyter_env.server.app": "JupyterState",
+        "terminus_env.server.app": "TerminusState",
+    }
+    state_name = state_models.get(module_name)
+    state_cls = getattr(module, state_name) if state_name else None
+    assert calls == [(Observation, state_cls)]
