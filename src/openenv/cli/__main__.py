@@ -12,8 +12,10 @@ import sys
 import typer
 from openenv.cli.commands import (
     build,
+    catalog,
     collect,
     fork,
+    harbor,
     import_env,
     init,
     push,
@@ -36,6 +38,11 @@ app.command(name="import", help="Import a third-party environment into OpenEnv")
 )
 app.command(name="build", help="Build Docker images for OpenEnv environments")(
     build.build
+)
+app.add_typer(
+    harbor.app,
+    name="harbor",
+    help="Run Harbor tasks with token-level capture (requires: pip install openenv\\[harbor])",
 )
 app.command(name="validate", help="Validate a package against the OpenEnv quality bar")(
     validate.validate
@@ -60,6 +67,8 @@ app.command(
     name="collect",
     help="Collect rollouts from a deployed OpenEnv environment",
 )(collect.collect)
+app.add_typer(catalog.app, name="catalog")
+app.command(name="discover")(catalog.discover)
 
 
 # Entry point for setuptools
