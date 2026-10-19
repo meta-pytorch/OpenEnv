@@ -81,19 +81,12 @@ def test_textarena_web_playground():
     assert env.render_web({}) is None
 
 
-def _secret_word(env):
-    ta_env = env._ta_env
-    while hasattr(ta_env, "env"):
-        ta_env = ta_env.env
-    return ta_env.state.game_state["secret_word"]
-
-
 def test_wordle_reports_how_the_game_ended():
     pytest.importorskip("textarena", reason="textarena not installed")
     env = TextArenaEnvironment(env_id="Wordle-v0", num_players=1)
 
     env.reset()
-    secret = _secret_word(env)
+    secret = env.state.raw_state["game_state"]["secret_word"]
     obs = env.step(TextArenaAction(message=f"[{secret}]"))
     assert obs.done and obs.reward == 1.0
     assert obs.messages[-1].content.endswith(
@@ -104,7 +97,7 @@ def test_wordle_reports_how_the_game_ended():
     assert board.count("var(--color-accent);color") == 5
 
     env.reset()
-    secret = _secret_word(env)
+    secret = env.state.raw_state["game_state"]["secret_word"]
     for word in ["about", "other", "which", "there", "their", "would", "could"]:
         if word != secret:
             obs = env.step(TextArenaAction(message=f"[{word}]"))

@@ -267,7 +267,7 @@ class TextArenaEnvironment(Environment):
         guesses = _WORDLE_FEEDBACK.findall(text)
         length = len(guesses[0][0]) if guesses else 5
         rows = [(word.upper(), marks.split()) for word, marks in guesses]
-        # A winning guess gets no feedback line, only the end-of-game message.
+        # A winning guess has no feedback line.
         won = _WORDLE_WIN.search(text)
         if won:
             rows.append((won.group(1).upper(), ["G"] * len(won.group(1))))
@@ -301,13 +301,10 @@ class TextArenaEnvironment(Environment):
 
         ta_messages = self._convert_messages(messages)
 
-        # TextArena keeps the end-of-game reason (a win, or the answer after a loss) in
-        # game_info without adding it to the observation, so the player would not see
-        # how the game ended.
+        # TextArena keeps how the game ended in game_info, out of the observation.
         state = self._ta_env.state
-        game_info = getattr(state, "game_info", {}).get(player_id, {})
-        reason = game_info.get("reason") if getattr(state, "done", False) else None
-        if reason and ta_messages:
+        if state.done:
+            reason = state.game_info[player_id]["reason"]
             last = ta_messages[-1]
             ta_messages[-1] = last.model_copy(
                 update={"content": f"{last.content}\n[GAME] {reason}"}
