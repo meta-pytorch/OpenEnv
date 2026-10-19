@@ -202,7 +202,10 @@ class _DefaultKubernetesAdapter:
         self._ApiException = ApiException
         self._namespace = namespace
         self._load_config(config, kubeconfig=kubeconfig, context=context)
-        self._api = client.CoreV1Api()
+        configuration = client.Configuration.get_default_copy()
+        # Readiness owns the retry deadline; SDK retries would multiply it.
+        configuration.retries = 0
+        self._api = client.CoreV1Api(client.ApiClient(configuration=configuration))
 
     def _load_config(
         self, config: Any, *, kubeconfig: Optional[str], context: Optional[str]
@@ -283,10 +286,14 @@ class _DefaultKubernetesAdapter:
         except self._ApiException as exc:
             self._api_error(exc, "delete Service", missing_ok=True)
 
-    def pod_status(self, name: str) -> dict[str, Optional[str]]:
+    def pod_status(
+        self, name: str, timeout_s: float = 30.0
+    ) -> dict[str, Optional[str]]:
         try:
-            pod = self._api.read_namespaced_pod(name, self._namespace)
-        except self._ApiException as exc:
+            pod = self._api.read_namespaced_pod(
+                name, self._namespace, _request_timeout=timeout_s
+            )
+        except Exception as exc:
             self._api_error(exc, "read Pod", missing_ok=False)
             raise RuntimeError("Failed to read Kubernetes Pod") from None
         status = getattr(pod, "status", None)
@@ -781,30 +788,35 @@ class KubernetesProvider(ContainerProvider):
             raise ValueError("timeout_s must be non-negative.")
 
         health_url = f"{expected}/health"
-        proxies = {"http": None, "https": None}
-        deadline = time.time() + timeout_s
-        while time.time() < deadline:
-            phase, reason = self._phase()
+        proxies = {"http": "", "https": "", "all": ""}
+        deadline = time.monotonic() + timeout_s
+        while (remaining := deadline - time.monotonic()) > 0:
+            phase, reason = self._phase(remaining)
             if phase in ("Failed", "Succeeded"):
                 raise RuntimeError(self._ended_message(phase, reason))
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                break
             if phase == "Running":
                 try:
-                    response = requests.get(health_url, timeout=2.0, proxies=proxies)
+                    response = requests.get(
+                        health_url, timeout=min(2.0, remaining), proxies=proxies
+                    )
                     if response.status_code == 200:
                         return
                 except requests.RequestException:
                     pass
-            time.sleep(0.5)
+            time.sleep(min(0.5, max(0.0, deadline - time.monotonic())))
 
         raise TimeoutError(f"Kubernetes Pod did not become ready within {timeout_s}s.")
 
-    def _phase(self) -> tuple[str, Optional[str]]:
+    def _phase(self, timeout_s: float) -> tuple[str, Optional[str]]:
         if self._name is None:
             raise RuntimeError(
                 "KubernetesProvider has no active Pod. Start the provider "
                 "before waiting for readiness."
             )
-        status = self._adapter.pod_status(self._name)
+        status = self._adapter.pod_status(self._name, timeout_s=timeout_s)
         phase = status.get("phase") if isinstance(status, Mapping) else None
         reason = status.get("reason") if isinstance(status, Mapping) else None
         if not isinstance(phase, str) or not _SAFE_REASON.fullmatch(phase):

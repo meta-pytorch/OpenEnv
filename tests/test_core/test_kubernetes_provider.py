@@ -90,7 +90,8 @@ class _FakeAdapter:
                 return dict(item["metadata"]["labels"])
         return None
 
-    def pod_status(self, name):
+    def pod_status(self, name, timeout_s=30.0):
+        self.status_timeout = timeout_s
         return {"phase": self.phase, "reason": self.reason}
 
 
@@ -523,7 +524,38 @@ class TestWaitForReady:
         with patch("requests.get", return_value=MagicMock(status_code=200)) as get:
             provider.wait_for_ready(url, timeout_s=5)
         assert get.call_args.args[0] == f"{url}/health"
-        assert get.call_args.kwargs["proxies"] == {"http": None, "https": None}
+        assert get.call_args.kwargs["proxies"] == {"http": "", "https": "", "all": ""}
+
+    def test_health_transport_ignores_ambient_proxies(self, provider, monkeypatch):
+        import requests
+
+        url = provider.start_container("echo-env:latest")
+        monkeypatch.setenv("ALL_PROXY", "http://proxy.example:8123")
+        monkeypatch.setenv("HTTP_PROXY", "http://proxy.example:8123")
+        seen = []
+
+        def send(session, request, **kwargs):
+            seen.append(requests.utils.select_proxy(request.url, kwargs["proxies"]))
+            response = requests.Response()
+            response.status_code = 200
+            return response
+
+        with patch.object(requests.Session, "send", send):
+            provider.wait_for_ready(url, timeout_s=5)
+        assert seen == [""]
+
+    def test_status_read_uses_remaining_deadline(self, provider, adapter):
+        url = provider.start_container("echo-env:latest")
+        with (
+            patch(
+                "openenv.core.containers.runtime.kubernetes_provider.time.monotonic",
+                side_effect=[0.0, 1.0, 1.5],
+            ),
+            patch("requests.get", return_value=MagicMock(status_code=200)) as get,
+        ):
+            provider.wait_for_ready(url, timeout_s=2.0)
+        assert adapter.status_timeout == 1.0
+        assert get.call_args.kwargs["timeout"] == 0.5
 
     def test_failed_pod_raises_immediately_without_url(self, provider, adapter):
         url = provider.start_container("echo-env:latest")
@@ -559,7 +591,7 @@ class TestWaitForReady:
         with (
             patch("requests.get", side_effect=requests.ConnectionError("refused")),
             patch(
-                "openenv.core.containers.runtime.kubernetes_provider.time.time",
+                "openenv.core.containers.runtime.kubernetes_provider.time.monotonic",
                 side_effect=[0, 1, 100],
             ),
             pytest.raises(TimeoutError, match="did not become ready") as exc_info,
@@ -639,6 +671,9 @@ def _install_fake_kubernetes(monkeypatch, *, incluster_fails: bool = False):
         setattr(client_mod, name, type(name, (_Obj,), {}))
 
     class CoreV1Api:
+        def __init__(self, api_client):
+            calls["configuration"] = api_client.configuration
+
         def read_namespace(self, name):
             calls["read_namespace"].append(name)
             if calls.get("namespace_status") == 404:
@@ -667,8 +702,9 @@ def _install_fake_kubernetes(monkeypatch, *, incluster_fails: bool = False):
         def delete_namespaced_service(self, name, namespace):
             calls["delete_service"].append((name, namespace))
 
-        def read_namespaced_pod(self, name, namespace):
+        def read_namespaced_pod(self, name, namespace, **kwargs):
             calls["read_pod"].append((name, namespace))
+            calls["read_pod_kwargs"] = kwargs
             waiting = _Obj(reason="ImagePullBackOff", message="secret-status-text")
             return _Obj(
                 status=_Obj(
@@ -679,6 +715,10 @@ def _install_fake_kubernetes(monkeypatch, *, incluster_fails: bool = False):
                 )
             )
 
+    client_mod.Configuration = types.SimpleNamespace(
+        get_default_copy=lambda: types.SimpleNamespace(retries=None)
+    )
+    client_mod.ApiClient = _Obj
     client_mod.CoreV1Api = CoreV1Api
     exceptions_mod = types.ModuleType("kubernetes.client.exceptions")
     exceptions_mod.ApiException = ApiException
@@ -704,6 +744,7 @@ class TestDefaultAdapter:
         assert adapter._namespace == "openenv"
         assert calls["incluster"] == 1
         assert calls["kubeconfig"] == []
+        assert calls["configuration"].retries == 0
 
     def test_falls_back_to_kubeconfig_outside_cluster(self, monkeypatch):
         calls = _install_fake_kubernetes(monkeypatch, incluster_fails=True)
@@ -807,14 +848,32 @@ class TestDefaultAdapter:
         assert "secret-namespace-body" not in str(exc_info.value)
 
     def test_pod_status_keeps_reason_code_not_status_message(self, monkeypatch):
+        calls = _install_fake_kubernetes(monkeypatch)
+        adapter = _DefaultKubernetesAdapter(
+            namespace="openenv", kubeconfig=None, context=None
+        )
+        status = adapter.pod_status("openenv-echo", timeout_s=0.25)
+        assert calls["read_pod_kwargs"] == {"_request_timeout": 0.25}
+        assert status["phase"] == "Pending"
+        assert status["reason"] == "ImagePullBackOff"
+        assert "secret-status-text" not in str(status)
+
+    def test_status_transport_error_does_not_expose_endpoint(self, monkeypatch):
         _install_fake_kubernetes(monkeypatch)
         adapter = _DefaultKubernetesAdapter(
             namespace="openenv", kubeconfig=None, context=None
         )
-        status = adapter.pod_status("openenv-echo")
-        assert status["phase"] == "Pending"
-        assert status["reason"] == "ImagePullBackOff"
-        assert "secret-status-text" not in str(status)
+        with (
+            patch.object(
+                adapter._api,
+                "read_namespaced_pod",
+                side_effect=TimeoutError("https://private-api.example/secret"),
+            ),
+            pytest.raises(RuntimeError, match="Failed to read Pod") as exc_info,
+        ):
+            adapter.pod_status("openenv-echo", timeout_s=0.25)
+        assert "secret" not in str(exc_info.value)
+        assert exc_info.value.__suppress_context__
 
     def test_missing_client_names_the_extra(self, monkeypatch):
         real_import = __import__
