@@ -13,6 +13,7 @@ from pathlib import Path
 
 from openenv.core.env_server.http_server import create_app
 from openenv.core.env_server.mcp_types import CallToolAction, CallToolObservation
+from openenv.core.env_server.types import Observation
 
 try:
     from .gradio_ui import terminus_ui_builder
@@ -45,15 +46,22 @@ app = create_app(
     CallToolAction,
     CallToolObservation,
     env_name="terminus_env",
+    reset_observation_cls=Observation,
     max_concurrent_envs=int(os.getenv("MAX_CONCURRENT_ENVS", "4")),
     gradio_builder=terminus_ui_builder,
 )
 
 
-def main(host: str = "0.0.0.0", port: int = 8000) -> None:
+def main() -> None:
+    import argparse
+
     import uvicorn
 
-    uvicorn.run(app, host=host, port=port)
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--host", default="0.0.0.0")
+    parser.add_argument("--port", type=int, default=8000)
+    args = parser.parse_args()
+    uvicorn.run(app, host=args.host, port=args.port)
 
 
 if __name__ == "__main__":

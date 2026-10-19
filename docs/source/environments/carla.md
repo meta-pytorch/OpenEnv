@@ -3,6 +3,10 @@
 
 Embodied evaluation environment for testing LLM decision-making in a full 3D driving simulator with **irreversible consequences**.
 
+![CARLA web playground](https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/openenv/carla.jpg)
+
+*The `/web` playground on `trolley_saves`: the camera frame, a top-down view of the lanes and the episode stats.*
+
 **Built on OpenEnv framework** with scenarios and navigation agents adapted from [sinatras/carla-env](https://github.com/SinatrasC/carla-env). This implementation provides:
 - **CARLA 0.10.0 simulation** (GPU, UE5.5) in synchronous mode — turn-based, deterministic evaluation
 - Text + optional camera observations, compatible with any LLM
@@ -93,9 +97,9 @@ Each outcome includes: `trolley_action` (SWERVE_LEFT/RIGHT, BRAKE, NONE), `ethic
 ### Maze Navigation
 
 **`maze_navigation`**: Goal-directed navigation through Town10.
-- Vehicle spawns at a random point with a goal ~153m away
+- Vehicle spawns at a random point with a goal 80-300m away
 - Navigate winding roads using spatial reasoning
-- Success: reach goal within 10m | Timeout: 200 steps
+- Success: reach goal within 5m | Timeout: 200 steps
 
 ### Free-Roam Navigation
 
@@ -152,11 +156,11 @@ result = await env.reset(scenario_config={
 
 ## Examples
 
-The [`examples/carla_env/`](../../examples/carla_env/) directory contains inference scripts. All connect to `http://localhost:8000` by default — pass `--base-url https://sergiopaniego-carla-env.hf.space` for the live Space.
+The [`examples/carla_env/`](https://github.com/huggingface/OpenEnv/tree/main/examples/carla_env) directory contains inference scripts. All connect to `http://localhost:8000` by default — pass `--base-url https://sergiopaniego-carla-env.hf.space` for the live Space.
 
 ### Trolley Problems
 
-**[trolley_problems.py](../../examples/carla_env/trolley_problems.py)** — LLM evaluation across all trolley scenarios.
+**[trolley_problems.py](https://github.com/huggingface/OpenEnv/blob/main/examples/carla_env/trolley_problems.py)** — LLM evaluation across all trolley scenarios.
 
 ```bash
 uv run python trolley_problems.py --model qwen3-235b --scenario classic-3v1
@@ -168,16 +172,16 @@ Available keys: `equal-1v1`, `saves-3v0`, `deadzone-3v1`, `classic-3v1`, `classi
 
 ### Maze Navigation
 
-**[maze_navigation.py](../../examples/carla_env/maze_navigation.py)** — LLM navigation with rolling action history.
+**[maze_navigation.py](https://github.com/huggingface/OpenEnv/blob/main/examples/carla_env/maze_navigation.py)** — LLM navigation with rolling action history.
 
 ```bash
-uv run python maze_navigation.py --model qwen3-235b --scenario maze-1
-uv run python maze_navigation.py --model gpt-5.2 --scenario maze-1 --save-images
+uv run python maze_navigation.py --model qwen3-235b
+uv run python maze_navigation.py --model gpt-5.2 --save-images
 ```
 
 ### Free-Roam Navigation
 
-**[free_roam_navigation.py](../../examples/carla_env/free_roam_navigation.py)** — LLM navigation in open traffic.
+**[free_roam_navigation.py](https://github.com/huggingface/OpenEnv/blob/main/examples/carla_env/free_roam_navigation.py)** — LLM navigation in open traffic.
 
 ```bash
 uv run python free_roam_navigation.py --model qwen3-235b
@@ -186,7 +190,7 @@ uv run python free_roam_navigation.py --model qwen3-235b --scenario free-roam-tr
 
 ### Autopilot Baseline (No LLM)
 
-**[autopilot_navigation.py](../../examples/carla_env/autopilot_navigation.py)** — CARLA's built-in navigation agent.
+**[autopilot_navigation.py](https://github.com/huggingface/OpenEnv/blob/main/examples/carla_env/autopilot_navigation.py)** — CARLA's built-in navigation agent.
 
 ```bash
 uv run python autopilot_navigation.py --scenario maze-1
@@ -195,7 +199,7 @@ uv run python autopilot_navigation.py --scenario free-roam-default --behavior ca
 
 ### Rubric Reward Demo (No LLM)
 
-**[rubric_autopilot_example.py](../../examples/carla_env/rubric_autopilot_example.py)** — Raw vs rubric rewards side-by-side.
+**[rubric_autopilot_example.py](https://github.com/huggingface/OpenEnv/blob/main/examples/carla_env/rubric_autopilot_example.py)** — Raw vs rubric rewards side-by-side.
 
 ```bash
 uv run python rubric_autopilot_example.py --scenario free-roam-default
@@ -222,7 +226,7 @@ Hugging Face models use [Inference Providers](https://huggingface.co/docs/infere
 
 ## Rubrics for RL Training
 
-The environment includes rubrics following the [OpenEnv rubric system](../../rfcs/004-rubrics.md). Rubrics are automatically selected based on the scenario type and populate `obs.rubric_reward` alongside the raw `obs.reward` on each step.
+The environment includes rubrics following the [OpenEnv rubric system](https://github.com/huggingface/OpenEnv/blob/main/rfcs/004-rubrics.md). Rubrics are automatically selected based on the scenario type and populate `obs.rubric_reward` alongside the raw `obs.reward` on each step.
 
 **CarlaTrolleyRubric** — For trolley/action-bias scenarios. Returns 0.0 on intermediate steps, then the terminal reward at episode end. Supports temporal discounting (`gamma`) for credit assignment.
 
@@ -243,6 +247,7 @@ For RL training, use `rubric_reward` — it provides temporally-discounted credi
 CARLA runs in **synchronous mode** with a **single-client architecture**:
 
 - **Synchronous simulation**: The world only advances when the server calls `world.tick()`. While waiting for the model's action, the simulation is frozen. This ensures deterministic evaluation regardless of inference latency.
+- **Time per step**: each `step()` advances the world by the scenario's tick policy (1 tick = 0.05 s). Action-bias scenarios (`trolley_saves`, `bias_*`, ...) advance 10 ticks per step. `trolley_micro_*` advances 20 ticks after a motion action and 10 after `observe`. Navigation scenarios advance 1 tick (`follow_route` advances `route_steps` ticks). Send one step per tool call. There is no need to send extra `observe` steps to let time pass.
 - **Single connection**: Each CARLA instance handles one client at a time. For concurrent evaluations, deploy multiple instances (separate Spaces or Docker containers), each requiring its own GPU.
 
 ### Training at Scale
@@ -260,10 +265,10 @@ This is inherent to GPU-heavy simulators (CARLA, Unity, Unreal), not an OpenEnv 
 
 ## Deployment
 
-**Hugging Face Spaces** (GPU T4 or A10G):
+**Hugging Face Spaces** (GPU A10G):
 ```bash
 openenv push envs/carla_env --repo-id username/carla-env
-# Then configure GPU T4/A10G in Space settings
+# Then configure GPU A10G in Space settings
 ```
 
 **Local Docker:**
@@ -278,12 +283,12 @@ docker run --gpus all -p 8000:8000 carla-env:latest
 
 | | Value |
 |---|---|
-| GPU | NVIDIA T4 (16GB, minimum) or A10G (24GB, recommended) |
+| GPU | NVIDIA A10G (24GB) or larger. CARLA 0.10 may crash on start on a T4 |
 | CARLA | 0.10.0 + Unreal Engine 5.5, bundled in image |
 | Rendering | RenderOffScreen with OpenGL (offscreen, no display) |
 | Image size | ~15GB |
 | Build time | 30-60 minutes |
-| Startup time | 60-90 seconds |
+| Startup time | ~95 seconds on A10G (the start script retries once if CARLA fails to start) |
 
 ### Configuration
 
