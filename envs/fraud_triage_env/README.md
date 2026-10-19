@@ -52,11 +52,11 @@ weigh these outcomes:
 | Incorrectly approve a fraudulent transaction (false negative) | `-3.0` |
 | Escalation (in addition to the above) | additional `-0.1` |
 
-Missing real fraud is penalized far more heavily than over-flagging a
-legitimate customer, but escalating everything is also discouraged via a
-small fixed cost — so an agent can't "win" by defaulting to maximum
-caution. This forces the same precision/recall trade-off a production
-fraud model has to learn, rather than collapsing to a trivial policy.
+This is a simplified classification task. Missing fraud is penalized more
+heavily than flagging a legitimate transaction. FLAG and BLOCK have the same
+payoff; ESCALATE adds a fixed cost without providing extra evidence, so it is
+always less rewarding than FLAG or BLOCK. The environment does not model a
+human investigation or later transaction outcomes.
 
 Fraudulent and legitimate transactions are drawn from overlapping (not
 perfectly separable) feature distributions, so the task rewards genuine

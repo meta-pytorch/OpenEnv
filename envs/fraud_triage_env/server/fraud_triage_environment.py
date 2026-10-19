@@ -41,9 +41,8 @@ REWARD_TRUE_NEGATIVE = 0.1  # correctly approved a legitimate transaction
 REWARD_FALSE_POSITIVE = -0.5  # incorrectly flagged/escalated/blocked a legit txn
 REWARD_FALSE_NEGATIVE = -3.0  # incorrectly approved a fraudulent txn
 
-# Escalation costs more than a flag even when correct, since it consumes
-# human analyst time -- so the agent learns to reserve it for genuinely
-# ambiguous cases rather than defaulting to it.
+# This simplified task gives FLAG and BLOCK the same payoff. ESCALATE adds
+# a cost without providing extra evidence, so it is always less rewarding.
 ESCALATION_COST = -0.1
 
 
