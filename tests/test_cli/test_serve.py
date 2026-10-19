@@ -160,12 +160,18 @@ def test_serve_restores_process_state_after_uvicorn_error(monkeypatch):
     assert "PYTHONPATH" not in os.environ
 
 
-def test_cli_commands_import_without_starting_the_server_runtime():
+def test_serve_module_import_does_not_load_uvicorn():
     code = """
+import importlib.util
 import sys
+from pathlib import Path
 sys.modules['uvicorn'] = None
-from openenv.cli.commands.init import init
-assert callable(init)
+spec = importlib.util.spec_from_file_location(
+    'openenv.cli.commands.serve', Path('src/openenv/cli/commands/serve.py')
+)
+module = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(module)
+assert callable(module.serve)
 """
     result = subprocess.run(
         [sys.executable, "-c", code],
