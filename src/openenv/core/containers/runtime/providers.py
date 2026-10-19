@@ -186,11 +186,6 @@ class LocalDockerProvider(ContainerProvider):
         import subprocess
         import time
 
-        allowed_kwargs = {"volumes"}
-        unknown = set(kwargs) - allowed_kwargs
-        if unknown:
-            raise ValueError(f"Unsupported kwargs for LocalDockerProvider: {unknown}")
-
         volumes: Optional[Mapping[str, Mapping[str, str]]] = kwargs.get("volumes")
 
         # Find available port if not specified
