@@ -41,15 +41,15 @@ def serve(
     ] = None,
     host: Annotated[
         str,
-        typer.Option("--host", help="Host interface to bind"),
-    ] = "0.0.0.0",
+        typer.Option("--host", help="Host interface to bind (local development only)"),
+    ] = "127.0.0.1",
     reload: Annotated[
         bool,
         typer.Option("--reload", help="Enable autoreload (development)"),
     ] = False,
 ) -> None:
     """
-    Run the environment FastAPI app with uvicorn.
+    Run the environment FastAPI app on the host for local development.
 
     Uses ``openenv.yaml`` fields ``app`` (e.g. ``server.app:app``), ``port``, and
     ``runtime`` (must be ``fastapi``). Matches ``uv run --project . server`` layout:

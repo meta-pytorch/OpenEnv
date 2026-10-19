@@ -21,30 +21,38 @@ A few integrations ship as optional extras. Install them with
 | Extra | Pulls in |
 |-------|----------|
 | `inspect` | The Inspect AI evaluation harness |
-| `daytona`, `aca`, `modal` | Cloud sandbox providers (see the Core API reference) |
+| `harbor` | The [Harbor integration](environments/harbor) and its sandbox backends (Python 3.12+) |
+| `daytona`, `aca`, `modal`, `novita` | Cloud sandbox providers (see [Runtime Providers](guides/runtime-providers)) |
 
 ## Try an Environment
 
-Use `AutoEnv` and `AutoAction` when you want OpenEnv to find the matching client
-and action classes for an installed or discoverable environment.
+Use `AutoEnv` to load the Echo client from its Hugging Face Space. It asks for
+confirmation before installing the environment package, then connects to the
+running Space. Echo exposes its actions as MCP tools.
 
 ```python
-from openenv import AutoAction, AutoEnv
+from openenv import AutoEnv
 
-env = AutoEnv.from_env("echo")
-EchoAction = AutoAction.from_env("echo")
+env = AutoEnv.from_env(
+    "openenv/echo_env",
+    base_url="https://openenv-echo-env.hf.space",
+)
 
 with env.sync() as client:
     result = client.reset()
-    print(result.observation.echoed_message)  # "Echo environment ready!"
+    print(result.observation.metadata["message"])  # "Echo environment ready!"
 
-    result = client.step(EchoAction(message="Hello, OpenEnv!"))
-    print(result.observation.echoed_message)  # "Hello, OpenEnv!"
+    message = client.call_tool("echo_message", message="Hello, OpenEnv!")
+    print(message)  # "Hello, OpenEnv!"
 ```
 
-`AutoEnv.from_env()` accepts the common name forms:
+For installed environment packages, `AutoEnv.from_env()` also accepts the common
+name forms below. Without a `base_url`, these start a local Docker container and
+require Docker and the environment image:
 
 ```python
+from openenv import AutoEnv
+
 AutoEnv.from_env("echo")
 AutoEnv.from_env("echo-env")
 AutoEnv.from_env("echo_env")
@@ -147,25 +155,11 @@ with EchoEnv(base_url="http://localhost:8000").sync() as client:
     result = client.reset()
 ```
 
-Cloud sandbox providers implement the same `ContainerProvider` contract as
-local Docker: they start an isolated environment server and return a `base_url`
-that an `EnvClient` can connect to directly, while keeping provider-specific
-control-plane concepts (sandbox groups, projects, signed URLs, snapshots, egress
-policy) inside the provider. Because the contract is provider-neutral, any hosted
-runtime can implement it without changing the client/server protocol.
-
-Providers shipped today: `LocalDockerProvider`, `DockerSwarmProvider`,
-`UVProvider`, `DaytonaProvider`, and `ACASandboxProvider` (Azure Container Apps
-Sandboxes). A `KubernetesProvider` is planned.
-
-See the [Runtime Providers guide](guides/runtime-providers.md) for the full list,
-install extras, and how to select a provider, and the
-[Core API reference](reference/core.md) for each provider's API. The
-provider-neutral invariants are described in the Cloud Sandbox Providers amendment
-proposed in RFC 002 (env-spec).
+The same client also runs environments on cloud sandboxes (Daytona, Modal, Novita, Azure Container Apps, Hugging Face) through runtime providers. `HFSandboxProvider` ships with core OpenEnv and needs a Hugging Face token for an account that can run Jobs (the sandboxes are billed as Jobs): it runs an environment's Space image in a Hugging Face sandbox ([example](guides/runtime-providers#hfsandboxprovider)). See the [Runtime Providers guide](guides/runtime-providers) to pick one.
 
 ## Next Steps
 
-- [Concepts](guides/concepts.md)
-- [Explore environments](environments.md)
-- [Build your first environment](guides/first-environment.md)
+- [Train an agent](guides/training) with your training framework, or train a coding agent through [Harbor](environments/harbor)
+- [Explore environments](environments)
+- [Build your first environment](guides/first-environment)
+- [Concepts](guides/concepts)

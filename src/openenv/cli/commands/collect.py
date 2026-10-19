@@ -86,33 +86,34 @@ def _resolve_api_key(provider: str) -> str:
     )
 
 
+def _extract_legal_actions(messages: list[dict[str, Any]]) -> list[int]:
+    for message in reversed(messages):
+        content = message.get("content") or ""
+        if not isinstance(content, str):
+            continue
+        try:
+            payload = json.loads(content)
+        except (json.JSONDecodeError, ValueError):
+            payload = None
+        if isinstance(payload, dict) and "legal_actions" in payload:
+            legal = payload["legal_actions"]
+            if isinstance(legal, list):
+                return [int(a) for a in legal]
+        match = re.search(r"Legal actions:\s*\[([^\]]*)\]", content)
+        if match:
+            raw = match.group(1).strip()
+            if not raw:
+                return []
+            return [int(x) for x in raw.split(",")]
+    return []
+
+
 def _build_scripted_model_step():
     """Default teacher: pick the first legal action from the latest observation.
 
     Matches the scripted teacher in ``examples/ttt_collect_demo.py``. Lets
     users smoke-test the CLI without any API key configured.
     """
-
-    def _extract_legal_actions(messages: list[dict[str, Any]]) -> list[int]:
-        for message in reversed(messages):
-            content = message.get("content") or ""
-            if not isinstance(content, str):
-                continue
-            try:
-                payload = json.loads(content)
-            except (json.JSONDecodeError, ValueError):
-                payload = None
-            if isinstance(payload, dict) and "legal_actions" in payload:
-                legal = payload["legal_actions"]
-                if isinstance(legal, list):
-                    return [int(a) for a in legal]
-            match = re.search(r"Legal actions:\s*\[([^\]]*)\]", content)
-            if match:
-                raw = match.group(1).strip()
-                if not raw:
-                    return []
-                return [int(x) for x in raw.split(",")]
-        return []
 
     def model_step(messages, tools, sampling):
         del sampling
@@ -140,7 +141,7 @@ def _build_llm_model_step(
     model: str,
     *,
     llm_endpoint: str | None,
-    llm_port: int,
+    llm_port: int | None,
     temperature: float,
     max_tokens: int,
     system_prompt: str | None = None,
@@ -151,15 +152,19 @@ def _build_llm_model_step(
         # Self-hosted OpenAI-compatible endpoint (vLLM, TGI, Ollama, ...).
         from openenv.core.llm_client import OpenAIClient
 
-        client: LLMClient = OpenAIClient(
-            endpoint=llm_endpoint,
-            port=llm_port,
-            model=model,
-            api_key=os.getenv("OPENAI_API_KEY") or "not-needed",
-            system_prompt=effective_system_prompt,
-            temperature=temperature,
-            max_tokens=max_tokens,
-        )
+        try:
+            client: LLMClient = OpenAIClient(
+                endpoint=llm_endpoint,
+                port=llm_port,
+                model=model,
+                api_key=os.getenv("OPENAI_API_KEY") or "not-needed",
+                system_prompt=effective_system_prompt,
+                temperature=temperature,
+                max_tokens=max_tokens,
+            )
+        except ValueError as exc:
+            raise typer.BadParameter(str(exc), param_hint="--llm-endpoint") from exc
+        console.print(f"[cyan]LLM endpoint:[/cyan] {client.base_url}")
     else:
         client = create_llm_client(
             provider=provider,
@@ -279,13 +284,23 @@ def collect(
         str | None,
         typer.Option(
             "--llm-endpoint",
-            help="OpenAI-compatible endpoint URL (for self-hosted vLLM/TGI/Ollama).",
+            help=(
+                "Base URL of a self-hosted OpenAI-compatible server "
+                "(vLLM/TGI/Ollama), e.g. http://localhost:8000. /v1 is appended "
+                "when the URL has no path; a URL with a path is used as-is."
+            ),
         ),
     ] = None,
     llm_port: Annotated[
-        int,
-        typer.Option("--llm-port", help="Port for self-hosted LLM endpoint."),
-    ] = 8000,
+        int | None,
+        typer.Option(
+            "--llm-port",
+            help=(
+                "Port appended to --llm-endpoint when the URL does not include one. "
+                "No default: earlier releases assumed 8000."
+            ),
+        ),
+    ] = None,
     temperature: Annotated[
         float, typer.Option("--temperature", help="Sampling temperature.")
     ] = 0.2,
@@ -363,6 +378,20 @@ def collect(
     factory = _build_session_factory(
         env, base_url, dataset_config=parsed_dataset_config
     )
+
+    if uses_llm_teacher:
+        model_step = _build_llm_model_step(
+            provider=provider,
+            model=model,  # type: ignore[arg-type]  # validated above
+            llm_endpoint=llm_endpoint,
+            llm_port=llm_port,
+            temperature=temperature,
+            max_tokens=max_tokens,
+            system_prompt=system_prompt,
+        )
+    else:
+        model_step = _build_scripted_model_step()
+
     serializer = RolloutSerializer(output_dir)
     serializer.write_metadata(
         {
@@ -377,19 +406,6 @@ def collect(
             "keep_losses": keep_losses,
         }
     )
-
-    if uses_llm_teacher:
-        model_step = _build_llm_model_step(
-            provider=provider,
-            model=model,  # type: ignore[arg-type]  # validated above
-            llm_endpoint=llm_endpoint,
-            llm_port=llm_port,
-            temperature=temperature,
-            max_tokens=max_tokens,
-            system_prompt=system_prompt,
-        )
-    else:
-        model_step = _build_scripted_model_step()
 
     should_keep = None if keep_losses else (lambda record: record.reward >= 0.0)
 

@@ -12,6 +12,7 @@ import os
 import socket
 import subprocess
 import sys
+import tempfile
 import time
 from pathlib import Path
 from unittest.mock import patch
@@ -24,19 +25,6 @@ from typer.testing import CliRunner
 REPO_ROOT = Path(__file__).resolve().parents[2]
 ECHO_ENV = REPO_ROOT / "envs" / "echo_env"
 runner = CliRunner()
-
-
-@pytest.fixture(autouse=True)
-def _restore_cwd_and_syspath():
-    """``serve`` mutates cwd and ``sys.path``; CliRunner runs in-process."""
-    cwd = os.getcwd()
-    path = list(sys.path)
-    yield
-    try:
-        os.chdir(cwd)
-    except OSError:
-        pass
-    sys.path[:] = path
 
 
 def _pick_free_port() -> int:
@@ -87,7 +75,8 @@ def test_serve_uses_manifest_port_when_omitted() -> None:
 
 
 @pytest.mark.integration
-def test_serve_echo_env_health_subprocess() -> None:
+@pytest.mark.parametrize("reload", [False, True])
+def test_serve_echo_env_health_subprocess(reload) -> None:
     requests = pytest.importorskip("requests")
     port = _pick_free_port()
     env = os.environ.copy()
@@ -103,11 +92,14 @@ def test_serve_echo_env_health_subprocess() -> None:
         "--host",
         "127.0.0.1",
     ]
+    if reload:
+        cmd.append("--reload")
+    output = tempfile.TemporaryFile(mode="w+", encoding="utf-8")
     proc = subprocess.Popen(
         cmd,
         cwd=str(REPO_ROOT),
         env=env,
-        stdout=subprocess.PIPE,
+        stdout=output,
         stderr=subprocess.STDOUT,
         text=True,
         encoding="utf-8",
@@ -126,31 +118,15 @@ def test_serve_echo_env_health_subprocess() -> None:
             except Exception as exc:
                 last_exc = exc
                 if proc.poll() is not None:
-                    out = proc.stdout.read() if proc.stdout else ""
+                    output.seek(0)
+                    out = output.read()
                     pytest.fail(
                         f"serve process exited early (code={proc.returncode}): {out}"
                     )
                 time.sleep(0.4)
         if not ok:
-            # Stop the server before reading the pipe; a live Popen can block on
-            # stdout.read() indefinitely (Greptile P1).
-            proc.terminate()
-            try:
-                proc.wait(timeout=15)
-            except subprocess.TimeoutExpired:
-                proc.kill()
-                try:
-                    proc.wait(timeout=5)
-                except subprocess.TimeoutExpired:
-                    if proc.stdout:
-                        proc.stdout.close()
-            out = ""
-            try:
-                if proc.stdout and not proc.stdout.closed:
-                    out = proc.stdout.read()
-            except (OSError, ValueError):
-                pass
-            pytest.fail(f"/health never OK (last error={last_exc!r}): {out}")
+            output.seek(0)
+            pytest.fail(f"/health never OK (last error={last_exc!r}): {output.read()}")
     finally:
         if proc.poll() is None:
             proc.terminate()
@@ -158,3 +134,27 @@ def test_serve_echo_env_health_subprocess() -> None:
             proc.wait(timeout=15)
         except subprocess.TimeoutExpired:
             proc.kill()
+            proc.wait(timeout=5)
+        output.close()
+
+
+def test_serve_defaults_to_loopback_and_restores_process_state(monkeypatch):
+    before = os.getcwd(), list(sys.path)
+    monkeypatch.setenv("PYTHONPATH", "existing-python-path")
+    with patch("uvicorn.run", autospec=True) as run:
+        result = runner.invoke(app, ["serve", str(ECHO_ENV)])
+    assert result.exit_code == 0, result.stdout
+    assert run.call_args.kwargs["host"] == "127.0.0.1"
+    assert (os.getcwd(), sys.path) == before
+    assert os.environ["PYTHONPATH"] == "existing-python-path"
+
+
+def test_serve_restores_process_state_after_uvicorn_error(monkeypatch):
+    before = os.getcwd(), list(sys.path)
+    monkeypatch.delenv("PYTHONPATH", raising=False)
+    with patch("uvicorn.run", autospec=True, side_effect=OSError("cannot bind")):
+        result = runner.invoke(app, ["serve", str(ECHO_ENV)])
+    assert result.exit_code == 1
+    assert "cannot bind" in result.output
+    assert (os.getcwd(), sys.path) == before
+    assert "PYTHONPATH" not in os.environ

@@ -28,7 +28,7 @@ Usage:
     python -m server.app
 
 Environment Variables:
-    TB2_MODE: Execution mode - "local" (default), "docker", or "auto"
+    TB2_MODE: Execution mode - "local" (default) or "docker"
     MAX_CONCURRENT_ENVS: Maximum concurrent WebSocket sessions (default: 8)
 """
 
@@ -61,13 +61,15 @@ _TB2_MODE = os.getenv("TB2_MODE", "local").lower()
 if _TB2_MODE == "docker":
     _DEFAULT_ENVIRONMENT = Tbench2DockerEnvironment
     _ENV_SUFFIX = " (Docker mode)"
-elif _TB2_MODE == "auto":
-    # Auto-detect: try Docker, fall back to local
-    _DEFAULT_ENVIRONMENT = Tbench2Environment
-    _ENV_SUFFIX = " (auto-detect mode)"
-else:
+elif _TB2_MODE == "local":
     _DEFAULT_ENVIRONMENT = Tbench2Environment
     _ENV_SUFFIX = " (local mode)"
+else:
+    # No silent aliases: the old "auto" value claimed to auto-detect Docker
+    # but always ran local mode, and a typo'd mode would quietly do the same.
+    # Which class serves decides the isolation and scoring contract, so
+    # refuse to guess.
+    raise ValueError(f"Unknown TB2_MODE {_TB2_MODE!r}: expected 'local' or 'docker'.")
 
 
 # Create the app with web interface and README integration
@@ -82,7 +84,7 @@ app = create_app(
 )
 
 
-def main(host: str = "0.0.0.0", port: int = 8000):
+def main():
     """
     Entry point for direct execution via uv run or python -m.
 
@@ -91,23 +93,20 @@ def main(host: str = "0.0.0.0", port: int = 8000):
         uv run --project . server --port 8001
         python -m tbench2_env.server.app
 
-    Args:
-        host: Host address to bind to (default: "0.0.0.0")
-        port: Port number to listen on (default: 8000)
-
     For production deployments, consider using uvicorn directly with
     multiple workers:
         uvicorn tbench2_env.server.app:app --workers 4
     """
+    import argparse
+
     import uvicorn
 
-    uvicorn.run(app, host=host, port=port)
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--host", default="0.0.0.0")
+    parser.add_argument("--port", type=int, default=8000)
+    args = parser.parse_args()
+    uvicorn.run(app, host=args.host, port=args.port)
 
 
 if __name__ == "__main__":
-    import argparse
-
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--port", type=int, default=8000)
-    args = parser.parse_args()
-    main(port=args.port)
+    main()

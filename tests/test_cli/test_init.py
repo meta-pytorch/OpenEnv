@@ -2,10 +2,13 @@
 
 """Tests for the openenv init command."""
 
+import importlib
 import os
+import sys
 from pathlib import Path
 
 from openenv.cli.__main__ import app
+from openenv.cli.commands.init import _resolve_template_path
 from typer.testing import CliRunner
 
 
@@ -113,7 +116,24 @@ def test_init_generates_openenv_yaml(tmp_path: Path) -> None:
     assert "runtime: fastapi" in yaml_content
     assert "app: server.app:app" in yaml_content
     assert "port: 8000" in yaml_content
+    assert "validation:" in yaml_content
     assert "__ENV_NAME__" not in yaml_content
+
+    validate_result = runner.invoke(
+        app,
+        [
+            "validate",
+            str(env_dir),
+            "--level",
+            "static",
+            "--skip-build",
+        ],
+    )
+    assert validate_result.exit_code == 0, validate_result.output
+    assert "Verdict: PASS" in validate_result.output
+
+    environment_file = env_dir / "server" / f"{env_name}_environment.py"
+    assert "min(length * 0.1, 1.0)" in environment_file.read_text()
 
 
 def test_init_readme_has_hf_frontmatter(tmp_path: Path) -> None:
@@ -229,6 +249,24 @@ def test_init_with_output_dir(tmp_path: Path) -> None:
     assert (env_dir / "models.py").exists()
 
 
+def test_resolve_template_path_root() -> None:
+    """Test resolving the packaged init template root."""
+    template_path = _resolve_template_path("openenv.cli.templates.openenv_env", "")
+
+    assert template_path.is_dir()
+    assert (template_path / "models.py").exists()
+
+
+def test_resolve_template_path_nested_directory() -> None:
+    """Test resolving a nested init template directory."""
+    template_path = _resolve_template_path(
+        "openenv.cli.templates.openenv_env", "server"
+    )
+
+    assert template_path.is_dir()
+    assert (template_path / "Dockerfile").exists()
+
+
 def test_init_filename_templating(tmp_path: Path) -> None:
     """Test that filenames with placeholders are renamed correctly."""
     env_name = "test_env"
@@ -311,6 +349,46 @@ def test_init_server_app_imports(tmp_path: Path) -> None:
     # Check that no template placeholders remain
     assert "__ENV_NAME__" not in app_content
     assert "__ENV_CLASS_NAME__" not in app_content
+
+
+def test_init_server_main_parses_host_and_port(tmp_path: Path, monkeypatch) -> None:
+    """Test that the generated `server` entry point honors --host and --port."""
+    import uvicorn
+
+    env_name = "demo_env"
+    result = runner.invoke(app, ["init", env_name, "--output-dir", str(tmp_path)])
+    assert result.exit_code == 0
+
+    calls = []
+    monkeypatch.setattr(uvicorn, "run", lambda app, **kwargs: calls.append(kwargs))
+    monkeypatch.setattr(
+        sys, "argv", ["server", "--host", "127.0.0.1", "--port", "8001"]
+    )
+    monkeypatch.syspath_prepend(str(tmp_path))
+
+    importlib.import_module(f"{env_name}.server.app").main()
+
+    assert calls == [{"host": "127.0.0.1", "port": 8001}]
+
+
+def test_init_next_steps_use_generated_names(tmp_path: Path) -> None:
+    """Test that the printed next steps and image tags match the generated env."""
+    env_name = "demo_env"
+    result = runner.invoke(app, ["init", env_name, "--output-dir", str(tmp_path)])
+    assert result.exit_code == 0
+
+    output = " ".join(result.output.split())
+    assert "envs/demo_env_env" not in output
+    assert "demo_env_env:latest" not in output
+    assert "Copy this directory to <repo_root>/envs/demo_env" in output
+    assert "openenv build envs/demo_env" in output
+    assert "docker run -p 8000:8000 openenv-demo:latest" in output
+
+    env_dir = tmp_path / env_name
+    for path in [env_dir / "README.md", env_dir / "client.py"]:
+        content = path.read_text()
+        assert "openenv-demo:latest" in content
+        assert "demo_env-env" not in content
 
 
 def test_init_dockerfile_uses_correct_base(tmp_path: Path) -> None:
