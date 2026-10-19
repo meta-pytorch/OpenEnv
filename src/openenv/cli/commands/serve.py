@@ -15,14 +15,6 @@ import yaml
 from .._cli_utils import console, validate_env_structure
 
 
-def _find_repo_src_for_openenv(env_dir: Path) -> Path | None:
-    """Return ``<repo>/src`` when ``env_dir`` is under an OpenEnv clone (for ``import openenv``)."""
-    for parent in [env_dir, *env_dir.parents]:
-        if (parent / "src" / "openenv").is_dir():
-            return parent / "src"
-    return None
-
-
 def serve(
     env_path: Annotated[
         str | None,
@@ -52,7 +44,8 @@ def serve(
 
     Uses ``openenv.yaml`` fields ``app`` (e.g. ``server.app:app``), ``port``, and
     ``runtime`` (must be ``fastapi``). Matches ``uv run --project . server`` layout:
-    the environment directory is the working directory and on ``sys.path``.
+    the environment directory is the working directory. Package-qualified app
+    paths also support the environment package and the repo's ``envs`` package.
 
     For production or training, use Docker (``openenv build``) — this command runs
     on the host for local development only.
@@ -118,25 +111,17 @@ def serve(
 
     original_path = list(sys.path)
     prev_cwd = os.getcwd()
-    prev_pythonpath = os.environ.get("PYTHONPATH")
-    env_root = str(env_path_obj.resolve())
+    env_root = str(env_path_obj)
+    app_dir = env_path_obj
+    module_name = app_spec.split(":", 1)[0]
+    if module_name.startswith(f"{env_path_obj.name}."):
+        app_dir = env_path_obj.parent
+    elif env_path_obj.parent.name == "envs" and module_name.startswith(
+        f"envs.{env_path_obj.name}."
+    ):
+        app_dir = env_path_obj.parent.parent
 
     try:
-        repo_src = _find_repo_src_for_openenv(env_path_obj)
-        if repo_src is not None:
-            repo_src_str = str(repo_src.resolve())
-            repo_root_str = str(repo_src.parent.resolve())
-            if repo_root_str not in sys.path:
-                sys.path.insert(0, repo_root_str)
-            if repo_src_str not in sys.path:
-                sys.path.insert(0, repo_src_str)
-            existing = os.environ.get("PYTHONPATH", "")
-            prefix = f"{repo_root_str}{os.pathsep}{repo_src_str}"
-            os.environ["PYTHONPATH"] = (
-                prefix if not existing else f"{prefix}{os.pathsep}{existing}"
-            )
-        if env_root not in sys.path:
-            sys.path.insert(0, env_root)
         os.chdir(env_root)
 
         console.print(
@@ -150,7 +135,7 @@ def serve(
                 host=host,
                 port=listen_port,
                 reload=reload,
-                app_dir=env_root,
+                app_dir=str(app_dir),
             )
         except OSError as exc:
             typer.echo(f"Error: {exc}", err=True)
@@ -161,7 +146,3 @@ def serve(
         except OSError:
             pass
         sys.path[:] = original_path
-        if prev_pythonpath is None:
-            os.environ.pop("PYTHONPATH", None)
-        else:
-            os.environ["PYTHONPATH"] = prev_pythonpath

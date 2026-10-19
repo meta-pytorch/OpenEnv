@@ -77,6 +77,39 @@ def test_serve_uses_manifest_port_when_omitted() -> None:
 @pytest.mark.integration
 @pytest.mark.parametrize("reload", [False, True])
 def test_serve_echo_env_health_subprocess(reload) -> None:
+    _serve_health_subprocess(ECHO_ENV, reload)
+
+
+@pytest.mark.integration
+@pytest.mark.parametrize("reload", [False, True])
+@pytest.mark.parametrize(
+    "app_spec",
+    ["server.app:app", "sample_env.server.app:app", "envs.sample_env.server.app:app"],
+)
+def test_serve_manifest_import_layouts(tmp_path, app_spec, reload):
+    env_dir = tmp_path / "envs" / "sample_env"
+    (env_dir / "server").mkdir(parents=True)
+    for name in (
+        "__init__.py",
+        "client.py",
+        "README.md",
+        "pyproject.toml",
+        "server/__init__.py",
+        "server/Dockerfile",
+    ):
+        (env_dir / name).touch()
+    (env_dir / "openenv.yaml").write_text(f"app: {app_spec}\nruntime: fastapi\n")
+    (env_dir / "server/app.py").write_text(
+        "from fastapi import FastAPI\n"
+        "from pathlib import Path\n"
+        "app = FastAPI()\n"
+        "@app.get('/health')\n"
+        "def health(): return {'cwd': str(Path.cwd())}\n"
+    )
+    assert _serve_health_subprocess(env_dir, reload) == {"cwd": str(env_dir)}
+
+
+def _serve_health_subprocess(env_dir, reload):
     requests = pytest.importorskip("requests")
     port = _pick_free_port()
     env = os.environ.copy()
@@ -86,7 +119,7 @@ def test_serve_echo_env_health_subprocess(reload) -> None:
         "-m",
         "openenv.cli",
         "serve",
-        str(ECHO_ENV),
+        str(env_dir),
         "--port",
         str(port),
         "--host",
@@ -114,6 +147,7 @@ def test_serve_echo_env_health_subprocess(reload) -> None:
                 r = requests.get(f"http://127.0.0.1:{port}/health", timeout=2.0)
                 if r.status_code == 200:
                     ok = True
+                    response = r.json()
                     break
             except Exception as exc:
                 last_exc = exc
@@ -136,6 +170,32 @@ def test_serve_echo_env_health_subprocess(reload) -> None:
             proc.kill()
             proc.wait(timeout=5)
         output.close()
+    return response
+
+
+def test_serve_does_not_add_unrelated_ancestor_source_paths(tmp_path, monkeypatch):
+    (tmp_path / "src/openenv").mkdir(parents=True)
+    env_dir = tmp_path / "work/sample_env"
+    env_dir.mkdir(parents=True)
+    for name in (
+        "__init__.py",
+        "client.py",
+        "README.md",
+        "pyproject.toml",
+        "Dockerfile",
+    ):
+        (env_dir / name).touch()
+    (env_dir / "openenv.yaml").write_text("app: server.app:app\n")
+    monkeypatch.setenv("PYTHONPATH", "existing-python-path")
+
+    def inspect_paths(*args, **kwargs):
+        assert str(tmp_path) not in sys.path
+        assert str(tmp_path / "src") not in sys.path
+        assert os.environ["PYTHONPATH"] == "existing-python-path"
+
+    with patch("uvicorn.run", side_effect=inspect_paths):
+        result = runner.invoke(app, ["serve", str(env_dir)])
+    assert result.exit_code == 0, result.exception
 
 
 def test_serve_defaults_to_loopback_and_restores_process_state(monkeypatch):
