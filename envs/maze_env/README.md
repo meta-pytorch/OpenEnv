@@ -15,6 +15,10 @@ tags:
 
 A gridworld maze where the agent must navigate from a start cell to an exit while avoiding walls.
 
+![Maze web playground](https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/openenv/maze.png)
+
+*The `/web` playground after a few steps: the maze, the agent, the exit and one button per legal move.*
+
 ## Maze Layout
 
 The default environment ships with a single 8x8 maze:
@@ -124,7 +128,7 @@ The episode ends with `lose` when the accumulated reward drops below `-0.5 * maz
 
 ## Configuration
 
-The server takes no environment variables. To use another layout, construct `MazeEnvironment(maze_array=..., start_cell=(col, row), exit_cell=(col, row))` in `server/app.py`. The exit defaults to the bottom-right cell.
+`MAX_CONCURRENT_ENVS` sets the maximum number of concurrent WebSocket sessions (default: `8`). To use another layout, construct `MazeEnvironment(maze_array=..., start_cell=(col, row), exit_cell=(col, row))` in `server/app.py`. The exit defaults to the bottom-right cell.
 
 ## Advanced Usage
 
