@@ -13,8 +13,8 @@ interface for a sequential transaction-risk-decisioning task.
 
 from __future__ import annotations
 
-import os
 import uuid
+from typing import Any
 
 from openenv.core.env_server import Environment
 
@@ -47,7 +47,9 @@ REWARD_FALSE_NEGATIVE = -3.0  # incorrectly approved a fraudulent txn
 ESCALATION_COST = -0.1
 
 
-class FraudTriageEnvironment(Environment):
+class FraudTriageEnvironment(
+    Environment[FraudTriageAction, FraudTriageObservation, FraudTriageState]
+):
     """
     Sequential transaction risk-decisioning environment.
 
@@ -60,17 +62,29 @@ class FraudTriageEnvironment(Environment):
 
     def __init__(self, episode_length: int = 200, fraud_rate: float = 0.12):
         super().__init__()
+        if (
+            isinstance(episode_length, bool)
+            or not isinstance(episode_length, int)
+            or episode_length < 1
+        ):
+            raise ValueError("episode_length must be a positive integer")
+        if not 0 <= fraud_rate <= 1:
+            raise ValueError("fraud_rate must be between 0 and 1")
         self.episode_length = episode_length
         self.fraud_rate = fraud_rate
         self.reset()
 
-    def reset(self):
-        seed = int.from_bytes(os.urandom(4), "little")
+    def reset(
+        self,
+        seed: int | None = None,
+        episode_id: str | None = None,
+        **kwargs: Any,
+    ) -> FraudTriageObservation:
         self._generator = TransactionGenerator(fraud_rate=self.fraud_rate, seed=seed)
         self._current_txn = None
 
         self._state = FraudTriageState(
-            episode_id=str(uuid.uuid4()),
+            episode_id=episode_id if episode_id is not None else str(uuid.uuid4()),
             step_count=0,
             episode_length=self.episode_length,
             true_positives=0,
@@ -81,10 +95,14 @@ class FraudTriageEnvironment(Environment):
         )
         return self._make_observation(advance=True)
 
-    def step(self, action: FraudTriageAction):
-        if self._current_txn is None:
-            # Defensive: step() called before a transaction was ever issued.
-            return self._make_observation(advance=True)
+    def step(
+        self,
+        action: FraudTriageAction,
+        timeout_s: float | None = None,
+        **kwargs: Any,
+    ) -> FraudTriageObservation:
+        if self._state.step_count >= self.episode_length:
+            raise RuntimeError("Episode is done. Call reset() before stepping again.")
 
         txn = self._current_txn
         decision = action.decision
@@ -138,5 +156,5 @@ class FraudTriageEnvironment(Environment):
         )
 
     @property
-    def state(self):
+    def state(self) -> FraudTriageState:
         return self._state

@@ -17,7 +17,7 @@ cost structure real payment-risk and fraud-detection teams operate under.
 Example:
     >>> from fraud_triage_env import FraudTriageEnv, FraudTriageAction, TriageDecision
     >>>
-    >>> with FraudTriageEnv(base_url="http://localhost:8000") as env:
+    >>> with FraudTriageEnv(base_url="http://localhost:8000").sync() as env:
     ...     result = env.reset()
     ...     print(result.observation.amount, result.observation.amount_zscore)
     ...

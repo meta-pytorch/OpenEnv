@@ -21,7 +21,7 @@ asymmetric cost structure real payment/fraud teams operate under.
 from __future__ import annotations
 
 from enum import IntEnum
-from typing import Any, Dict, List, Optional
+from typing import List
 
 from openenv.core.env_server import Action, Observation, State
 from pydantic import Field
@@ -44,7 +44,7 @@ class FraudTriageAction(Action):
         decision: One of TriageDecision (0=APPROVE, 1=FLAG, 2=ESCALATE, 3=BLOCK).
     """
 
-    decision: int
+    decision: TriageDecision
 
 
 class FraudTriageObservation(Observation):

@@ -78,7 +78,7 @@ docker run -p 8000:8000 fraud-triage-env:latest
 ```python
 from envs.fraud_triage_env import FraudTriageEnv, FraudTriageAction, TriageDecision
 
-with FraudTriageEnv(base_url="http://localhost:8000") as env:
+with FraudTriageEnv(base_url="http://localhost:8000").sync() as env:
     result = env.reset()
     obs = result.observation
     print(f"amount={obs.amount}, z-score={obs.amount_zscore}, new_device={obs.is_new_device}")

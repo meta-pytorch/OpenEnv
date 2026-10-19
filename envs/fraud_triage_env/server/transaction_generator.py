@@ -21,7 +21,6 @@ agent is expected to learn the decision policy, not have one handed to it.
 from __future__ import annotations
 
 import random
-import uuid
 from dataclasses import dataclass
 
 
@@ -77,7 +76,7 @@ class TransactionGenerator:
             hour_of_day = self._rng.randint(0, 23)
 
         return Transaction(
-            transaction_id=str(uuid.uuid4()),
+            transaction_id=f"{self._rng.getrandbits(128):032x}",
             amount=round(amount, 2),
             merchant_category=self._rng.randint(0, 9),
             velocity_1h=velocity_1h,

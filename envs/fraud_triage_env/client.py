@@ -14,7 +14,7 @@ episodes.
 Example:
     >>> from fraud_triage_env import FraudTriageEnv, FraudTriageAction, TriageDecision
     >>>
-    >>> with FraudTriageEnv(base_url="http://localhost:8000") as client:
+    >>> with FraudTriageEnv(base_url="http://localhost:8000").sync() as client:
     ...     result = client.reset()
     ...     print(result.observation.amount, result.observation.amount_zscore)
     ...
@@ -32,7 +32,9 @@ from openenv.core.env_client import EnvClient
 from .models import FraudTriageAction, FraudTriageObservation, FraudTriageState
 
 
-class FraudTriageEnv(EnvClient[FraudTriageAction, FraudTriageObservation, FraudTriageState]):
+class FraudTriageEnv(
+    EnvClient[FraudTriageAction, FraudTriageObservation, FraudTriageState]
+):
     """
     Client for the Fraud Triage Environment.
 
@@ -41,7 +43,7 @@ class FraudTriageEnv(EnvClient[FraudTriageAction, FraudTriageObservation, FraudT
     approve/flag/escalate/block decisions against hidden ground-truth labels.
 
     Example:
-        >>> with FraudTriageEnv(base_url="http://localhost:8000") as client:
+        >>> with FraudTriageEnv(base_url="http://localhost:8000").sync() as client:
         ...     result = client.reset()
         ...     print(result.observation.amount)
         ...
@@ -53,7 +55,9 @@ class FraudTriageEnv(EnvClient[FraudTriageAction, FraudTriageObservation, FraudT
         """Convert FraudTriageAction to JSON payload for the step request."""
         return {"decision": int(action.decision)}
 
-    def _parse_result(self, payload: Dict[str, Any]) -> StepResult[FraudTriageObservation]:
+    def _parse_result(
+        self, payload: Dict[str, Any]
+    ) -> StepResult[FraudTriageObservation]:
         """Parse server response into StepResult[FraudTriageObservation]."""
         obs_data = payload.get("observation", {})
 
