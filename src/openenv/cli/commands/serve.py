@@ -10,7 +10,6 @@ from pathlib import Path
 from typing import Annotated
 
 import typer
-import uvicorn
 import yaml
 
 from .._cli_utils import console, validate_env_structure
@@ -58,6 +57,8 @@ def serve(
     For production or training, use Docker (``openenv build``) — this command runs
     on the host for local development only.
     """
+    import uvicorn
+
     env_path_obj = (
         Path.cwd().resolve() if env_path is None else Path(env_path).resolve()
     )

@@ -158,3 +158,21 @@ def test_serve_restores_process_state_after_uvicorn_error(monkeypatch):
     assert "cannot bind" in result.output
     assert (os.getcwd(), sys.path) == before
     assert "PYTHONPATH" not in os.environ
+
+
+def test_cli_commands_import_without_starting_the_server_runtime():
+    code = """
+import sys
+sys.modules['uvicorn'] = None
+from openenv.cli.commands.init import init
+assert callable(init)
+"""
+    result = subprocess.run(
+        [sys.executable, "-c", code],
+        cwd=REPO_ROOT,
+        env={**os.environ, "PYTHONPATH": str(REPO_ROOT / "src")},
+        capture_output=True,
+        text=True,
+        timeout=30,
+    )
+    assert result.returncode == 0, result.stderr
