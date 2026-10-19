@@ -6,6 +6,7 @@ import asyncio
 import importlib
 import json
 import sys
+from typing import Literal
 
 import gradio as gr
 import pytest
@@ -13,6 +14,7 @@ from openenv.core.env_server.gradio_ui import (
     _description,
     _Form,
     _params,
+    _readme_body,
     _result_html,
     build_gradio_app,
 )
@@ -74,6 +76,48 @@ def test_result_lists_observation_fields():
     assert "metadata" not in html
 
 
+class ScreenObservation(Observation):
+    screen: list = []
+    board: list = []
+    legal_actions: list[int] = []
+
+
+class ScreenEnv(TinyEnv):
+    def reset(self, seed=None, episode_id=None, **kwargs):
+        return ScreenObservation(
+            screen=[[[0, 0, 255]] * 1920] * 1080,
+            board=[[0] * 7] * 6,
+            legal_actions=list(range(7)),
+        )
+
+    def step(self, action, timeout_s=None, **kwargs):
+        return ScreenObservation(reward=1.0, done=True)
+
+    def render_web(self, observation):
+        self.drawn = observation
+        return "<svg></svg>"
+
+
+def test_big_arrays_are_shown_as_their_shape():
+    env = ScreenEnv()
+    manager = WebInterfaceManager(env, MoveAction, ScreenObservation)
+    blocks = build_gradio_app(manager, _extract_action_fields(MoveAction), None, False)
+    fns = {f.fn.__name__: f.fn for f in blocks.fns.values()}
+
+    outputs = asyncio.run(fns["reset_env"]([]))
+
+    assert "list · 1080×1920×3" in outputs[3]
+    assert "[0, 0, 0, 0, 0, 0, 0]" in outputs[3]  # a 6x7 board keeps its cells
+    assert json.loads(outputs[4])["observation"]["screen"] == "list · 1080×1920×3"
+    assert len(outputs[4]) < 1000
+    assert len(env.drawn["screen"]) == 1080  # the drawing gets the full observation
+    assert env.drawn["reward"] is None and env.drawn["done"] is False
+
+    asyncio.run(fns["step_fn"](outputs[6], 0))
+
+    assert env.drawn["reward"] == 1.0 and env.drawn["done"] is True
+
+
 def test_playground_builds_for_a_plain_env():
     manager = WebInterfaceManager(TinyEnv(), MoveAction, BoardObservation)
     blocks = build_gradio_app(manager, _extract_action_fields(MoveAction), None, False)
@@ -107,6 +151,48 @@ def test_catch_offers_legal_moves_and_a_board():
     board = env.render_web(obs)
     assert 'aria-label="Catch board"' in board
     assert "#" not in board  # theme colours only, so it reads in dark mode
+
+
+def test_openspiel_2048_web_playground():
+    pytest.importorskip("open_spiel")
+    from openspiel_env.server.openspiel_environment import OpenSpielEnvironment
+
+    env = OpenSpielEnvironment(game_name="2048")
+    obs = env.reset().model_dump()
+    names = {0: "up", 1: "right", 2: "down", 3: "left"}
+    assert env.web_actions(obs) == [
+        (f"{a} · {names[a]}", {"action_id": a}) for a in obs["legal_actions"]
+    ]
+    board = env.render_web(obs)
+    assert 'aria-label="2048 board"' in board
+    assert "#" not in board
+    for value in obs["info_state"]:
+        if value:
+            assert f">{int(value)}<" in board
+
+
+@pytest.mark.parametrize(
+    "game, label, button",
+    [
+        ("tic_tac_toe", "Tic-Tac-Toe board", ("4 · centre", {"action_id": 4})),
+        ("connect_four", "Connect Four board", ("col 3", {"action_id": 3})),
+        ("blackjack", "Blackjack board", ("0 · hit", {"action_id": 0})),
+        ("kuhn_poker", "Kuhn Poker board", ("1 · bet", {"action_id": 1})),
+        ("cliff_walking", "Cliff Walking board", ("1 · up", {"action_id": 1})),
+    ],
+)
+def test_openspiel_web_playground(game, label, button):
+    pytest.importorskip("open_spiel")
+    from openspiel_env.models import OpenSpielAction
+    from openspiel_env.server.openspiel_environment import OpenSpielEnvironment
+
+    env = OpenSpielEnvironment(game_name=game)
+    obs = env.reset().model_dump()
+    assert button in env.web_actions(obs)
+    obs = env.step(OpenSpielAction(**button[1])).model_dump()
+    drawing = env.render_web(obs)
+    assert f'aria-label="{label}"' in drawing
+    assert "#" not in drawing
 
 
 def _sum_env():
@@ -197,6 +283,18 @@ def test_form_sends_defaults_skips_empty_optionals_and_requires_fields():
         form.values([raw[n] for n, _ in form.names])
 
 
+class TurnAction(Action):
+    direction: Literal["LEFT", "RIGHT"]
+    speed: Literal["slow", "fast"] | None = None
+
+
+def test_required_choice_starts_on_its_first_option():
+    with gr.Blocks():
+        form = _Form(_params(TurnAction.model_json_schema()))
+    assert [i.value for i in form.inputs] == ["LEFT", None]
+    assert form.values([i.value for i in form.inputs]) == {"direction": "LEFT"}
+
+
 def test_description_falls_back_to_the_readme():
     readme = "---\ntitle: X\n---\n# Catch\n\n> [!NOTE]\n> hi\n\nMove the [paddle](x) to catch the ball.\n"
     meta = EnvironmentMetadata(
@@ -240,6 +338,19 @@ def test_secret_arguments_are_masked_in_the_episode():
 
     assert outputs[6][-1][1] == 'step(user="ana", api_key=***)'
     assert "sk-123" not in outputs[5]
+
+
+def test_long_arguments_are_cut_in_the_episode():
+    manager = WebInterfaceManager(TinyEnv(), LoginAction, BoardObservation)
+    blocks = build_gradio_app(manager, _extract_action_fields(LoginAction), None, False)
+    step_fn = next(f.fn for f in blocks.fns.values() if f.fn.__name__ == "step_fn")
+    svg = "<svg>" + "<circle r='1'/>" * 100 + "</svg>"
+
+    outputs = asyncio.run(step_fn([], svg, "sk-123"))
+
+    call = outputs[6][-1][1]
+    assert call.startswith('step(user="<svg><circle') and "…, api_key=***)" in call
+    assert len(call) < 100
 
 
 def test_enter_in_a_text_field_runs_the_step():
@@ -325,3 +436,8 @@ def test_new_env_from_the_template_gets_a_working_playground(
     assert "hello" in outputs[3]
     assert outputs[6][-1][1] == 'step(message="hello")'
     assert json.loads(fns["show_state"]())["step_count"] == 1
+
+
+def test_readme_drops_the_space_front_matter():
+    readme = "---\ntitle: Catch\nsdk: docker\n---\n\n# Catch\n\nMove the paddle.\n"
+    assert _readme_body(readme) == "\n# Catch\n\nMove the paddle.\n"

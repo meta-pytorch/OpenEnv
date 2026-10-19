@@ -3,6 +3,10 @@
 
 A wildfire-control simulation for reinforcement learning. The agent contains spreading fires with **water** and **firebreaks** under **wind** and **humidity**, with limited resources. The spread model is inspired by the Rothermel surface fire spread model and MITRE Fireline's SimFire.
 
+![Wildfire web playground](https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/openenv/wildfire.png)
+
+*The `/web` playground after a few steps: the spreading fire, a line of firebreaks and the episode stats.*
+
 ## Quick Start
 
 Build and run the server from `envs/wildfire_env/`:
@@ -107,6 +111,7 @@ Set these environment variables before starting the server:
 | `WILDFIRE_HEIGHT` | `16` | Grid height |
 | `WILDFIRE_HUMIDITY` | `0.25` | Base humidity |
 | `WILDFIRE_WIND` | random | Fixed wind direction (`N` ... `NW`, `CALM`) |
+| `MAX_CONCURRENT_ENVS` | `8` | Maximum concurrent WebSocket sessions |
 | `ENABLE_WEB_INTERFACE` | `true` in the Docker image | Serve the web interface at `/web` |
 
 ```bash
