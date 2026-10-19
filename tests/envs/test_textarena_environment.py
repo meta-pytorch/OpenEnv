@@ -96,11 +96,12 @@ def test_wordle_reports_how_the_game_ended():
     # The winning row is drawn green.
     assert board.count("var(--color-accent);color") == 5
 
-    env.reset()
+    obs = env.reset()
     secret = env.state.raw_state["game_state"]["secret_word"]
-    for word in ["about", "other", "which", "there", "their", "would", "could"]:
-        if word != secret:
-            obs = env.step(TextArenaAction(message=f"[{word}]"))
+    for word in ["crane", "table", "chair", "house", "plant", "stone", "river"]:
+        if word == secret:
+            continue
+        obs = env.step(TextArenaAction(message=f"[{word}]"))
         if obs.done:
             break
     assert obs.done
@@ -108,3 +109,20 @@ def test_wordle_reports_how_the_game_ended():
 
     obs = env.reset()
     assert "Congratulations" not in obs.messages[-1].content
+
+
+def test_wordle_first_guess_win_uses_word_length():
+    env = object.__new__(TextArenaEnvironment)
+    board = env.render_web(
+        {
+            "messages": [
+                {
+                    "content": "You have 6 attempts\n[planet]\n"
+                    "[GAME] Congratulations! You guessed the word correctly!"
+                }
+            ]
+        }
+    )
+    assert "grid-template-columns:repeat(6,38px)" in board
+    assert board.count("<span") == 36
+    assert board.count("var(--color-accent);color") == 6

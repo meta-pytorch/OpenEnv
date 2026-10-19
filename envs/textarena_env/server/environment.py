@@ -270,6 +270,7 @@ class TextArenaEnvironment(Environment):
         # A winning guess has no feedback line.
         won = _WORDLE_WIN.search(text)
         if won:
+            length = len(won.group(1))
             rows.append((won.group(1).upper(), ["G"] * len(won.group(1))))
         rows += [(" " * length, ["-"] * length)] * (int(attempts.group(1)) - len(rows))
         tile = (
