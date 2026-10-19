@@ -1,6 +1,8 @@
 """Docker-local no-network launch and network measurement, against a fake engine."""
 
 import json
+import subprocess
+import sys
 import types
 
 import pytest
@@ -11,6 +13,30 @@ from openenv.validation.types import ProviderCapability
 
 IMAGE = "sha256:" + "a" * 64
 SINK_IP = "10.88.0.5"
+
+
+def test_relay_preserves_bytes_when_stdout_writes_are_short():
+    setup = """
+import os, socket, threading
+write = os.write
+os.write = lambda fd, data: write(fd, data[:3])
+class Socket:
+    chunks = iter([b"first response", b"second response", b""])
+    def settimeout(self, value): pass
+    def recv(self, size): return next(self.chunks)
+socket.create_connection = lambda *a, **k: Socket()
+class Thread:
+    def __init__(self, **kwargs): pass
+    def start(self): pass
+threading.Thread = Thread
+"""
+    result = subprocess.run(
+        [sys.executable, "-c", setup + _netns.RELAY_SCRIPT],
+        capture_output=True,
+        check=True,
+        timeout=10,
+    )
+    assert result.stdout == b"first responsesecond response"
 
 
 def launch_spec(mode="no-network"):

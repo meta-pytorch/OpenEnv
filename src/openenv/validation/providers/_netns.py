@@ -133,7 +133,9 @@ def upstream():
         except OSError: pass
 threading.Thread(target=upstream, daemon=True).start()
 while chunk := s.recv(65536):
-    os.write(1, chunk)
+    pending = memoryview(chunk)
+    while pending:
+        pending = pending[os.write(1, pending):]
 """
 
 

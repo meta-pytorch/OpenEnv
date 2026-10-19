@@ -17,7 +17,7 @@ class NetworkPolicyGrader:
     depends_on = ("runtime.startup",)
 
     def applies_to(self, manifest) -> bool:
-        return manifest.network.mode in {"public", "no-network"}
+        return True
 
     def run(self, subject) -> CheckResult:
         started = time.monotonic()
@@ -36,6 +36,13 @@ class NetworkPolicyGrader:
         )
 
     def _grade(self, subject):
+        declared = subject.manifest.network.mode
+        if declared not in {"public", "no-network"}:
+            return (
+                CheckStatus.SKIP,
+                [f"{declared} network grading is not implemented"],
+                {},
+            )
         if subject.network_evidence_json is None:
             return CheckStatus.SKIP, ["network evidence is unavailable"], {}
         try:
@@ -45,7 +52,6 @@ class NetworkPolicyGrader:
         except ValueError:  # includes pydantic's ValidationError
             return CheckStatus.FAIL, ["malformed network evidence"], {}
 
-        declared = subject.manifest.network.mode
         if evidence.requested_mode != declared:
             return (
                 CheckStatus.FAIL,
@@ -55,6 +61,14 @@ class NetworkPolicyGrader:
         # A probe kind is evidence only if it reaches the sink from the control side.
         counted = [p for p in evidence.probes if p.control.result == "reachable"]
         measured = {"counted_probes": [p.kind for p in counted]}
+        result = (
+            self._public(evidence, counted, measured)
+            if declared == "public"
+            else self._no_network(evidence, counted, measured)
+        )
+        # A failed control cannot erase an independently proven policy violation.
+        if result[0] is CheckStatus.FAIL:
+            return result
         if not any(p.kind == "tcp" for p in counted):
             return (
                 CheckStatus.SKIP,
@@ -63,9 +77,7 @@ class NetworkPolicyGrader:
                 ],
                 measured,
             )
-        if declared == "public":
-            return self._public(evidence, counted, measured)
-        return self._no_network(evidence, counted, measured)
+        return result
 
     @staticmethod
     def _public(evidence, counted, measured):

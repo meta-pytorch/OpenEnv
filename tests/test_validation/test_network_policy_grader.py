@@ -44,7 +44,9 @@ def evidence(
 
 class _Manifest:
     def __init__(self, mode):
-        self.network = NetworkPolicy(mode=mode)
+        self.network = NetworkPolicy(
+            mode=mode, allowed_hosts=["example.com"] if mode == "allowlist" else []
+        )
 
 
 def grade(mode, measured):
@@ -64,6 +66,13 @@ def test_grader_metadata():
     assert grader.check_id == "runtime.network_policy"
     assert grader.requires_provider == frozenset({ProviderCapability.NETWORK_POLICY})
     assert "runtime.startup" in grader.depends_on
+
+
+def test_allowlist_is_applicable_but_not_implemented():
+    assert NetworkPolicyGrader().applies_to(_Manifest("allowlist"))
+    result = grade("allowlist", evidence("public"))
+    assert result.status is CheckStatus.SKIP
+    assert "allowlist" in " ".join(result.evidence)
 
 
 @pytest.mark.parametrize("mode", ["public", "no-network"])
@@ -131,6 +140,38 @@ def test_unreachable_controlled_sink_skips():
     result = grade("no-network", measured)
     assert result.status is CheckStatus.SKIP
     assert any("sink" in line for line in result.evidence)
+
+
+@pytest.mark.parametrize(
+    "mode, changes",
+    [
+        ("public", {"network_mode": "none"}),
+        ("no-network", {"network_mode": "bridge"}),
+        ("no-network", {"interfaces": ["eth0", "lo"]}),
+        ("no-network", {"route": True}),
+        ("no-network", {"v6": 1}),
+    ],
+)
+def test_failed_tcp_control_does_not_hide_namespace_violations(mode, changes):
+    measured = evidence(
+        mode,
+        probes=[{"kind": "tcp", "control": TIMEOUT, "subject": TIMEOUT}],
+        **changes,
+    )
+    assert grade(mode, measured).status is CheckStatus.FAIL
+
+
+def test_failed_tcp_control_does_not_hide_a_counted_udp_leak():
+    measured = evidence(
+        "no-network",
+        probes=[
+            {"kind": "tcp", "control": TIMEOUT, "subject": DENIED},
+            {"kind": "udp", "control": REACHABLE, "subject": REACHABLE},
+        ],
+    )
+    result = grade("no-network", measured)
+    assert result.status is CheckStatus.FAIL
+    assert any("udp" in line and "reachable" in line for line in result.evidence)
 
 
 @pytest.mark.parametrize("subject_outcome", [DENIED, TIMEOUT])

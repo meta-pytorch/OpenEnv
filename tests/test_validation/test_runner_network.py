@@ -58,9 +58,10 @@ def package(tmp_path, mode):
     manifest = root / "openenv.yaml"
     text = manifest.read_text()
     assert "  execution:" in text
-    manifest.write_text(
-        text.replace("  execution:", f"  network:\n    mode: {mode}\n  execution:", 1)
-    )
+    network = f"  network:\n    mode: {mode}\n"
+    if mode == "allowlist":
+        network += "    allowed_hosts: [example.com]\n"
+    manifest.write_text(text.replace("  execution:", network + "  execution:", 1))
     return root
 
 
@@ -118,3 +119,13 @@ def test_unsupported_mode_is_refused_before_launch(tmp_path, monkeypatch):
     )
     assert provider.launches == []
     assert results["runtime.startup"].status is CheckStatus.SKIP
+
+
+def test_allowlist_keeps_a_named_network_policy_skip(tmp_path, monkeypatch):
+    subject = MeasuredSubject(measurement=None)
+    provider, results = validate(tmp_path, monkeypatch, "allowlist", subject)
+    assert provider.launches == []
+    assert subject.measured == []
+    assert results["static.manifest"].status is CheckStatus.PASS
+    assert results["runtime.startup"].status is CheckStatus.SKIP
+    assert results["runtime.network_policy"].status is CheckStatus.SKIP
