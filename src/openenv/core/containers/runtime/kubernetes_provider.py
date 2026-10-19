@@ -564,7 +564,8 @@ class KubernetesProvider(ContainerProvider):
                 )
             )
             self._service_created = True
-        except Exception as exc:
+        except BaseException as exc:
+            # Interrupts can also arrive after the API created a resource.
             # A cleanup failure must not mask the original error.
             try:
                 self._cleanup_after_failed_start(exc)
@@ -736,6 +737,13 @@ class KubernetesProvider(ContainerProvider):
         context-manager exit). Equivalent to ``stop_container()``.
         """
         self.stop_container()
+
+    def __exit__(self, exc_type, exc, tb) -> None:
+        try:
+            self.close()
+        except Exception:
+            if exc_type is None:
+                raise
 
     def wait_for_ready(self, base_url: str, timeout_s: float = 120.0) -> None:
         """

@@ -321,6 +321,37 @@ class TestLifecycle:
 
 
 class TestCleanup:
+    @pytest.mark.parametrize("resource", ["pod", "service"])
+    @pytest.mark.parametrize("error", [KeyboardInterrupt, SystemExit])
+    def test_interrupt_cleans_up_attempted_resources(
+        self, provider, adapter, resource, error
+    ):
+        setattr(adapter, f"fail_{resource}", error("interrupted create"))
+        setattr(adapter, f"persist_{resource}_on_failure", True)
+        with pytest.raises(error, match="interrupted create"):
+            provider.start_container("echo-env:latest")
+        assert adapter.deleted_pods == 1
+        assert adapter.deleted_services == (1 if resource == "service" else 0)
+        assert provider._name is None
+
+    def test_context_exit_preserves_start_failure(self, adapter):
+        adapter.fail_service = RuntimeError("original service failure")
+        adapter.fail_delete_pod = RuntimeError("cleanup failed")
+        provider = KubernetesProvider(namespace="openenv", _adapter=adapter)
+        with pytest.raises(RuntimeError, match="original service failure"):
+            with provider:
+                provider.start_container("echo-env:latest")
+        assert provider._pod_created
+        adapter.fail_delete_pod = None
+        provider.close()
+        assert provider._name is None
+
+    def test_context_exit_surfaces_cleanup_failure_without_original(self, adapter):
+        adapter.fail_delete_pod = RuntimeError("cleanup failed")
+        with pytest.raises(RuntimeError, match="Failed to delete Kubernetes"):
+            with KubernetesProvider(namespace="openenv", _adapter=adapter) as provider:
+                provider.start_container("echo-env:latest")
+
     def test_service_failure_deletes_only_the_pod(self, provider, adapter):
         adapter.fail_service = RuntimeError("service failed")
         with pytest.raises(RuntimeError, match="service failed"):
