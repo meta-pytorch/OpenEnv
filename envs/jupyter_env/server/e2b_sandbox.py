@@ -42,14 +42,12 @@ def _failed_command(exc: Exception, exit_code: int) -> CellResult:
     """Describe a command that exited non-zero as a failed `CellResult`.
 
     A non-zero exit raises the SDK's ``CommandExitException``, which carries the
-    exit code and output. It is matched by attribute so this module still
-    imports without the SDK installed.
+    exit code and the output the command produced before it failed.
     """
-    error = f"exit code {exit_code}"
     return CellResult(
-        stdout=getattr(exc, "stdout", "") or "",
-        stderr=getattr(exc, "stderr", "") or "",
-        error=error,
+        stdout=exc.stdout or "",
+        stderr=exc.stderr or "",
+        error=f"exit code {exit_code}",
         error_name=type(exc).__name__,
         text_results=[],
         images=[],
@@ -175,6 +173,10 @@ del _patched_show
         try:
             result = handle.wait()
         except Exception as exc:
+            # The SDK raises CommandExitException for a command that ran and
+            # exited non-zero. It is told apart by its exit code rather than by
+            # class so that this module keeps importing, and the tests keep
+            # driving it, without the SDK installed.
             exit_code = getattr(exc, "exit_code", None)
             if exit_code is not None:
                 return _failed_command(exc, exit_code)
