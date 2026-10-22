@@ -23,7 +23,7 @@ tags:
 
 *The `/web` playground mid-episode: the board with the line so far, and one button per legal move.*
 
-This environment serves Spatial-Gym through OpenEnv. It uses the same prompts and the same scoring as the paper, and the reward matches the [Prime Intellect version](https://github.com/lkaesberg/Spatial-Gym/tree/main/environments/spatial_gym).
+This environment serves Spatial-Gym through OpenEnv. It uses the paper's prompts and scoring, with the polyshape and negative polyshape rules stated the way the puzzles were built, and the reward matches the [Prime Intellect version](https://github.com/lkaesberg/Spatial-Gym/tree/main/environments/spatial_gym).
 
 ## One episode
 
