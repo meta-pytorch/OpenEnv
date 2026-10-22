@@ -2,8 +2,8 @@
 
 **Status**: In Review
 **Created**: 2026-09-26
-**Updated**: 2026-10-16
-**Revised**: 2026-10-12 — removed a CLI limitation fixed by #1237, updated the RFC 008 reference to #1321, and corrected four small inaccuracies; 2026-10-16 — added results on three more seeds, replaced the token-weighted formula, scoped the first evaluation to environments whose turns the trainer drives, listed the gaps in the collect pipeline, offered the curriculum as an example, linked the trial's code and logs, and stated how the token weights treat unseen keys and many keys
+**Updated**: 2026-10-22
+**Revised**: 2026-10-12 — removed a CLI limitation fixed by #1237, updated the RFC 008 reference to #1321, and corrected four small inaccuracies; 2026-10-16 — added results on three more seeds, replaced the token-weighted formula, scoped the first evaluation to environments whose turns the trainer drives, listed the gaps in the collect pipeline, offered the curriculum as an example, linked the trial's code and logs, and stated how the token weights treat unseen keys and many keys; 2026-10-22 — after review, removed weighting by cost and the `cost` argument from the curriculum, stated the two hooks a sampler needs in a trainer and their limits in TRL, added `metrics()` to the protocol, left shares across sources to the trainer, reported how far the signal formula over-predicts, cited prior work on rollout allocation and filtering, narrowed the reference experiment to uniform sampling against the curriculum on five new seeds, answered open question 6 and proposed a direction for open question 5
 **Authors**: @Matheus-F-Scatolin, @tiagoperrupato
 **RFC ID**: 013
 
@@ -13,7 +13,7 @@ This RFC adds two trainer-side capabilities on top of the existing Task API: **t
 
 It introduces a small `TaskSampler` protocol with two implementations in core (`SequentialSampler`, `UniformSampler`), a generic Task API client helper, an `EnvEvalHarness` that implements the existing `EvalHarness` base class with the same pieces as the `openenv collect` rollout pipeline, and an `openenv eval` CLI command. A third sampler, `CurriculumSampler`, is offered as an example; whether it belongs in core is a question for the maintainers. The environment boundary does not change: environments keep computing rewards, and samplers only consume them.
 
-The protocol and the evaluation harness are the core of the proposal and are useful with any sampler. The curriculum is one pluggable sampler, and we measured it on a laptop (see [Preliminary Results](#preliminary-results)): a single-seed pilot, then a trial on three more seeds. A curriculum that targets GRPO signal reached higher test accuracy than uniform sampling per environment episode on all four seeds, and per generated token on the three new ones. The pilot's seed had pointed the other way per token, because its curriculum run happened to produce much longer answers; on the other seeds, answer length did not follow the method. Dividing the curriculum's weights by the token cost of each tier, as the first version of this RFC proposed, made it worse; a corrected form matched the curriculum that counts episodes per generated token, without beating it, and was ahead of it per episode. So the `CurriculumSampler` weights by signal, counts cost in the unit the trainer chooses, and reports signal per unit of cost.
+The protocol and the evaluation harness are the core of the proposal and are useful with any sampler. The curriculum is one pluggable sampler, and we measured it on a laptop (see [Preliminary Results](#preliminary-results)): a single-seed pilot, then a trial on three more seeds. A curriculum that targets GRPO signal reached higher test accuracy than uniform sampling per environment episode on all four seeds, and per generated token on the three new ones. The pilot's seed had pointed the other way per token, because its curriculum run happened to produce much longer answers; on the other seeds, answer length did not follow the method. Dividing the curriculum's weights by the token cost of each tier, as the first version of this RFC proposed, made it worse, and a corrected form matched the curriculum that leaves cost out per generated token, the unit it was meant to improve, while being slightly ahead of it per episode. So the `CurriculumSampler` weights by signal only; the samplers proposed here count the cost the trainer reports and report signal per episode and per unit of that cost.
 
 ## Motivation
 
@@ -29,7 +29,7 @@ Today, selecting tasks well is manual. The Harbor harness takes an explicit `ind
 P(signal) = 1 - p^G - (1 - p)^G
 ```
 
-which is maximal at `p = 0.5` and collapses as `p` approaches 0 or 1. In our pilot, 80% of GRPO groups carried no gradient under uniform sampling (Llama-3.2-1B, `G = 8`). DAPO's dynamic sampling filters these groups after generation; a sampler that targets tasks near `p = 0.5` avoids generating them in the first place. What a wasted group costs depends on the environment: in a single-turn reasoning task it is mostly generated tokens, while in a sandboxed or tool-using environment it is mostly the episode itself (container time, tool calls, API calls). A trainer has to see that cost next to the signal, so every sampler here reports both.
+which is maximal at `p = 0.5` and collapses as `p` approaches 0 or 1. In our pilot, 80% of GRPO groups carried no gradient under uniform sampling (Llama-3.2-1B, `G = 8`). DAPO's dynamic sampling filters these groups after generation; a sampler that targets tasks near `p = 0.5` generates fewer of them in the first place. What a wasted group costs depends on the environment: in a single-turn reasoning task it is mostly generated tokens, while in a sandboxed or tool-using environment it is mostly the episode itself (container time, tool calls, API calls). A trainer has to see that cost next to the signal, so every sampler here reports both.
 
 **3. There is no shared way to evaluate a checkpoint on an environment.** `openenv.core.evals` provides the abstract `EvalHarness` and an Inspect AI wrapper. There is no shared way to run a checkpoint over an environment's `test` split with fixed seeds, aggregate metrics, and compare two checkpoints: `examples/claude_code_harness_eval/run_eval.py` and the SFT warm-up tutorial (`evaluate_model`) each write their own loop. Reproducibility is also fragile: environments have accepted `seed` in `reset()` and discarded it (`textarena_env` in #1102, and `finqa_env` until #1252 fixed it), so two evaluation runs of the same checkpoint can see different tasks.
 
@@ -40,7 +40,7 @@ RFC 000 schedules evals for phase three (0.6 to 0.9), starting with "simple eval
 1. A trainer can choose tasks for each episode through one small protocol, independent of the training framework.
 2. A reproducible evaluation of any policy reachable through an OpenAI-compatible endpoint, returning the existing `EvalResult` type. The first version covers environments that implement the Task API and whose episodes the trainer drives turn by turn; environments whose server runs a whole agent in one call, such as Harbor, are open question 8.
 3. A way to run that evaluation every N training steps and compare checkpoints task by task.
-4. A curriculum sampler, offered as an example, that raises the number of GRPO groups with non-zero advantage per episode and reports them per unit of cost, where the trainer chooses the unit (environment episodes or generated tokens), with no environment changes beyond publishing tasks.
+4. A curriculum sampler, offered as an example, that raises the number of GRPO groups with non-zero advantage per episode, with no environment changes beyond publishing tasks. Every sampler proposed here reports those groups per episode and per unit of the cost the trainer reports (for example generated tokens).
 5. A reference experiment that runs on a single laptop-class machine and reports results per episode and per generated token.
 
 ### Non-goals
@@ -49,6 +49,7 @@ RFC 000 schedules evals for phase three (0.6 to 0.9), starting with "simple eval
 - LLM-judge or multi-agent evals; this RFC covers evals scored by the environment's own reward.
 - Changing `reset`, `step`, or `state` signatures, or the wire types.
 - Exposing task selection to the agent. Samplers run in orchestration code only.
+- Setting shares across environments or data sources, or filtering groups after generation. Both belong to the trainer and its rollout scheduler; a sampler works inside one source's share (see Trainer integration).
 - Claiming that a curriculum beats uniform sampling in general. The samplers make the comparison easy to run; the answer depends on the environment and the cost unit.
 
 ## Design
@@ -135,25 +136,32 @@ class TaskSampler(Protocol):
 
     def state_dict(self) -> dict[str, Any]: ...
     def load_state_dict(self, state: dict[str, Any]) -> None: ...
+
+    def metrics(self) -> dict[str, float]:
+        """Return numbers for the trainer's log; the samplers proposed here return the counters below."""
 ```
+
+The rewards passed to `update` are the environment's own, one per rollout, not a total that the trainer forms with reward terms of its own. A trainer calls `update` for every scored group, including the groups it then leaves out of the gradient because they carry no signal (see Trainer integration).
 
 `state_dict` and `load_state_dict` let a trainer checkpoint and resume the sampler together with the model, which a long run on one machine needs. (The pilot lost its intermediate checkpoints because they were not saved separately; resuming requires the model, the optimizer and the sampler state together.)
 
-Every sampler keeps the same counters, so every training log can report efficiency the same way:
+The samplers proposed here keep the same counters and return them from `metrics()`, so their training logs report efficiency the same way:
 
 - `groups`, `signal_groups` (groups with non-zero reward variance), `episodes`, and `cost` (the sum of reported costs)
 - derived: `signal_groups_per_episode`, `signal_groups_per_cost`, and `zero_signal_fraction`
 
-The zero-signal fraction on its own is misleading: in the pilot the curriculum had the lower zero-signal fraction and the worse result per token. Logs should report signal groups per episode and per unit of cost.
+A trainer reports costs for every group or for none: these samplers raise `ValueError` on a group without costs after one with costs, and the reverse, and with none they leave `cost` and `signal_groups_per_cost` out of `metrics()`. Another `TaskSampler` returns from `metrics()` whatever it tracks, as numbers for the log. The zero-signal fraction on its own is misleading: in the pilot the curriculum had the lower zero-signal fraction and the worse result per token. Logs should report signal groups per episode and per unit of cost.
+
+The protocol has the shape of prime-rl's [`TaskSampler`](https://github.com/PrimeIntellect-ai/prime-rl/blob/855a2b815b804857835c635b3fd2b1ae5400f96c/src/prime_rl/orchestrator/curriculum/samplers/base.py) (`__next__`, `observe`, `state_dict`, `load_state_dict`, `metrics`), with two differences: `sample(n)` draws the tasks of a whole step at once, and `update` takes rewards and costs instead of that framework's episode objects, so core depends on no training framework. Running one of these samplers inside prime-rl takes a short wrapper, whose `__next__` returns the prime-rl task for `sample(1)[0]` and whose `observe` reads the rewards and generated token counts of the group's episodes and calls `update`, plus a change to prime-rl itself (a config class and a branch in `Curriculum.__init__`), because its sampler configs form a closed set. The other direction needs that framework's episode objects.
 
 Two implementations ship in core:
 
 - **`SequentialSampler(tasks, seeds)`**: deterministic enumeration of a split, optionally crossed with several seeds. Used by evaluation. `update` only updates the counters.
 - **`UniformSampler(tasks, rng_seed)`**: shuffled sampling without replacement per epoch. The baseline for training.
 
-A third, **`CurriculumSampler(tasks, group_size, key="difficulty", cost="episodes", ...)`**, described below, is offered as an example in `examples/`, and moves to core if the maintainers prefer (open question 9).
+A third, **`CurriculumSampler(tasks, group_size, key="difficulty", ...)`**, described below, is offered as an example in `examples/`, and moves to core if the maintainers prefer (open question 9).
 
-`SequentialSampler` and `UniformSampler` are also valid `tasks` iterables for the existing `CollectRunner`, so `openenv collect` and the evaluation harness gain task selection without changes to that interface. Selection does not work end to end yet, though, for four reasons. Inside `CollectRunner`: it passes no seed to the session, and it writes no record for an episode that fails. Outside it: the `reasoning_gym_env` session factory receives the task and does not use it, and the `openenv collect` command never passes tasks. Rollout steps 3 and 5 close these gaps. An adaptive sampler also needs each episode's reward, which `CollectRunner` does not report back to its `tasks` iterable today; trainers call `update` from their own loop (see the example), and open question 7 asks whether `CollectRunner` should take a per-episode callback.
+The tasks a sampler draws, for example `sampler.sample(num_episodes)`, are a valid `tasks` iterable for the existing `CollectRunner`, so `openenv collect` and the evaluation harness gain task selection without changes to that interface. Selection does not work end to end yet, though, for four reasons. Inside `CollectRunner`: it passes no seed to the session, and it writes no record for an episode that fails. Outside it: the `reasoning_gym_env` session factory receives the task and does not use it, and the `openenv collect` command never passes tasks. Rollout steps 3 and 5 close these gaps. An adaptive sampler also needs each episode's reward, which `CollectRunner` does not report back to its `tasks` iterable today; trainers call `update` from their own loop (see the example), and open question 7 asks whether `CollectRunner` should take a per-episode callback.
 
 #### 4. `CurriculumSampler`
 
@@ -165,7 +173,7 @@ f_k ← γ · f_k + failures
 p̂_k = (s_k + 1) / (s_k + f_k + 2)          # Beta(1, 1) prior
 ```
 
-A rollout counts as a success when its reward is at least `success_threshold` (default `1.0` for binary rewards; configurable for graded rewards). The decay `γ` (default `0.9` per update) lets the estimate follow a policy that is improving.
+A rollout counts as a success when its reward is at least `success_threshold` (default `1.0` for binary rewards; open question 5 asks about graded rewards). The decay `γ` (default `0.9` per update) lets the estimate follow a policy that is improving.
 
 Each key is sampled with probability proportional to the chance that a group there carries signal:
 
@@ -173,26 +181,13 @@ Each key is sampled with probability proportional to the chance that a group the
 w_k = 1 - p̂_k^G - (1 - p̂_k)^G + ε
 ```
 
-where `G` is the trainer's group size and `ε` (default `0.05`) keeps every key reachable so the sampler can notice when a hard tier becomes learnable. Unseen keys start at `p̂ = 0.5`, the maximum signal, so every tier is tried early. Within a key, tasks are drawn uniformly without replacement. The weight ranks keys; it is not a calibrated probability. In the pilot it predicted about twice as many groups with signal as were observed on the two hardest tiers (0.98 and 0.92 against 0.46 and 0.44), with a similar factor on every tier, so it moves the sampling probabilities little.
+where `G` is the trainer's group size and `ε` (default `0.05`) keeps every key reachable so the sampler can notice when a hard tier becomes learnable. Unseen keys start at `p̂ = 0.5`, the maximum signal, so every tier is tried early. Within a key, tasks are drawn uniformly without replacement.
 
-The `cost` argument selects the unit in which the sampler counts and reports cost:
+The weight ranks keys; it is not a calibrated probability. It treats the `G` rollouts of a group as independent draws with one success rate, but the questions of one tier differ in difficulty, so the outcomes inside a group are correlated and groups in which every rollout fails are far more common than the formula assumes. In the pilot, at the success rates of the uniform run's last quarter, it predicted about twice as many groups with signal as a regression on the log's per-step tier counts estimates for the two hardest tiers (0.98 and 0.92 against 0.46 and 0.44). In the trial the curriculum's own estimates did the same on tiers 2 to 4: 0.96 and 0.89 against 0.52 and 0.46 on the two hardest, in the last quarter of each run, with a correlation of about 0.5 between the outcomes of one group (pooled over the three seeds, so part of it may come from differences between seeds and from learning within the window). The factor is similar on those tiers, so it moves the sampling probabilities little. On a solved key the weight never reaches `ε`: with the default decay and `G = 8`, `p̂` approaches 81/82, so the key keeps a signal term of about 0.09, and in the trial the curriculum gave each of tiers 0 and 1, both solved from the start, about 7% of its episodes.
 
-- `"episodes"` (default): every rollout costs 1. The weights are the ones above.
-- `"tokens"`: the trainer passes the number of generated tokens per rollout. The sampler keeps a decayed mean cost per rollout, `ĉ_k ← γ · ĉ_k + (1 - γ) · mean(costs)`; a key with no cost yet uses the mean of the keys that have one, or 1 before any has. It weights by signal per token, in this form:
+The `CurriculumSampler` counts and reports costs but does not weight by them; trainers use them for budgets, concurrency and rollout allocation. The first version of this RFC divided the weights by the token cost of each key, and on our trial that did not help (Alternatives Considered). Costs come from the trainer, which knows them: the number of tokens each completion generated (the length of its generated ids, never a count made by tokenizing the text again), the token records that RFC 006's harness already carries, or a spend that the environment reports with each episode, as issue #1382 proposes (`metadata["service_spend"]`). The sampler never sees rollouts, so it takes no cost function.
 
-```
-w_k = (1 - p̂_k^G - (1 - p̂_k)^G) / ĉ_k
-P_k = (1 - K·ε) · w_k / Σ_j w_j + ε        # K keys: each keeps at least ε
-s_k, f_k start at 1 and decay like the data  # p̂_k = s_k / (s_k + f_k) reaches 1 on a solved key
-```
-
-The floor needs `K·ε ≤ 1`: at most 20 keys with the default `ε`. The sampler rejects a larger `K`, so tasks keyed by `id` use `cost="episodes"` or a smaller `ε`.
-
-The first version of this RFC divided `(signal + ε)` by `ĉ_k`, with the fixed prior above. Measured, that sends many episodes to keys the policy already solves: their completions are the shortest, the fixed prior leaves them a signal of about 0.09 that never reaches 0, and `ε` divided by a small cost is large. In a 100-step probe it gave the solved tier 28.5% of the episodes; in full runs, 14% to 22%, against 7% for the episode weights. The form above keeps `ε` out of the division and lets the prior fade; it gave that tier 5% to 8%. The floor alone is not enough: with the fixed prior it still gave the solved tier 21.2% in its probe. In the trial, the corrected token weights matched the episode weights per generated token, without beating them (Preliminary Results). They stay available for environments where completion length varies much more across tasks than in that experiment.
-
-Costs come from the trainer, which knows them: the number of tokens each completion generated (the length of its generated ids, never a count made by tokenizing the text again), the token records that RFC 006's harness already carries, or a spend that the environment reports with each episode, as issue #1382 proposes (`metadata["service_spend"]`). The sampler never sees rollouts, so it takes no cost function.
-
-These weights are a heuristic, not an optimum: they move probability toward keys with more signal without abandoning the others. The reference experiment measures both units on finer tiers.
+These weights are a heuristic, not an optimum: they move probability toward keys with more signal without abandoning the others. [Knapsack RL](https://arxiv.org/abs/2509.25849) uses the same expression, with a prompt's number of rollouts in place of `G`, to share a fixed rollout budget among the prompts of a batch. It multiplies that expression by an information-gain term that favours harder prompts, and warns that selecting prompts for a high share of groups with signal can concentrate on easy ones; in our trial the curriculum gave tiers 2 to 4 85% to 87% of its episodes. The reference experiment measures these weights on finer tiers.
 
 #### 5. `EnvEvalHarness`
 
@@ -255,9 +250,15 @@ class EvalSchedule:
     def maybe_run(self, step: int) -> EvalResult | None: ...
 ```
 
-A plain Python loop, an MLX loop, or a TRL callback calls `maybe_run(step)` after each optimizer step. The policy under evaluation is served through an OpenAI-compatible endpoint (vLLM, `mlx_lm.server`, or any other server), so the harness does not depend on how the trainer holds the weights. `on_result` receives the step, and the trainer should log the sampler's `episodes` and `cost` counters next to it, so learning curves can be drawn against episodes and against cost, not only against steps or wall-clock time.
+A plain Python loop, an MLX loop, or a TRL callback calls `maybe_run(step)` after each optimizer step. The policy under evaluation is served through an OpenAI-compatible endpoint (vLLM, `mlx_lm.server`, or any other server), so the harness does not depend on how the trainer holds the weights. `on_result` receives the step, and the trainer should log the sampler's `metrics()` next to it, so learning curves can be drawn against episodes and against cost, not only against steps or wall-clock time.
 
-With TRL's `GRPOTrainer`, the sampler sits where the training prompts come from, and the function that returns the environment's rewards to the trainer also passes them, with the completions' token counts, to `update`. Rollout step 6 adds a TRL example that shows this end to end.
+A sampler needs two hooks in a trainer: the trainer draws its prompts from `sample(n)`, and it calls `update` on every scored group before anything drops groups. Trainers increasingly drop the groups whose rewards are all equal: DAPO's dynamic sampling, the zero-advantage gate of prime-rl, which updates its sampler before the gate ([`Curriculum.on_result`](https://github.com/PrimeIntellect-ai/prime-rl/blob/855a2b815b804857835c635b3fd2b1ae5400f96c/src/prime_rl/orchestrator/curriculum/base.py)), and an open pull request for TRL's asynchronous GRPO trainer ([huggingface/trl#7609](https://github.com/huggingface/trl/pull/7609)). A sampler updated only with the groups that survive such a filter never sees that a key is solved or out of reach. The trial's trainer calls `update` on every group, then leaves the groups without signal out of the gradient.
+
+TRL has no sampler API today. In `GRPOTrainer` the training prompts come from the dataset, and the reward functions receive the dataset columns and the generated ids, so a `datasets.IterableDataset` that draws its rows from `sample(n)` (a map-style dataset goes through TRL's `RepeatSampler` instead) and a reward function that calls `update` would connect a sampler without changes to TRL. We have read that path in TRL's code, not run it, and it has limits. The trainer draws its prompts one or two rounds before they are generated, so an update first affects the tasks drawn one or two rounds later. `shuffle_dataset` must be off. On several processes, each process draws from its own copy of the sampler, the copies must draw the same tasks, and each reward function sees only its own process's rollouts, so the path as described works on one process. And the asynchronous trainer reads the dataset and scores the groups in a separate rollout process, so the sampler lives in that process and a checkpoint has to fetch its state from there.
+
+Asynchronous trainers add two limits of their own. Updates arrive late and out of order, and the decay weighs groups in the order they arrive, so keys whose rollouts finish first are refreshed sooner; large runs report this bias toward short rollouts, mostly after a start or a restart ([MiMo-V2.6](https://arxiv.org/abs/2610.11959), section 5.5), and [MiniMax-M2](https://arxiv.org/abs/2605.26494) bounds it with a windowed FIFO over the generation queue. And a seed reproduces a run only in a synchronous trainer such as the trial's: in an asynchronous one the draw order depends on completion times.
+
+Shares across environments or data sources are also the trainer's. Large runs set a share per source and keep it in the rollout scheduler, giving slow sources more concurrent rollouts (MiMo-V2.6) or a larger rollout quota ([LongCat-Flash-Thinking-2601](https://arxiv.org/abs/2601.16725)), and prime-rl draws the source by a fixed ratio before asking that source's sampler for a task. A sampler works inside one source's share, keyed by `difficulty` or `group` within that source; the trainer already knows which environment each task belongs to.
 
 ### Key Design Decisions
 
@@ -267,10 +268,10 @@ With TRL's `GRPOTrainer`, the sampler sits where the training prompts come from,
 - **Rationale**: This keeps the invariants intact. Rewards are still computed inside the environment; the sampler only reads them. The agent has no path to influence which task it gets, because selection goes through the session factory and `reset()`, which stay on the infrastructure side of the dual API boundary. The environment server stays free of cross-episode state, which also keeps "one env = one trajectory" and stacking of environment instances simple. It is also where task selection already happens today: the Harbor harness picks `indices` on the trainer side.
 - **Trade-offs**: Each trainer process holds its own statistics. A distributed trainer with many rollout workers must aggregate them; `state_dict` gives a merge point, but a shared sampler service is out of scope for this RFC.
 
-#### D2. The curriculum targets GRPO signal, and reports it per unit of cost
+#### D2. The curriculum targets GRPO signal, and reports cost
 
-- **Chosen approach**: Weight keys by the probability that a group of size `G` has non-zero reward variance. Count cost in a unit the trainer chooses and report signal per unit of cost. Weight by signal per token only with `cost="tokens"`, in the corrected form of section 4.
-- **Rationale**: The probability of signal is the quantity that decides whether a GRPO group produces a gradient, and it needs one parameter the trainer already knows (`G`). On the pilot's seed, the signal-only curriculum produced 39% more gradient-bearing groups per episode than uniform sampling but 42% fewer per generated token, and the first version of this RFC read that as a reason to divide by cost. Three more seeds changed the reading: there the signal-only curriculum got more groups with signal per generated token than uniform sampling on every seed, and higher test success per token, while dividing by token cost as first proposed lowered both. Learning-progress curricula (weighting by the change in success rate) remain a reasonable alternative and can be added as another `TaskSampler`.
+- **Chosen approach**: Weight keys by the probability that a group of size `G` has non-zero reward variance. Count cost in a unit the trainer chooses and report signal per unit of cost, without weighting by it.
+- **Rationale**: The probability of signal is the quantity that decides whether a GRPO group produces a gradient, and it needs one parameter the trainer already knows (`G`). On the pilot's seed, the signal-only curriculum produced 39% more gradient-bearing groups per episode than uniform sampling but 42% fewer per generated token, and the first version of this RFC read that as a reason to divide by cost. Three more seeds changed the reading: there the signal-only curriculum got more groups with signal per generated token than uniform sampling on every seed, and higher test success per token, while dividing by token cost as first proposed lowered both, and a corrected division matched the signal-only weights per token without beating them (Alternatives Considered). Learning-progress curricula (weighting by the change in success rate) remain a reasonable alternative and can be added as another `TaskSampler`, as can a sampler that accounts for cost.
 - **Trade-offs**: Gradient-bearing groups are a proxy for learning, not the objective. In the pilot, uniform sampling trained mostly on an easier tier and still improved the two hardest tiers, from 7% and 0% to 46% and 24%. The evaluation harness, not the sampler's counters, is what decides whether a sampler helps. The estimates also need repeated observations per key: for large datasets without `difficulty` or `group`, per-task statistics are sparse and the sampler behaves close to uniform until tasks repeat. Publishing closely spaced difficulty tiers is the intended remedy.
 
 #### D3. Evaluation reuses the collect pipeline's pieces
@@ -356,7 +357,7 @@ The library has no level with negative numbers, so these tiers have none, unlike
 ```python
 client = TaskAPIClient.from_env_client(env)
 tasks = client.get_task_range("train")
-sampler = CurriculumSampler(tasks, group_size=8, key="difficulty")   # cost="episodes"
+sampler = CurriculumSampler(tasks, group_size=8, key="difficulty")
 
 evaluator = EnvEvalHarness(session_factory, harness_adapter, client.get_task_range("test"))
 schedule = EvalSchedule(
@@ -366,8 +367,7 @@ schedule = EvalSchedule(
                eval_parameters={"llm_endpoint": POLICY_URL,
                                 "model": "policy", "temperature": 0.0}),
     every_n_steps=50,
-    on_result=lambda step, r: logger.log({"step": step, "episodes": sampler.episodes,
-                                          "cost": sampler.cost, **r.scores}),
+    on_result=lambda step, r: logger.log({"step": step, **sampler.metrics(), **r.scores}),
 )
 
 schedule.maybe_run(step=0)                          # baseline before any training
@@ -377,10 +377,8 @@ for step in range(1, num_steps + 1):
     for task, group in zip(batch, groups):
         sampler.update(task, [ep.reward for ep in group],
                        costs=[len(ep.completion_ids) for ep in group])
-    trainer_update(groups)                                   # trainer-specific
-    logger.log({"step": step,
-                "signal_groups_per_episode": sampler.signal_groups_per_episode,
-                "signal_groups_per_cost": sampler.signal_groups_per_cost})
+    trainer_update(groups)              # trainer-specific; may skip groups without signal
+    logger.log({"step": step, **sampler.metrics()})
     schedule.maybe_run(step)
 ```
 
@@ -404,13 +402,13 @@ The claims in this RFC are measured, not assumed. The reference experiment is de
 
 ### Preliminary Results
 
-We ran the samplers before proposing the API: first a pilot on one seed, then a trial on three more seeds, with predictions and the rules for reading the results written down before it ran. The code is a standalone trainer, not the proposed API: a GRPO loop in MLX with the `CurriculumSampler` logic above. The pilot's code, its per-step logs and a figure of both learning curves are at [Matheus-F-Scatolin/OpenEnv@rfc-013-pilot](https://github.com/Matheus-F-Scatolin/OpenEnv/tree/rfc-013-pilot/pilot); the figure is also in the PR description. The trial's code, its 28 run logs, the predictions and a script that regenerates every table and figure from those logs are at [Matheus-F-Scatolin/OpenEnv@rfc-013-trial](https://github.com/Matheus-F-Scatolin/OpenEnv/tree/rfc-013-trial).
+We ran the samplers before proposing the API: first a pilot on one seed, then a trial on three more seeds, with predictions and the rules for reading the results written down before it ran. The code is a standalone trainer, not the proposed API: a GRPO loop in MLX with the samplers of section 4 and of "Weighting by cost" in Alternatives Considered. The pilot's code, its per-step logs and a figure of both learning curves are at [Matheus-F-Scatolin/OpenEnv@rfc-013-pilot](https://github.com/Matheus-F-Scatolin/OpenEnv/tree/rfc-013-pilot/pilot); the figure is also in the PR description. The trial's code, its 28 run logs, the predictions and a script that regenerates every table and figure from those logs are at [Matheus-F-Scatolin/OpenEnv@rfc-013-trial](https://github.com/Matheus-F-Scatolin/OpenEnv/tree/rfc-013-trial).
 
 Setup, the same for both:
 
 - **Model**: Llama-3.2-1B-Instruct, LoRA rank 16 on every linear layer (11.3M trainable parameters).
 - **Environment**: `reasoning_gym_env` vendored from commit `9e0fd9b`, run in-process, with the pilot's five `chain_sum` tiers: 2×1, 3×2, 4×3, 5×4 and 6×5 terms × digits, negative numbers in the last two. 2,000 train tasks and 100 test tasks per tier, with disjoint seeds. The reward is whatever the environment's `step()` returns.
-- **Training**: 8 prompts × 8 completions per step (64 episodes), temperature 1.0, at most 384 tokens per completion, on-policy GRPO with one update per batch, no KL term, token-level loss normalization. Groups with no reward variance are skipped.
+- **Training**: 8 prompts × 8 completions per step (64 episodes), temperature 1.0, at most 384 tokens per completion, on-policy GRPO with one update per batch, no KL term, token-level loss normalization. The sampler is updated with every group; groups with no reward variance are then left out of the gradient and not replaced.
 - **Evaluation**: greedy decoding on all 500 test tasks. The standard error of one evaluation is about 2 points.
 - **Reproducibility**: the model's chat template writes today's date into every prompt, so the date is fixed to the pilot's day; with it fixed, the trial's trainer reproduced the pilot's seed-0 logs step for step, for the first 370 steps of uniform sampling and 158 of the curriculum.
 - **Hardware**: a MacBook Pro (M5 Pro, 24 GB).
@@ -445,7 +443,7 @@ Per episode, the curriculum learned faster: it reached 72.4% after 69,184 episod
 
 #### Three more seeds
 
-Seeds 1, 2 and 3, each run stopped at 5 million generated tokens, with an evaluation every 100 steps and every 250,000 tokens. Four samplers: uniform; the curriculum with `cost="episodes"`; the token-weighted curriculum as this RFC first proposed it, `(signal + ε) / ĉ_k` with the fixed prior; and the corrected token-weighted form of section 4. Test success is the mean of the evaluations at 4.0 to 5.0 million generated tokens ("per token") or at steps 100 to 700 ("per episode"). Difference to uniform sampling, in points:
+Seeds 1, 2 and 3, each run stopped at 5 million generated tokens, with an evaluation every 100 steps and every 250,000 tokens. Four samplers: uniform; the curriculum of section 4; the token-weighted curriculum as this RFC first proposed it; and a corrected token-weighted form. Both token-weighted forms are described under "Weighting by cost" in Alternatives Considered. Test success is the mean of the evaluations at 4.0 to 5.0 million generated tokens ("per token") or at steps 100 to 700 ("per episode"). Difference to uniform sampling, in points:
 
 | | Seed 0 (pilot) | Seed 1 | Seed 2 | Seed 3 |
 |---|---|---|---|---|
@@ -469,19 +467,19 @@ What we take from both:
 
 1. **The mechanism works as designed.** The curriculum concentrated on the tiers nearest `p = 0.5` and raised the groups with signal per episode on every seed.
 2. **The pilot's per-token result belonged to its seed.** The curriculum's completions were longer in the pilot; in a 30-step check on four new seeds they were longer by 20 tokens or more in only one, and on seeds 1 and 2 of the trial the curriculum's completions were the shorter ones. Across the four seeds the curriculum was ahead per episode four times and per token three times.
-3. **Dividing by token cost needs care.** The first form sent the most episodes to the tier the model had already solved and learned less than the episode-weighted curriculum on every new seed: −4.3, −19.9 and −16.2 points per token. The corrected form fixed the allocation and matched the episode-weighted curriculum (+0.1, −3.1, +1.6).
+3. **Dividing by token cost did not help.** The comparisons with the signal-only curriculum were not among the questions we wrote down before the trial; we read them with the thresholds we wrote there. The first form sent 14% to 22% of its episodes to tier 0, which the model solved from the start, against about 7% for the signal-only curriculum, and learned less on every new seed: −4.3, −19.9 and −16.2 points per token. The corrected form fixed the allocation and was neither better nor worse on the 500 test questions: +0.1, −3.1 and +1.6 points per token, and +6.1, +0.4 and +2.7 per episode, below the +4 that "better" needs. On tiers 2 to 4 alone it was ahead per episode by +9.6, +0.7 and +4.3 (+4.9 on average), which passes that bar when each pair of runs is read to step 700, but not in the window we wrote before the trial, which reads seed 2 to step 200, where the corrected form is 0.7 points behind. Per token, the unit that weighting by token cost exists to improve, it did not help, and it got fewer groups with signal per generated token than the signal-only curriculum on two of three seeds. This version of the RFC therefore leaves cost out of the weights.
 4. **A reward that scores a cut answer lets a run degenerate.** In one of the twelve runs (the first token-weighted form, seed 2), the policy learned to repeat its tagged answer until the length limit. From about step 50 on, every completion was cut at 384 tokens, and test success stayed at 54% (52% untrained), so the run spent its 5 million tokens by step 223. The environment scores the answer a cut completion contains, so nothing discouraged the repetition. This is the environment's reward, not the sampler, and the run stays in every number above.
 5. **The tiers were too coarse.** After tier 2 reached about 95%, no tier was near 50%, which limited what any curriculum could do.
 
-Caveats: three new seeds per sampler are a pattern, not a significance test; ahead on three seeds of three happens one time in eight by chance alone. One model, one task family, one budget. All 100 test questions of tier 0 also appear in train, because that tier has about 200 possible questions; the model solves it from the start, so the comparisons do not change, and on tiers 2 to 4 alone they are larger. In the pilot the two arms ran one after the other on the same machine, and the curriculum arm was slowed for its last 40 minutes by an underpowered charger; this affects the comparison by wall-clock time but not the per-episode or per-token comparisons, which do not depend on machine speed.
+Caveats: three new seeds per sampler are a pattern, not a significance test; ahead on three seeds of three happens one time in eight by chance alone. One model, one task family, one budget. The trainer is synchronous, so the trial says nothing about asynchronous trainers, and the rewards of `chain_sum` are almost binary (about 0.1% of training answers got partial credit), so it says nothing about graded rewards. All 100 test questions of tier 0 also appear in train, because that tier has about 200 possible questions; the model solves it from the start, so the comparisons do not change, and on tiers 2 to 4 alone they are larger. In the pilot the two arms ran one after the other on the same machine, and the curriculum arm was slowed for its last 40 minutes by an underpowered charger; this affects the comparison by wall-clock time but not the per-episode or per-token comparisons, which do not depend on machine speed.
 
 ### Reference experiment
 
-- **Arms**: `UniformSampler`, `CurriculumSampler(cost="episodes")`, and `CurriculumSampler(cost="tokens")` in the corrected form, with the same group size and three seeds each.
+- **Arms**: `UniformSampler` and `CurriculumSampler`, with the same group size, on five seeds not used so far. Before the runs we write down the test, the reading windows, how the tiers whose test questions also appear in train are read, and what happens to a run that degenerates.
 - **Environment**: `reasoning_gym_env` with the tiers of the example above. In-process today, as in the trial; through the Task API once rollout step 3 exists.
-- **Hardware**: the same laptop class. A run of 5 million generated tokens took 1 to 2.3 hours of training in the trial, before evaluations, so nine runs need about 16 hours: two overnight sessions. A CUDA machine with vLLM reproduces the same experiment faster.
+- **Hardware**: the same laptop class. In the trial a run of 5 million generated tokens spent 1.7 to 2.6 hours in training and in evaluations of 500 test questions (2.1 on average; loading the model and saving adapters not counted). With the 1,000 test questions of the ten tiers above the evaluations take twice as long, so the ten runs of uniform sampling and the curriculum need about 24 hours: three overnight sessions. A CUDA machine with vLLM reproduces the same experiment faster.
 - **Measurements**: test success rate with standard error, overall and per tier, against training episodes and against generated tokens; gradient-bearing groups per episode and per token; the share of completions cut at the length limit; wall-clock time per step, reported but not used for the comparison.
-- **What would support the proposal**: the episode-weighted curriculum at least as good as uniform sampling per episode and per token, across seeds; and a reason to keep the token unit if its corrected form beats the episode unit per token. If a curriculum arm does not beat uniform sampling, we report that as is; the sampler protocol and the evaluation harness do not depend on the curriculum winning.
+- **What would support the proposal**: the curriculum at least as good as uniform sampling per episode and per token, across seeds. If the curriculum does not beat uniform sampling, we report that as is; the sampler protocol and the evaluation harness do not depend on the curriculum winning.
 
 ## Rollout Plan
 
@@ -492,13 +490,13 @@ Each step is a separate PR:
 3. Task API support in `reasoning_gym_env`, with difficulty tiers from reasoning-gym's curriculum levels and a session factory that turns a task into `reset(split, index, seed)`; then `finqa_env`, whose `reset(seed)` fix (#1252) is merged.
 4. `SequentialSampler` and `UniformSampler` in core, and `CurriculumSampler` as an example (or in core, if the maintainers prefer), with unit tests on synthetic reward and cost streams (for example, a simulated policy whose success rate per tier improves over time and whose completion length grows with difficulty).
 5. `EnvEvalHarness`, `compare_eval_results`, and `openenv eval`. In the collect pipeline: pass the seed to the session, write a record for a failed episode, keep the generated token count of each episode (the provider's usage numbers in the model client, the generated ids in the episode record), let `openenv collect` pass tasks, and a model step that turns a text answer into a single-turn environment's tool call.
-6. `EvalSchedule`, and the reference experiment as an example in `examples/` (a plain loop, an MLX loop for Apple Silicon, and a TRL callback).
+6. `EvalSchedule`, with a TRL `TrainerCallback` that calls it, and the reference experiment as an example in `examples/` (a plain loop and an MLX loop for Apple Silicon). A TRL example that draws its prompts from a sampler is left for later (Trainer integration).
 
 ## Alternatives Considered
 
 - **Curriculum inside the environment.** The server would track success rates and pick the next task itself. Rejected: it makes the environment stateful across episodes, mixes orchestration into the environment boundary, and breaks when many trainer workers share or stack environment instances.
-- **Only filtering zero-signal groups after generation (DAPO-style).** This is complementary, not a replacement: it still pays for generating the discarded groups. A trainer can use both.
-- **The first token-weighted formula.** The first version of this RFC proposed `(signal + ε) / ĉ_k` for training where generated tokens are the cost, and used it in its example. Replaced: on three more seeds the signal-only weights did at least as well per token, and that formula did worse (Preliminary Results). The token unit stays available as `cost="tokens"`, in its corrected form.
+- **Only filtering zero-signal groups after generation (DAPO-style).** This is complementary, not a replacement: the filter still pays for generating the groups it drops, and where they are not replaced, the step trains on fewer groups. In our trial, which does not replace them, uniform sampling made no update at all on 19% to 21% of its steps. DAPO resamples until the batch is full, prime-rl keeps dispatching new tasks while its zero-advantage gate, when configured, rejects groups, and TRL's open pull request ([huggingface/trl#7609](https://github.com/huggingface/trl/pull/7609)) drops them in its asynchronous rollout worker. A trainer can use both, as long as the sampler sees each group before the filter.
+- **Weighting by cost.** The first version of this RFC divided the curriculum's weights by the decayed mean token cost of each key, `ĉ_k`, as `(signal + ε) / ĉ_k`, and used it in its example. On three more seeds it learned less than the signal-only weights per token (−4.3, −19.9 and −16.2 points; the run on seed 2 degenerated, see result 4). A solved key keeps a signal term of about 0.09 under the fixed prior, its answers are the shortest, and `ε` divided by a small cost is large, so tier 0, solved from the start, got 14% to 22% of the episodes. A corrected form, `w_k = signal_k / ĉ_k` with every key kept at a share of at least `ε` outside the division and a prior that decays with the data, gave that tier 5% to 8% of the episodes, matched the signal-only weights per token (+0.1, −3.1 and +1.6 points) and was slightly ahead per episode (+6.1, +0.4 and +2.7). It also had fewer groups with signal per generated token on two of three seeds, and longer training answers on two (111 and 80 tokens against 73 and 59): the policy changes its answer length, so dividing by a decayed mean of past lengths does not control what the next answers cost. Both forms moved episodes away from the longest, hardest tiers: tiers 3 and 4 got 25% to 34% of the episodes under the first form and 47% to 56% under the corrected one, against 52% to 60% under the signal-only weights and 40% under uniform sampling. No lab report we read divides a task's sampling weight by its cost; large RL runs keep a share per source and give slow sources more rollouts instead (MiMo-V2.6, LongCat-Flash-Thinking-2601). Outside RL for language models, [Graves et al. (2017)](https://arxiv.org/abs/1704.03003) divide a task's learning progress by the time it takes to process. Two 2026 preprints that account for cost in GRPO divide a usefulness term by the square root of the cost, to share rollouts among the prompts of a batch ([DUET](https://arxiv.org/abs/2605.08441)) or to sample the minibatches of an update ([Cost-Aware Learning](https://arxiv.org/abs/2604.28020)), not to choose tasks. A sampler that accounts for cost can be added later as another `TaskSampler`.
 - **reasoning-gym's own curricula.** The library defines difficulty levels for each dataset, and its curriculum experiment lets the training code raise or lower a dataset's level. That schedule lives inside one library and one dataset at a time; the `CurriculumSampler` works on the tasks any environment publishes through the Task API, and keeps the environment unaware of the schedule (D1). The example above uses the library's levels to define the tiers, so the two fit together.
 - **Relying on the Inspect AI harness for evaluation.** Inspect AI remains supported, but it runs its own task and solver definitions. An evaluation that goes through the same environment, tools and rollout path as training is what design principle 1 asks for. The two can meet at the results: an `EvalResult` could later be exported in Inspect's log format, which this RFC does not attempt.
 
@@ -508,11 +506,11 @@ Each step is a separate PR:
 2. Should `difficulty` be standardized further (for example, normalized to `[0, 1]`), or remain environment-defined and only compared within one environment?
 3. Where should shared sampler state live for distributed trainers with many rollout workers?
 4. Should `openenv eval` results be pushable to the Hub in a schema that the environments datasets RFC (#795) can reference?
-5. What is the right default for `success_threshold` on environments whose rewards are graded rather than binary?
-6. Should `cost` stay `"episodes"` by default, or should environments declare their dominant cost (for example in their manifest) so trainers can pick a sensible unit? A spend that the environment reports with each episode, as #1382 proposes, would be one such declaration.
+5. What is the right default for `success_threshold` on environments whose rewards are graded rather than binary? One direction, suggested in review and not yet tested: estimate each key's signal directly, as the decayed share of its groups whose rewards vary. That is the quantity a zero-variance filter keeps, it is calibrated by construction (section 4), and it needs no `success_threshold`, only a tolerance on the spread of the rewards. With continuous rewards, where almost every group varies a little, that tolerance would have to follow the scale of the rewards, or the weight would have to grow with the size of the variance. Our task can test it only on binary rewards: about 0.1% of its training answers got partial credit. There it would mainly lower the weight of solved keys: in the trial's last quarter, 0.2% to 0.4% of the curriculum's groups on tiers 0 and 1 had signal, against the formula's 0.10. We have not run it.
+6. Answered in review: should environments declare their cost? Environments declare cost meters, such as #1382's `service_spend`, for reporting, and trainers use them for budgets, concurrency and rollout allocation. The `CurriculumSampler` counts and reports them and does not weight by them.
 7. Should `CollectRunner` accept a per-episode callback (task, `EpisodeRecord`) so adaptive samplers can be driven by `openenv collect` and not only by a trainer loop?
 8. Should the first version of the evaluation cover environments whose server runs a whole agent per call, such as Harbor's `run_rollout`, which never goes through `reset`?
-9. Should `CurriculumSampler` ship in core, next to the two simple samplers, or stay an example?
+9. Should `CurriculumSampler` ship in core, next to the two simple samplers, or stay an example? A review suggested keeping it as an example, which is how this RFC offers it.
 
 ## Related RFCs and Work
 
@@ -526,5 +524,10 @@ Each step is a separate PR:
 - Environments datasets RFC (#795): possible home for published evaluation results.
 - Task API guide (`docs/source/guides/task-api.md`) and the Harbor harness (`envs/harbor_env/harness.py`): the current Task API contract and the manual task selection this RFC generalizes.
 - Training guide (`docs/source/guides/training.md`): training stays in the user's framework, and core depends on no trainer; the samplers and `EvalSchedule` follow that.
-- Issue #1382: a proposal for environments that report a per-episode spend, which a trainer can forward to `update` as costs.
+- Issue #1382: environments that report a per-episode spend, which a trainer can count as cost and use for budgets and concurrency.
+- [Knapsack RL](https://arxiv.org/abs/2509.25849): the signal term of section 4, used to share a rollout budget among the prompts of a batch.
+- prime-rl's [`TaskSampler`](https://github.com/PrimeIntellect-ai/prime-rl/blob/855a2b815b804857835c635b3fd2b1ae5400f96c/src/prime_rl/orchestrator/curriculum/samplers/base.py) and `Curriculum`: the same two hooks, with the sampler updated before the zero-advantage gate.
+- [huggingface/trl#7609](https://github.com/huggingface/trl/pull/7609) (open): a zero-variance filter in TRL's asynchronous GRPO trainer.
+- [MiMo-V2.6](https://arxiv.org/abs/2610.11959), [LongCat-Flash-Thinking-2601](https://arxiv.org/abs/2601.16725), [MiniMax-M2](https://arxiv.org/abs/2605.26494) and [INTELLECT-3](https://arxiv.org/abs/2512.16144): shares per source, rollout scheduling and difficulty filtering in large RL runs.
+- [DUET](https://arxiv.org/abs/2605.08441) and [Cost-Aware Learning](https://arxiv.org/abs/2604.28020): choices in GRPO that divide by the square root of the cost, for the rollouts of the prompts in a batch and for the minibatches of an update.
 - #1250 and its fix #1252 (by one of the authors), merged on 2026-10-13: the `finqa_env` seed issue named in rollout step 3.
