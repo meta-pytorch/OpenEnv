@@ -3,12 +3,14 @@
 """Tests for the openenv init command."""
 
 import asyncio
+import glob
 import importlib
 import importlib.util
 import os
 import sys
 from pathlib import Path
 
+import tomli
 from openenv.cli.__main__ import app
 from openenv.cli.commands.init import _resolve_template_path
 from typer.testing import CliRunner
@@ -563,3 +565,26 @@ def test_init_environment_reset_accepts_seed_and_episode_id(tmp_path: Path) -> N
     finally:
         sys.path.remove(str(env_dir))
         sys.modules.pop("models", None)
+
+
+def test_template_files_are_declared_as_package_data() -> None:
+    repo_root = Path(__file__).resolve().parents[2]
+    with open(repo_root / "pyproject.toml", "rb") as f:
+        patterns = tomli.load(f)["tool"]["setuptools"]["package-data"]["openenv.cli"]
+
+    cli_dir = repo_root / "src" / "openenv" / "cli"
+    packaged = {
+        Path(path)
+        for pattern in patterns
+        for path in glob.glob(str(cli_dir / pattern), recursive=True)
+    }
+    template_files = {
+        path
+        for path in (cli_dir / "templates").rglob("*")
+        if path.is_file() and "__pycache__" not in path.parts
+    }
+
+    missing = sorted(
+        str(path.relative_to(cli_dir)) for path in template_files - packaged
+    )
+    assert missing == [], f"not covered by [tool.setuptools.package-data]: {missing}"
