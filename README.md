@@ -1,3 +1,5 @@
+<img width="1920" height="1080" alt="OpenEnv-banner" src="https://github.com/user-attachments/assets/380f1b86-fc36-44f8-a77b-067773b5012d" />
+
 # OpenEnv: Agentic Execution Environments
 
 An end-to-end framework for creating, deploying and using isolated execution environments for agentic RL, with a simple Gymnasium-style API.
@@ -124,6 +126,7 @@ OpenEnv works with a growing ecosystem of RL frameworks and platforms. If your p
 | Oumi | [GRPO notebook](https://github.com/oumi-ai/oumi/blob/main/notebooks/Oumi%20-%20OpenEnv%20GRPO%20with%20trl.ipynb) |
 | SkyRL | [SkyRL example](https://skyrl.readthedocs.io/en/latest/examples/openenv.html) |
 | torchforge | [GRPO BlackJack](https://github.com/huggingface/OpenEnv/tree/main/examples/grpo_blackjack) |
+| TorchTitan-RL (TitanRL) | [OpenEnv bridge and Muse Glimmer 30B chess recipe](examples/titanrl_openenv/) for GRPO/DAPO, with a CPU demo and tests |
 | TRL | [OpenEnv guide](https://huggingface.co/docs/trl/openenv) (GRPO with `environment_factory`, and harness training) |
 | Unsloth | [2048 with gpt-oss](https://colab.research.google.com/github/unslothai/notebooks/blob/main/nb/OpenEnv_gpt_oss_(20B)_Reinforcement_Learning_2048_Game.ipynb) |
 
@@ -132,6 +135,7 @@ OpenEnv works with a growing ecosystem of RL frameworks and platforms. If your p
 - [Documentation](https://huggingface.co/docs/openenv): concepts, guides and tutorials
 - [Core Concepts](https://huggingface.co/docs/openenv/guides/concepts) and the [CLI reference](https://huggingface.co/docs/openenv/reference/cli)
 - [Tutorials](https://huggingface.co/docs/openenv/tutorials/index), and the [Zero to Hero tutorial](https://github.com/huggingface/OpenEnv/tree/main/tutorial) from our GPU Mode lecture
+- [FineEnvs](https://github.com/adithya-s-k/FineEnvs): end-to-end projects that build, deploy and train against OpenEnv environments
 - [RFCs](https://github.com/huggingface/OpenEnv/tree/main/rfcs), the proposals behind major changes
 - [Contributing](https://github.com/huggingface/OpenEnv/blob/main/CONTRIBUTING.md): development setup, tests and the PR process
 
