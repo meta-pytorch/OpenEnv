@@ -10,7 +10,7 @@ This tutorial trains [Qwen3-1.7B](https://huggingface.co/Qwen/Qwen3-1.7B) to pla
 | + SFT ([model](https://huggingface.co/openenv/Qwen3-1.7B-Wordle-SFT)) | 10/30 | 3.2 | 33 |
 | + SFT + GRPO ([model](https://huggingface.co/openenv/Qwen3-1.7B-Wordle-SFT-GRPO)) | 19/30 | 3.9 | 3 |
 
-Watch all three play any of the 30 words in the [Wordle Arena](https://huggingface.co/spaces/openenv/wordle-arena) Space, and see the training curves on [Trackio](https://huggingface.co/spaces/sergiopaniego/openenv-wordle). The scripts are in [`examples/wordle`](https://github.com/huggingface/OpenEnv/tree/main/examples/wordle).
+Watch all three play any of the 30 words in the [Wordle Arena](https://huggingface.co/spaces/openenv/wordle-arena) Space, and see the training curves on [Trackio](https://huggingface.co/spaces/sergiopaniego/openenv-wordle-runs). The scripts are in [`examples/wordle`](https://github.com/huggingface/OpenEnv/tree/main/examples/wordle).
 
 ## What you need
 
