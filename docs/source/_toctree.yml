@@ -48,7 +48,7 @@
     - local: tutorials/end-to-end-walkthrough
       title: Train a Reasoning Model
     - local: tutorials/wordle-grpo
-      title: Play Wordle with GRPO
+      title: Train a Wordle Agent
     - local: tutorials/rl-training-2048
       title: Play 2048 with GRPO
     - local: tutorials/sft-warmup
