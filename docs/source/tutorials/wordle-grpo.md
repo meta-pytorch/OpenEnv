@@ -1,14 +1,14 @@
 # Train a Wordle Agent: SFT, then GRPO
 
-This tutorial trains [Qwen3-1.7B](https://huggingface.co/Qwen/Qwen3-1.7B) to play [Wordle](https://en.wikipedia.org/wiki/Wordle) against the OpenEnv TextArena environment. The model starts out unable to win a single game. A short supervised warmup teaches it the game, and GRPO then cuts its mistakes. Every step runs on one GPU, and the whole pipeline costs about {{COST}} on [Hugging Face Jobs](https://huggingface.co/docs/huggingface_hub/guides/jobs).
+This tutorial trains [Qwen3-1.7B](https://huggingface.co/Qwen/Qwen3-1.7B) to play [Wordle](https://en.wikipedia.org/wiki/Wordle) against the OpenEnv TextArena environment. The model starts out unable to win a single game. A short supervised warmup teaches it the game, and GRPO then nearly doubles its wins and removes most of its invalid guesses. Every step runs on one GPU, and the whole pipeline costs about $6 on [Hugging Face Jobs](https://huggingface.co/docs/huggingface_hub/guides/jobs).
 
 ![Base model, SFT and SFT + GRPO playing the same 30 words](https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/openenv/wordle-progress.gif)
 
 | Model | Wins on 30 words | Guesses per win | Invalid guesses |
 |---|---|---|---|
-| [Qwen3-1.7B](https://huggingface.co/Qwen/Qwen3-1.7B) | {{BASE_WINS}}/30 | - | {{BASE_INVALID}} |
-| + SFT ([model](https://huggingface.co/openenv/Qwen3-1.7B-Wordle-SFT)) | {{SFT_WINS}}/30 | {{SFT_GUESSES}} | {{SFT_INVALID}} |
-| + SFT + GRPO ([model](https://huggingface.co/openenv/Qwen3-1.7B-Wordle-SFT-GRPO)) | {{GRPO_WINS}}/30 | {{GRPO_GUESSES}} | {{GRPO_INVALID}} |
+| [Qwen3-1.7B](https://huggingface.co/Qwen/Qwen3-1.7B) | 0/30 | - | 24 |
+| + SFT ([model](https://huggingface.co/openenv/Qwen3-1.7B-Wordle-SFT)) | 10/30 | 3.2 | 33 |
+| + SFT + GRPO ([model](https://huggingface.co/openenv/Qwen3-1.7B-Wordle-SFT-GRPO)) | 19/30 | 3.9 | 3 |
 
 Watch all three play any of the 30 words in the [Wordle Arena](https://huggingface.co/spaces/openenv/wordle-arena) Space, and see the training curves on [Trackio](https://huggingface.co/spaces/sergiopaniego/openenv-wordle). The scripts are in [`examples/wordle`](https://github.com/huggingface/OpenEnv/tree/main/examples/wordle).
 
@@ -17,9 +17,9 @@ Watch all three play any of the 30 words in the [Wordle Arena](https://huggingfa
 | Step | Script | Hardware | Time | Cost |
 |---|---|---|---|---|
 | 1. Generate SFT data | `generate_sft_data.py` | Laptop CPU | 10 s | $0 |
-| 2. SFT warmup | `sft.py` | 1x A100 80GB (`a100-large`) | {{SFT_TIME}} | {{SFT_COST}} |
-| 3. GRPO | `grpo.py` | 1x A100 80GB (`a100-large`) | {{GRPO_TIME}} | {{GRPO_COST}} |
-| 4. Evaluate and make the GIF | `evaluate.py`, `make_gif.py` | Laptop (Apple silicon) or any GPU | {{EVAL_TIME}} | $0 |
+| 2. SFT warmup | `sft.py` | 1x A100 80GB (`a100-large`) | 7 min | $0.30 |
+| 3. GRPO | `grpo.py` | 1x A100 80GB (`a100-large`) | 2 h 15 min | $5.60 |
+| 4. Evaluate and make the GIF | `evaluate.py`, `make_gif.py` | Laptop (Apple silicon) or any GPU | 20 min for three models | $0 |
 
 The costs use the `a100-large` price on Hugging Face Jobs ($2.50/h) and include the time to install packages and load the model. You need a Hugging Face account with a payment method for Jobs, and [uv](https://docs.astral.sh/uv/). The scripts pin their dependencies (`trl==1.16.0`, `openenv==0.10.0`, vLLM 0.31), so `uv run` and `hf jobs uv run` install the same versions used here.
 
@@ -80,7 +80,7 @@ hf jobs uv run --flavor a100-large --timeout 1h --secrets HF_TOKEN sft.py \
     --dataset <user>/wordle-tool-calls-sft --hub-model-id <user>/Qwen3-1.7B-Wordle-SFT
 ```
 
-The loss goes from 4.1 to {{SFT_LOSS}}. Train in full precision: loading the weights in bf16 for training leaves the model clearly worse (final loss 0.21), because bf16 weights lose the small updates. The script casts the weights to bf16 only when it pushes the model.
+The loss goes from 4.2 to 0.09. Train in full precision: loading the weights in bf16 for training leaves the model clearly worse (final loss 0.21), because bf16 weights lose the small updates. The script casts the weights to bf16 only when it pushes the model.
 
 ## 5. GRPO
 
@@ -115,7 +115,7 @@ Every game is one environment session, so the environment must accept 64 at once
 
 ![Reward during GRPO](https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/openenv/wordle-grpo-reward.png)
 
-The reward goes from {{GRPO_REWARD_START}} to {{GRPO_REWARD_END}}. Most of the gain comes from more wins and fewer invalid moves, while the reasoning stays around 500 tokens per game and entropy stays stable.
+The reward goes from about 0.38 to about 0.60. Most of the gain comes from more wins and fewer invalid moves, while the reasoning stays around 500 tokens per game and entropy stays stable.
 
 ## 6. Evaluate and make the GIF
 

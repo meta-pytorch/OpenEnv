@@ -18,6 +18,7 @@ hf jobs uv run --flavor a100-large --timeout 4h --secrets HF_TOKEN grpo.py \
 import argparse
 import re
 
+import torch
 from datasets import Dataset
 from huggingface_hub import get_token
 from textarena_env import TextArenaAction, TextArenaEnv
@@ -165,6 +166,8 @@ def main():
         ),
     )
     trainer.train()
+    # Share the weights in bf16, as the SFT model.
+    trainer.model.to(torch.bfloat16)
     trainer.push_to_hub()
 
 
