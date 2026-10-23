@@ -483,7 +483,10 @@ class TestVerifier:
         }
         with tempfile.TemporaryDirectory() as td:
             initial, final = self._setup_db(td)
-            reward_type, result = run_verifier(verifier_entry, "code", initial, final)
+            # an answer is passed, so the no-change guard does not apply
+            reward_type, result = run_verifier(
+                verifier_entry, "code", initial, final, final_answer="done"
+            )
             assert reward_type == "complete"
 
     def test_run_verifier_code_mode_2arg(self):
@@ -498,7 +501,82 @@ class TestVerifier:
         }
         with tempfile.TemporaryDirectory() as td:
             initial, final = self._setup_db(td)
+            reward_type, result = run_verifier(
+                verifier_entry, "code", initial, final, final_answer="done"
+            )
+            assert reward_type == "complete"
+
+    def test_run_verifier_code_mode_no_db_change_is_not_complete(self):
+        """A pass that was already true at reset should not pay out (#1475).
+
+        This verifier only checks the final db, and the seeded data
+        already has the row, so it says complete on an untouched db.
+        """
+        verifier_entry = {
+            "verification": {
+                "code": (
+                    "def verify_task_completion(initial_db_path, final_db_path, final_answer):\n"
+                    "    import sqlite3\n"
+                    "    conn = sqlite3.connect(final_db_path)\n"
+                    "    count = conn.execute('SELECT COUNT(*) FROM products').fetchone()[0]\n"
+                    "    conn.close()\n"
+                    "    if count >= 1:\n"
+                    "        return {'result': 'complete'}\n"
+                    "    return {'result': 'others'}\n"
+                ),
+            },
+        }
+        with tempfile.TemporaryDirectory() as td:
+            initial, final = self._setup_db(td)
             reward_type, result = run_verifier(verifier_entry, "code", initial, final)
+            assert reward_type == "others"
+            assert result["result"] == "others"
+            assert result["no_db_change"] is True
+
+    def test_run_verifier_code_mode_complete_after_db_change(self):
+        """Same style of verifier, but the agent did change the db."""
+        verifier_entry = {
+            "verification": {
+                "code": (
+                    "def verify_task_completion(initial_db_path, final_db_path, final_answer):\n"
+                    "    import sqlite3\n"
+                    "    conn = sqlite3.connect(final_db_path)\n"
+                    "    count = conn.execute('SELECT COUNT(*) FROM products').fetchone()[0]\n"
+                    "    conn.close()\n"
+                    "    if count > 2:\n"
+                    "        return {'result': 'complete'}\n"
+                    "    return {'result': 'others'}\n"
+                ),
+            },
+        }
+        with tempfile.TemporaryDirectory() as td:
+            initial, final = self._setup_db(td)
+            conn = sqlite3.connect(final)
+            conn.execute(
+                "INSERT INTO products (id, name, price) VALUES (3, 'Item3', 30.0)"
+            )
+            conn.commit()
+            conn.close()
+            reward_type, result = run_verifier(verifier_entry, "code", initial, final)
+            assert reward_type == "complete"
+
+    def test_run_verifier_code_mode_no_change_with_answer_stays_complete(self):
+        """Answer-based tasks do not change the db, so they keep their pass."""
+        verifier_entry = {
+            "verification": {
+                "code": (
+                    "def verify_task_completion(initial_db_path, final_db_path, final_answer):\n"
+                    "    if final_answer == 'Widget':\n"
+                    "        return {'result': 'complete'}\n"
+                    "    return {'result': 'others'}\n"
+                ),
+            },
+        }
+        with tempfile.TemporaryDirectory() as td:
+            initial, final = self._setup_db(td)
+            reward_type, result = run_verifier(
+                verifier_entry, "code", initial, final, final_answer="Widget"
+            )
             assert reward_type == "complete"
 
     def test_run_verifier_no_code(self):
